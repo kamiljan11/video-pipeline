@@ -476,5 +476,179 @@
   "agent|asystent|AI\\b": "bot",
   "dokument|faktur": "file-text",
   "": "hash"
+ },
+ "broll": {
+  "_doc": "b-roll from free stock video (broll.py + stock.py): a concrete thing said in the kept text (topics: regex on ONE lowercased word, first match wins, so put specific stems first) gets dur s of matching footage from that word on. Only formats listed here (long has none: its b-roll is shot by hand). Never in a sentence holding a moment from avoid (the face carries it: RESEARCH rules 1, 10), never under a graphic, not before not_before s (hook title), min_gap s apart, at most max_share of the film, at most per_topic per query. Evidence: RESEARCH.md rule 9 (literal illustration), S12 (~35-50% coverage helps, >60-70% hurts), shorts shots <5 s.",
+  "provider": "pexels",
+  "short": {
+   "dur": 2.5,
+   "lead": 0.0,
+   "min_gap": 5.0,
+   "max_share": 0.35,
+   "not_before": 3.0,
+   "per_topic": 1,
+   "avoid": [
+    "hook",
+    "confession",
+    "cta",
+    "stat",
+    "maxim",
+    "question"
+   ]
+  },
+  "topics": [
+   [
+    "^github|^repozytor",
+    "programmer coding screen"
+   ],
+   [
+    "^aplikac|^apk[aię]",
+    "using smartphone app"
+   ],
+   [
+    "^ekran",
+    "scrolling app on screen"
+   ],
+   [
+    "^telefon|^smartfon|^komórk",
+    "person using smartphone"
+   ],
+   [
+    "^laptop|^komputer|^program(?!ist)",
+    "typing on laptop keyboard"
+   ],
+   [
+    "^programist|^koduj",
+    "programmer coding screen"
+   ],
+   [
+    "^narzędzi|^narzędzie",
+    "software tools on computer screen"
+   ],
+   [
+    "^system",
+    "computer system screen office"
+   ],
+   [
+    "^excel|^arkusz|^tabel",
+    "spreadsheet on computer screen"
+   ],
+   [
+    "^faktur|^dokument|^papier",
+    "office paperwork documents"
+   ],
+   [
+    "^kartk|^notes|^notatk|^zeszyt|^wypisz|^zapisz",
+    "writing list on paper notebook"
+   ],
+   [
+    "^zamówie|^zamówień|^zleceni|^zleceń",
+    "warehouse order packing"
+   ],
+   [
+    "^magazyn",
+    "warehouse shelves"
+   ],
+   [
+    "^warsztat|^mechani",
+    "car mechanic workshop"
+   ],
+   [
+    "^samoch|^aut(o|a|em)$",
+    "car repair garage"
+   ],
+   [
+    "^e-?mail|^mail|^poczt|^skrzynk",
+    "checking email on laptop"
+   ],
+   [
+    "^klient",
+    "customer service desk"
+   ],
+   [
+    "^spotkani|^rozmow|^rozmawia",
+    "business meeting conversation"
+   ],
+   [
+    "^zespo|^zespół|^pracowni|^współpracowni",
+    "office team working together"
+   ],
+   [
+    "^ludzi|^ludzie",
+    "people working in office"
+   ],
+   [
+    "^panel|^dashboard|^raport|^statysty|^wykres",
+    "analytics dashboard screen"
+   ],
+   [
+    "^badani|^badań",
+    "research data analysis"
+   ],
+   [
+    "^dan(e|ych|ymi)$|^baz(a|y|ie|ę)$",
+    "data on computer screen"
+   ],
+   [
+    "^agent|^asystent|^chatbot|^czat|^sztuczn|^ai$",
+    "artificial intelligence technology"
+   ],
+   [
+    "^automatyz|^automat",
+    "automation workflow technology"
+   ],
+   [
+    "^wdroże|^wdraża|^wdroż",
+    "team learning new software"
+   ],
+   [
+    "^pieniąd|^pieniędz|^gotówk|^zarabia|^zarobi|^zysk|^złotów",
+    "counting money cash"
+   ],
+   [
+    "^sklep|^sprzedaż|^sprzedawa|^sprzedaje",
+    "shop checkout sale"
+   ],
+   [
+    "^firm|^przedsiębior",
+    "modern office business"
+   ],
+   [
+    "^urlop",
+    "vacation beach relaxing"
+   ],
+   [
+    "^poniedział",
+    "monday morning office"
+   ],
+   [
+    "^kalendar|^termin",
+    "planning calendar desk"
+   ],
+   [
+    "^szkoleni|^nauczy|^uczy",
+    "team training workshop"
+   ],
+   [
+    "^narzeka|^irytuj|^frustr",
+    "frustrated office worker"
+   ],
+   [
+    "^nudn",
+    "bored office worker routine"
+   ],
+   [
+    "^błęd|^błąd|^pomył",
+    "mistake frustrated at computer"
+   ],
+   [
+    "^godzin",
+    "clock time passing"
+   ],
+   [
+    "^prac(a|y|ę|ą)$",
+    "busy office workplace"
+   ]
+  ]
  }
 }

@@ -112,12 +112,21 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
 for sg in out:
     ov = P.get("seg_zoom", {}).get(f"{sg['in']:.2f}")
     if ov is not None: sg["zoom"] = ov
+BROLL = None
+if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anchor words, never under a graphic
+    from broll import place
+    BROLL = place(P["broll"], W, out, ovs)
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
        **{k: P[k] for k in ("music_db", "sfx_db") if k in P}}
 if BEAT_FX is not None:
     from beatfx import grammar_stamp
     edl["beat_fx"] = BEAT_FX; edl["beat_grammar"] = grammar_stamp()
+if BROLL is not None:
+    edl["broll"], edl["broll_skipped"] = BROLL
+    edl["broll_removed"] = len(P.get("broll_rejected", []))  # ADR-0003 metric (beatfx.py): clips the editor took out
+    for b in BROLL[0]: print("broll", b["id"], b["at"])
+    for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
 if P.get("vertical"):
     edl.update({"vertical": True, "w": 1080, "h": 1920, "subs": P.get("ass_out"), "tail": 0})
 

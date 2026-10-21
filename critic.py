@@ -12,6 +12,7 @@ Checks (thresholds from research, see SKILL.md):
   C8 text integrity (needs --video): re-transcribe and diff vs kept transcript (missing >=2 words = clipped speech)
   C9 claims: every overlay text containing digits/% must be listed in plan["verified_claims"] (quote cards: info if the numbers were said)
   C10 editing grammar (only with plan["beats"], see style/grammar.json): effects without a moment, moments without their graphic
+  C11 stock b-roll (only with plan["broll"], see broll.py): clips that could not be placed
 --fix applies safe automatic fixes to plan.json (adds emphasis zooms in static stretches, extends tail) and reports the rest.
 With plan["beats"] the static-stretch fix forces the strongest detected moment in the stretch instead of a random word."""
 import json
@@ -43,6 +44,7 @@ for s in segs:
         ev += [(acc + ta, "emph") for (ta, za), (tb, zb) in zip(z["keys"], z["keys"][1:]) if zb > za + 0.02 and ta > z["t0"] + 0.01]
     prevz = z["b"] if isinstance(z, dict) else z; acc += s["out"] - s["in"]
 for o in E.get("overlays", []): ev.append((o["at"], "gfx:" + o["id"]))
+for b in E.get("broll", []): ev.append((b["at"], "broll:" + b["id"]))  # cutaway = change of picture
 ev.sort()
 strong = [t for t, k in ev if k != "drift"]
 # C1 (with plan["beats"] the limit is the grammar's rules.<fmt>.max_static, the same number beatfx fills "pace" to)
@@ -147,6 +149,9 @@ if BEATS:
         if r.get("gfx") in ("kw", "list", "chap", "slide", "cta") and r["fx"] not in ("off", "cut") and \
                 not any(o["at"] - 4 <= r["at"] <= o["at"] + o["dur"] + 1 for o in ov):
             add("C10", "info", f"moment {r['type']} @{r['at']:.1f}s „{W[r['word']]['text'].strip()}”: sugerowana grafika {r['gfx']}", at=r["at"], word=r["word"])
+# C11 stock b-roll (plan has "broll"): clips build_edl.py could not place (cut word, under a graphic, missing file)
+for b in E.get("broll_skipped", []):
+    add("C11", "warn", f"b-roll przy słowie {'„' + b['said'] + '”' if b.get('said') else b['word']} pominięty: {b['reason']}", **({"word": b["word"]} if isinstance(b.get("word"), int) else {}))
 skipped = [i for i in issues if (i["code"], i["msg"]) in accepted]
 issues = [i for i in issues if (i["code"], i["msg"]) not in accepted]
 # fixer: add emphasis zoom in long static stretches (pick sentence start nearest the middle)

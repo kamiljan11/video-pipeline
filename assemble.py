@@ -107,6 +107,16 @@ body = sum(sg["out"] - sg["in"] for sg in edl["segments"])
 pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x2de2c4@0.85:t=fill:enable=lt(t\\,{body:.3f})" if edl.get("progress") else "")
 fc.append(f"[0:v]{grade}" + (f",tpad=stop_mode=clone:stop_duration={tail}" if tail else "") + pbar + "[v0]")
 last = "v0"
+# stock b-roll (build_edl "broll"): full-frame cutaway under graphics and captions, picture only (the voice goes on);
+# its inputs come after the graphics and the pip images, so their input numbers stay as they were
+BROLL = edl.get("broll", [])
+i_broll = 1 + len(edl.get("overlays", [])) + (2 if any(o.get("pip") for o in edl.get("overlays", [])) else 0)
+for k, b in enumerate(BROLL):
+    # cut in the filter, not with input -ss/-itsoffset: a seek lets pre-roll frames through (a frozen frame before "at")
+    ss = b.get("ss", 0.0)
+    fc.append(f"[{i_broll + k}:v]trim=start={ss:.3f}:duration={b['dur']:.3f},setpts=PTS-STARTPTS+{b['at']:.3f}/TB,"
+              f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H},setsar=1,fps=30,format=yuv420p[br{k}]")
+    fc.append(f"[{last}][br{k}]overlay=eof_action=pass:format=auto[vb{k}]"); last = f"vb{k}"
 # picture-in-picture: face cam in the corner on top of full-screen slides
 pips = [o for o in edl.get("overlays", []) if o.get("pip")]
 pip_inputs = []
@@ -132,6 +142,9 @@ if pips:
     fc.append("[pf][pm]alphamerge[pip]")
     fc.append(f"[{last}][{i_frame}:v]overlay={pip_x - 40}:{pip_y - 40}:enable={pip_en}:shortest=1[vpf]")
     fc.append(f"[vpf][pip]overlay={pip_x}:{pip_y}:enable={pip_en}:shortest=1[vpp]"); last = "vpp"
+for b in BROLL:
+    # a downloaded file: only the MP4 demuxer and local reads (an HLS playlist named .mp4 could open other files/URLs)
+    inputs += ["-protocol_whitelist", "file", "-f", "mov", "-t", f"{b.get('ss', 0.0) + b['dur']:.3f}", "-i", b["file"]]
 if edl.get("subs"):
     fc.append(f"[{last}]subtitles='{edl['subs']}':force_style='{edl.get('sub_style','')}'[vs]"); last = "vs"
 audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")

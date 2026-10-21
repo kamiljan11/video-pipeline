@@ -1,0 +1,654 @@
+{
+ "version": 1,
+ "_doc": "Editing grammar: which moment in the spoken text gets which effect. Single source of truth (beats.py detects moments, build_edl.py + beatfx.py apply effects, music/make_beds.py places beat SFX, critic.py checks). Edit freely; cues are Python regexes, case-insensitive, matched per sentence. Evidence and thresholds (SRC/HEUR/PROP): RESEARCH.md. sfx: null | pop | whoosh | ding (played at the beat; a punch without sfx is silent).",
+ "detect": {
+  "_doc": "beats.py detection: up to per_sentence moments per sentence, at least min_dist words apart (one per phrase); a run of max_sentence words without . ? ! is split at the next comma; the hook (first sentence) lands on the first content word between hook_earliest and hook_latest s (shorts: visual change inside 1.5 s, RESEARCH); auto graphics keep gfx_min_gap s from other graphics; number cards drop filler words before the caption and mark approximations (około 60 -> ~60)",
+  "min_dist": 6,
+  "per_sentence": 3,
+  "max_sentence": 30,
+  "hook_earliest": 0.5,
+  "hook_latest": 1.5,
+  "gfx_min_gap": 4.0,
+  "filler": [
+   "około",
+   "ponad",
+   "prawie",
+   "nawet",
+   "może",
+   "paru",
+   "parę",
+   "jakieś",
+   "z",
+   "to",
+   "i",
+   "a"
+  ],
+  "approx": {
+   "około": "~",
+   "prawie": "~",
+   "ponad": "+"
+  },
+  "caption_drop_last": [
+   "w",
+   "we",
+   "na",
+   "z",
+   "ze",
+   "do",
+   "o",
+   "po",
+   "od",
+   "za",
+   "dla",
+   "przy",
+   "i",
+   "a",
+   "że",
+   "to",
+   "bo"
+  ]
+ },
+ "beats": {
+  "hook": {
+   "label": "Hak",
+   "priority": 100,
+   "tier": "primary",
+   "intent": "first sentence: promise or tension that keeps the viewer",
+   "cues": []
+  },
+  "list": {
+   "label": "Lista",
+   "priority": 95,
+   "tier": "primary",
+   "intent": "announces a countable structure",
+   "cues": [
+    "\\b(po pierwsze|po drugie|po trzecie|pierwsz[aąey] (rzecz|zasad\\w*)|(dwie|dwa|dwóch|trzy|trzech|cztery|czterech|pięć|pięciu|\\d+) (rzecz\\w*|zasad\\w*|liczb\\w*|krok\\w*|błęd\\w*|sposob\\w*|powod\\w*|pytani\\w*|filar\\w*|etap\\w*))\\b"
+   ]
+  },
+  "stat": {
+   "label": "Liczba",
+   "priority": 90,
+   "tier": "primary",
+   "intent": "hard data: number, percent, money, time",
+   "cues": [
+    "\\d",
+    "\\b(procent\\w*|połow\\w*|milion\\w*|tysi[ąę]c\\w*|miliard\\w*|dwukrotn\\w*|trzykrotn\\w*)\\b"
+   ]
+  },
+  "cta": {
+   "label": "Wezwanie",
+   "priority": 85,
+   "tier": "primary",
+   "intent": "ask: subscribe, comment, link",
+   "cues": [
+    "\\b(subskryb\\w*|zasubskrybuj\\w*|daj(cie)? (znać|łapkę|suba)|link w opisie|kliknij\\w*|napisz(cie)? w komentarz\\w*)\\b"
+   ]
+  },
+  "contrast": {
+   "label": "Zwrot",
+   "priority": 80,
+   "tier": "primary",
+   "intent": "turn against expectation; the viewer's assumption flips",
+   "cues": [
+    "(^|[,;:–-]\\s*)(ale|jednak|natomiast|tymczasem)\\b",
+    "\\b(a jednak|tylko że|wbrew \\w+|a mimo to|nie dlatego|a żadn\\w*|problem w tym|paradoks\\w*)\\b"
+   ]
+  },
+  "maxim": {
+   "label": "Puenta",
+   "priority": 75,
+   "tier": "primary",
+   "intent": "the line worth quoting; conclusion of a thought",
+   "cues": [
+    "\\b(puent\\w*|(to )?(wcale )?nie znaczy|nie chodzi o|chodzi o to|klucz\\w* (jest|to)|najważniejsz\\w*|prawda jest taka|sedno|liczy się|nie ma znaczenia)\\b",
+    "≠"
+   ]
+  },
+  "confession": {
+   "label": "Wyznanie",
+   "priority": 70,
+   "tier": "primary",
+   "intent": "personal admission; builds trust, wants intimacy not hype",
+   "cues": [
+    "\\b(szczerze|przyzna\\w*|sam (byłem|zrobiłem|popełni\\w*|się nabrałem)|mój błąd|wpadk\\w*|pomyli\\w*|myliłem)\\b"
+   ]
+  },
+  "question": {
+   "label": "Pytanie",
+   "priority": 65,
+   "tier": "secondary",
+   "intent": "rhetorical question; opens a loop the next sentence closes",
+   "cues": [
+    "\\S+\\?"
+   ]
+  },
+  "advice": {
+   "label": "Rada",
+   "priority": 60,
+   "tier": "primary",
+   "intent": "direct instruction the viewer can act on",
+   "cues": [
+    "\\b(zostawiam (wam|ci) (radę|rad\\w*)|zachęcam|zapytaj\\w*|zostaw\\w* w spokoju|wypisz\\w*|spróbuj\\w*|zacznij\\w* od|nie rób\\w*|pamiętaj\\w*|polecam|zrób to)\\b"
+   ]
+  },
+  "demo": {
+   "label": "Pokaz",
+   "priority": 58,
+   "tier": "primary",
+   "intent": "describes something visible (app, screen, result); show it instead of talking about it",
+   "cues": [
+    "\\b(pokazuj\\w*|pokaż\\w*|widać|zobacz\\w*|na ekranie|wygląda to tak|tutaj widzi\\w*|wyświetla\\w*)\\b"
+   ]
+  },
+  "section": {
+   "label": "Nowy temat",
+   "priority": 55,
+   "tier": "primary",
+   "intent": "chapter boundary; resets attention",
+   "cues": [
+    "^\\W*(przejdźmy|porozmawiajmy|zacznijmy|a teraz|wróćmy|kolejn\\w* (zasad\\w*|rzecz\\w*|krok\\w*)|druga zasada|trzecia zasada)\\b"
+   ]
+  },
+  "story": {
+   "label": "Historia",
+   "priority": 50,
+   "tier": "secondary",
+   "intent": "anecdote starts; the viewer leans in",
+   "cues": [
+    "\\b(kiedy budowałem|kiedyś|pamiętam|opowiem|historia|miałem (taką|taki|klienta)|klient\\w* (powiedział|zadzwonił|napisał))\\b"
+   ]
+  },
+  "example": {
+   "label": "Przykład",
+   "priority": 45,
+   "tier": "secondary",
+   "intent": "concrete example makes the abstract point tangible",
+   "cues": [
+    "\\b(na przykład|przykład\\w*|weźmy|wyobraźmy sobie)\\b"
+   ]
+  },
+  "relatable": {
+   "label": "Swojskie",
+   "priority": 40,
+   "tier": "secondary",
+   "intent": "shared experience; nod with the viewer",
+   "cues": [
+    "\\b(sami wiecie|no wiesz|wiecie|wyobra[zź]\\w*|każdy z nas|na pewno (znasz|znacie))\\b"
+   ]
+  }
+ },
+ "effects": {
+  "long": {
+   "hook": {
+    "punch": {
+     "amt": 0.15,
+     "speed": 0.3
+    },
+    "gfx": null,
+    "sfx": null,
+    "why": "one strong word of the promise gets the first punch; payoff before context (RESEARCH: hook)"
+   },
+   "list": {
+    "punch": null,
+    "gfx": "list",
+    "why": "structure is shown, not zoomed: animated list with pops per item",
+    "sfx": null
+   },
+   "stat": {
+    "punch": {
+     "amt": 0.18,
+     "speed": 0.25
+    },
+    "gfx": "kw",
+    "sfx": "ding",
+    "why": "number shown literally = proof; ding marks weight; punch only when no box (RESEARCH: stat)"
+   },
+   "contrast": {
+    "punch": {
+     "amt": 0.12,
+     "speed": 0.2
+    },
+    "gfx": null,
+    "sfx": null,
+    "why": "the thought turns: short motivated punch on the turn word, silent (RESEARCH: contrast)"
+   },
+   "maxim": {
+    "punch": {
+     "amt": 0.22,
+     "speed": 0.4
+    },
+    "gfx": "kw",
+    "sfx": null,
+    "why": "the most important line: strongest punch; max one kw quote per film (RESEARCH: maxim)"
+   },
+   "confession": {
+    "punch": null,
+    "gfx": null,
+    "sfx": null,
+    "why": "emotion > everything: no effect, the face carries it (Murch Rule of Six; RESEARCH anti-pattern 4)"
+   },
+   "question": {
+    "punch": {
+     "amt": 0.1,
+     "speed": 0.25
+    },
+    "gfx": null,
+    "sfx": null,
+    "why": "opens a loop; keep the pause after it (RESEARCH: question)"
+   },
+   "advice": {
+    "punch": {
+     "amt": 0.15,
+     "speed": 0.3
+    },
+    "gfx": "kw",
+    "sfx": null,
+    "why": "actionable: verb in a keyword box, demo beats description (RESEARCH: advice)"
+   },
+   "section": {
+    "punch": null,
+    "gfx": "chap",
+    "why": "chapter card + whoosh resets attention",
+    "sfx": null
+   },
+   "story": {
+    "punch": null,
+    "gfx": null,
+    "sfx": null,
+    "why": "anecdote stays on the speaker; optional b-roll of the place (RESEARCH: story)"
+   },
+   "relatable": {
+    "punch": null,
+    "gfx": null,
+    "sfx": null,
+    "why": "connection moment, not a graphic moment (RESEARCH: relatable)"
+   },
+   "cta": {
+    "punch": null,
+    "gfx": "cta",
+    "why": "subscribe button with ding",
+    "sfx": null
+   },
+   "demo": {
+    "punch": {
+     "amt": 0.12,
+     "speed": 0.3
+    },
+    "gfx": "slide",
+    "sfx": null,
+    "why": "what is described is shown: slide/screen with the speaker in PiP"
+   },
+   "example": {
+    "punch": {
+     "amt": 0.1,
+     "speed": 0.3
+    },
+    "gfx": null,
+    "sfx": null,
+    "why": "light punch on the concrete case"
+   },
+   "pace": {
+    "punch": {
+     "amt": 0.1,
+     "speed": 0.6
+    },
+    "gfx": null,
+    "why": "rhythm only: long stretch with no moment; consider cutting it",
+    "sfx": null
+   }
+  },
+  "short": {
+   "hook": {
+    "punch": {
+     "amt": 0.12,
+     "speed": 0.2
+    },
+    "gfx": "hook_text",
+    "broll": null,
+    "sfx": "whoosh",
+    "why": "visual change inside 1.5 s, hook text 5-8 words, whoosh at the start (RESEARCH: hook short)"
+   },
+   "list": {
+    "punch": {
+     "amt": 0.12,
+     "speed": 0.2
+    },
+    "gfx": "kw",
+    "broll": "icons",
+    "why": "count on screen; one icon per item",
+    "sfx": null
+   },
+   "stat": {
+    "punch": {
+     "amt": 0.18,
+     "speed": 0.2
+    },
+    "gfx": "kw",
+    "broll": "number",
+    "sfx": "ding",
+    "why": "number as big text >= 1.5 s + ding; the data point is the b-roll"
+   },
+   "contrast": {
+    "punch": {
+     "amt": 0.15,
+     "speed": 0.15
+    },
+    "gfx": null,
+    "broll": null,
+    "sfx": null,
+    "why": "hard change of framing on 'ale'"
+   },
+   "maxim": {
+    "punch": {
+     "amt": 0.22,
+     "speed": 0.3
+    },
+    "gfx": "kw",
+    "broll": null,
+    "sfx": null,
+    "why": "punch 20-25% on the line to screenshot"
+   },
+   "confession": {
+    "punch": null,
+    "gfx": null,
+    "broll": null,
+    "sfx": null,
+    "why": "no effect on a confession: face + captions"
+   },
+   "question": {
+    "punch": {
+     "amt": 0.1,
+     "speed": 0.2
+    },
+    "gfx": null,
+    "broll": null,
+    "sfx": null,
+    "why": "question opens the loop; short pause before the answer"
+   },
+   "advice": {
+    "punch": {
+     "amt": 0.12,
+     "speed": 0.2
+    },
+    "gfx": "kw",
+    "broll": "screen",
+    "sfx": "pop",
+    "why": "verb in a keyword box, demo screen 2-3 s"
+   },
+   "section": {
+    "punch": {
+     "amt": 0.1,
+     "speed": 0.2
+    },
+    "gfx": null,
+    "broll": null,
+    "why": "no chapter cards in a short; a punch marks the step",
+    "sfx": null
+   },
+   "story": {
+    "punch": null,
+    "gfx": null,
+    "broll": "literal",
+    "sfx": null,
+    "why": "one key image/screen of the story 1-2 s, rest on the face"
+   },
+   "relatable": {
+    "punch": null,
+    "gfx": null,
+    "broll": null,
+    "sfx": null,
+    "why": "mimicry, not graphics"
+   },
+   "cta": {
+    "punch": null,
+    "gfx": null,
+    "broll": null,
+    "why": "shorts: CTA in the caption/pinned comment, not on screen",
+    "sfx": null
+   },
+   "demo": {
+    "punch": {
+     "amt": 0.12,
+     "speed": 0.2
+    },
+    "gfx": null,
+    "broll": "screen",
+    "why": "show the screen/app while it is described",
+    "sfx": null
+   },
+   "example": {
+    "punch": {
+     "amt": 0.1,
+     "speed": 0.2
+    },
+    "gfx": null,
+    "broll": "literal",
+    "why": "show the example literally",
+    "sfx": null
+   },
+   "pace": {
+    "punch": {
+     "amt": 0.08,
+     "speed": 0.5
+    },
+    "gfx": null,
+    "broll": null,
+    "why": "rhythm only: no moment for too long; consider cutting",
+    "sfx": null
+   }
+  }
+ },
+ "rules": {
+  "long": {
+   "min_gap": 10.0,
+   "fill_after": 25.0,
+   "_doc": "primary beats get their punch unless another punch is closer than min_gap s (RESEARCH PROP: 2-3 punches/min long, >= 10 s apart; short: 1 per 5-6 s, >= 4 s); secondary beats only when nothing happened for fill_after s; a stretch still without a visual event for max_static s (critic C1 limit) gets the 'pace' effect on the clause start nearest its middle",
+   "max_static": 40.0
+  },
+  "short": {
+   "min_gap": 4.0,
+   "fill_after": 5.0,
+   "max_static": 7.0
+  },
+  "cut_zoom": "zoom level toggles on a jump cut to hide it (long: only cuts that remove >0.8 s; short: zoom_every_cut). It is a continuity device, not an emphasis effect.",
+  "sfx": "with beats, punches are silent unless their beat has sfx (no whoosh on every punch: SFX fatigue, RESEARCH anti-pattern 3); graphics keep their own sounds (kw/lower pop, list whoosh+pops, chap/slide whoosh, cta ding)"
+ },
+ "auto_gfx": {
+  "_doc": "beats.py --gfx creates these graphics from moments (text = the spoken words, so the card adds no new claim; spec quote:true). long: none, its graphics are designed by hand; the rest stay suggestions (critic C10).",
+  "short": [
+   "stat"
+  ],
+  "long": [],
+  "dur": 2.5
+ },
+ "icons": {
+  "_doc": "first regex (sentence text, case-insensitive) that matches picks the lucide icon of an automatic card",
+  "github|repozytor": "folder-git-2",
+  "aplikac|ekran": "smartphone",
+  "zleceni|zamówie": "clipboard-list",
+  "firm": "building-2",
+  "procent|%": "percent",
+  "godzin|minut|tydzie|tygodni|dzień|dni\\b|miesi": "clock",
+  "zł|złot|pieni|budżet|koszt": "wallet",
+  "ludzi|pracowni|osób|klient": "users",
+  "warszt|samoch": "car",
+  "błęd|błąd": "target",
+  "agent|asystent|AI\\b": "bot",
+  "dokument|faktur": "file-text",
+  "": "hash"
+ },
+ "broll": {
+  "_doc": "b-roll from free stock video (broll.py + stock.py): a concrete thing said in the kept text (topics: regex on ONE lowercased word, first match wins, so put specific stems first) gets dur s of matching footage from that word on. Only formats listed here (long has none: its b-roll is shot by hand). Never in a sentence holding a moment from avoid (the face carries it: RESEARCH rules 1, 10), never under a graphic, not before not_before s (hook title), min_gap s apart, at most max_share of the film, at most per_topic per query. Evidence: RESEARCH.md rule 9 (literal illustration), S12 (~35-50% coverage helps, >60-70% hurts), shorts shots <5 s.",
+  "provider": "pexels",
+  "short": {
+   "dur": 2.5,
+   "lead": 0.0,
+   "min_gap": 5.0,
+   "max_share": 0.35,
+   "not_before": 3.0,
+   "per_topic": 1,
+   "avoid": [
+    "hook",
+    "confession",
+    "cta",
+    "stat",
+    "maxim",
+    "question"
+   ]
+  },
+  "topics": [
+   [
+    "^github|^repozytor",
+    "programmer coding screen"
+   ],
+   [
+    "^aplikac|^apk[aię]",
+    "using smartphone app"
+   ],
+   [
+    "^ekran",
+    "scrolling app on screen"
+   ],
+   [
+    "^telefon|^smartfon|^komórk",
+    "person using smartphone"
+   ],
+   [
+    "^laptop|^komputer|^program(?!ist)",
+    "typing on laptop keyboard"
+   ],
+   [
+    "^programist|^koduj",
+    "programmer coding screen"
+   ],
+   [
+    "^narzędzi|^narzędzie",
+    "software tools on computer screen"
+   ],
+   [
+    "^system",
+    "computer system screen office"
+   ],
+   [
+    "^excel|^arkusz|^tabel",
+    "spreadsheet on computer screen"
+   ],
+   [
+    "^faktur|^dokument|^papier",
+    "office paperwork documents"
+   ],
+   [
+    "^kartk|^notes|^notatk|^zeszyt|^wypisz|^zapisz",
+    "writing list on paper notebook"
+   ],
+   [
+    "^zamówie|^zamówień|^zleceni|^zleceń",
+    "warehouse order packing"
+   ],
+   [
+    "^magazyn",
+    "warehouse shelves"
+   ],
+   [
+    "^warsztat|^mechani",
+    "car mechanic workshop"
+   ],
+   [
+    "^samoch|^aut(o|a|em)$",
+    "car repair garage"
+   ],
+   [
+    "^e-?mail|^mail|^poczt|^skrzynk",
+    "checking email on laptop"
+   ],
+   [
+    "^klient",
+    "customer service desk"
+   ],
+   [
+    "^spotkani|^rozmow|^rozmawia",
+    "business meeting conversation"
+   ],
+   [
+    "^zespo|^zespół|^pracowni|^współpracowni",
+    "office team working together"
+   ],
+   [
+    "^ludzi|^ludzie",
+    "people working in office"
+   ],
+   [
+    "^panel|^dashboard|^raport|^statysty|^wykres",
+    "analytics dashboard screen"
+   ],
+   [
+    "^badani|^badań",
+    "research data analysis"
+   ],
+   [
+    "^dan(e|ych|ymi)$|^baz(a|y|ie|ę)$",
+    "data on computer screen"
+   ],
+   [
+    "^agent|^asystent|^chatbot|^czat|^sztuczn|^ai$",
+    "artificial intelligence technology"
+   ],
+   [
+    "^automatyz|^automat",
+    "automation workflow technology"
+   ],
+   [
+    "^wdroże|^wdraża|^wdroż",
+    "team learning new software"
+   ],
+   [
+    "^pieniąd|^pieniędz|^gotówk|^zarabia|^zarobi|^zysk|^złotów",
+    "counting money cash"
+   ],
+   [
+    "^sklep|^sprzedaż|^sprzedawa|^sprzedaje",
+    "shop checkout sale"
+   ],
+   [
+    "^firm|^przedsiębior",
+    "modern office business"
+   ],
+   [
+    "^urlop",
+    "vacation beach relaxing"
+   ],
+   [
+    "^poniedział",
+    "monday morning office"
+   ],
+   [
+    "^kalendar|^termin",
+    "planning calendar desk"
+   ],
+   [
+    "^szkoleni|^nauczy|^uczy",
+    "team training workshop"
+   ],
+   [
+    "^narzeka|^irytuj|^frustr",
+    "frustrated office worker"
+   ],
+   [
+    "^nudn",
+    "bored office worker routine"
+   ],
+   [
+    "^błęd|^błąd|^pomył",
+    "mistake frustrated at computer"
+   ],
+   [
+    "^godzin",
+    "clock time passing"
+   ],
+   [
+    "^prac(a|y|ę|ą)$",
+    "busy office workplace"
+   ]
+  ]
+ }
+}

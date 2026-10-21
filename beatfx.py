@@ -96,9 +96,40 @@ def _validate(g, path):
             if ok and isinstance(v, (list, dict)):  # words and their replacement marks: strings only
                 ok = all(isinstance(x, str) for x in ([*v, *v.values()] if isinstance(v, dict) else v))
             bad += [f"detect.{k}"] * (not ok)
+    bad += _broll_bad(g.get("broll"), g.get("beats"))
     if bad:
         raise ValueError(f"{path}: brak lub zły klucz: {', '.join(bad)}")
     return g
+
+
+BROLL_KEYS = {"dur": (0.5, 8.0), "lead": (-1.0, 3.0), "min_gap": (0.0, 60.0), "max_share": (0.01, 1.0),
+              "not_before": (0.0, 30.0), "per_topic": (1, 20)}
+
+
+def _broll_bad(br, beats):
+    """Optional section "broll" (broll.py): absent = no stock b-roll in any format."""
+    if br is None:
+        return []
+    if not isinstance(br, dict):
+        return ["broll"]
+    bad = ["broll.provider"] * (not isinstance(br.get("provider"), str))
+    topics = br.get("topics")
+    if not isinstance(topics, list) or not all(isinstance(t, list) and len(t) == 2 and _regex(t[0]) and isinstance(t[1], str)
+                                               and 0 < len(t[1]) <= 100 for t in topics):
+        bad.append("broll.topics")  # [[regex on one word, English stock query], ...]
+    for fmt in ("long", "short"):
+        cfg = br.get(fmt)
+        if cfg is None:
+            continue
+        if not isinstance(cfg, dict):
+            bad.append(f"broll.{fmt}")
+            continue
+        bad += [f"broll.{fmt}.{k}" for k, (lo, hi) in BROLL_KEYS.items()
+                if not (_num(cfg.get(k)) and lo <= cfg[k] <= hi and (k != "per_topic" or isinstance(cfg[k], int)))]
+        avoid = cfg.get("avoid", [])
+        if not isinstance(avoid, list) or not all(isinstance(beats, dict) and isinstance(a, str) and a in beats for a in avoid):
+            bad.append(f"broll.{fmt}.avoid")  # moment types from "beats"
+    return bad
 
 
 def grammar_stamp(path=None):
@@ -328,6 +359,10 @@ if __name__ == "__main__":  # python3 beatfx.py edl_long.json ... -> metric per 
     for p in sys.argv[1:]:
         with open(p, encoding="utf-8") as f:
             edl = json.load(f)
-        if "beat_fx" in edl:  # films without the grammar have nothing to measure
-            print(time.strftime("%Y-%m-%d %H:%M"), os.path.abspath(p),
-                  json.dumps({**stats(edl["beat_fx"]), "grammar": edl.get("beat_grammar")}, ensure_ascii=False))
+        row = {**stats(edl["beat_fx"]), "grammar": edl.get("beat_grammar")} if "beat_fx" in edl else {}
+        if "broll" in edl:  # ADR-0003 metric: stock b-roll share of the film and clips the editor removed
+            body = sum(s["out"] - s["in"] for s in edl["segments"]) or 1.0
+            row.update(broll_clips=len(edl["broll"]), broll_share=round(sum(b["dur"] for b in edl["broll"]) / body, 3),
+                       broll_removed=edl.get("broll_removed", 0))
+        if row:  # films without the grammar or b-roll have nothing to measure
+            print(time.strftime("%Y-%m-%d %H:%M"), os.path.abspath(p), json.dumps(row, ensure_ascii=False))

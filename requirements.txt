@@ -1,0 +1,5 @@
+# .venv of the pipeline (face_track/head_check: OpenCV YuNet; make_beds: numpy; to_otio; transcribe.py)
+opencv-python-headless==5.0.0.93
+numpy==2.5.4
+opentimelineio==0.18.1
+faster-whisper==1.2.1

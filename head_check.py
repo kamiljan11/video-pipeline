@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """head_check.py video.mp4 [edl.json] [step_s]  — C10: is the head fully inside the frame in the FINAL render?
 Samples a frame every step seconds, detects the face (YuNet), grows the box for hair/chin and flags frames where the
-head touches the frame edge (<1.5% margin). Skips times covered by full-screen cards (chap/slide/end) when edl given."""
+head touches the frame edge (<1.5% margin). Skips times covered by full-screen cards (chap/slide/end) and stock b-roll
+when edl given."""
 import json
 import sys
 from pathlib import Path
@@ -14,8 +15,9 @@ skip = []
 if edl:
     specs = {}
     try: specs = {s["id"]: s for s in json.loads(Path(edl["gfx_specs"]).read_text())}
-    except (OSError, ValueError, KeyError): pass  # no specs file: no graphics to skip
+    except (OSError, ValueError, KeyError, TypeError): pass  # no specs file (or gfx_specs null): no graphics to skip
     skip = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", []) if specs.get(o["id"], {}).get("type") in ("chap", "slide", "end")]
+    skip += [(b["at"], b["at"] + b["dur"]) for b in edl.get("broll", [])]  # stock b-roll: full frame, no speaker
 cap = cv2.VideoCapture(v); W = cap.get(3); H = cap.get(4); n = cap.get(7); fps = cap.get(5) or 30; dur = n / fps
 sw, sh = (360, 640) if H > W else (640, 360)
 det = cv2.FaceDetectorYN.create("/home/kamil-jan/video-pipeline/models/face_detection_yunet_2023mar.onnx", "", (sw, sh), 0.6)
