@@ -38,14 +38,16 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 5. `models/face_detection_yunet_2023mar.onnx`: detektor twarzy YuNet z https://github.com/opencv/opencv_zoo
    (`models/face_detection_yunet/`, plik przez Git LFS); sha256 lokalnej kopii zaczyna się od `8f2383e4dd3cfbb4`.
 6. B-roll: sekret `Pexels` w Infisicalu (most `~/infisical`); bez niego reszta pipeline'u działa.
-7. Panel: `panel/` (własne repo bez remote, ta sama kopia dysku; `panel/README.md`).
+7. Panel: `panel/` (własne repo bez remote; `panel/README.md`).
 8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff`, `npm i -g pyright`.
 
 Przed publikacją shorta z b-rollem: linie autorów do opisu filmu (wytyczne API Pexels) = okno „Dobierz b-roll” w panelu albo
 `python3 broll.py plan_<film>.json --credits` w katalogu `work`.
 
 Bramki: pre-commit (ruff, pyright, skan sekretów) działa przez globalne `core.hooksPath=~/.claude/git-hooks` laptopa, nie z repo;
-na innej maszynie uruchamiaj `ruff check . && pyright` ręcznie. Kopia: repo bez remote (ADR-0001), backup = kopia dysku laptopa.
+na innej maszynie uruchamiaj `ruff check . && pyright` ręcznie.
+**Kopia zapasowa: brak poza tym dyskiem** (stan 2026-10-21: repo bez remote, Timeshift wyklucza `/home`, Déjà Dup wyłączony,
+restic `mas-vault-backup` kopiuje tylko vault Obsidiana, Syncthing nie obejmuje `~/video-pipeline`). Do decyzji: ADR-0001.
 
 Testy skryptów: `cd panel && .venv/bin/python -m unittest discover -s tests` (strażnik zgodności: bez nowych kluczy planu
 wynik identyczny jak `panel/tests/pipeline_baseline/*.py.orig`). Lint: `ruff check .`, `pyright` (pre-commit).

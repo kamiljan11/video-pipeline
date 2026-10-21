@@ -124,7 +124,8 @@ if BEAT_FX is not None:
     edl["beat_fx"] = BEAT_FX; edl["beat_grammar"] = grammar_stamp()
 if BROLL is not None:
     edl["broll"], edl["broll_skipped"] = BROLL
-    edl["broll_removed"] = len(P.get("broll_rejected", []))  # ADR-0003 metric (beatfx.py): clips the editor took out
+    rej = P.get("broll_rejected")  # ADR-0003 metric (beatfx.py): clips the editor took out; plans arrive via Syncthing
+    edl["broll_removed"] = sum(isinstance(r, dict) for r in rej) if isinstance(rej, list) else 0
     for b in BROLL[0]: print("broll", b["id"], b["at"])
     for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
 if P.get("vertical"):

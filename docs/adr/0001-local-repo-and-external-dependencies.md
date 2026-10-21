@@ -18,7 +18,7 @@ Profil wag: własny — jedna osoba, lokalne narzędzie, priorytet = nie straci�
 |---|---|---|---|---|
 | Historia i cofanie (40) | 2: tar ręcznie, bez diffu | 5: `git log -p`, revert | 5: jak B | |
 | Ryzyko wycieku (35) | 5: nic nie wychodzi | 5: nic nie wychodzi | 3: transkrypcje i ścieżki w historii poza laptopem | `.gitignore`: render/, node_modules, modele, *.mp4/*.wav/*.mov, panel/ |
-| Kopia poza dyskiem (15) | 2: tar na tym samym dysku | 2: jak A | 5 | ryzyko B: awaria dysku = utrata historii (kopie dysku Kamila) |
+| Kopia poza dyskiem (15) | 2: tar na tym samym dysku | 2: jak A | 5 | ryzyko B: awaria dysku = utrata historii i skryptów (brak kopii, zob. Konsekwencje) |
 | Koszt / konta (10) | 5 | 5 | 4: PAT przez most Infisical | |
 | **Suma** | 3,3 | 4,6 | 4,2 | |
 
@@ -32,7 +32,7 @@ Profil wag: własny — jedna osoba, lokalne narzędzie, priorytet = nie straci�
   b-rollu przerywa się z komunikatem, a film renderuje się z klipami już pobranymi do `render/broll/`.
 
 **Rozważone alternatywy:** A odpada, bo zmiana progu w gramatyce albo skryptu nie miała diffu ani cofnięcia (kryterium 1).
-C odpada na dziś: wyciek transkrypcji/ścieżek do historii poza laptopem nie jest wart kopii zapasowej, którą daje backup dysku;
+C odpada na dziś: wyciek transkrypcji/ścieżek do historii poza laptopem waży więcej niż kopia poza dyskiem (którą da się dodać inaczej, niżej);
 wraca, gdy Kamil będzie chciał pracować na drugim komputerze. Pixabay jako drugi dostawca stocku: pusty slot w `stock.PROVIDERS`
 (potrzebny klucz = konto Kamila).
 
@@ -42,7 +42,10 @@ identyczny: testy zgodności panelu), jedna regresja wyszła później (`head_ch
 sprawdzona ręcznie na renderze, bez testu automatycznego — head_check potrzebuje modelu i wideo). Zależność od Pexels: zmiana API/limitu (200 zapytań/h) psuje tylko dobór nowych klipów.
 
 **Koszt cykliczny:** 0 zł (Pexels bez opłat: 200 zapytań/h, 20 000/mies.; wytyczne API proszą o link do Pexels i autorów =
-linie `credits` do opisu filmu). Ryzyko: brak kopii poza dyskiem (B) — kopia = backup dysku laptopa; inaczej wraca opcja C.
+linie `credits` do opisu filmu). Ryzyko: **brak kopii poza dyskiem** — sprawdzone 2026-10-21: Timeshift wyklucza `/home`, Déjà Dup
+wyłączony, restic (`mas-vault-backup`) obejmuje tylko vault Obsidiana, Syncthing nie obejmuje `~/video-pipeline`. Otwarte (decyzja
+Kamila): dopisać `~/video-pipeline` (bez `render/`, `models/`, `whisper.cpp/`, `.venv/`, `node_modules/`) do istniejącego restic albo
+opcja C (prywatne repo).
 
 **Wykonanie / rollback:** repo istnieje od 652914d; cofnięcie decyzji = usunąć `.git` (pliki zostają). Zależność Pexels
 cofa się usunięciem `broll` z `style/grammar.json` (pipeline bez klucza planu `broll` działa jak wcześniej).

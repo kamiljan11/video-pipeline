@@ -151,7 +151,8 @@ if BEATS:
             add("C10", "info", f"moment {r['type']} @{r['at']:.1f}s „{W[r['word']]['text'].strip()}”: sugerowana grafika {r['gfx']}", at=r["at"], word=r["word"])
 # C11 stock b-roll (plan has "broll"): clips build_edl.py could not place (cut word, under a graphic, missing file)
 for b in E.get("broll_skipped", []):
-    add("C11", "warn", f"b-roll przy słowie {'„' + b['said'] + '”' if b.get('said') else b['word']} pominięty: {b['reason']}", **({"word": b["word"]} if isinstance(b.get("word"), int) else {}))
+    at = f"„{b['said']}”" if b.get("said") else (b["word"] if isinstance(b.get("word"), int) else None)
+    add("C11", "warn", f"b-roll{f' przy słowie {at}' if at is not None else ''} pominięty: {b['reason']}", **({"word": b["word"]} if isinstance(b.get("word"), int) else {}))
 skipped = [i for i in issues if (i["code"], i["msg"]) in accepted]
 issues = [i for i in issues if (i["code"], i["msg"]) not in accepted]
 # fixer: add emphasis zoom in long static stretches (pick sentence start nearest the middle)

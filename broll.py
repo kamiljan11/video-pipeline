@@ -63,18 +63,18 @@ def propose(plan, W, edl, grammar, find=stock.search, fetch=stock.fetch, cache=C
     fmt = "short" if plan.get("vertical") else "long"
     br = grammar.get("broll") or {}
     cfg = br.get(fmt)
-    got = plan.get("broll")  # plans arrive via Syncthing: an item without an int word cannot be placed (place() skips it)
-    old = [b for b in got if isinstance(b, dict) and type(b.get("word")) is int and 0 <= b["word"] < len(W)] if isinstance(got, list) else []
+    got = plan.get("broll")  # plans arrive via Syncthing: only items place() could use stay (panel apply checks them again)
+    old = [b for b in got if _usable(b, len(W))] if isinstance(got, list) else []
     if not cfg:
         return {"broll": old, "new": 0, "skipped": [], "credits": credits(old), "format": fmt, "error": None}
     segs = edl["segments"]
     total = sum(s["out"] - s["in"] for s in segs)
     spans = blocked(plan, W, edl, cfg, grammar)
-    placed = [src2out(segs, W[b["word"]][0]) + (b["lead"] if _num(b.get("lead"), -5, 5) else 0.0) for b in old]
+    placed = [src2out(segs, W[b["word"]][0]) + b.get("lead", 0.0) for b in old]
     got = plan.get("broll_rejected")
     rejected = [r for r in got if isinstance(r, dict)] if isinstance(got, list) else []  # removed by the editor: never again
-    used_ids = {(b.get("provider"), b.get("id")) for b in old + rejected}
-    no_words = {r.get("word") for r in rejected}
+    used_ids = {(b.get("provider"), b.get("id")) for b in old + rejected if _key(b.get("provider")) and _key(b.get("id"))}
+    no_words = {r.get("word") for r in rejected if type(r.get("word")) is int}
     per_q, dead_q = {}, set()  # dead_q: no clip or a failed search/download this run; never asked again (limit 200/h)
     for b in old:
         per_q[b.get("query")] = per_q.get(b.get("query"), 0) + 1
@@ -126,11 +126,25 @@ def _num(x, lo, hi):
     return isinstance(x, (int, float)) and not isinstance(x, bool) and lo <= x <= hi
 
 
+DUR, LEAD = (0.5, 8.0), (-1.0, 3.0)  # one place for the item limits (beatfx.BROLL_KEYS checks the grammar's own)
+
+
+def _key(x):
+    return isinstance(x, (str, int)) and not isinstance(x, bool)
+
+
+def _usable(b, n_words):
+    """A plan item propose() may keep and count: int word in range, numeric dur/lead in limits, plain query/provider/id."""
+    return (isinstance(b, dict) and type(b.get("word")) is int and 0 <= b["word"] < n_words and _num(b.get("dur", 2.5), *DUR)
+            and _num(b.get("lead", 0.0), *LEAD) and isinstance(b.get("query", ""), str)
+            and all(b.get(k) is None or _key(b[k]) for k in ("provider", "id")))
+
+
 def _slot(b, W, segments, total, spans, end, root):
     """(at, dur, real file) of one plan item in output time, or the reason it cannot be placed (Polish, for the UI)."""
     file, dur, lead = b.get("file"), b.get("dur", 2.5), b.get("lead", 0.0)
     real = os.path.realpath(file) if isinstance(file, str) else ""
-    if not _num(dur, 0.5, 8.0) or not _num(lead, -1.0, 3.0):
+    if not _num(dur, *DUR) or not _num(lead, *LEAD):
         return "zły czas b-rollu"
     if os.path.dirname(real) != root or not real.endswith(".mp4") or not os.path.isfile(real):
         return "brak pliku b-rollu w render/broll"
@@ -157,6 +171,9 @@ def place(items, W, segments, overlays, cache=CACHE):
     total = sum(s["out"] - s["in"] for s in segments)
     spans = [(o["at"] - 0.3, o["at"] + o["dur"] + 0.3) for o in overlays]
     out, skipped, end = [], [], -1.0
+    if not isinstance(items, list):  # "broll": null / a number from a hand edit: no b-roll, the film still builds
+        skipped.append({"word": None, "reason": "zły klucz broll w planie (nie lista)"})
+        items = []
     good = [b for b in items if isinstance(b, dict) and isinstance(b.get("word"), int) and not isinstance(b["word"], bool)
             and 0 <= b["word"] < len(W)]
     skipped += [{"word": b.get("word") if isinstance(b, dict) else None, "reason": "zły wpis b-rollu"} for b in items if b not in good]

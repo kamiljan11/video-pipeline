@@ -134,8 +134,11 @@ def fetch(clip: Clip, cache_dir: str) -> str:
         raise StockError(f"klip {clip.id} za duży ({clip.size // 2**20} MB)")
     os.makedirs(cache_dir, exist_ok=True)
     for old in glob.glob(os.path.join(cache_dir, "*.part")):  # left by a killed job (SIGKILL skips finally)
-        if time.time() - os.path.getmtime(old) > 3600:
-            os.remove(old)
+        try:  # the cache is shared: another job may rename or drop its .part right now
+            if time.time() - os.path.getmtime(old) > 3600:
+                os.remove(old)
+        except FileNotFoundError:
+            pass
     tmp = f"{dst}.{os.getpid()}.part"
     end = time.monotonic() + DEADLINE
     try:
