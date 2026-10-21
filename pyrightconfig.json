@@ -1,0 +1,5 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "exclude": ["panel", "render", "node_modules", "whisper.cpp", ".venv"]
+}
