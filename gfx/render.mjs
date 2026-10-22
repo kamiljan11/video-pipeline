@@ -7,7 +7,7 @@ const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const icon = n => n ? fs.readFileSync(`/home/kamil-jan/video-pipeline/node_modules/lucide-static/icons/${n}.svg`, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '';
 const html = sp => {
-  if (sp.type === 'kw') return `<div class="kw ${sp.side||'right'}">${sp.icon?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${esc(sp.text)}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
+  if (sp.type === 'kw') return `<div class="kw ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${esc(sp.text)}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
   if (sp.type === 'lower') return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
   if (sp.type === 'list') return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
   if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div></div>`;

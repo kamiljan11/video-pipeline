@@ -95,3 +95,19 @@ test('render.mjs: a web card renders, is reused while nothing changes, and rende
   assert.equal(render(sp), first);  // unchanged: the .mov is reused
   assert.notEqual(render({ ...sp, src: 'Źródło: inny podpis' }), first);  // a caption edit renders again
 });
+
+test('render.mjs: a compact vertical card stays above the face', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const box = (sp) => {
+    const r = run('render.mjs', [sp]);
+    assert.equal(r.status, 0, r.stderr);
+    const mov = path.join(r.work, 'gfx', `${sp.id}.mov`);
+    const log = spawnSync('ffmpeg', ['-v', 'info', '-sseof', '-0.2', '-i', mov, '-vf', 'alphaextract,cropdetect=limit=0.1:round=2:reset=1',
+      '-f', 'null', '-'], { encoding: 'utf8' }).stderr;
+    const [, h, y] = [...log.matchAll(/crop=\d+:(\d+):\d+:(\d+)/g)].pop().slice(0, 3).map(Number);
+    return y + h;  // lowest painted row
+  };
+  const sp = { type: 'kw', dur: 1, text: 'Pytanie 1', sub: 'Kto użyje tego w poniedziałek o 8?', icon: 'clock', canvas: 'v' };
+  const compact = box({ ...sp, id: 'c1', compact: true });
+  assert.ok(compact < 420, `compact card reaches ${compact} px`);
+  assert.ok(box({ ...sp, id: 'c2' }) > compact + 100);  // the default card is the tall one
+});

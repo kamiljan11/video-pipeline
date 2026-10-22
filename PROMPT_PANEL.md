@@ -6,7 +6,7 @@ KONTEKST (przeczytaj najpierw, nic nie zgaduj):
 - Przykładowy projekt do testów: ~/Videos/Montaz/2026-10-20/work (plan_long.json, plan_short*.json, gfx_specs.json, edl_*.json, 2026-10-20_11-38-18.cw.json, *.sil, gfx/*.mov) i wyniki w ../out.
 - Formaty (sprawdź w kodzie build_edl.py i assemble.py, zanim napiszesz parser):
   - plan_*.json: words, sil, src, keeps [[wStart,wEnd,{t0?,t1?}]], gfx [{id, word|find+near, lead}], emph [{word|find+near, amt, speed, auto?}], drift, zooms, tail, progress, verified_claims, vertical, hook_text, zoom_every_cut, edl_out, out_name, srt_out, ass_out
-  - gfx_specs.json: [{id, type: kw|list|lower|chap|cta|slide|end, text, sub, icon, icons, items, delays, html, src, dur}]
+  - gfx_specs.json: [{id, type: kw|list|lower|chap|cta|slide|end, text, sub, icon, icons, items, delays, html, src, dur, canvas: "v" = 9:16 for shorts, compact: true = small kw above the face (only with canvas "v")}]
   - edl_*.json (generowany, tylko odczyt): segments [{src, in, out, zoom: liczba albo {a,b,t0,t1}, face [x,y], head [x0,y0,x1,y1], zmax, track [[t,cx],...]}], overlays [{file, at, dur, id, pip}], music, sfx, tail, w, h
   - *.cw.json: transcription [{offsets:{from,to} ms, text}]
 
