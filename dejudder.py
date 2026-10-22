@@ -136,11 +136,13 @@ def av_offset(src: str | Path) -> float:
 
 
 def packets(path: Path | str) -> dict[str, int]:
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "packet=codec_type", "-of", "csv=p=0", str(path)],
-                       capture_output=True, text=True, check=True)
+    """Packets per stream type, counted by ffprobe itself (per-packet listing breaks on side data)."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-count_packets", "-show_entries", "stream=codec_type,nb_read_packets",
+                        "-of", "csv=p=0", str(path)], capture_output=True, text=True, check=True)
     out: dict[str, int] = {}
-    for kind in r.stdout.split():
-        out[kind] = out.get(kind, 0) + 1
+    for line in r.stdout.split():
+        kind, n = line.split(",")[:2]
+        out[kind] = out.get(kind, 0) + int(n)
     return out
 
 
@@ -235,7 +237,7 @@ def main(argv: list[str]) -> int:
         return 1
     stats = {"frames": 0, "fixed": 0, "stalls": 0}
     t0 = time.time()
-    error = "interrupted"
+    error = "stopped by an exception (traceback below)"
     try:
         error = encode(src, part, w, h, stats) or verify(part, src_packets)
     finally:

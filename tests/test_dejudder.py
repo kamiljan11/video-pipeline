@@ -156,7 +156,10 @@ class MainTest(unittest.TestCase):
     @unittest.skipUnless(os.path.exists(dejudder.RENDER_NODE), "no VAAPI device")
     def test_output_keeps_frames_time_and_sound(self):
         src, out = self.tmp / "take.mp4", self.tmp / "fixed.mp4"
-        clip(src, 2)
+        clip(self.tmp / "plain.mp4", 2)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-itsoffset", "0.033", "-i", str(self.tmp / "plain.mp4"),
+                        "-i", str(self.tmp / "plain.mp4"), "-map", "0:v", "-map", "1:a", "-c", "copy", str(src)], check=True)
+        self.assertGreater(dejudder.av_offset(src), 0.02)  # video later than sound, like the recorder's takes
         rc, err = run_main([str(src), str(out)])
         self.assertEqual(rc, 0, err)
 
