@@ -1,0 +1,56 @@
+// node --test gfx/test/*.test.mjs   (webshot.mjs / render.mjs as the render runs them; no network: every spec here is
+// refused before a connection, or is an own screenshot)
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'fs'; import os from 'os'; import path from 'path';
+import { spawnSync, execFileSync } from 'child_process';
+import { keyOf } from '../webshot_lib.mjs';
+
+const GFX = path.resolve(import.meta.dirname, '..');
+const made = [];
+test.after(() => { for (const d of made) fs.rmSync(d, { recursive: true, force: true }); });
+const run = (script, specs, files = {}) => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'webshot-')); made.push(work);
+  for (const [f, make] of Object.entries(files)) make(path.join(work, f));
+  const specFile = path.join(work, 'gfx_specs.json'); fs.writeFileSync(specFile, JSON.stringify(specs));
+  const out = path.join(work, 'gfx');
+  const r = spawnSync('node', [path.join(GFX, script), specFile, out], { encoding: 'utf8', timeout: 60000 });
+  const web = fs.existsSync(path.join(out, 'web')) ? fs.readdirSync(path.join(out, 'web')) : [];
+  return { ...r, work, specFile, web };
+};
+const png = (f) => execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=white:s=320x200', '-frames:v', '1', f]);
+
+test('a refused card fails loudly and leaves no half capture', () => {
+  const bad = [
+    [{ id: 'w1', type: 'web', dur: 6, url: 'http://example.com/', find: 'zdanie ze strony' }, /tylko https/],
+    [{ id: 'w2', type: 'web', dur: 6, url: 'https://localhost./', find: 'zdanie ze strony' }, /lokalny\/prywatny/],
+    [{ id: 'w3', type: 'web', dur: 6, url: 'https://[::ffff:127.0.0.1]:8790/', find: 'zdanie ze strony' }, /lokalny\/prywatny/],
+    [{ id: 'w4', type: 'web', dur: 6, img: '../poza.png' }, /spoza katalogu|ENOENT/],
+    [{ id: 'w5', type: 'web', dur: 6, url: 'https://example.com/', find: 'zdanie ze strony', canvas: 'v' }, /16:9/],
+    [{ id: 'w6', type: 'web', dur: 6, url: 'https://example.com/' }, /brak "find"/],
+  ];
+  for (const [sp, why] of bad) {
+    const r = run('webshot.mjs', [sp]);
+    assert.equal(r.status, 1, sp.id);
+    assert.match(r.stderr, new RegExp(`FAILED webshot ${sp.id} `), sp.id);
+    assert.match(r.stderr, why, sp.id);
+    assert.deepEqual(r.web, [], sp.id);
+  }
+});
+
+test('an own screenshot is the capture, with its box as the mark', () => {
+  const sp = { id: 'w7', type: 'web', dur: 6, img: 'zrzut.png', box: [10, 20, 100, 30], url: 'https://example.com/raport', title: 'Raport' };
+  const r = run('webshot.mjs', [sp], { 'zrzut.png': png });
+  assert.equal(r.status, 0, r.stderr);
+  const key = keyOf(r.specFile, sp);
+  assert.deepEqual(r.web.sort(), [`${key}.json`, `${key}.png`]);
+  const meta = JSON.parse(fs.readFileSync(path.join(r.work, 'gfx', 'web', `${key}.json`), 'utf8'));
+  assert.deepEqual([meta.kind, meta.width, meta.height, meta.rects, meta.host, meta.title], ['img', 320, 200, [[10, 20, 100, 30]], 'example.com', 'Raport']);
+});
+
+test('render.mjs stops before any graphic when a capture fails', () => {
+  const r = run('render.mjs', [{ id: 'k1', type: 'kw', dur: 2, text: 'x' }, { id: 'w8', type: 'web', dur: 6, url: 'http://example.com/', find: 'zdanie ze strony' }]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /FAILED webshot w8 /); assert.match(r.stderr, /FAILED gfx: page capture/);
+  assert.equal(fs.existsSync(path.join(r.work, 'gfx', 'k1.mov')), false);
+});

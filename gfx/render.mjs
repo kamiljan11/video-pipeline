@@ -1,7 +1,7 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import fs from 'fs'; import { execFileSync } from 'child_process';
-import { cacheKey, motion } from './webshot_lib.mjs';
+import { keyOf, motion } from './webshot_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -19,7 +19,7 @@ const html = sp => {
 // "web": the cited page in a browser window (capture: webshot.mjs), scrolled to the quote, which is then marked
 const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right
 function web(sp) {
-  const base = `${outDir}/web/${cacheKey(sp)}`;
+  const base = `${outDir}/web/${keyOf(specFile, sp)}`;
   if (!fs.existsSync(`${base}.json`)) throw new Error(`no capture for "${sp.id}": run gfx/webshot.mjs first`);
   const m = JSON.parse(fs.readFileSync(`${base}.json`, 'utf8')), s = WIN.w / m.width;
   const shown = { height: m.height * s, rects: m.rects.map(([x, y, w, h]) => [x * s, y * s, w * s, h * s]) };
@@ -38,13 +38,16 @@ function web(sp) {
 }
 // "web" cards need their capture first (network): webshot.mjs skips the ones already captured, fails loudly otherwise
 if (specs.some(s => s.type === 'web')) {
-  try { execFileSync('node', [new URL('./webshot.mjs', import.meta.url).pathname, specFile, outDir], { stdio: 'inherit' }); }
+  const limit = (specs.filter(s => s.type === 'web').length * 150 + 60) * 1000;  // webshot stops itself first (150 s a card)
+  try { execFileSync('node', [new URL('./webshot.mjs', import.meta.url).pathname, specFile, outDir], { stdio: 'inherit', timeout: limit, killSignal: 'SIGKILL' }); }
   catch { console.error('FAILED gfx: page capture for "web" cards (lines FAILED webshot above)'); process.exit(1); }
 }
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--disable-gpu'] });
 fs.mkdirSync(outDir, { recursive: true });
 async function one(sp) {
-  const out = `${outDir}/${sp.id}.mov`; if (fs.existsSync(out)) return;
+  // a "web" card's .mov belongs to one capture: another url/find/img gives another key, so the card is rendered again
+  const out = `${outDir}/${sp.id}.mov`, key = sp.type === 'web' ? keyOf(specFile, sp) : null, stamp = `${out}.key`;
+  if (fs.existsSync(out) && (!key || (fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';
   const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });
@@ -66,6 +69,7 @@ async function one(sp) {
   await page.close();
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
   fs.rmSync(dir, { recursive: true });
+  if (key) fs.writeFileSync(stamp, key);
   console.log('gfx', sp.id);
 }
 const q = [...specs]; await Promise.all([0,1,2,3,4,5].map(async () => { while (q.length) await one(q.shift()); }));

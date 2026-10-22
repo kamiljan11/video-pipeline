@@ -1,14 +1,24 @@
 // node --test gfx/test/*.test.mjs   (pure helpers of the "web" card; the browser part is checked by hand, see README)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkUrl, allowedRequest, findQuote, lines, motion, pdfWords, cacheKey } from '../webshot_lib.mjs';
+import { checkUrl, allowedRequest, privateIp, findQuote, lines, motion, pdfWords, cacheKey } from '../webshot_lib.mjs';
 
 test('only public https pages are captured', () => {
   assert.equal(checkUrl('https://en.wikipedia.org/wiki/Teleprompter').hostname, 'en.wikipedia.org');
   for (const bad of ['http://example.com/', 'file:///home/kamil-jan/.ssh/id_rsa', 'https://localhost/', 'https://127.0.0.1:8790/',
     'https://10.0.0.1/', 'https://192.168.1.1/', 'https://172.20.0.5/', 'https://169.254.169.254/latest', 'https://[::1]/',
-    'https://[fd00::1]/', 'https://router/', 'https://nas.local/', 'https://100.69.5.35/', 'javascript:alert(1)', 'nie adres']) {
+    'https://[fd00::1]/', 'https://router/', 'https://nas.local/', 'https://100.69.5.35/', 'javascript:alert(1)', 'nie adres',
+    'https://localhost./', 'https://nas.local./', 'https://metadata.google.internal./', 'https://router./', 'https://2130706433/',
+    'https://0x7f.1/', 'https://[::ffff:127.0.0.1]/', 'https://[64:ff9b::7f00:1]/', 'https://[2002:7f00:1::]/', 'https://[::]/']) {
     assert.throws(() => checkUrl(bad), Error, bad);
+  }
+});
+
+test('addresses: only the public internet passes (a name is checked again after DNS, see netguard)', () => {
+  for (const ip of ['8.8.8.8', '151.101.1.69', '2a00:1450:400f:80c::200e']) assert.equal(privateIp(ip), false, ip);
+  for (const ip of ['127.0.0.1', '127.0.0.2', '10.1.2.3', '100.97.141.19', '192.168.0.1', '172.31.255.255', '169.254.169.254', '0.0.0.0',
+    '224.0.0.1', '::1', '::', '::ffff:10.0.0.1', '64:ff9b::a00:1', '2002:c0a8:101::', '2001:0:4136:e378::', 'fe80::1', 'fd12::1', 'nie-ip']) {
+    assert.equal(privateIp(ip), true, ip);
   }
 });
 
@@ -55,4 +65,7 @@ test('cache key changes with what is captured, not with timing', () => {
   const a = { id: 'w1', type: 'web', dur: 6, url: 'https://a.pl/', find: 'zdanie testowe' };
   assert.equal(cacheKey(a), cacheKey({ ...a, id: 'w2', dur: 9, src: 'inny podpis' }));
   assert.notEqual(cacheKey(a), cacheKey({ ...a, find: 'inne zdanie testowe' }));
+  const own = { id: 'w3', type: 'web', dur: 6, img: 'zrzut.png' };
+  for (const b of [{ ...own, box: [1, 2, 3, 4] }, { ...own, title: 'Raport' }]) assert.notEqual(cacheKey(own), cacheKey(b));
+  assert.notEqual(cacheKey(own, 'aaa'), cacheKey(own, 'bbb'));  // a new file under the same name
 });

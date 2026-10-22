@@ -51,12 +51,13 @@ restic `mas-vault-backup` kopiuje tylko vault Obsidiana, Syncthing nie obejmuje 
 
 Testy skryptów: `cd panel && .venv/bin/python -m unittest discover -s tests` (strażnik zgodności: bez nowych kluczy planu
 wynik identyczny jak `panel/tests/pipeline_baseline/*.py.orig`). Lint: `ruff check .`, `pyright` (pre-commit).
-Testy kart `web` (JS): `npm test`.
+Testy kart `web` (JS, bez internetu): `npm test`; uruchamia je też zestaw panelu (`panel/tests/test_gfx_node.py`).
 
 Dodanie dostawcy stocku: funkcja wyszukiwania w `stock.PROVIDERS` + host plików w `stock.HOSTS` + klucz w Infisicalu
 (most `~/infisical/infisical_bridge.py run --secrets <NAZWA> --`), potem `"provider"` w `style/grammar.json › broll`.
 
 ## Karta źródła `web` (strona albo PDF, o którym mówisz)
+Dlaczego zrzut z animacją, a nie nagranie ekranu: `panel/docs/adr/0004-web-source-card.md`.
 Gdy w nagraniu przytaczasz badanie, artykuł albo stronę, pokaż ją: karta = okno przeglądarki ze stroną, przewija się do
 cytowanego zdania i zaznacza je markerem; twarz w rogu (jak `slide`), pod spodem „Źródło: domena · tytuł · stan na <data zrzutu>”.
 Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w_mit", "word": 512}]`):
@@ -66,10 +67,14 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
 - PDF: ten sam wpis (adres PDF); opcjonalnie `"page": 3`, gdy zdanie występuje na kilku stronach. Podpis własny: `"src"`.
 - Strona blokuje roboty (captcha, logowanie, paywall): zrób zrzut sam, połóż w katalogu `work` projektu i daj
   `{"id": …, "type": "web", "dur": 7, "img": "zrzut.png", "box": [x, y, szer, wys], "url": "…", "title": "…"}` (`box` w pikselach zrzutu).
-  Blokad nie obchodzimy.
-- Zrzut robi `gfx/webshot.mjs` (woła go `gfx/render.mjs` sam): Chrome 1200 px szerokości, tylko `https://` do publicznych
-  adresów (żadnych `localhost`/sieci domowej/`file://`), banery cookies są ukrywane, nigdy klikane. Zrzut jest robiony raz:
-  `work/gfx/web/<klucz>.png/.json`; żeby zrobić go od nowa, usuń te dwa pliki i `.mov` karty.
-- Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny) = `FAILED webshot <id>: powód` w `gfx.log` i film się nie renderuje
-  (`FAILED gfx`). Karta jest tylko do filmu 16:9 (shorty: później).
+  Blokad nie obchodzimy. W panelu: pole „własny zrzut” w edytorze grafiki (`box` tylko w pliku).
+- Zrzut robi `gfx/webshot.mjs` (woła go `gfx/render.mjs` sam): Chrome 1200 px szerokości, tylko `https://` i tylko publiczne
+  adresy: każde połączenie (też przekierowania, skrypty i obrazki strony) jest sprawdzane PO rozwiązaniu nazwy przez
+  `gfx/netguard.mjs` (Chrome idzie przez jego lokalny proxy), więc nazwa wskazująca na `127.0.0.1`, sieć domową albo Tailscale
+  (np. `127.0.0.1.nip.io`) jest odrzucana; `file://` też. Banery cookies są ukrywane, nigdy klikane. Zrzut jest robiony raz:
+  `work/gfx/web/<klucz>.png/.json` (klucz = `url`, `find`, `page`, `img` z treścią pliku, `box`, `title`); zmiana któregoś
+  z nich = nowy zrzut i nowy `.mov` karty. Ten sam adres od nowa (strona się zmieniła): usuń te dwa pliki.
+- Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny, > 150 s na kartę) = `FAILED webshot <id>: powód` w `gfx.log`
+  (render z `run_v4.sh`) albo w wyniku zadania w panelu (podgląd), i film się nie renderuje (`FAILED gfx`). Nieudany zrzut nie
+  zostaje w pamięci: po poprawce wystarczy uruchomić ponownie. Karta jest tylko do filmu 16:9 (shorty: później).
 - Prawo cytatu: krótki fragment z podanym źródłem; nie pokazuj całych artykułów zza paywalla.
