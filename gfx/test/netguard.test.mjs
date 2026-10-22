@@ -31,7 +31,7 @@ test("this computer's own addresses and networks are refused even when public (a
   assert.equal(blockedIp('8.8.8.8'), false);
   const real = os.networkInterfaces;
   os.networkInterfaces = () => ({ eth0: [{ address: '203.0.113.5' }, { address: '2001:4860::5' }, { address: 'fe80::1%eth0' },
-    { address: '2a01:db8:1:2::5', cidr: '2a01:db8:1:2::5/64' }] });
+    { address: '2a01:db8:1:2::5', cidr: '2a01:db8:1:2::5/64' }], wlan0: [{ address: '2a01:db8:9:9::abcd', cidr: '2a01:db8:9:9::abcd/128' }] });
   try {  // the same address in any spelling (a page can write it as a URL literal)
     for (const ip of ['203.0.113.5', '::ffff:203.0.113.5', '::ffff:cb00:7105', '2001:4860::5', '2001:4860:0:0:0:0:0:5']) assert.equal(blockedIp(ip), true, ip);
     assert.equal(blockedIp('203.0.113.6'), false);
@@ -40,6 +40,7 @@ test("this computer's own addresses and networks are refused even when public (a
     assert.equal(blockedIp('2a01:db8:1:2::1'), true);
     assert.ok(!allowedRequest('http://[2a01:db8:1:2::1]/'));
     assert.equal(blockedIp('2a01:db8:1:3::1'), false);
+    assert.equal(blockedIp('2a01:db8:9:9::1'), true);  // DHCPv6 address (/128): its /64 neighbours too
   } finally { os.networkInterfaces = real; }
 });
 

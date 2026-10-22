@@ -47,7 +47,10 @@ export function blockedIp(ip) {
     const addr = a?.address?.replace(/%.*$/, ''), v = net.isIP(addr), bits = Number(String(a?.cidr).split('/')[1]);
     if (!v) continue;
     const type = v === 4 ? 'ipv4' : 'ipv6';
-    if (Number.isInteger(bits) && bits > 0) own.addSubnet(addr, bits, type); else own.addAddress(addr, type);
+    // a public IPv6 address from DHCPv6 shows as /128 (the prefix comes as a route): its /64 is still the LAN. Public only:
+    // ::1/64 would cover ::ffff:0:0/96, which BlockList matches against every IPv4 address
+    const n = v === 6 && !privateIp(addr) ? Math.min(Number.isInteger(bits) && bits > 0 ? bits : 128, 64) : bits;
+    if (Number.isInteger(n) && n > 0) own.addSubnet(addr, n, type); else own.addAddress(addr, type);
   }
   return own.check(ip, net.isIP(ip) === 4 ? 'ipv4' : 'ipv6');
 }

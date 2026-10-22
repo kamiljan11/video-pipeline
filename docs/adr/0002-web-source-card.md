@@ -27,7 +27,9 @@ rysuje kartę: okno przeglądarki, przewinięcie do zdania (40 % wysokości okna
 Twarz w rogu jak w `slide` (`gfx_types.PIP`). Sieć: tylko publiczne adresy sprawdzane PO DNS dla każdego połączenia
 (`gfx/netguard.mjs`: własne zapytania z kontrolą adresu, Chrome przez lokalny proxy z tą samą kontrolą), bo sama nazwa nic
 nie dowodzi (`127.0.0.1.nip.io`, nazwy Tailscale, przekierowanie, DNS rebinding — recenzja security 2026-10-22); odrzucane są też
-własne adresy laptopa i całe jego sieci (prefiks interfejsu: przy publicznym IPv6 router/NAS mają publiczne adresy). Chrome ze stroną z internetu działa w piaskownicy (`chromiumSandbox`, bez `--no-sandbox`). Wyjście awaryjne: własny zrzut `img` (+ `box`), gdy strona blokuje roboty —
+własne adresy laptopa i całe jego sieci (prefiks interfejsu, IPv6 co najmniej /64: przy publicznym IPv6 router/NAS mają
+publiczne adresy). Koszt: strona z tej samej podsieci co laptop (rzadkie: hotel/uczelnia z publiczną pulą) jest odrzucana —
+wtedy własny zrzut `img`. Chrome ze stroną z internetu działa w piaskownicy (`chromiumSandbox`, bez `--no-sandbox`). Wyjście awaryjne: własny zrzut `img` (+ `box`), gdy strona blokuje roboty —
 blokad nie obchodzimy (żadnego udawania przeglądarki). Banery cookies ukrywane CSS-em, nigdy klikane (żadnej zgody w imieniu Kamila).
 
 **Konsekwencje:** pierwsza sieć w renderze grafik (tylko gdy jest karta `web` bez zrzutu). Brak zdania / HTTP 4xx = film
@@ -46,7 +48,7 @@ Ryzyka bez kosztu: strona się zmieni albo zniknie (zrzut zostaje z datą „sta
 
 **Metryka:** filmy z przytoczonym źródłem mają kartę `web` przy pierwszym przytoczeniu; liczba ręcznych zrzutów `img`
 (jeśli > połowa kart, wrócić do opcji C albo dodać obsługę logowania przez Kamila). Liczenie z zapisanych zrzutów (log
-pokazuje tylko nowe): `jq -r .kind <katalog roboczy filmu>/gfx/web/*.json | sort | uniq -c` (`img` = ręczne, `page`/`pdf` = automat).
+pokazuje tylko nowe): `jq -r .kind work/gfx/web/*.json | sort | uniq -c` (`work` = katalog roboczy filmu, jak wyżej) (`img` = ręczne, `page`/`pdf` = automat).
 
 **Wykonanie / rollback:** `gfx/webshot.mjs`, `gfx/webshot_lib.mjs`, `gfx/netguard.mjs` (+ `npm test`), `gfx/render.mjs` (typ `web`),
 `gfx_types.py`; panel: typ `web` w edytorze grafik (`panel/montazownia/planops.py` `_web_fields`, `panel/ui/app.js`). Rollback = usunąć karty `web` ze specu.
