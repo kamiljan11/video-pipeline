@@ -1,6 +1,6 @@
 # video-pipeline
 
-Skrypty montażu nagrań (talking head -> long 16:9 + shorty 9:16). Lokalne repo gita bez remote (ADR: `docs/adr/0001-*`).
+Skrypty montażu nagrań (talking head -> long 16:9 + shorty 9:16). Lokalne repo gita bez remote (ADR: `docs/adr/0001-*`, karta `web`: `docs/adr/0002-*`).
 
 | Krok | Skrypt | Uruchamia |
 |---|---|---|
@@ -57,7 +57,7 @@ Dodanie dostawcy stocku: funkcja wyszukiwania w `stock.PROVIDERS` + host plików
 (most `~/infisical/infisical_bridge.py run --secrets <NAZWA> --`), potem `"provider"` w `style/grammar.json › broll`.
 
 ## Karta źródła `web` (strona albo PDF, o którym mówisz)
-Dlaczego zrzut z animacją, a nie nagranie ekranu: `panel/docs/adr/0004-web-source-card.md`.
+Dlaczego zrzut z animacją, a nie nagranie ekranu, i jak chroniona jest sieć: `docs/adr/0002-web-source-card.md`.
 Gdy w nagraniu przytaczasz badanie, artykuł albo stronę, pokaż ją: karta = okno przeglądarki ze stroną, przewija się do
 cytowanego zdania i zaznacza je markerem; twarz w rogu (jak `slide`), pod spodem „Źródło: domena · tytuł · stan na <data zrzutu>”.
 Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w_mit", "word": 512}]`):
@@ -71,7 +71,7 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
 - Zrzut robi `gfx/webshot.mjs` (woła go `gfx/render.mjs` sam): Chrome 1200 px szerokości, tylko `https://` i tylko publiczne
   adresy: każde połączenie (też przekierowania, skrypty i obrazki strony) jest sprawdzane PO rozwiązaniu nazwy przez
   `gfx/netguard.mjs` (Chrome idzie przez jego lokalny proxy), więc nazwa wskazująca na `127.0.0.1`, sieć domową albo Tailscale
-  (np. `127.0.0.1.nip.io`) jest odrzucana; `file://` też. Banery cookies są ukrywane, nigdy klikane. Zrzut jest robiony raz:
+  (np. `127.0.0.1.nip.io`) jest odrzucana; `file://` też. Chrome ze stroną działa w piaskownicy. `img` = sama nazwa pliku. Banery cookies są ukrywane, nigdy klikane. Zrzut jest robiony raz:
   `work/gfx/web/<klucz>.png/.json` (klucz = `url`, `find`, `page`, `img` z treścią pliku, `box`, `title`); zmiana któregoś
   z nich = nowy zrzut i nowy `.mov` karty. Ten sam adres od nowa (strona się zmieniła): usuń te dwa pliki.
 - Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny, > 150 s na kartę) = `FAILED webshot <id>: powód` w `gfx.log`

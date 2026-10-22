@@ -1,6 +1,6 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
-import fs from 'fs'; import { execFileSync } from 'child_process';
+import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from 'child_process';
 import { keyOf, motion } from './webshot_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
@@ -36,17 +36,23 @@ function web(sp) {
     + `<div class="view" style="height:${WIN.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${WIN.w}px">${marks}</div></div></div>`
     + `<div class="src">${esc(src)} · stan na ${day}</div></div>`;
 }
+function webStamp(sp) {
+  const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
+  const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
+  return crypto.createHash('sha1').update(JSON.stringify([sp, keyOf(specFile, sp), captured])).digest('hex');
+}
 // "web" cards need their capture first (network): webshot.mjs skips the ones already captured, fails loudly otherwise
 if (specs.some(s => s.type === 'web')) {
   const limit = (specs.filter(s => s.type === 'web').length * 150 + 60) * 1000;  // webshot stops itself first (150 s a card)
   try { execFileSync('node', [new URL('./webshot.mjs', import.meta.url).pathname, specFile, outDir], { stdio: 'inherit', timeout: limit, killSignal: 'SIGKILL' }); }
   catch { console.error('FAILED gfx: page capture for "web" cards (lines FAILED webshot above)'); process.exit(1); }
 }
-const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--disable-gpu'] });
+const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
 fs.mkdirSync(outDir, { recursive: true });
 async function one(sp) {
-  // a "web" card's .mov belongs to one capture: another url/find/img gives another key, so the card is rendered again
-  const out = `${outDir}/${sp.id}.mov`, key = sp.type === 'web' ? keyOf(specFile, sp) : null, stamp = `${out}.key`;
+  // a "web" card's .mov belongs to its spec and to one capture (a new capture of the same page included): either changes
+  // -> rendered again. Other types keep the old rule (the panel moves a changed graphic's .mov aside).
+  const out = `${outDir}/${sp.id}.mov`, key = sp.type === 'web' ? webStamp(sp) : null, stamp = `${out}.key`;
   if (fs.existsSync(out) && (!key || (fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';

@@ -25,7 +25,7 @@ test('a refused card fails loudly and leaves no half capture', () => {
     [{ id: 'w1', type: 'web', dur: 6, url: 'http://example.com/', find: 'zdanie ze strony' }, /tylko https/],
     [{ id: 'w2', type: 'web', dur: 6, url: 'https://localhost./', find: 'zdanie ze strony' }, /lokalny\/prywatny/],
     [{ id: 'w3', type: 'web', dur: 6, url: 'https://[::ffff:127.0.0.1]:8790/', find: 'zdanie ze strony' }, /lokalny\/prywatny/],
-    [{ id: 'w4', type: 'web', dur: 6, img: '../poza.png' }, /spoza katalogu|ENOENT/],
+    [{ id: 'w4', type: 'web', dur: 6, img: '../poza.png' }, /sama nazwa pliku/],
     [{ id: 'w5', type: 'web', dur: 6, url: 'https://example.com/', find: 'zdanie ze strony', canvas: 'v' }, /16:9/],
     [{ id: 'w6', type: 'web', dur: 6, url: 'https://example.com/' }, /brak "find"/],
   ];
@@ -53,4 +53,22 @@ test('render.mjs stops before any graphic when a capture fails', () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /FAILED webshot w8 /); assert.match(r.stderr, /FAILED gfx: page capture/);
   assert.equal(fs.existsSync(path.join(r.work, 'gfx', 'k1.mov')), false);
+});
+
+test('render.mjs: a web card renders, is reused while nothing changes, and renders again after an edit', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'webshot-render-')); made.push(work);
+  png(path.join(work, 'zrzut.png'));
+  const specFile = path.join(work, 'gfx_specs.json'), out = path.join(work, 'gfx'), mov = path.join(out, 'w9.mov');
+  const render = (sp) => {
+    fs.writeFileSync(specFile, JSON.stringify([sp]));
+    const r = spawnSync('node', [path.join(GFX, 'render.mjs'), specFile, out], { encoding: 'utf8', timeout: 120000 });
+    assert.equal(r.status, 0, r.stderr);
+    return fs.statSync(mov).mtimeMs;
+  };
+  const sp = { id: 'w9', type: 'web', dur: 2.7, img: 'zrzut.png', box: [10, 20, 100, 30], url: 'https://example.com/r' };
+  const first = render(sp);
+  const dur = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', mov], { encoding: 'utf8' }));
+  assert.ok(Math.abs(dur - 2.7) < 0.05, String(dur));
+  assert.equal(render(sp), first);  // unchanged: the .mov is reused
+  assert.notEqual(render({ ...sp, src: 'Źródło: inny podpis' }), first);  // a caption edit renders again
 });

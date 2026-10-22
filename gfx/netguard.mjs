@@ -3,13 +3,17 @@
 // address is checked after DNS and the socket connects to exactly that checked address (no second lookup).
 // Node's own requests use guardedLookup; Chrome is sent through startGuardProxy (Playwright also routes loopback
 // through a proxy: "<-loopback>"), so redirects, scripts, frames and service workers are covered too.
-import dns from 'dns'; import http from 'http'; import net from 'net';
+import dns from 'dns'; import http from 'http'; import net from 'net'; import os from 'os';
 import { privateIp } from './webshot_lib.mjs';
+
+// private ranges plus this computer's own addresses (a public IPv6 of the laptop reaches its local services too)
+export const blockedIp = (ip) => privateIp(ip)
+  || Object.values(os.networkInterfaces()).flat().some(a => a && a.address.toLowerCase() === ip.toLowerCase().replace(/%.*$/, ''));
 
 const refuse = (host, ip) => Object.assign(new Error(`adres lokalny/prywatny: ${host}${ip && ip !== host ? ` -> ${ip}` : ''}`), { code: 'EPRIVATE' });
 
 // a dns.lookup replacement for net/http/https: refuses a name when ANY of its addresses is private
-export function guardedLookup(resolve = dns.lookup, isPrivate = privateIp) {
+export function guardedLookup(resolve = dns.lookup, isPrivate = blockedIp) {
   return (host, opts, cb) => {
     if (typeof opts === 'function') { cb = opts; opts = {}; }
     resolve(host, { all: true }, (err, addrs) => {
@@ -30,7 +34,7 @@ const target = (host, isPrivate) => {
 };
 
 // HTTP proxy on 127.0.0.1 (random port) for Chrome: CONNECT (https, wss) and plain http, both through the guard
-export function startGuardProxy({ lookup = guardedLookup(), isPrivate = privateIp } = {}) {
+export function startGuardProxy({ lookup = guardedLookup(), isPrivate = blockedIp } = {}) {
   const srv = http.createServer((req, res) => {
     let u, host;
     try { u = new URL(req.url); if (u.protocol !== 'http:') throw new Error('bad'); host = target(u.hostname, isPrivate); }

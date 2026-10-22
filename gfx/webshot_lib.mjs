@@ -46,25 +46,26 @@ export function allowedRequest(raw) {
 }
 
 // quotes are compared on lowercase letters/digits only: typographic quotes, dashes, soft hyphens and line breaks differ
-export const norm = (s) => String(s).toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N}]+/gu, '');
+// NFKC: ligatures ("ﬁ") and compatibility forms read as plain letters
+export const norm = (s) => String(s).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
 // pieces = [{text, ...}] in reading order -> [{piece index, start, end}] spans of the quote, or null
 export function findQuote(pieces, quote) {
   const q = norm(quote);
   if (q.length < 8) throw new Error(`cytat "find" za krótki (min. 8 liter/cyfr): "${quote}"`);
-  let joined = ''; const map = [];  // map[k] = [piece, char offset] of joined[k]
+  let joined = ''; const map = [];  // map[k] = [piece, start, end] (UTF-16 offsets in the piece) of joined[k]
   pieces.forEach((p, i) => {
-    for (let c = 0; c < p.text.length; c++) {
-      const n = norm(p.text[c]);
-      for (const ch of n) { joined += ch; map.push([i, c]); }
+    // a letter with its combining marks is one unit, so decomposed text ("e" + U+0328) matches a precomposed quote
+    for (const m of p.text.matchAll(/\P{M}\p{M}*|\p{M}+/gu)) {
+      for (const ch of norm(m[0])) { joined += ch; map.push([i, m.index, m.index + m[0].length]); }
     }
   });
   const at = joined.indexOf(q);
   if (at < 0) return null;
   const out = [];
   for (let k = at; k < at + q.length; k++) {
-    const [i, c] = map[k], last = out[out.length - 1];
-    if (last && last.piece === i) last.end = c + 1; else out.push({ piece: i, start: c, end: c + 1 });
+    const [i, c, e] = map[k], last = out[out.length - 1];
+    if (last && last.piece === i) last.end = e; else out.push({ piece: i, start: c, end: e });
   }
   return out;
 }
@@ -96,8 +97,10 @@ export const cacheKey = (sp, imgSum = null) => crypto.createHash('sha1').update(
   find: sp.find ?? null, img: sp.img ?? null, page: sp.page ?? null, box: sp.box ?? null, title: sp.title ?? null, imgSum })).digest('hex').slice(0, 16);
 
 export const MAX_IMG = 50 << 20;
-// an own screenshot: a regular file in the folder of the specs (the project's work directory), never a path out of it
+// an own screenshot: a plain file name (as the panel accepts it) of a regular file in the folder of the specs
 export function ownImg(specFile, sp) {
+  const name = String(sp.img);
+  if (!name || name.startsWith('.') || /[\\/]/.test(name)) throw new Error(`"img" to sama nazwa pliku z katalogu projektu: ${name}`);
   const root = fs.realpathSync(path.dirname(path.resolve(specFile)));
   const src = fs.realpathSync(path.resolve(root, String(sp.img)));
   if (!src.startsWith(root + path.sep)) throw new Error(`"img" spoza katalogu projektu: ${sp.img}`);

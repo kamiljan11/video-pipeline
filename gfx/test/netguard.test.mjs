@@ -3,7 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs'; import http from 'http'; import net from 'net';
-import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy } from '../netguard.mjs';
+import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy, blockedIp } from '../netguard.mjs';
+import os from 'os';
 import { allowedRequest } from '../webshot_lib.mjs';
 
 const DNS = { 'public.test': '127.0.0.1', 'local.test': '127.0.0.2', 'mixed.test': ['127.0.0.1', '127.0.0.2'] };
@@ -22,6 +23,11 @@ test('a name is refused when any of its addresses is private', async () => {
   assert.deepEqual(await look('public.test', { all: true }), [{ address: '127.0.0.1', family: 4 }]);
   assert.equal(await look('local.test', {}), 'EPRIVATE');
   assert.equal(await look('mixed.test', { all: true }), 'EPRIVATE');  // DNS rebinding: one good address is not enough
+});
+
+test("this computer's own addresses are refused even when public (a public IPv6 of the laptop)", () => {
+  for (const a of Object.values(os.networkInterfaces()).flat()) assert.equal(blockedIp(a.address), true, a.address);
+  assert.equal(blockedIp('8.8.8.8'), false);
 });
 
 test('the proxy tunnels only to checked addresses', async () => {

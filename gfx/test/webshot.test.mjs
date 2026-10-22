@@ -39,6 +39,10 @@ test('a quote is found across text nodes, quotes, dashes and line breaks', () =>
   assert.equal(pieces[3].text.slice(spans[2].start, spans[2].end), 'nie widzi zwrotu');
   assert.equal(findQuote(pieces, 'tego zdania tu nie ma'), null);
   assert.throws(() => findQuote(pieces, 'MIT'), /za krótki/);
+  const nfd = [{ text: 'Zażółć gęślą jaźń'.normalize('NFD') }];  // decomposed letters (some PDFs and pages)
+  const hit = findQuote(nfd, 'gęślą jaźń');
+  assert.equal(nfd[0].text.slice(hit[0].start, hit[0].end).normalize('NFC'), 'gęślą jaźń');
+  assert.ok(findQuote([{ text: 'Raport ﬁrmy doradczej' }], 'raport firmy'));  // ligature
 });
 
 test('rects of one line merge, lines stay apart', () => {
