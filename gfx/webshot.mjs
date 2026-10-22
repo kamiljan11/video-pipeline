@@ -8,14 +8,20 @@
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import fs from 'fs'; import https from 'https'; import path from 'path'; import { execFile } from 'child_process';
 import { pathToFileURL } from 'url'; import { promisify } from 'util';
-import { VIEW, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
+import { VIEW, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, blockedIp, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
 import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy } from './netguard.mjs';
-import { blockedIp } from './webshot_lib.mjs';
 
 // poppler/ffmpeg on a hostile or huge file must not hang the render: 120 s each, and killed with the card when it runs
-// out of time (async, so the card's timer can fire while a tool works)
+// out of time (async, so the card's timer can fire while a tool works). SIGKILL by hand: execFile's own `signal` sends
+// SIGTERM, which a stuck tool may never act on.
 const run = promisify(execFile);
-const tool = (job, cmd, args, o = {}) => run(cmd, args, { timeout: 120000, killSignal: 'SIGKILL', signal: job.stop.signal, encoding: 'utf8', maxBuffer: 256 << 20, ...o }).then(r => r.stdout);
+const tool = (job, cmd, args) => {
+  const p = run(cmd, args, { timeout: 120000, killSignal: 'SIGKILL', encoding: 'utf8', maxBuffer: 256 << 20 });
+  const kill = () => p.child.kill('SIGKILL');
+  if (job.stop.signal.aborted) kill(); else job.stop.signal.addEventListener('abort', kill, { once: true });
+  return p.then(r => r.stdout, e => { throw job.dead ? new Error(`${cmd} przerwany z kartą`) : e; })
+    .finally(() => job.stop.signal.removeEventListener('abort', kill));
+};
 const size = async (job, png) => (await tool(job, 'ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', png])).trim().split(',').map(Number);
 
 // Captures every "web" spec not captured yet; returns the number of failed cards (each printed as FAILED webshot <id>).

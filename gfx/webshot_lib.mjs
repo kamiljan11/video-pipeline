@@ -37,14 +37,17 @@ export function privateIp(ip) {
   return !v || PRIVATE.check(ip, v === 4 ? 'ipv4' : 'ipv6');
 }
 
-// private ranges plus this computer's own addresses (a public address of the laptop reaches its local services too);
-// BlockList compares addresses, not spellings: ::ffff:a.b.c.d, ::ffff:hex and uncompressed IPv6 all match
+// private ranges plus the networks this computer is on: its own public address reaches its local services, and on a
+// network with public IPv6 the router, NAS and printer have public addresses in the laptop's own prefix (a cited page
+// can point a frame at them). BlockList compares addresses, not spellings: ::ffff:a.b.c.d, hex, uncompressed IPv6 match.
 export function blockedIp(ip) {
   if (privateIp(ip)) return true;
   const own = new net.BlockList();
   for (const a of Object.values(os.networkInterfaces()).flat()) {
-    const addr = a?.address?.replace(/%.*$/, '');
-    if (net.isIP(addr)) own.addAddress(addr, net.isIP(addr) === 4 ? 'ipv4' : 'ipv6');
+    const addr = a?.address?.replace(/%.*$/, ''), v = net.isIP(addr), bits = Number(String(a?.cidr).split('/')[1]);
+    if (!v) continue;
+    const type = v === 4 ? 'ipv4' : 'ipv6';
+    if (Number.isInteger(bits) && bits > 0) own.addSubnet(addr, bits, type); else own.addAddress(addr, type);
   }
   return own.check(ip, net.isIP(ip) === 4 ? 'ipv4' : 'ipv6');
 }

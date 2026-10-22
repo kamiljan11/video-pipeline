@@ -3,7 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs'; import http from 'http'; import net from 'net';
-import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy, blockedIp } from '../netguard.mjs';
+import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy } from '../netguard.mjs';
+import { blockedIp } from '../webshot_lib.mjs';
 import os from 'os';
 import { allowedRequest, checkUrl } from '../webshot_lib.mjs';
 
@@ -25,15 +26,20 @@ test('a name is refused when any of its addresses is private', async () => {
   assert.equal(await look('mixed.test', { all: true }), 'EPRIVATE');  // DNS rebinding: one good address is not enough
 });
 
-test("this computer's own addresses are refused even when public (a public IPv6 of the laptop)", () => {
+test("this computer's own addresses and networks are refused even when public (a public IPv6 of the laptop)", () => {
   for (const a of Object.values(os.networkInterfaces()).flat()) assert.equal(blockedIp(a.address), true, a.address);
   assert.equal(blockedIp('8.8.8.8'), false);
   const real = os.networkInterfaces;
-  os.networkInterfaces = () => ({ eth0: [{ address: '203.0.113.5' }, { address: '2001:4860::5' }, { address: 'fe80::1%eth0' }] });
+  os.networkInterfaces = () => ({ eth0: [{ address: '203.0.113.5' }, { address: '2001:4860::5' }, { address: 'fe80::1%eth0' },
+    { address: '2a01:db8:1:2::5', cidr: '2a01:db8:1:2::5/64' }] });
   try {  // the same address in any spelling (a page can write it as a URL literal)
     for (const ip of ['203.0.113.5', '::ffff:203.0.113.5', '::ffff:cb00:7105', '2001:4860::5', '2001:4860:0:0:0:0:0:5']) assert.equal(blockedIp(ip), true, ip);
     assert.equal(blockedIp('203.0.113.6'), false);
     assert.throws(() => checkUrl('https://[2001:4860::5]:8790/'), /lokalny\/prywatny/);  // Node's own requests: a literal never meets lookup
+    // a neighbour in the laptop's public IPv6 prefix (the router's panel at ::1), as a page's frame would address it
+    assert.equal(blockedIp('2a01:db8:1:2::1'), true);
+    assert.ok(!allowedRequest('http://[2a01:db8:1:2::1]/'));
+    assert.equal(blockedIp('2a01:db8:1:3::1'), false);
   } finally { os.networkInterfaces = real; }
 });
 

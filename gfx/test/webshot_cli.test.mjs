@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
 import { spawnSync, execFileSync } from 'child_process';
 import { keyOf } from '../webshot_lib.mjs';
+import { capture } from '../webshot.mjs';
 
 const GFX = path.resolve(import.meta.dirname, '..');
 const made = [];
@@ -44,8 +45,30 @@ test('an own screenshot is the capture, with its box as the mark', () => {
   assert.equal(r.status, 0, r.stderr);
   const key = keyOf(r.specFile, sp);
   assert.deepEqual(r.web.sort(), [`${key}.json`, `${key}.png`]);
+  assert.match(r.stdout, new RegExp(`^webshot w7 ${key} img$`, 'm'));  // the line the ADR's metric counts
   const meta = JSON.parse(fs.readFileSync(path.join(r.work, 'gfx', 'web', `${key}.json`), 'utf8'));
   assert.deepEqual([meta.kind, meta.width, meta.height, meta.rects, meta.host, meta.title], ['img', 320, 200, [[10, 20, 100, 30]], 'example.com', 'Raport']);
+});
+
+test('a tool stuck past the card limit is killed with the card (even one that ignores SIGTERM)', async (t) => {
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), 'webshot-hang-')); made.push(work);
+  png(path.join(work, 'zrzut.png'));
+  const bin = path.join(work, 'bin'), pidFile = path.join(work, 'ffmpeg.pid'); fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'ffmpeg'), `#!/bin/sh\ntrap '' TERM\necho $$ > '${pidFile}'\nexec sleep 60\n`, { mode: 0o755 });
+  const specFile = path.join(work, 'gfx_specs.json');
+  fs.writeFileSync(specFile, JSON.stringify([{ id: 'w9', type: 'web', dur: 6, img: 'zrzut.png' }]));
+  const realPath = process.env.PATH; process.env.PATH = `${bin}:${realPath}`;
+  const err = t.mock.method(console, 'error', () => {});
+  let failed, took;
+  try { const t0 = Date.now(); failed = await capture(specFile, path.join(work, 'gfx'), { perCard: 1500 }); took = Date.now() - t0; }
+  finally { process.env.PATH = realPath; }
+  assert.equal(failed, 1);
+  assert.ok(took < 5000, `took ${took} ms`);
+  assert.match(err.mock.calls.map(c => c.arguments.join(' ')).join('\n'), /FAILED webshot w9 .*przekroczony czas 1.5 s/);
+  assert.deepEqual(fs.readdirSync(path.join(work, 'gfx', 'web')), []);
+  const pid = Number(fs.readFileSync(pidFile, 'utf8'));
+  await new Promise(ok => setTimeout(ok, 300));
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' }, `ffmpeg ${pid} still running`);
 });
 
 test('render.mjs stops before any graphic when a capture fails', () => {
