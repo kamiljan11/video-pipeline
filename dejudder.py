@@ -24,6 +24,7 @@ REPEAT_DIFF = 0.06  # mean |Δ| of 320x180 luma; repeated frames measure < 0.03,
 MAX_RUN = 3
 SMALL = (320, 180)
 FLOW_W = 640
+RENDER_NODE = "/dev/dri/renderD128"  # VAAPI encoder, as in laptop-setup/recorder/recorder.py
 
 
 def frame_size(w: int, h: int) -> int:
@@ -112,18 +113,63 @@ def read_frames(pipe, size: int) -> Iterator[bytes]:
         yield buf
 
 
+def source_fps(src: str) -> str:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate",
+                        "-of", "csv=p=0", src], capture_output=True, text=True, check=True)
+    return r.stdout.strip() or "30"
+
+
+def av_offset(src: str | Path) -> float:
+    """Video start minus audio start (the recorder's video starts ~20 ms after its audio): kept in the output."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,start_time", "-of", "csv=p=0", str(src)],
+                       capture_output=True, text=True, check=True)
+    starts = dict(line.split(",")[:2] for line in r.stdout.split() if line.count(",") >= 1)
+    try:
+        return float(starts.get("video", 0)) - float(starts.get("audio", 0))
+    except ValueError:  # "N/A" start time: nothing to keep
+        return 0.0
+
+
+def packets(path: Path | str) -> dict[str, int]:
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "packet=codec_type", "-of", "csv=p=0", str(path)],
+                       capture_output=True, text=True, check=True)
+    out: dict[str, int] = {}
+    for kind in r.stdout.split():
+        out[kind] = out.get(kind, 0) + 1
+    return out
+
+
+def encode_cmd(src: str, part: Path, w: int, h: int, fps: str, offset: float = 0.0) -> list[str]:
+    # an editing source, re-encoded once more by assemble.py: ~2x the recorder's 16M keeps the generation loss low
+    return ["ffmpeg", "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-s", f"{w}x{h}",
+            "-framerate", fps, "-itsoffset", f"{offset:.6f}", "-i", "-", "-i", src, "-map", "0:v", "-map", "1:a?",
+            "-vaapi_device", RENDER_NODE, "-vf", "format=nv12,hwupload",
+            "-c:v", "h264_vaapi", "-profile:v", "high", "-b:v", "30M", "-maxrate", "40M", "-bufsize", "60M",
+            "-g", "30", "-color_range", "tv", "-colorspace", "bt470bg", "-c:a", "copy", "-movflags", "+faststart", str(part)]
+
+
 def main(argv: list[str]) -> int:
-    if not argv or ("--scan" not in argv and len(argv) < 2):
+    scan = "--scan" in argv
+    paths = [a for a in argv if a != "--scan"]
+    if len(paths) != (1 if scan else 2):
         print(__doc__, file=sys.stderr)
         return 2
-    src, scan = argv[0], "--scan" in argv
-    w, h = probe(src)
+    src = paths[0]
+    if not Path(src).is_file():
+        print(f"FAILED dejudder: no such recording {src}", file=sys.stderr)
+        return 1
+    try:
+        w, h = probe(src)
+        fps, offset, src_packets = source_fps(src), av_offset(src), packets(src)
+    except (OSError, subprocess.CalledProcessError, ValueError) as e:
+        print(f"FAILED dejudder {src}: not a readable video ({e})", file=sys.stderr)
+        return 1
     size = frame_size(w, h)
+    stats = {"frames": 0, "fixed": 0, "stalls": 0}
+    t0 = time.time()
     dec = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-i", src, "-map", "0:v:0", "-f", "rawvideo",
                             "-pix_fmt", "yuv420p", "-"], stdout=subprocess.PIPE)
     assert dec.stdout
-    stats = {"frames": 0, "fixed": 0, "stalls": 0}
-    t0 = time.time()
     if scan:
         prev = None
         for buf in read_frames(dec.stdout, size):
@@ -133,15 +179,16 @@ def main(argv: list[str]) -> int:
             prev = small
         print(f"frames {stats['frames']}, repeated {stats['fixed']}")
         return dec.wait()
-    out = argv[1]
-    part = Path(out).with_suffix(".part.mp4")
-    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p",
-                            "-s", f"{w}x{h}", "-framerate", "30", "-i", "-", "-i", src, "-map", "0:v", "-map", "1:a",
-                            "-vaapi_device", "/dev/dri/renderD128", "-vf", "format=nv12,hwupload",
-                            "-c:v", "h264_vaapi", "-profile:v", "high", "-b:v", "30M", "-maxrate", "40M", "-bufsize", "60M",
-                            "-g", "30", "-color_range", "tv", "-colorspace", "bt470bg", "-c:a", "copy",
-                            "-movflags", "+faststart", str(part)], stdin=subprocess.PIPE)
+    out = Path(paths[1])
+    part = out.with_suffix(".part.mp4")
+    if Path(src).resolve() in (out.resolve(), part.resolve()):
+        dec.kill()
+        dec.wait()
+        print(f"FAILED dejudder: output {out} would overwrite the recording {src}", file=sys.stderr)
+        return 1
+    enc = subprocess.Popen(encode_cmd(src, part, w, h, fps, offset), stdin=subprocess.PIPE)
     assert enc.stdin
+    error = ""
     try:
         for buf in repaired(read_frames(dec.stdout, size), w, h, stats):
             enc.stdin.write(buf)
@@ -149,10 +196,24 @@ def main(argv: list[str]) -> int:
             if stats["frames"] % 3000 == 0:
                 print(f"{stats['frames']} frames, {stats['frames'] / (time.time() - t0):.0f} fps, fixed {stats['fixed']}",
                       file=sys.stderr, flush=True)
-    finally:
         enc.stdin.close()
-    if dec.wait() or enc.wait():
-        print(f"FAILED dejudder {src}: decoder {dec.returncode}, encoder {enc.returncode}", file=sys.stderr)
+    except (OSError, KeyboardInterrupt) as e:  # BrokenPipeError = the encoder died (no VAAPI, disk full)
+        error = type(e).__name__
+    finally:
+        for proc in (dec, enc):
+            if error and proc.poll() is None:
+                proc.kill()
+            proc.wait()
+    if error or dec.returncode or enc.returncode:
+        print(f"FAILED dejudder {src}: {error or 'ffmpeg'} (decoder {dec.returncode}, encoder {enc.returncode}),"
+              f" {stats['frames']} frames written, partial output removed", file=sys.stderr)
+        part.unlink(missing_ok=True)
+        return 1
+    # the plan and transcript rely on it: every frame and every audio packet of the recording, nothing more
+    got = packets(part)
+    if got.get("video") != stats["frames"] or got.get("audio") != src_packets.get("audio"):
+        print(f"FAILED dejudder {src}: output packets {got} != {stats['frames']} frames written, "
+              f"audio {src_packets.get('audio')} in the recording; partial output removed", file=sys.stderr)
         part.unlink(missing_ok=True)
         return 1
     part.replace(out)

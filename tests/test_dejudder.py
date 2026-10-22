@@ -2,9 +2,15 @@
 
 Run: cd ~/video-pipeline && .venv/bin/python -m unittest tests.test_dejudder
 """
+import io
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -61,6 +67,82 @@ class RepairTest(unittest.TestCase):
         small = [dejudder.small_luma(frame(x), W, H) for x in (0, 1)]
         self.assertFalse(dejudder.is_repeat(small[0], small[1]))  # even 1 px of motion is far above the threshold
         self.assertTrue(dejudder.is_repeat(small[0], small[0]))
+
+
+def clip(path: Path, seconds: int = 1) -> None:
+    """A tiny test recording: moving picture at 30 fps with every 5th frame repeated, plus a tone."""
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc=size=320x180:rate=24:d={seconds}",
+                    "-f", "lavfi", "-i", f"sine=d={seconds}", "-r", "30", "-c:v", "libx264", "-qp", "0",
+                    "-c:a", "aac", "-shortest", str(path)], check=True)
+
+
+def run_main(args: list[str]) -> tuple[int, str]:
+    err = io.StringIO()
+    with redirect_stderr(err), redirect_stdout(io.StringIO()):
+        rc = dejudder.main(args)
+    return rc, err.getvalue()
+
+
+class MainTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.tmp = Path(self.dir.name)
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_usage_and_missing_input_are_named_errors(self):
+        self.assertEqual(run_main([])[0], 2)
+        self.assertEqual(run_main(["--scan"])[0], 2)
+        rc, err = run_main(["--scan", str(self.tmp / "nope.mp4")])  # flag first works too
+        self.assertEqual(rc, 1)
+        self.assertIn("no such recording", err)
+
+    def test_never_writes_over_the_recording(self):
+        src = self.tmp / "take.part.mp4"
+        clip(src)
+        before = src.read_bytes()
+        rc, err = run_main([str(src), str(self.tmp / "take.mp4")])  # its .part.mp4 would be the source itself
+        self.assertEqual(rc, 1)
+        self.assertIn("would overwrite", err)
+        self.assertEqual(src.read_bytes(), before)
+
+    def test_a_dying_encoder_leaves_no_partial_file(self):
+        src, out = self.tmp / "take.mp4", self.tmp / "fixed.mp4"
+        clip(src)
+        part = out.with_suffix(".part.mp4")
+        with mock.patch.object(dejudder, "encode_cmd", return_value=["sh", "-c", f"echo x > {part}; exit 3"]):
+            rc, err = run_main([str(src), str(out)])
+        self.assertEqual(rc, 1)
+        self.assertIn("partial output removed", err)
+        self.assertFalse(part.exists())
+        self.assertFalse(out.exists())
+
+    @unittest.skipUnless(os.path.exists(dejudder.RENDER_NODE), "no VAAPI device")
+    def test_a_recording_without_sound_works(self):
+        src, out = self.tmp / "mute.mp4", self.tmp / "fixed.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30:d=1",
+                        "-c:v", "libx264", str(src)], check=True)
+        rc, err = run_main([str(src), str(out)])
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(dejudder.packets(out), {"video": 30})
+
+    @unittest.skipUnless(os.path.exists(dejudder.RENDER_NODE), "no VAAPI device")
+    def test_output_keeps_frames_time_and_sound(self):
+        src, out = self.tmp / "take.mp4", self.tmp / "fixed.mp4"
+        clip(src, 2)
+        rc, err = run_main([str(src), str(out)])
+        self.assertEqual(rc, 0, err)
+
+        def streams(f: Path) -> list[str]:
+            return subprocess.run(["ffprobe", "-v", "error", "-count_frames", "-show_entries",
+                                   "stream=codec_type,nb_read_frames", "-of", "csv=p=0", str(f)],
+                                  capture_output=True, text=True, check=True).stdout.split()
+        self.assertEqual(streams(out)[0], streams(src)[0])  # same number of video frames
+        self.assertIn("audio", " ".join(streams(out)))
+        rc, _ = run_main(["--scan", str(out)])
+        self.assertEqual(rc, 0)
+        self.assertAlmostEqual(dejudder.av_offset(out), dejudder.av_offset(src), delta=0.002)  # sync kept
 
 
 if __name__ == "__main__":
