@@ -58,6 +58,17 @@ class RepairTest(unittest.TestCase):
         self.assertEqual(stats, {"fixed": 0, "stalls": 1})
         self.assertEqual(out, [frame(x) for x in xs])
 
+    def test_a_frozen_camera_is_streamed_not_buffered(self):
+        def frozen():  # endless repeats after two real frames
+            yield frame(0)
+            while True:
+                yield frame(8)
+        stats = {"fixed": 0, "stalls": 0}
+        out = dejudder.repaired(frozen(), W, H, stats)
+        first = [next(out) for _ in range(dejudder.MAX_RUN + 10)]  # would never return if repeats were held
+        self.assertEqual(first[1:], [frame(8)] * (dejudder.MAX_RUN + 9))
+        self.assertEqual(stats["stalls"], 1)
+
     def test_repeats_at_the_end_and_a_still_picture_stay(self):
         out, stats = run([0, 8, 8])
         self.assertEqual(out, [frame(0), frame(8), frame(8)])  # no next frame to move towards
@@ -117,6 +128,21 @@ class MainTest(unittest.TestCase):
         self.assertIn("partial output removed", err)
         self.assertFalse(part.exists())
         self.assertFalse(out.exists())
+
+    def test_any_failure_in_the_loop_ends_cleanly(self):
+        src, out = self.tmp / "take.mp4", self.tmp / "fixed.mp4"
+        clip(src)
+
+        def broken(*_args):
+            raise RuntimeError("cv2 says no")
+            yield b""  # a generator, like repaired()
+        with mock.patch.object(dejudder, "repaired", broken), \
+                mock.patch.object(dejudder, "encode_cmd", return_value=["sh", "-c", "cat > /dev/null"]):
+            err = io.StringIO()
+            with redirect_stderr(err), self.assertRaisesRegex(RuntimeError, "cv2 says no"):
+                dejudder.main([str(src), str(out)])  # used to hang on a decoder blocked on a full pipe
+        self.assertIn("FAILED dejudder", err.getvalue())
+        self.assertFalse(out.with_suffix(".part.mp4").exists())
 
     @unittest.skipUnless(os.path.exists(dejudder.RENDER_NODE), "no VAAPI device")
     def test_a_recording_without_sound_works(self):

@@ -78,21 +78,26 @@ def repaired(frames: Iterator[bytes], w: int, h: int, stats: dict[str, int]) -> 
     """Same number of frames out as in; a run of 1..MAX_RUN repeats is replaced by in-between frames."""
     last_real: bytes | None = None
     last_small: np.ndarray | None = None
-    held: list[bytes] = []
+    held: list[bytes] = []  # at most MAX_RUN frames: a frozen camera must not fill the RAM (5.5 MB per 1440p frame)
+    stalled = False
     for buf in frames:
         small = small_luma(buf, w, h)
         if last_small is not None and is_repeat(last_small, small):
+            if stalled:
+                yield buf
+                continue
             held.append(buf)
+            if len(held) > MAX_RUN:  # a stall: left as recorded, streamed from here on
+                yield from held
+                held, stalled = [], True
+                stats["stalls"] += 1
             continue
         if held:
             assert last_real is not None
-            if len(held) <= MAX_RUN:
-                yield from in_between(last_real, buf, w, h, len(held))
-                stats["fixed"] += len(held)
-            else:
-                yield from held
-                stats["stalls"] += 1
+            yield from in_between(last_real, buf, w, h, len(held))
+            stats["fixed"] += len(held)
             held = []
+        stalled = False
         yield buf
         last_real, last_small = buf, small
     yield from held  # repeats at the very end have no next frame to move towards
@@ -148,10 +153,67 @@ def encode_cmd(src: str, part: Path, w: int, h: int, fps: str, offset: float = 0
             "-g", "30", "-color_range", "tv", "-colorspace", "bt470bg", "-c:a", "copy", "-movflags", "+faststart", str(part)]
 
 
+def decoder(src: str) -> subprocess.Popen:
+    # passthrough: one raw frame per packet of the recording, so the output can be checked against it 1:1
+    return subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-i", src, "-map", "0:v:0", "-fps_mode", "passthrough",
+                             "-f", "rawvideo", "-pix_fmt", "yuv420p", "-"], stdout=subprocess.PIPE)
+
+
+def scan(src: str, w: int, h: int) -> int:
+    dec = decoder(src)
+    assert dec.stdout
+    frames = repeated = 0
+    prev = None
+    for buf in read_frames(dec.stdout, frame_size(w, h)):
+        small = small_luma(buf, w, h)
+        repeated += prev is not None and is_repeat(prev, small)
+        frames += 1
+        prev = small
+    print(f"frames {frames}, repeated {repeated}")
+    return dec.wait()
+
+
+def encode(src: str, part: Path, w: int, h: int, stats: dict[str, int]) -> str:
+    """Decode -> repair -> encode into part. Returns '' or what went wrong; both ffmpegs are always reaped."""
+    dec = decoder(src)
+    enc = subprocess.Popen(encode_cmd(src, part, w, h, source_fps(src), av_offset(src)), stdin=subprocess.PIPE)
+    assert dec.stdout and enc.stdin
+    t0 = time.time()
+    try:
+        for buf in repaired(read_frames(dec.stdout, frame_size(w, h)), w, h, stats):
+            enc.stdin.write(buf)
+            stats["frames"] += 1
+            if stats["frames"] % 3000 == 0:
+                print(f"{stats['frames']} frames, {stats['frames'] / (time.time() - t0):.0f} fps, fixed {stats['fixed']}",
+                      file=sys.stderr, flush=True)
+        enc.stdin.close()
+    except OSError as e:  # BrokenPipeError = the encoder died (no VAAPI, disk full): its exit code tells why
+        for proc in (dec, enc):
+            proc.kill()
+            proc.wait()
+        return f"{type(e).__name__}: encoder {enc.returncode}"
+    except BaseException:
+        # anything else (cv2, reshape, Ctrl+C): reap both ffmpegs first, or dec.wait() hangs on a full pipe
+        for proc in (dec, enc):
+            proc.kill()
+            proc.wait()
+        raise
+    if dec.wait() or enc.wait():
+        return f"ffmpeg exit: decoder {dec.returncode}, encoder {enc.returncode}"
+    return ""
+
+
+def verify(part: Path, src_packets: dict[str, int]) -> str:
+    """The plan and transcript rely on it: every frame and every audio packet of the recording, nothing more."""
+    got = packets(part)
+    if got.get("video") != src_packets.get("video") or got.get("audio") != src_packets.get("audio"):
+        return f"output packets {got} != recording {src_packets}"
+    return ""
+
+
 def main(argv: list[str]) -> int:
-    scan = "--scan" in argv
     paths = [a for a in argv if a != "--scan"]
-    if len(paths) != (1 if scan else 2):
+    if len(paths) != (1 if "--scan" in argv else 2):
         print(__doc__, file=sys.stderr)
         return 2
     src = paths[0]
@@ -160,61 +222,28 @@ def main(argv: list[str]) -> int:
         return 1
     try:
         w, h = probe(src)
-        fps, offset, src_packets = source_fps(src), av_offset(src), packets(src)
+        src_packets = packets(src)
     except (OSError, subprocess.CalledProcessError, ValueError) as e:
         print(f"FAILED dejudder {src}: not a readable video ({e})", file=sys.stderr)
         return 1
-    size = frame_size(w, h)
-    stats = {"frames": 0, "fixed": 0, "stalls": 0}
-    t0 = time.time()
-    dec = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-i", src, "-map", "0:v:0", "-f", "rawvideo",
-                            "-pix_fmt", "yuv420p", "-"], stdout=subprocess.PIPE)
-    assert dec.stdout
-    if scan:
-        prev = None
-        for buf in read_frames(dec.stdout, size):
-            small = small_luma(buf, w, h)
-            stats["fixed"] += prev is not None and is_repeat(prev, small)
-            stats["frames"] += 1
-            prev = small
-        print(f"frames {stats['frames']}, repeated {stats['fixed']}")
-        return dec.wait()
+    if "--scan" in argv:
+        return scan(src, w, h)
     out = Path(paths[1])
     part = out.with_suffix(".part.mp4")
     if Path(src).resolve() in (out.resolve(), part.resolve()):
-        dec.kill()
-        dec.wait()
         print(f"FAILED dejudder: output {out} would overwrite the recording {src}", file=sys.stderr)
         return 1
-    enc = subprocess.Popen(encode_cmd(src, part, w, h, fps, offset), stdin=subprocess.PIPE)
-    assert enc.stdin
-    error = ""
+    stats = {"frames": 0, "fixed": 0, "stalls": 0}
+    t0 = time.time()
+    error = "interrupted"
     try:
-        for buf in repaired(read_frames(dec.stdout, size), w, h, stats):
-            enc.stdin.write(buf)
-            stats["frames"] += 1
-            if stats["frames"] % 3000 == 0:
-                print(f"{stats['frames']} frames, {stats['frames'] / (time.time() - t0):.0f} fps, fixed {stats['fixed']}",
-                      file=sys.stderr, flush=True)
-        enc.stdin.close()
-    except (OSError, KeyboardInterrupt) as e:  # BrokenPipeError = the encoder died (no VAAPI, disk full)
-        error = type(e).__name__
+        error = encode(src, part, w, h, stats) or verify(part, src_packets)
     finally:
-        for proc in (dec, enc):
-            if error and proc.poll() is None:
-                proc.kill()
-            proc.wait()
-    if error or dec.returncode or enc.returncode:
-        print(f"FAILED dejudder {src}: {error or 'ffmpeg'} (decoder {dec.returncode}, encoder {enc.returncode}),"
-              f" {stats['frames']} frames written, partial output removed", file=sys.stderr)
-        part.unlink(missing_ok=True)
-        return 1
-    # the plan and transcript rely on it: every frame and every audio packet of the recording, nothing more
-    got = packets(part)
-    if got.get("video") != stats["frames"] or got.get("audio") != src_packets.get("audio"):
-        print(f"FAILED dejudder {src}: output packets {got} != {stats['frames']} frames written, "
-              f"audio {src_packets.get('audio')} in the recording; partial output removed", file=sys.stderr)
-        part.unlink(missing_ok=True)
+        if error:
+            print(f"FAILED dejudder {src}: {error}; {stats['frames']} frames written, partial output removed",
+                  file=sys.stderr)
+            part.unlink(missing_ok=True)
+    if error:
         return 1
     part.replace(out)
     print(f"frames {stats['frames']}, repaired {stats['fixed']}, stalls left {stats['stalls']}, "
