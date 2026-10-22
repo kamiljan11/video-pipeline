@@ -54,6 +54,18 @@ html,body{margin:0;width:2560px;height:1440px;background:transparent;overflow:hi
 .slide .big b{color:var(--acc)}
 .slide .src{position:absolute;left:150px;bottom:90px;font-weight:500;font-size:30px;color:#7d8f8b}
 /* 9:16 shorts (spec canvas "v"): card in the top band, above the face (~40% height) and the captions (bottom third) */
+.web{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 40%,#16201f,#0b0d10 70%);animation:fade .35s both}
+.web .win{position:absolute;border-radius:22px;overflow:hidden;background:#fff;box-shadow:0 40px 120px rgba(0,0,0,.55);animation:pop .5s .1s cubic-bezier(.2,1.2,.4,1) both}
+.web .top{height:64px;background:#e9ecef;display:flex;align-items:center;gap:14px;padding:0 26px}
+.web .top i{width:20px;height:20px;border-radius:50%;background:#ff5f57}.web .top i:nth-child(2){background:#febc2e}.web .top i:nth-child(3){background:#28c840}
+.web .tab{margin-left:22px;max-width:900px;background:#fff;border-radius:14px 14px 0 0;align-self:flex-end;padding:14px 28px;font-weight:600;font-size:26px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.web .addr{height:58px;background:#fff;border-bottom:2px solid #e3e6e9;display:flex;align-items:center;gap:14px;padding:0 30px;font-weight:500;font-size:26px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.web .lock{width:16px;height:12px;border:3px solid #777;border-radius:3px;position:relative;top:4px}.web .lock::before{content:"";position:absolute;left:1px;top:-12px;width:8px;height:9px;border:3px solid #777;border-bottom:0;border-radius:6px 6px 0 0}
+.web .view{position:relative;overflow:hidden;background:#fff}
+.web .shot{position:absolute;left:0;top:0}.web .shot img{display:block}
+.web .hl{position:absolute;background:rgba(255,214,0,.5);mix-blend-mode:multiply;border-bottom:6px solid var(--acc);border-radius:6px;transform-origin:left;animation-fill-mode:both}
+@keyframes hl{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.web .src{position:absolute;left:150px;bottom:44px;font-weight:500;font-size:30px;color:#7d8f8b}
 html.v,html.v body{width:1080px;height:1920px}
 html.v .kw{top:170px;left:50%;right:auto;transform:translateX(-50%);max-width:900px;text-align:center;padding:36px 56px 40px}
 html.v .kw .ic{margin:0 auto 20px}

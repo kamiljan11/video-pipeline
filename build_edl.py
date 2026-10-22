@@ -7,6 +7,8 @@ import re
 import sys
 from pathlib import Path
 
+from gfx_types import PIP, SIDE_BOX
+
 P = json.loads(Path(sys.argv[1]).read_text())
 W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x in json.loads(Path(P["words"]).read_text())["transcription"]]
 v = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(P["sil"]).read_text())]
@@ -51,13 +53,13 @@ total = sum(s["out"] - s["in"] for s in out)
 specs = {s["id"]: s for s in json.loads(Path(P["gfx_specs"]).read_text())} if P.get("gfx_specs") else {}
 ovs = []
 def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:16 top card (canvas "v") sits above the face
-    sp = specs.get(gid, {}); return sp.get("type") in ("kw", "list", "slide") and sp.get("canvas") != "v"
+    sp = specs.get(gid, {}); return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
 for g in P.get("gfx", []):
     if "find" in g:
         c = [i for i in range(max(0, g["near"] - 25), min(len(W), g["near"] + 25)) if g["find"].lower() in W[i][2].lower()]
         g["word"] = min(c, key=lambda i: abs(i - g["near"]))
     at = total if g["word"] == "END" else src2out(W[g["word"]][0]) + g.get("lead", 0.0)
-    ovs.append({"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": specs[g["id"]]["dur"], "id": g["id"], "pip": specs[g["id"]].get("type") == "slide"})
+    ovs.append({"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": specs[g["id"]]["dur"], "id": g["id"], "pip": specs[g["id"]].get("type") in PIP})
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
 for sg in out:

@@ -29,7 +29,7 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 `chunked_whisper.py`, `gfx/*.mjs`): na innym koncie/komputerze najpierw znajdź wszystkie (`grep -rl /home/kamil-jan --include=*.py
 --include=*.sh --include=*.mjs . | grep -v -e node_modules -e whisper.cpp -e panel/`).
 1. System: `ffmpeg`, `python3` (systemowy: build_edl, critic, assemble, beats, beatfx, broll, stock), Node 24, Google Chrome w
-   `/usr/bin/google-chrome` (plansze renderuje `playwright-core` na tym Chrome). `.venv`: face_track, head_check, make_beds, to_otio.
+   `/usr/bin/google-chrome` (plansze renderuje `playwright-core` na tym Chrome), `poppler-utils` (karty `web` z PDF). `.venv`: face_track, head_check, make_beds, to_otio.
 2. `npm ci` (playwright-core, lucide-static z `package-lock.json`).
 3. `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt` (wersje przypięte, stan 2026-10-21).
 4. whisper.cpp: `git clone https://github.com/ggml-org/whisper.cpp && cmake -B whisper.cpp/build -S whisper.cpp &&
@@ -51,6 +51,25 @@ restic `mas-vault-backup` kopiuje tylko vault Obsidiana, Syncthing nie obejmuje 
 
 Testy skryptów: `cd panel && .venv/bin/python -m unittest discover -s tests` (strażnik zgodności: bez nowych kluczy planu
 wynik identyczny jak `panel/tests/pipeline_baseline/*.py.orig`). Lint: `ruff check .`, `pyright` (pre-commit).
+Testy kart `web` (JS): `npm test`.
 
 Dodanie dostawcy stocku: funkcja wyszukiwania w `stock.PROVIDERS` + host plików w `stock.HOSTS` + klucz w Infisicalu
 (most `~/infisical/infisical_bridge.py run --secrets <NAZWA> --`), potem `"provider"` w `style/grammar.json › broll`.
+
+## Karta źródła `web` (strona albo PDF, o którym mówisz)
+Gdy w nagraniu przytaczasz badanie, artykuł albo stronę, pokaż ją: karta = okno przeglądarki ze stroną, przewija się do
+cytowanego zdania i zaznacza je markerem; twarz w rogu (jak `slide`), pod spodem „Źródło: domena · tytuł · stan na <data zrzutu>”.
+Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w_mit", "word": 512}]`):
+```json
+{"id": "w_mit", "type": "web", "dur": 7, "url": "https://…", "find": "dokładne zdanie ze strony (min. 8 liter)"}
+```
+- PDF: ten sam wpis (adres PDF); opcjonalnie `"page": 3`, gdy zdanie występuje na kilku stronach. Podpis własny: `"src"`.
+- Strona blokuje roboty (captcha, logowanie, paywall): zrób zrzut sam, połóż w katalogu `work` projektu i daj
+  `{"id": …, "type": "web", "dur": 7, "img": "zrzut.png", "box": [x, y, szer, wys], "url": "…", "title": "…"}` (`box` w pikselach zrzutu).
+  Blokad nie obchodzimy.
+- Zrzut robi `gfx/webshot.mjs` (woła go `gfx/render.mjs` sam): Chrome 1200 px szerokości, tylko `https://` do publicznych
+  adresów (żadnych `localhost`/sieci domowej/`file://`), banery cookies są ukrywane, nigdy klikane. Zrzut jest robiony raz:
+  `work/gfx/web/<klucz>.png/.json`; żeby zrobić go od nowa, usuń te dwa pliki i `.mov` karty.
+- Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny) = `FAILED webshot <id>: powód` w `gfx.log` i film się nie renderuje
+  (`FAILED gfx`). Karta jest tylko do filmu 16:9 (shorty: później).
+- Prawo cytatu: krótki fragment z podanym źródłem; nie pokazuj całych artykułów zza paywalla.

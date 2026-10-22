@@ -14,7 +14,9 @@ import json
 import os
 import re
 
-BOX = ("kw", "list", "slide")
+from gfx_types import SIDE_BOX
+
+BOX = SIDE_BOX
 SFX = (None, "pop", "whoosh", "ding")  # the sounds music/make_beds.py BEAT_SFX can play
 DEFAULT_GRAMMAR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "style", "grammar.json")
 ICONS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "node_modules", "lucide-static", "icons")  # gfx/render.mjs reads <name>.svg

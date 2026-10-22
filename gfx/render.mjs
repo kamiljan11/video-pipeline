@@ -1,6 +1,7 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import fs from 'fs'; import { execFileSync } from 'child_process';
+import { cacheKey, motion } from './webshot_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -12,8 +13,34 @@ const html = sp => {
   if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div></div>`;
   if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
+  if (sp.type === 'web') return web(sp);
   if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
 };
+// "web": the cited page in a browser window (capture: webshot.mjs), scrolled to the quote, which is then marked
+const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right
+function web(sp) {
+  const base = `${outDir}/web/${cacheKey(sp)}`;
+  if (!fs.existsSync(`${base}.json`)) throw new Error(`no capture for "${sp.id}": run gfx/webshot.mjs first`);
+  const m = JSON.parse(fs.readFileSync(`${base}.json`, 'utf8')), s = WIN.w / m.width;
+  const shown = { height: m.height * s, rects: m.rects.map(([x, y, w, h]) => [x * s, y * s, w * s, h * s]) };
+  const mo = motion(shown, WIN.view, sp.dur), id = sp.id.replace(/[^\w-]/g, '_');
+  const anim = mo.scroll ? `animation:ws_${id} ${mo.scroll}s cubic-bezier(.45,0,.2,1) ${mo.start}s both` : '';
+  const marks = shown.rects.map(([x, y, w, h], i) => `<div class="hl" style="left:${x - 6}px;top:${y - 4}px;width:${w + 12}px;height:${h + 8}px;animation:hl .5s ${(mo.mark + i * 0.25).toFixed(2)}s ease-out both"></div>`).join('');
+  const day = new Date(m.captured).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const addr = m.final_url ? m.final_url.replace(/^https:\/\//, '') : (m.host || '');
+  const src = sp.src || `Źródło: ${m.host || m.title}${m.title && m.host ? ` · ${m.title}` : ''}${m.kind === 'pdf' ? ` · str. ${m.page}` : ''}`;
+  return `<style>@keyframes ws_${id}{from{transform:translateY(0)}to{transform:translateY(-${mo.target.toFixed(0)}px)}}</style>`
+    + `<div class="web"><div class="win" style="left:${WIN.x}px;top:${WIN.y}px;width:${WIN.w}px">`
+    + `<div class="top"><i></i><i></i><i></i><span class="tab">${esc(m.title || m.host)}</span></div>`
+    + `<div class="addr"><span class="lock"></span>${esc(addr)}</div>`
+    + `<div class="view" style="height:${WIN.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${WIN.w}px">${marks}</div></div></div>`
+    + `<div class="src">${esc(src)} · stan na ${day}</div></div>`;
+}
+// "web" cards need their capture first (network): webshot.mjs skips the ones already captured, fails loudly otherwise
+if (specs.some(s => s.type === 'web')) {
+  try { execFileSync('node', [new URL('./webshot.mjs', import.meta.url).pathname, specFile, outDir], { stdio: 'inherit' }); }
+  catch { console.error('FAILED gfx: page capture for "web" cards (lines FAILED webshot above)'); process.exit(1); }
+}
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', args: ['--disable-gpu'] });
 fs.mkdirSync(outDir, { recursive: true });
 async function one(sp) {

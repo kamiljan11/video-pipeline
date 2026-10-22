@@ -53,7 +53,7 @@ for o in edl.get("overlays", []):
     if ty == "list":
         put(o["at"], whoosh(0.5), 0.5)
         for dl in sp.get("delays", []): put(o["at"] + dl + 0.05, pop(), 0.7)
-    if ty in ("chap", "slide"): put(o["at"] - 0.3, whoosh(0.8), 0.9)
+    if ty in ("chap", "slide", "web"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
     if ty == "end": put(o["at"] - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put(o["at"] + 0.1, ding(), 0.6)
 acc = 0.0

@@ -23,6 +23,8 @@ import sys
 from itertools import pairwise
 from pathlib import Path
 
+from gfx_types import SIDE_BOX
+
 args = sys.argv[1:]; plan_p = args[0]; FIX = "--fix" in args
 video = args[args.index("--video") + 1] if "--video" in args else None
 P = json.loads(Path(plan_p).read_text()); E = json.loads(Path(P["edl_out"]).read_text())
@@ -69,7 +71,7 @@ acc = 0.0
 for s in segs:
     d = s["out"] - s["in"]; z = s["zoom"]
     for o in ov:
-        if specs.get(o["id"], {}).get("type") not in ("kw", "list", "slide") or specs.get(o["id"], {}).get("canvas") == "v": continue
+        if specs.get(o["id"], {}).get("type") not in SIDE_BOX or specs.get(o["id"], {}).get("canvas") == "v": continue
         a0, a1 = max(acc, o["at"]), min(acc + d, o["at"] + o["dur"])  # overlap window in output time
         if a1 <= a0: continue
         if isinstance(z, dict):  # zoom value only during the overlap: a before t0, rising to b after

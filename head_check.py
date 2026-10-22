@@ -9,6 +9,8 @@ from pathlib import Path
 
 import cv2
 
+from gfx_types import FULL
+
 v = sys.argv[1]; edl = json.loads(Path(sys.argv[2]).read_text()) if len(sys.argv) > 2 and sys.argv[2].endswith('.json') else None
 step = float(sys.argv[3]) if len(sys.argv) > 3 else 1.5
 skip = []
@@ -16,7 +18,7 @@ if edl:
     specs = {}
     try: specs = {s["id"]: s for s in json.loads(Path(edl["gfx_specs"]).read_text())}
     except (OSError, ValueError, KeyError, TypeError): pass  # no specs file (or gfx_specs null): no graphics to skip
-    skip = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", []) if specs.get(o["id"], {}).get("type") in ("chap", "slide", "end")]
+    skip = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", []) if specs.get(o["id"], {}).get("type") in FULL]
     skip += [(b["at"], b["at"] + b["dur"]) for b in edl.get("broll", [])]  # stock b-roll: full frame, no speaker
 cap = cv2.VideoCapture(v); W = cap.get(3); H = cap.get(4); n = cap.get(7); fps = cap.get(5) or 30; dur = n / fps
 sw, sh = (360, 640) if H > W else (640, 360)
