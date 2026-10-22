@@ -2,7 +2,7 @@
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
-import { COUNT_DELAY, COUNT_DUR, countParts, fmtNum, numWidth } from './count_lib.mjs';
+import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
@@ -67,7 +67,7 @@ async function one(sp) {
   if (v) await page.evaluate(() => document.documentElement.classList.add('v'));
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
-  // GSAP only on a page with a "count" card (ADR-0005): one paused timeline, seeked to each frame's time -> same frames every run
+  // GSAP only on a page with a "count" card (docs/adr/0003-gsap-count-card.md): one paused timeline, seeked to each frame's time -> same frames every run
   if (sp.type === 'count') {
     await page.addScriptTag({ path: GSAP });
     await page.evaluate(([cd, delay, fmt]) => {
@@ -76,18 +76,18 @@ async function one(sp) {
       nums.forEach(({ o, el }) => tl.to(o, { v: +el.dataset.to, duration: cd, ease: 'power2.out' }, delay));
       window.__seek = t => { tl.seek(t, true); nums.forEach(({ el, o }) => {
         el.textContent = cd <= 0 || t >= delay + cd ? el.dataset.final : f(o.v, +el.dataset.dec, !!el.dataset.group); }); };
-    }, [COUNT_DUR(sp.dur), COUNT_DELAY, fmtNum.toString()]);
+    }, [countSeconds(sp.dur), COUNT_DELAY, fmtNum.toString()]);
   }
   const dir = `${outDir}/${sp.id}_frames`; fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(sp.dur * FPS);
   for (let f = 0; f < n; f++) {
     const t = f / FPS;
-    await page.evaluate(([t, dur]) => {
+    await page.evaluate(([t, dur, fadeOut]) => {
       document.getAnimations().forEach(a => { a.pause(); a.currentTime = t * 1000; });
       if (window.__seek) window.__seek(t);
-      const r = document.getElementById('root'); const fo = 0.35;
+      const r = document.getElementById('root'); const fo = fadeOut;
       r.style.opacity = (window.__noout) ? 1 : t > dur - fo ? Math.max(0, (dur - t) / fo) : 1;
-    }, [t, sp.dur]);
+    }, [t, sp.dur, FADE_OUT]);
     await page.screenshot({ path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true });
   }
   await page.close();

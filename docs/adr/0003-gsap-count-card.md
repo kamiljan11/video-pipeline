@@ -19,3 +19,7 @@ Data: 2026-10-22 | Status: przyjęte, pilot zbudowany | Drzwi: dwukierunkowe | P
 - +~70 KB JS na stronie karty `count`. Inne typy kart go nie ładują, więc ich `.mov` się nie zmieniają.
 - Determinizm jest testowany (`gfx/test/count.test.mjs`: dwa rendery = identyczne klatki). `fmtNum` trafia do strony jako kod źródłowy, więc musi zostać samowystarczalny (komentarz w `count_lib.mjs`).
 - Bezpieczeństwo: `npm | GreenSock/Webflow | podpis rejestru + atestacja | brak skryptów install | JS tylko w piaskownicy Chrome karty`.
+
+**Koszt cykliczny:** 0 zł (licencja „no charge”, bez kont i kluczy). Aktualizacja `gsap` tylko ręcznie i świadomie (wersja przypięta). Przy przeglądzie: `npm view gsap version` + nowa linia bezpieczeństwa, potem `npm test` (test determinizmu).
+
+**Kryterium przeglądu (2026-12-01):** pilot zostaje, gdy karta `count` trafiła do co najmniej jednego opublikowanego filmu i w `gfx.log` nie było `FAILED` z jej powodu. Gdy żaden film jej nie użył, decyzja: podpiąć ją do gramatyki montażu (momenty „liczba” w `style/grammar.json` dają dziś `kw`) albo wycofać. Wycofanie: w `gfx_specs.json` zamienić `"type": "count"` na `"kw"` (tekst zostaje ten sam), potem usunąć typ i paczkę.

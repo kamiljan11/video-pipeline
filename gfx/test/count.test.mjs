@@ -1,9 +1,9 @@
-// node --test gfx/test/*.test.mjs   ("count" card, ADR-0005 pilot: numbers in the text count up, GSAP seeked per frame)
+// node --test gfx/test/*.test.mjs   ("count" card, docs/adr/0003-gsap-count-card.md: numbers in the text count up, GSAP seeked per frame)
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
 import { spawnSync, execFileSync } from 'child_process';
-import { COUNT_DELAY, COUNT_DUR, countParts, fmtNum, numWidth, hasNumber } from '../count_lib.mjs';
+import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth, hasNumber } from '../count_lib.mjs';
 
 const GFX = path.resolve(import.meta.dirname, '..');
 const made = [];
@@ -44,10 +44,10 @@ const render = (specs) => {
 };
 
 test('the count always ends before the fade-out; a card too short to count shows its numbers at once', () => {
-  assert.equal(COUNT_DUR(0.5), 0);  // the panel minimum
-  assert.ok(Math.abs(COUNT_DUR(3) - 1.2) < 1e-9);
-  assert.equal(COUNT_DUR(10), 1.6);
-  for (let d = 0.5; d <= 60; d += 0.05) assert.ok(COUNT_DUR(d) === 0 || COUNT_DELAY + COUNT_DUR(d) <= d - 0.35, `dur ${d}`);
+  assert.equal(countSeconds(0.5), 0);  // the panel minimum
+  assert.ok(Math.abs(countSeconds(3) - 1.2) < 1e-9);
+  assert.equal(countSeconds(10), 1.6);
+  for (let d = 0.5; d <= 60; d += 0.05) assert.ok(countSeconds(d) === 0 || COUNT_DELAY + countSeconds(d) <= d - FADE_OUT, `dur ${d}`);
 });
 
 test('the same count card gives the same frames twice, and the number really moves', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
