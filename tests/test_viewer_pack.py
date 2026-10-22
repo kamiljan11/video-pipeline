@@ -43,6 +43,9 @@ class MappingTest(unittest.TestCase):
         segs = [{"in": 0.0, "out": 2.0}, {"in": 2.0, "out": 3.0}]
         self.assertEqual(len(vp.film_words(words, segs)), 1)
 
+    def test_stamps_never_show_sixty_seconds(self):
+        self.assertEqual([vp.stamp(t) for t in (0.0, 59.96, 119.97, 61.25)], ["0:00.0", "1:00.0", "2:00.0", "1:01.2"])
+
     def test_windows_cover_the_film_without_gaps(self):
         self.assertEqual(vp.windows(65.0, 30.0), [(0.0, 30.0), (30.0, 60.0), (60.0, 65.0)])
         self.assertEqual(vp.windows(60.0, 30.0), [(0.0, 30.0), (30.0, 60.0)])
@@ -84,20 +87,19 @@ class PackTest(unittest.TestCase):
         self.dir.cleanup()
 
     def test_a_tiny_film_gives_sheets_and_a_readable_pack(self):
-        with tempfile.TemporaryDirectory() as d:
-            work = Path(d)
-            film = project(work)
-            r = vp.pack(work / "plan.json", str(film), work / "out", every=1.0, size=5.0)
-            self.assertEqual([w["sheet"] for w in r["windows"]], ["w000.jpg", "w001.jpg"])
-            self.assertEqual(r["windows"][0]["said"], "cześć")
-            self.assertEqual(r["windows"][1]["said"], "koniec")
-            img = cv2.imread(str(work / "out" / "w000.jpg"))
-            assert img is not None
-            self.assertEqual(img.shape[1], 4 * 400)  # 4 frames side by side, 225 px high -> 400 px wide
-            md = (work / "out" / "pack.md").read_text()
-            self.assertIn("g1 (kw) 1.0-3.0 s: Tytuł", md)
-            self.assertIn("Na ekranie: tylko kamera", md)
-            self.assertEqual(sorted(p.name for p in (work / "out").iterdir()), ["pack.json", "pack.md", "w000.jpg", "w001.jpg"])
+        work = self.work
+        film = project(work)
+        r = vp.pack(work / "plan.json", str(film), work / "out", every=1.0, size=5.0)
+        self.assertEqual([w["sheet"] for w in r["windows"]], ["w000.jpg", "w001.jpg"])
+        self.assertEqual(r["windows"][0]["said"], "cześć")
+        self.assertEqual(r["windows"][1]["said"], "koniec")
+        img = cv2.imread(str(work / "out" / "w000.jpg"))
+        assert img is not None
+        self.assertEqual(img.shape[1], 4 * 400)  # 4 frames side by side, 225 px high -> 400 px wide
+        md = (work / "out" / "pack.md").read_text()
+        self.assertIn("g1 (kw) 1.0-3.0 s: Tytuł", md)
+        self.assertIn("Na ekranie: tylko kamera", md)
+        self.assertEqual(sorted(p.name for p in (work / "out").iterdir()), ["pack.json", "pack.md", "w000.jpg", "w001.jpg"])
 
     def test_a_vertical_short_with_broll_through_the_command_line(self):
         film = project(self.work, "180x320", vertical=True, broll=[{"id": "b1", "at": 4.0, "dur": 2.0}])
@@ -138,6 +140,24 @@ class PackTest(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("FAILED viewer_pack", err)
         self.assertIn("KeyError", err)
+
+    def test_a_broken_film_says_what_ffprobe_said(self):
+        project(self.work)
+        bad = self.work / "bad.mp4"
+        bad.write_text("garbage")
+        rc, err = run_main([str(self.work / "plan.json"), str(bad), str(self.work / "out")])
+        self.assertEqual(rc, 1)
+        self.assertIn("FAILED viewer_pack", err)
+        self.assertIn("ffprobe: ", err)
+        self.assertIn("Invalid data", err)
+
+    def test_frames_left_by_a_killed_run_are_cleared(self):
+        film = project(self.work)
+        left = self.work / "out" / ".frames-abc"
+        left.mkdir(parents=True)
+        (left / "f00001.jpg").write_bytes(b"x")
+        vp.pack(self.work / "plan.json", str(film), self.work / "out", every=1.0, size=5.0)
+        self.assertFalse(left.exists())
 
     def test_usage_and_missing_files(self):
         self.assertEqual(run_main([])[0], 2)

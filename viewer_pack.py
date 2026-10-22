@@ -12,6 +12,7 @@ How the review is run and what it reports: review/viewer.md.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -66,7 +67,8 @@ def on_screen(overlays: list[dict], specs: dict[str, dict], a: float, b: float) 
 
 
 def stamp(t: float) -> str:
-    return f"{int(t // 60)}:{t % 60:04.1f}"
+    tenths = round(t * 10)  # round first, or 59.96 s reads "0:60.0"
+    return f"{tenths // 600}:{tenths % 600 / 10:04.1f}"
 
 
 def duration(film: str) -> float:
@@ -112,9 +114,11 @@ def pack(plan_path: Path, film: str, outdir: Path, every: float | None = None, s
     outdir.mkdir(parents=True, exist_ok=True)
     for old in [*outdir.glob("w[0-9][0-9][0-9].jpg"), outdir / "pack.json", outdir / "pack.md"]:
         old.unlink(missing_ok=True)  # a pack of an earlier render must not mix in
+    for left in outdir.glob(".frames-*"):  # frames of a run killed hard (SIGKILL), which skipped its own cleanup
+        shutil.rmtree(left)
     result = {"film": film, "plan": str(plan_path), "vertical": vertical, "every": every, "total": round(total, 2),
               "windows": []}
-    with tempfile.TemporaryDirectory(dir=outdir) as tmp:
+    with tempfile.TemporaryDirectory(dir=outdir, prefix=".frames-") as tmp:
         frames = [(k * every, f) for k, f in enumerate(grab_frames(film, every, FRAME_H[vertical], Path(tmp)))]
         for i, (a, b) in enumerate(windows(total, size)):
             mine = [(t, f) for t, f in frames if a <= t < b]
@@ -162,7 +166,11 @@ def main(argv: list[str]) -> int:
             return 1
     try:
         r = pack(plan, film, outdir, opts["--every"], opts["--window"])
-    except (KeyError, ValueError, OSError, RuntimeError, subprocess.CalledProcessError) as e:  # JSONDecodeError is a ValueError
+    except subprocess.CalledProcessError as e:  # ffprobe's own words say why (ffmpeg prints straight to the terminal)
+        why = (e.stderr or "").strip().splitlines()[-1:] or [f"exit {e.returncode}"]
+        print(f"FAILED viewer_pack {film}: {Path(e.cmd[0]).name}: {why[0]}", file=sys.stderr)
+        return 1
+    except (KeyError, ValueError, OSError, RuntimeError) as e:  # JSONDecodeError is a ValueError
         print(f"FAILED viewer_pack {film}: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
     print(f"{len(r['windows'])} windows -> {outdir / 'pack.md'}")
