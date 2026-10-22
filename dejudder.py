@@ -11,6 +11,8 @@ Why: the Razer Kiyo Pro Ultra delivers 25-30 fps in dim light although 30 is req
 """
 from __future__ import annotations
 
+import contextlib
+import signal
 import subprocess
 import sys
 import time
@@ -121,7 +123,10 @@ def read_frames(pipe, size: int) -> Iterator[bytes]:
 def source_fps(src: str) -> str:
     r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=r_frame_rate",
                         "-of", "csv=p=0", src], capture_output=True, text=True, check=True)
-    return r.stdout.strip() or "30"
+    fps = r.stdout.strip()
+    if not fps or fps.startswith("0/"):
+        raise ValueError(f"no frame rate in {src}")  # a guessed rate would shift every frame of the output
+    return fps
 
 
 def av_offset(src: str | Path) -> float:
@@ -131,7 +136,8 @@ def av_offset(src: str | Path) -> float:
     starts = dict(line.split(",")[:2] for line in r.stdout.split() if line.count(",") >= 1)
     try:
         return float(starts.get("video", 0)) - float(starts.get("audio", 0))
-    except ValueError:  # "N/A" start time: nothing to keep
+    except ValueError:  # "N/A" start time: nothing to keep, but say so
+        print(f"warning: no start time in {src}, A/V offset not kept", file=sys.stderr)
         return 0.0
 
 
@@ -175,6 +181,15 @@ def scan(src: str, w: int, h: int) -> int:
     return dec.wait()
 
 
+def _reap(dec: subprocess.Popen, enc: subprocess.Popen) -> None:
+    for proc in (dec, enc):
+        proc.kill()
+        proc.wait()
+    if enc.stdin:
+        with contextlib.suppress(OSError):  # unflushed frames for a dead encoder: dropping them is the point
+            enc.stdin.close()
+
+
 def encode(src: str, part: Path, w: int, h: int, stats: dict[str, int]) -> str:
     """Decode -> repair -> encode into part. Returns '' or what went wrong; both ffmpegs are always reaped."""
     dec = decoder(src)
@@ -190,15 +205,11 @@ def encode(src: str, part: Path, w: int, h: int, stats: dict[str, int]) -> str:
                       file=sys.stderr, flush=True)
         enc.stdin.close()
     except OSError as e:  # BrokenPipeError = the encoder died (no VAAPI, disk full): its exit code tells why
-        for proc in (dec, enc):
-            proc.kill()
-            proc.wait()
+        _reap(dec, enc)
         return f"{type(e).__name__}: encoder {enc.returncode}"
     except BaseException:
         # anything else (cv2, reshape, Ctrl+C): reap both ffmpegs first, or dec.wait() hangs on a full pipe
-        for proc in (dec, enc):
-            proc.kill()
-            proc.wait()
+        _reap(dec, enc)
         raise
     if dec.wait() or enc.wait():
         return f"ffmpeg exit: decoder {dec.returncode}, encoder {enc.returncode}"
@@ -211,6 +222,10 @@ def verify(part: Path, src_packets: dict[str, int]) -> str:
     if got.get("video") != src_packets.get("video") or got.get("audio") != src_packets.get("audio"):
         return f"output packets {got} != recording {src_packets}"
     return ""
+
+
+def _stop(signum: int, _frame: object) -> None:
+    raise SystemExit(128 + signum)
 
 
 def main(argv: list[str]) -> int:
@@ -237,7 +252,9 @@ def main(argv: list[str]) -> int:
         return 1
     stats = {"frames": 0, "fixed": 0, "stalls": 0}
     t0 = time.time()
-    error = "stopped by an exception (traceback below)"
+    for sig in (signal.SIGTERM, signal.SIGHUP):  # a closed terminal or a killed task: clean up like Ctrl+C
+        signal.signal(sig, _stop)
+    error = "stopped (signal, Ctrl+C or an exception)"
     try:
         error = encode(src, part, w, h, stats) or verify(part, src_packets)
     finally:

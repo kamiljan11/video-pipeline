@@ -4,6 +4,7 @@ Run: cd ~/video-pipeline && .venv/bin/python -m unittest tests.test_dejudder
 """
 import io
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -141,6 +142,30 @@ class MainTest(unittest.TestCase):
             err = io.StringIO()
             with redirect_stderr(err), self.assertRaisesRegex(RuntimeError, "cv2 says no"):
                 dejudder.main([str(src), str(out)])  # used to hang on a decoder blocked on a full pipe
+        self.assertIn("FAILED dejudder", err.getvalue())
+        self.assertFalse(out.with_suffix(".part.mp4").exists())
+
+    def test_an_output_missing_frames_is_rejected(self):
+        src = self.tmp / "take.mp4"
+        clip(src)
+        self.assertEqual(dejudder.verify(src, dejudder.packets(src)), "")
+        self.assertIn("!= recording", dejudder.verify(src, {"video": 31, "audio": 1}))
+
+    def test_a_terminated_run_leaves_no_partial_file(self):
+        src, out = self.tmp / "take.mp4", self.tmp / "fixed.mp4"
+        clip(src)
+
+        def killed(*_args):
+            os.kill(os.getpid(), signal.SIGTERM)  # the terminal window was closed mid-run
+            yield b""
+        old = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGHUP)}
+        self.addCleanup(lambda: [signal.signal(s, h) for s, h in old.items()])
+        with mock.patch.object(dejudder, "repaired", killed), \
+                mock.patch.object(dejudder, "encode_cmd", return_value=["sh", "-c", "cat > /dev/null"]):
+            err = io.StringIO()
+            with redirect_stderr(err), self.assertRaises(SystemExit) as stop:
+                dejudder.main([str(src), str(out)])
+        self.assertEqual(stop.exception.code, 128 + signal.SIGTERM)
         self.assertIn("FAILED dejudder", err.getvalue())
         self.assertFalse(out.with_suffix(".part.mp4").exists())
 
