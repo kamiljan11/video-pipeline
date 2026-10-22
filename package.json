@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "gsap": "3.15.0",
     "lucide-static": "^0.460.0",
     "playwright-core": "^1.58.2"
   }

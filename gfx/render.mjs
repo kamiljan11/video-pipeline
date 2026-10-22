@@ -2,12 +2,18 @@
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
+import { COUNT_DELAY, COUNT_DUR, countParts, fmtNum, numWidth } from './count_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
+const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
 const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const icon = n => n ? fs.readFileSync(`/home/kamil-jan/video-pipeline/node_modules/lucide-static/icons/${n}.svg`, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '';
+// "kw" box; "count" is the same box with counting numbers in its title
+const kwBox = (sp, title, cls = 'kw') => `<div class="${cls} ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${title}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
 const html = sp => {
-  if (sp.type === 'kw') return `<div class="kw ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${esc(sp.text)}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
+  if (sp.type === 'kw') return kwBox(sp, esc(sp.text));
+  if (sp.type === 'count') return kwBox(sp, countParts(sp.text).map(p => typeof p === 'string' ? esc(p)
+    : `<span class="num" data-to="${p.value}" data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(0, p.dec, p.group)}</span>`).join(''), 'kw count');
   if (sp.type === 'lower') return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
   if (sp.type === 'list') return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
   if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div></div>`;
@@ -61,12 +67,24 @@ async function one(sp) {
   if (v) await page.evaluate(() => document.documentElement.classList.add('v'));
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
+  // GSAP only on a page with a "count" card (ADR-0005): one paused timeline, seeked to each frame's time -> same frames every run
+  if (sp.type === 'count') {
+    await page.addScriptTag({ path: GSAP });
+    await page.evaluate(([cd, delay, fmt]) => {
+      const f = new Function(`return ${fmt}`)(), tl = gsap.timeline({ paused: true });
+      const nums = [...document.querySelectorAll('.num')].map(el => ({ el, o: { v: 0 } }));
+      nums.forEach(({ o, el }) => tl.to(o, { v: +el.dataset.to, duration: cd, ease: 'power2.out' }, delay));
+      window.__seek = t => { tl.seek(t, true); nums.forEach(({ el, o }) => {
+        el.textContent = cd <= 0 || t >= delay + cd ? el.dataset.final : f(o.v, +el.dataset.dec, !!el.dataset.group); }); };
+    }, [COUNT_DUR(sp.dur), COUNT_DELAY, fmtNum.toString()]);
+  }
   const dir = `${outDir}/${sp.id}_frames`; fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(sp.dur * FPS);
   for (let f = 0; f < n; f++) {
     const t = f / FPS;
     await page.evaluate(([t, dur]) => {
       document.getAnimations().forEach(a => { a.pause(); a.currentTime = t * 1000; });
+      if (window.__seek) window.__seek(t);
       const r = document.getElementById('root'); const fo = 0.35;
       r.style.opacity = (window.__noout) ? 1 : t > dur - fo ? Math.max(0, (dur - t) / fo) : 1;
     }, [t, sp.dur]);

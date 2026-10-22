@@ -49,7 +49,7 @@ def put(t, sig, g=1.0):
 
 for o in edl.get("overlays", []):
     sp = specs.get(o["id"], {}); ty = sp.get("type")
-    if ty in ("kw", "lower"): put(o["at"] + 0.03, pop(), 0.8)
+    if ty in ("kw", "count", "lower"): put(o["at"] + 0.03, pop(), 0.8)
     if ty == "list":
         put(o["at"], whoosh(0.5), 0.5)
         for dl in sp.get("delays", []): put(o["at"] + dl + 0.05, pop(), 0.7)
