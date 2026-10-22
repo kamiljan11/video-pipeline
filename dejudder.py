@@ -1,0 +1,165 @@
+#!/usr/bin/env python3
+"""Repair camera judder in a recording: frames the camera never sent (ffmpeg repeated the previous one to keep
+30 fps CFR) are replaced by an in-between frame from optical flow, so motion is even again.
+
+  .venv/bin/python dejudder.py <in.mp4> <out.mp4> [--scan]
+
+--scan only counts the repeated frames (no output written). Timing, frame count and audio stay identical to the
+input, so a transcript of the input (`*.cw.json`) still fits the output. Runs of more than MAX_RUN repeated frames
+(the camera stalled) are left as they are: no in-between frame from a picture that long ago would look right.
+Why: the Razer Kiyo Pro Ultra delivers 25-30 fps in dim light although 30 is requested (measured 2026-10-22).
+"""
+from __future__ import annotations
+
+import subprocess
+import sys
+import time
+from collections.abc import Iterator
+from pathlib import Path
+
+import cv2
+import numpy as np
+
+REPEAT_DIFF = 0.06  # mean |Δ| of 320x180 luma; repeated frames measure < 0.03, real ones > 0.1 (2026-10-22 recording)
+MAX_RUN = 3
+SMALL = (320, 180)
+FLOW_W = 640
+
+
+def frame_size(w: int, h: int) -> int:
+    return w * h * 3 // 2  # yuv420p
+
+
+def planes(buf: bytes, w: int, h: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    a = np.frombuffer(buf, np.uint8)
+    y = a[: w * h].reshape(h, w)
+    u = a[w * h: w * h * 5 // 4].reshape(h // 2, w // 2)
+    v = a[w * h * 5 // 4:].reshape(h // 2, w // 2)
+    return y, u, v
+
+
+def small_luma(buf: bytes, w: int, h: int) -> np.ndarray:
+    return cv2.resize(planes(buf, w, h)[0], SMALL, interpolation=cv2.INTER_AREA).astype(np.int16)
+
+
+def is_repeat(prev_small: np.ndarray, small: np.ndarray, threshold: float = REPEAT_DIFF) -> bool:
+    return float(np.abs(small - prev_small).mean()) < threshold
+
+
+def _warp(plane: np.ndarray, flow: np.ndarray, t: float) -> np.ndarray:
+    """plane sampled at x - t*flow(x): moves the picture t of the way along the flow."""
+    h, w = plane.shape
+    f = cv2.resize(flow, (w, h), interpolation=cv2.INTER_LINEAR) * (w / flow.shape[1])
+    gx, gy = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    return cv2.remap(plane, gx - t * f[..., 0], gy - t * f[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+
+
+def in_between(a: bytes, b: bytes, w: int, h: int, count: int) -> list[bytes]:
+    """`count` evenly spaced frames between real frames a and b (bidirectional flow, blended by distance)."""
+    ya, yb = planes(a, w, h)[0], planes(b, w, h)[0]
+    fh = round(h * FLOW_W / w)
+    sa, sb = cv2.resize(ya, (FLOW_W, fh), interpolation=cv2.INTER_AREA), cv2.resize(yb, (FLOW_W, fh), interpolation=cv2.INTER_AREA)
+    dis = cv2.DISOpticalFlow.create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+    empty = np.zeros((fh, FLOW_W, 2), np.float32)
+    ab, ba = dis.calc(sa, sb, empty.copy()), dis.calc(sb, sa, empty.copy())
+    out = []
+    for k in range(1, count + 1):
+        t = k / (count + 1)
+        frame = []
+        for pa, pb in zip(planes(a, w, h), planes(b, w, h), strict=True):
+            wa, wb = _warp(pa, ab, t), _warp(pb, ba, 1 - t)
+            frame.append(cv2.addWeighted(wa, 1 - t, wb, t, 0).tobytes())
+        out.append(b"".join(frame))
+    return out
+
+
+def repaired(frames: Iterator[bytes], w: int, h: int, stats: dict[str, int]) -> Iterator[bytes]:
+    """Same number of frames out as in; a run of 1..MAX_RUN repeats is replaced by in-between frames."""
+    last_real: bytes | None = None
+    last_small: np.ndarray | None = None
+    held: list[bytes] = []
+    for buf in frames:
+        small = small_luma(buf, w, h)
+        if last_small is not None and is_repeat(last_small, small):
+            held.append(buf)
+            continue
+        if held:
+            assert last_real is not None
+            if len(held) <= MAX_RUN:
+                yield from in_between(last_real, buf, w, h, len(held))
+                stats["fixed"] += len(held)
+            else:
+                yield from held
+                stats["stalls"] += 1
+            held = []
+        yield buf
+        last_real, last_small = buf, small
+    yield from held  # repeats at the very end have no next frame to move towards
+
+
+def probe(src: str) -> tuple[int, int]:
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                        "-of", "csv=p=0", src], capture_output=True, text=True, check=True)
+    w, h = (int(x) for x in r.stdout.strip().split(","))
+    return w, h
+
+
+def read_frames(pipe, size: int) -> Iterator[bytes]:
+    while True:
+        buf = pipe.read(size)
+        if len(buf) < size:
+            return
+        yield buf
+
+
+def main(argv: list[str]) -> int:
+    if not argv or ("--scan" not in argv and len(argv) < 2):
+        print(__doc__, file=sys.stderr)
+        return 2
+    src, scan = argv[0], "--scan" in argv
+    w, h = probe(src)
+    size = frame_size(w, h)
+    dec = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-i", src, "-map", "0:v:0", "-f", "rawvideo",
+                            "-pix_fmt", "yuv420p", "-"], stdout=subprocess.PIPE)
+    assert dec.stdout
+    stats = {"frames": 0, "fixed": 0, "stalls": 0}
+    t0 = time.time()
+    if scan:
+        prev = None
+        for buf in read_frames(dec.stdout, size):
+            small = small_luma(buf, w, h)
+            stats["fixed"] += prev is not None and is_repeat(prev, small)
+            stats["frames"] += 1
+            prev = small
+        print(f"frames {stats['frames']}, repeated {stats['fixed']}")
+        return dec.wait()
+    out = argv[1]
+    part = Path(out).with_suffix(".part.mp4")
+    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-nostdin", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p",
+                            "-s", f"{w}x{h}", "-framerate", "30", "-i", "-", "-i", src, "-map", "0:v", "-map", "1:a",
+                            "-vaapi_device", "/dev/dri/renderD128", "-vf", "format=nv12,hwupload",
+                            "-c:v", "h264_vaapi", "-profile:v", "high", "-b:v", "30M", "-maxrate", "40M", "-bufsize", "60M",
+                            "-g", "30", "-color_range", "tv", "-colorspace", "bt470bg", "-c:a", "copy",
+                            "-movflags", "+faststart", str(part)], stdin=subprocess.PIPE)
+    assert enc.stdin
+    try:
+        for buf in repaired(read_frames(dec.stdout, size), w, h, stats):
+            enc.stdin.write(buf)
+            stats["frames"] += 1
+            if stats["frames"] % 3000 == 0:
+                print(f"{stats['frames']} frames, {stats['frames'] / (time.time() - t0):.0f} fps, fixed {stats['fixed']}",
+                      file=sys.stderr, flush=True)
+    finally:
+        enc.stdin.close()
+    if dec.wait() or enc.wait():
+        print(f"FAILED dejudder {src}: decoder {dec.returncode}, encoder {enc.returncode}", file=sys.stderr)
+        part.unlink(missing_ok=True)
+        return 1
+    part.replace(out)
+    print(f"frames {stats['frames']}, repaired {stats['fixed']}, stalls left {stats['stalls']}, "
+          f"{time.time() - t0:.0f} s -> {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
