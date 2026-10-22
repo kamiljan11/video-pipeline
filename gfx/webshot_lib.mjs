@@ -1,9 +1,10 @@
 // Helpers of webshot.mjs (no browser, no network): which URLs may be captured, where a quote is,
 // how the "web" card scrolls, the capture's cache key. Tested by gfx/test/webshot.test.mjs (npm test).
-import crypto from 'crypto'; import fs from 'fs'; import net from 'net'; import path from 'path';
+import crypto from 'crypto'; import fs from 'fs'; import net from 'net'; import os from 'os'; import path from 'path';
 
 export const VIEW = { width: 1200, height: 900, scale: 2 };  // CSS px of the captured browser window (narrow = bigger text in the card), device scale
 export const BEFORE = 2400, AFTER = 1000;                    // CSS px kept above / below the quote in the shot
+export const PER_CARD = 150000;                               // ms a card may take (webshot fails it; render.mjs allows that many)
 
 // Only public https pages: a spec arrives as a file (Syncthing), so it must not turn the capture into a reader of
 // local services (the panel on 127.0.0.1, the router) or files (file:///home/...), which would end up in the video.
@@ -18,7 +19,7 @@ export function checkUrl(raw) {
 // a NAME is only a first filter: netguard.mjs checks every address it resolves to (privateIp) before connecting
 export function privateHost(host) {
   const h = host.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.+$/, '');  // "localhost." = "localhost"
-  if (net.isIP(h)) return privateIp(h);
+  if (net.isIP(h)) return blockedIp(h);
   return h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.home.arpa')
     || !h.includes('.');
 }
@@ -34,6 +35,18 @@ for (const [a, n] of [['::', 96], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['2001
 export function privateIp(ip) {
   const v = net.isIP(ip);
   return !v || PRIVATE.check(ip, v === 4 ? 'ipv4' : 'ipv6');
+}
+
+// private ranges plus this computer's own addresses (a public address of the laptop reaches its local services too);
+// BlockList compares addresses, not spellings: ::ffff:a.b.c.d, ::ffff:hex and uncompressed IPv6 all match
+export function blockedIp(ip) {
+  if (privateIp(ip)) return true;
+  const own = new net.BlockList();
+  for (const a of Object.values(os.networkInterfaces()).flat()) {
+    const addr = a?.address?.replace(/%.*$/, '');
+    if (net.isIP(addr)) own.addAddress(addr, net.isIP(addr) === 4 ? 'ipv4' : 'ipv6');
+  }
+  return own.check(ip, net.isIP(ip) === 4 ? 'ipv4' : 'ipv6');
 }
 
 // requests the page itself makes (images, scripts, redirects): web only, never a private host

@@ -1,5 +1,7 @@
 # ADR-0002 — Karta źródła `web`: przytaczana strona/PDF w oknie przeglądarki, przewinięta do cytatu
 
+(Numeracja ADR pipeline'u jest osobna od panelu: „ADR-0002 panelu” = gramatyka montażu, `panel/docs/adr/0002-*`.)
+
 Data: 2026-10-22 | Status: przyjęte | Drzwi: dwukierunkowe | Przegląd: po pierwszym filmie z kartą `web`
 
 **Kontekst:** Kamil (2026-10-22): gdy przytaczamy badanie albo stronę, „skoro o czymś mówimy, to można to pokazać” —

@@ -3,12 +3,9 @@
 // address is checked after DNS and the socket connects to exactly that checked address (no second lookup).
 // Node's own requests use guardedLookup; Chrome is sent through startGuardProxy (Playwright also routes loopback
 // through a proxy: "<-loopback>"), so redirects, scripts, frames and service workers are covered too.
-import dns from 'dns'; import http from 'http'; import net from 'net'; import os from 'os';
-import { privateIp } from './webshot_lib.mjs';
-
-// private ranges plus this computer's own addresses (a public IPv6 of the laptop reaches its local services too)
-export const blockedIp = (ip) => privateIp(ip)
-  || Object.values(os.networkInterfaces()).flat().some(a => a && a.address.toLowerCase() === ip.toLowerCase().replace(/%.*$/, ''));
+import dns from 'dns'; import http from 'http'; import net from 'net';
+import { blockedIp } from './webshot_lib.mjs';
+export { blockedIp };
 
 const refuse = (host, ip) => Object.assign(new Error(`adres lokalny/prywatny: ${host}${ip && ip !== host ? ` -> ${ip}` : ''}`), { code: 'EPRIVATE' });
 

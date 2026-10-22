@@ -6,18 +6,22 @@
 // Captured once (cache key = url + find + img content + page + box + title): delete outdir/web/<key>.* to capture again.
 // Network: public addresses only, checked after DNS for every connection (netguard.mjs); Chrome runs sandboxed.
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
-import fs from 'fs'; import https from 'https'; import path from 'path'; import { execFileSync } from 'child_process';
-import { pathToFileURL } from 'url';
-import { VIEW, BEFORE, AFTER, checkUrl, allowedRequest, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
-import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy, blockedIp } from './netguard.mjs';
+import fs from 'fs'; import https from 'https'; import path from 'path'; import { execFile } from 'child_process';
+import { pathToFileURL } from 'url'; import { promisify } from 'util';
+import { VIEW, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
+import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy } from './netguard.mjs';
+import { blockedIp } from './webshot_lib.mjs';
 
-const TOOL = { timeout: 120000, killSignal: 'SIGKILL' };  // poppler/ffmpeg on a hostile or huge file must not hang the render
-const size = (png) => execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', png], { encoding: 'utf8', ...TOOL }).trim().split(',').map(Number);
+// poppler/ffmpeg on a hostile or huge file must not hang the render: 120 s each, and killed with the card when it runs
+// out of time (async, so the card's timer can fire while a tool works)
+const run = promisify(execFile);
+const tool = (job, cmd, args, o = {}) => run(cmd, args, { timeout: 120000, killSignal: 'SIGKILL', signal: job.stop.signal, encoding: 'utf8', maxBuffer: 256 << 20, ...o }).then(r => r.stdout);
+const size = async (job, png) => (await tool(job, 'ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', png])).trim().split(',').map(Number);
 
 // Captures every "web" spec not captured yet; returns the number of failed cards (each printed as FAILED webshot <id>).
 // opts exist for the tests (gfx/test/webshot_net.test.mjs: fake DNS, local server, short limits); the CLI passes none.
 export async function capture(specFile, outDir, opts = {}) {
-  const { timeout = 45000, perCard = 150000, maxPdf = 60 << 20, isPrivate = blockedIp, testCa = null } = opts;
+  const { timeout = 45000, perCard = PER_CARD, maxPdf = 60 << 20, isPrivate = blockedIp, testCa = null } = opts;
   const lookup = guardedLookup(opts.resolve, isPrivate);
   const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(s => s && s.type === 'web');
   const dir = path.join(outDir, 'web'); fs.mkdirSync(dir, { recursive: true });
@@ -28,6 +32,7 @@ export async function capture(specFile, outDir, opts = {}) {
     if (job.dead) throw new Error('karta przerwana');
     const f = path.join(dir, `${key}.json`);
     fs.writeFileSync(`${f}.tmp`, JSON.stringify({ ...meta, captured: new Date().toISOString() }, null, 1)); fs.renameSync(`${f}.tmp`, f);
+    return meta.kind;
   };
 
   const get = (u) => new Promise((ok, fail) => {
@@ -56,25 +61,26 @@ export async function capture(specFile, outDir, opts = {}) {
     } catch (e) { throw /za duży/.test(e.message) ? e : new Error(`pobieranie PDF przerwane po ${n} B (${e.message}; brak danych przez ${timeout / 1000} s?)`); }
     if (job.dead) throw new Error('karta przerwana');
     const file = path.join(dir, `${key}.pdf`); fs.writeFileSync(file, Buffer.concat(parts));
-    try { pdfPage(job, sp, key, url, file); } finally { fs.rmSync(file, { force: true }); }  // the PDF itself is not kept
+    try { return await pdfPage(job, sp, key, url, file); } finally { fs.rmSync(file, { force: true }); }  // the PDF itself is not kept
   }
 
-  function pdfPage(job, sp, key, url, file) {
-    const words = pdfWords(execFileSync('pdftotext', ['-bbox-layout', file, '-'], { encoding: 'utf8', maxBuffer: 256 << 20, ...TOOL }))
+  async function pdfPage(job, sp, key, url, file) {
+    const words = pdfWords(await tool(job, 'pdftotext', ['-bbox-layout', file, '-']))
       .filter(w => sp.page == null || w.page === sp.page);
     const spans = findQuote(words, sp.find);
     if (!spans) throw new Error(`nie ma cytatu w PDF${sp.page != null ? ` (str. ${sp.page})` : ''}: „${sp.find}”`);
     const page = words[spans[0].piece].page, k = 216 / 72;  // 216 dpi: a page is ~1840 px wide, the card shows 1720
-    execFileSync('pdftoppm', ['-r', '216', '-f', String(page), '-l', String(page), '-png', '-singlefile', file, path.join(dir, key)], TOOL);
-    const [width, height] = size(path.join(dir, `${key}.png`));
+    await tool(job, 'pdftoppm', ['-r', '216', '-f', String(page), '-l', String(page), '-png', '-singlefile', file, path.join(dir, key)]);
+    const [width, height] = await size(job, path.join(dir, `${key}.png`));
     const rects = lines(spans.filter(s => words[s.piece].page === page).map(s => { const w = words[s.piece]; return [w.x * k, w.y * k, w.w * k, w.h * k]; }));
-    const info = execFileSync('pdfinfo', [file], { encoding: 'utf8', ...TOOL }).match(/^Title:[ \t]*(\S.*)$/m);
-    save(job, key, { kind: 'pdf', url: sp.url, final_url: url.href, host: url.hostname, title: info ? info[1].trim() : path.basename(url.pathname), page, width, height, rects });
+    const info = (await tool(job, 'pdfinfo', [file])).match(/^Title:[ \t]*(\S.*)$/m);
+    return save(job, key, { kind: 'pdf', url: sp.url, final_url: url.href, host: url.hostname, title: info ? info[1].trim() : path.basename(url.pathname), page, width, height, rects });
   }
 
   async function page(job, sp, key, url) {
     proxy ??= await startGuardProxy({ lookup, isPrivate });
     // sandboxed: the page and its third-party scripts come from the internet (Playwright adds --no-sandbox otherwise)
+    if (browser && !browser.isConnected()) browser = null;  // Chrome died (crash, out of memory): start a new one
     browser ??= await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: chromeArgs, proxy: chromeProxy(proxy) });
     const ctx = await browser.newContext({ viewport: { width: VIEW.width, height: VIEW.height }, deviceScaleFactor: VIEW.scale, locale: 'pl-PL',
       acceptDownloads: false, ignoreHTTPSErrors: Boolean(testCa) });
@@ -124,23 +130,23 @@ export async function capture(specFile, outDir, opts = {}) {
       const qy = Math.min(...rects.map(r => r[1])), y0 = Math.max(0, Math.floor(qy - BEFORE)), y1 = Math.min(docH, Math.ceil(qy + AFTER));
       if (job.dead) throw new Error('karta przerwana');
       await pg.screenshot({ path: path.join(dir, `${key}.png`), fullPage: true, clip: { x: 0, y: y0, width: VIEW.width, height: Math.max(VIEW.height, y1 - y0) } });
-      const [width, height] = size(path.join(dir, `${key}.png`));
+      const [width, height] = await size(job, path.join(dir, `${key}.png`));
       const k = width / VIEW.width, final = new URL(pg.url());
-      save(job, key, { kind: 'page', url: sp.url, final_url: final.href, host: final.hostname, title: (await pg.title()).trim(), width, height,
+      return save(job, key, { kind: 'page', url: sp.url, final_url: final.href, host: final.hostname, title: (await pg.title()).trim(), width, height,
         rects: lines(rects.map(([x, y, w, h]) => [x * k, (y - y0) * k, w * k, h * k])) });
     } finally {
       await ctx.close().catch(() => {});  // already gone when the card ran out of time
     }
   }
 
-  function own(job, sp, key) {
+  async function own(job, sp, key) {
     // a screenshot Kamil made himself: a plain file name in the folder of the specs (the project's work directory)
     const src = ownImg(specFile, sp);
-    execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'image2', '-pattern_type', 'none', '-i', src, '-frames:v', '1', path.join(dir, `${key}.png`)], TOOL);
-    const [width, height] = size(path.join(dir, `${key}.png`));
+    await tool(job, 'ffmpeg', ['-v', 'error', '-y', '-f', 'image2', '-pattern_type', 'none', '-i', src, '-frames:v', '1', path.join(dir, `${key}.png`)]);
+    const [width, height] = await size(job, path.join(dir, `${key}.png`));
     const box = Array.isArray(sp.box) && sp.box.length === 4 && sp.box.every(Number.isFinite) ? [sp.box] : [];
     const url = typeof sp.url === 'string' && sp.url ? checkUrl(sp.url) : null;
-    save(job, key, { kind: 'img', url: sp.url ?? null, final_url: url?.href ?? null, host: url?.hostname ?? '', title: String(sp.title ?? ''), width, height, rects: box });
+    return save(job, key, { kind: 'img', url: sp.url ?? null, final_url: url?.href ?? null, host: url?.hostname ?? '', title: String(sp.title ?? ''), width, height, rects: box });
   }
 
   async function one(job, sp, key) {
@@ -165,18 +171,18 @@ export async function capture(specFile, outDir, opts = {}) {
   }
   let failed = 0;
   for (const [sp, key] of todo) {
-    const job = { dead: false }; let timer;
+    const job = { dead: false, stop: new AbortController() }; let timer;
     // one hung page or tool must not hang the render: past the limit the card fails like any other
     const limit = new Promise((_, fail) => { timer = setTimeout(() => fail(new Error(`przekroczony czas ${perCard / 1000} s (strona albo plik nie odpowiada)`)), perCard); });
     const work = one(job, sp, key);
     work.catch(() => {});  // after a timeout its own error no longer matters
     try {
       await Promise.race([work, limit]);
-      console.log('webshot', sp.id, key);
+      console.log('webshot', sp.id, key, await work);  // + kind (page/pdf/img): the ADR's metric counts own screenshots
     } catch (e) {
-      failed++; job.dead = true;
+      failed++; job.dead = true; job.stop.abort();  // a tool still running for this card is killed
       if (/przekroczony czas/.test(e.message)) { await browser?.close().catch(() => {}); browser = null; }  // the hung page goes with it
-      for (const f of ['png', 'json', 'pdf']) fs.rmSync(path.join(dir, `${key}.${f}`), { force: true });  // never a half capture
+      for (const f of ['png', 'json', 'json.tmp', 'pdf']) fs.rmSync(path.join(dir, `${key}.${f}`), { force: true });  // never a half capture
       console.error(`FAILED webshot ${sp.id} (${sp.url ?? sp.img}): ${e.message}`);
     } finally { clearTimeout(timer); }
   }

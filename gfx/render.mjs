@@ -1,7 +1,7 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from 'child_process';
-import { keyOf, motion } from './webshot_lib.mjs';
+import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -43,7 +43,7 @@ function webStamp(sp) {
 }
 // "web" cards need their capture first (network): webshot.mjs skips the ones already captured, fails loudly otherwise
 if (specs.some(s => s.type === 'web')) {
-  const limit = (specs.filter(s => s.type === 'web').length * 150 + 60) * 1000;  // webshot stops itself first (150 s a card)
+  const limit = specs.filter(s => s.type === 'web').length * PER_CARD + 60000;  // webshot fails a card itself first
   try { execFileSync('node', [new URL('./webshot.mjs', import.meta.url).pathname, specFile, outDir], { stdio: 'inherit', timeout: limit, killSignal: 'SIGKILL' }); }
   catch { console.error('FAILED gfx: page capture for "web" cards (lines FAILED webshot above)'); process.exit(1); }
 }
