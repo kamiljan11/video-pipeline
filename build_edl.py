@@ -7,6 +7,7 @@ import re
 import sys
 from pathlib import Path
 
+import edges
 from gfx_types import PIP, SIDE_BOX
 
 P = json.loads(Path(sys.argv[1]).read_text())
@@ -15,20 +16,40 @@ v = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(P["s
 SIL = [(v[i], v[i + 1]) for i in range(0, len(v) - 1, 2)]
 PRE, POST, MINGAP, KEEP_L, KEEP_R = 0.10, 0.16, 0.45, 0.15, 0.12
 ranges = []
+EF = edges.options(P); ENERGY = None; moved = 0  # plan key "edge_fix" (edges.py): dead air / loud cuts at keep edges
+if EF is not None and EF["dips"]:
+    wav = edges.wav_path(P, EF)
+    if wav is None: sys.exit("edge_fix.dips: no 16-bit wav of the recording (set edge_fix.wav)")
+    try: ENERGY = edges.Energy(wav)
+    except edges.BAD_WAV as e: sys.exit(f"edge_fix.dips: {wav}: {e}")
 for k in P["keeps"]:
     a, b = k[0], k[1]; o = k[2] if len(k) > 2 else {}
     t0 = o.get("t0", W[a][0] - PRE); t1 = o.get("t1", W[b][1] + POST)
     if a > 0 and "t0" not in o: t0 = max(t0, W[a - 1][1] + 0.02)
     if b + 1 < len(W) and "t1" not in o: t1 = min(t1, max(W[b + 1][0] - 0.03, W[b][1] + 0.05))
+    f0 = EF is None or "t0" not in o; f1 = EF is None or "t1" not in o  # with edge_fix an explicit t0/t1 is final
     # if a real silence sits right at the boundary, snap into it (cleaner cut)
     for ss, se in SIL:
-        if ss - 0.3 < t0 < se and se - t0 < 0.4: t0 = max(t0, se - 0.08)
-        if ss < t1 < se + 0.3 and t1 - ss < 0.4: t1 = min(t1, ss + 0.12)
+        if f0 and ss - 0.3 < t0 < se and se - t0 < 0.4: t0 = max(t0, se - 0.08)
+        if f1 and ss < t1 < se + 0.3 and t1 - ss < 0.4: t1 = min(t1, ss + 0.12)
     # drop leftover blips: keep that starts with <0.35 s of sound then a long pause starts after the pause (and mirror for the end)
     for ss, se in SIL:
-        if se - ss > 0.4 and t0 <= ss < t0 + 0.35 and se < t1 - 0.5: t0 = se - 0.08
-        if se - ss > 0.4 and t1 - 0.35 < se <= t1 and ss > t0 + 0.5: t1 = ss + 0.12
+        if f0 and se - ss > 0.4 and t0 <= ss < t0 + 0.35 and se < t1 - 0.5: t0 = se - 0.08
+        if f1 and se - ss > 0.4 and t1 - 0.35 < se <= t1 and ss > t0 + 0.5: t1 = ss + 0.12
+    if EF is not None:
+        e0, e1 = t0, t1
+        t0, t1 = edges.trim_dead_air(t0, t1, SIL, f0, f1)
+        if ENERGY is not None:  # a cut in loud speech -> nearest energy dip, never past the neighbouring words
+            if f0: t0 = edges.snap_loud(t0, W[a - 1][1] - 0.06 if a > 0 else 0.0, min(W[a][0] + 0.06, t1 - 0.3), ENERGY, EF)
+            if f1: t1 = edges.snap_loud(t1, max(W[b][1] - 0.06, t0 + 0.3), W[b + 1][0] + 0.06 if b + 1 < len(W) else t1 + EF["win"], ENERGY, EF)
+        inside = f0 and bool(ranges) and ranges[-1][2] < a and ranges[-1][1] > t0
+        if inside: t0 = ranges[-1][1]  # never play the same sound twice
+        if t1 - t0 < 0.05:
+            why = "it lies inside the previous keep" if inside else "check its t0/t1"
+            sys.exit(f"edge_fix: keep {k[:2]} ends before it starts ({t0:.2f}-{t1:.2f} s): {why}")
+        moved += (t0, t1) != (e0, e1)
     ranges.append([max(0.0, t0), t1, a])
+if EF is not None: print("edge_fix moved", moved, "keep edges")
 # tighten long pauses inside kept ranges using measured silence
 segs = []
 for t0, t1, a in ranges:

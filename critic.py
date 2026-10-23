@@ -13,6 +13,8 @@ Checks (thresholds from research, see SKILL.md):
   C9 claims: every overlay text containing digits/% must be listed in plan["verified_claims"] (quote cards: info if the numbers were said)
   C10 editing grammar (only with plan["beats"], see style/grammar.json): effects without a moment, moments without their graphic
   C11 stock b-roll (only with plan["broll"], see broll.py): clips that could not be placed
+  C12 dead air at a cut edge > 0.6 s (only with plan["edge_fix"] or --edges, see edges.py)
+  C13 cut in loud speech, 10 ms RMS > -32 dBFS at the edge (same switch; needs the recording's wav)
 --fix applies safe automatic fixes to plan.json (adds emphasis zooms in static stretches, extends tail) and reports the rest.
 With plan["beats"] the static-stretch fix forces the strongest detected moment in the stretch instead of a random word."""
 import json
@@ -23,6 +25,7 @@ import sys
 from itertools import pairwise
 from pathlib import Path
 
+import edges
 from gfx_types import SIDE_BOX
 
 args = sys.argv[1:]; plan_p = args[0]; FIX = "--fix" in args
@@ -155,6 +158,18 @@ if BEATS:
 for b in E.get("broll_skipped", []):
     at = f"„{b['said']}”" if b.get("said") else (b["word"] if isinstance(b.get("word"), int) else None)
     add("C11", "warn", f"b-roll{f' przy słowie {at}' if at is not None else ''} pominięty: {b['reason']}", **({"word": b["word"]} if isinstance(b.get("word"), int) else {}))
+# C12/C13 cut edges (plan has "edge_fix" or --edges): silence from the .sil file, energy from the recording's wav
+EF = edges.options(P)
+if EF is not None or "--edges" in args:
+    ef = EF or {}
+    sv = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(P["sil"]).read_text())]
+    wav = edges.wav_path(P, ef); energy = None
+    if wav is None: add("C13", "info", "brak wav nagrania: cięcia w głośnej mowie niesprawdzone")
+    else:
+        try: energy = edges.Energy(wav)
+        except edges.BAD_WAV as e: add("C13", "info", f"wav nagrania nieczytelny ({e}): cięcia w głośnej mowie niesprawdzone")
+    for code, msg, at in edges.findings(segs, list(zip(sv[::2], sv[1::2])), energy, ef.get("loud_db", edges.LOUD_DB)):
+        add(code, "warn", msg, at=round(at, 2))
 skipped = [i for i in issues if (i["code"], i["msg"]) in accepted]
 issues = [i for i in issues if (i["code"], i["msg"]) not in accepted]
 # fixer: add emphasis zoom in long static stretches (pick sentence start nearest the middle)
