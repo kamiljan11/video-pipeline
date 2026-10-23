@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import edges
+import themes
 from gfx_types import PIP, SIDE_BOX
 
 P = json.loads(Path(sys.argv[1]).read_text())
@@ -142,6 +143,8 @@ if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anch
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
        **{k: P[k] for k in ("music_db", "sfx_db", "audio", "steady_x") if k in P}}  # audio: voice filter chain for assemble.py; steady_x: face_track
+THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
+if THEME is not None: edl["theme"] = THEME
 if BEAT_FX is not None:
     from beatfx import grammar_stamp
     edl["beat_fx"] = BEAT_FX; edl["beat_grammar"] = grammar_stamp()
@@ -214,17 +217,19 @@ Style: Cap,Montserrat,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,10
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     ev = []; i = 0
+    CAP_ACC = themes.ass_color(THEME["acc"]) if THEME else "&HC4E22D"  # spoken word in the accent colour
     while i < len(kept):
         grp = [kept[i]]; i += 1
         while i < len(kept) and len(grp) < 3 and len(" ".join(x[2] for x in grp + [kept[i]])) <= 18 and not re.search(r"[.?!,]$", grp[-1][2]):
             grp.append(kept[i]); i += 1
         for j, w in enumerate(grp):  # karaoke-style: current word in accent colour
             end = grp[j + 1][0] if j + 1 < len(grp) else (kept[i][0] if i < len(kept) else w[1])
-            txt = " ".join(("{\\c&HC4E22D&}" + x[2].strip(",.").upper() + "{\\c&HFFFFFF&}") if k == j else x[2].strip(",.").upper() for k, x in enumerate(grp))
+            txt = " ".join(("{\\c" + CAP_ACC + "&}" + x[2].strip(",.").upper() + "{\\c&HFFFFFF&}") if k == j else x[2].strip(",.").upper() for k, x in enumerate(grp))
             ev.append(f"Dialogue: 0,{ts(w[0], '.')[1:-1]},{ts(min(end, w[1] + 0.6), '.')[1:-1]},Cap,,0,0,0,,{txt}")
     if P.get("hook_text"):
         hdr = hdr.replace("[Events]", "Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,3,0,0,8,90,130,330,1\n\n[Events]")
-        hdr = hdr.replace("Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000", "Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&HD8120F0D")
+        hdr = hdr.replace("Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000", "Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,"
+                          + (themes.ass_color(THEME["ink"], 0xD8) if THEME else "&HD8120F0D"))
         ev.insert(0, f"Dialogue: 1,0:00:00.00,0:00:{P.get('hook_dur', 3.0):05.2f},Hook,,0,0,0,,{{\\fad(0,250)\\bord14}}{P['hook_text']}")
     Path(P["ass_out"]).write_text(hdr + "\n".join(ev) + "\n")
 

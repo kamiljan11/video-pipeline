@@ -4,8 +4,10 @@ import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from '
 import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
+import { loadTheme } from './theme_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
+const THEME = loadTheme(specFile);  // work/theme.json -> style/themes/<name>.json colors; null = the template's own
 const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
 const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
 const icon = n => n ? fs.readFileSync(`/home/kamil-jan/video-pipeline/node_modules/lucide-static/icons/${n}.svg`, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '';
@@ -68,13 +70,16 @@ fs.mkdirSync(outDir, { recursive: true });
 async function one(sp) {
   // a "web" card's .mov belongs to its spec and to one capture (a new capture of the same page included): either changes
   // -> rendered again. Other types keep the old rule (the panel moves a changed graphic's .mov aside).
-  const out = `${outDir}/${sp.id}.mov`, key = sp.type === 'web' ? webStamp(sp) : null, stamp = `${out}.key`;
-  if (fs.existsSync(out) && (!key || (fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key))) return;
+  // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
+  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : null, stamp = `${out}.key`;
+  const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
+  if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';
   const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });
   await page.goto('file:///home/kamil-jan/video-pipeline/gfx/template.html');
   if (v) await page.evaluate(() => document.documentElement.classList.add('v'));
+  if (THEME) await page.evaluate(css => { for (const [k, val] of Object.entries(css)) document.documentElement.style.setProperty(k, val); }, THEME.css);
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
   // GSAP only on a page with a "count" card (docs/adr/0003-gsap-count-card.md): one paused timeline, seeked to each frame's time -> same frames every run
@@ -105,7 +110,7 @@ async function one(sp) {
   await page.close();
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
   fs.rmSync(dir, { recursive: true });
-  if (key) fs.writeFileSync(stamp, key);
+  if (key) fs.writeFileSync(stamp, key); else fs.rmSync(stamp, { force: true });
   console.log('gfx', sp.id);
 }
 const q = [...specs]; await Promise.all([0,1,2,3,4,5].map(async () => { while (q.length) await one(q.shift()); }));

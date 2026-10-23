@@ -1,0 +1,13 @@
+{
+  "name": "cetus",
+  "source": "CetusPro design system as used in the 'Od bólu do wdrożenia' materials (artifact ECLMjWrcqos833GzxyoCVy, 2026-10-04): navy #0A1430, brand #086AD8, brand-light #6FA7EC on navy, Poppins",
+  "css": {
+    "--acc": "#6FA7EC", "--acc-rgb": "111,167,236", "--ink": "#0A1430",
+    "--panel-rgb": "10,20,48", "--scrim-rgb": "6,12,28",
+    "--bg-a": "#17284A", "--bg-b": "#0A1430", "--end-bg": "#0A1430",
+    "--soft": "#E6EDF7", "--soft-2": "#F5F8FC", "--mute": "#B4C2D6", "--mute-2": "#93A4BC",
+    "--track": "#22324F", "--track-ink": "#C9DCF5", "--line": "#2A3D63", "--card": "#121D33", "--acc-dim": "#086AD8",
+    "--paper": "#FFFFFF", "--paper-line": "#EAF2FC", "--paper-ink": "#0E1B2E", "--paper-margin": "#C9DCF5",
+    "--pen": "#086AD8", "--pen-soft": "#93A4BC", "--alert": "#E05A4F"
+  }
+}
