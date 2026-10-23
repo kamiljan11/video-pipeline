@@ -3,6 +3,7 @@ import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright
 import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
+import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
@@ -20,8 +21,17 @@ const html = sp => {
   if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
+  if (sp.type === 'maxim') return maxim(sp);
   if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
 };
+// "maxim": the sentence typed while it is said (gfx/maxim_lib.mjs); every letter is in the layout from the start (hidden) and the
+// caret takes no width, so the lines never re-wrap or shift while typing; window.__seek = maximSeek shows the state at time t
+function maxim(sp) {
+  const words = maximWords(sp.text), times = wordTimes(words, sp.dur, sp.at), chars = charTimes(words, times, sp.dur);
+  const body = words.map(({ w, hl }, i) => `<span class="w${hl ? ' hl' : ''}">${[...w].map((c, j) =>
+    `<i data-t="${chars[i][j].toFixed(3)}">${esc(c)}</i>`).join('')}${hl ? `<b class="mk" data-t="${(chars[i].at(-1) + 0.05).toFixed(3)}"></b>` : ''}</span>`).join(' ');
+  return `<div class="maxim"><div class="scrim"></div><div class="box"><div class="bar"></div><div class="t">${body}<span class="caret"></span></div></div></div>`;
+}
 // "web": the cited page in a browser window (capture: webshot.mjs), scrolled to the quote, which is then marked
 const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right
 function web(sp) {
@@ -78,6 +88,8 @@ async function one(sp) {
         el.textContent = cd <= 0 || t >= delay + cd ? el.dataset.final : f(o.v, +el.dataset.dec, !!el.dataset.group); }); };
     }, [countSeconds(sp.dur), COUNT_DELAY, fmtNum.toString()]);
   }
+  if (sp.type === 'maxim') await page.evaluate(([src, hold, mark]) => { window.__seek = new Function(`return ${src}`)()(hold, mark); },
+    [maximSeek.toString(), CARET_HOLD, MARK_DUR]);
   const dir = `${outDir}/${sp.id}_frames`; fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(sp.dur * FPS);
   for (let f = 0; f < n; f++) {

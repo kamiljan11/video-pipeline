@@ -61,6 +61,7 @@ for o in edl.get("overlays", []):
     if ty in ("chap", "slide", "web"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
     if ty == "end": put(o["at"] - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put(o["at"] + 0.1, ding(), 0.6)
+    if ty == "maxim": put(o["at"] - 0.1, whoosh(0.45), 0.45)  # the sentence comes in softly; its own moments via "sfx"
 acc = 0.0
 for s in segs:
     z = s.get("zoom")
@@ -79,7 +80,7 @@ def pen_sfx():  # a card sound only, not an editing-grammar moment sound (those 
 CARD_SFX = {**BEAT_SFX, "pen": pen_sfx}
 for o in edl.get("overlays", []):
     for e in specs.get(o["id"], {}).get("sfx") or []:  # a malformed entry is skipped: a sound never stops the render
-        if isinstance(e, list) and len(e) == 2 and isinstance(e[0], (int, float)) and e[1] in CARD_SFX:
+        if isinstance(e, list) and len(e) == 2 and isinstance(e[0], (int, float)) and np.isfinite(e[0]) and isinstance(e[1], str) and e[1] in CARD_SFX:
             sig, g, dt = CARD_SFX[e[1]]()
             put(o["at"] + e[0] + dt, sig, g)
 

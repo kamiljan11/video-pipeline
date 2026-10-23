@@ -85,4 +85,16 @@ html.v .kw.compact .bar{margin:12px auto 0}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @keyframes slide{from{opacity:0;transform:translateX(-120px)}to{opacity:1;transform:none}}
 @keyframes outA{from{opacity:1}to{opacity:0}}
+.maxim .scrim{position:absolute;left:0;right:0;bottom:0;height:620px;background:linear-gradient(transparent,rgba(5,7,9,.72));animation:fade .35s both}
+.maxim .box{position:absolute;z-index:1;left:180px;right:180px;bottom:140px;text-align:center}
+.maxim .bar{width:120px;height:12px;border-radius:6px;background:var(--acc);margin:0 auto 34px;transform-origin:center;animation:grow .4s .05s ease-out both}
+.maxim .t{font-weight:900;font-size:104px;line-height:1.14;letter-spacing:-2px;color:#fff;text-shadow:0 6px 34px rgba(0,0,0,.7)}
+.maxim .w{position:relative;display:inline-block;white-space:nowrap}
+.maxim .w i{font-style:normal;visibility:hidden}
+.maxim .w.hl{color:var(--acc)}
+.maxim .mk{position:absolute;left:-4px;right:-4px;bottom:-8px;height:14px;border-radius:8px;background:var(--acc);opacity:.85;transform:scaleX(0);transform-origin:left;z-index:-1}
+.maxim .caret{display:inline-block;width:8px;height:.82em;margin-left:6px;margin-right:-14px;background:var(--acc);vertical-align:-.06em;border-radius:3px}
+html.v .maxim .scrim{top:0;bottom:auto;height:760px;background:linear-gradient(rgba(5,7,9,.72),transparent)}
+html.v .maxim .box{left:70px;right:70px;top:150px;bottom:auto}
+html.v .maxim .t{font-size:84px;letter-spacing:-2px}
 </style></head><body><div id="root"></div></body></html>
