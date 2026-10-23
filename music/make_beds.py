@@ -38,6 +38,11 @@ def pop():
     s = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-t * 32) * 0.55
     click = rng.standard_normal(n) * np.exp(-t * 900) * 0.15
     return s + click
+def pen(d=0.45):
+    """a marker scribbling on paper/whiteboard: scratchy band noise with stroke-rate flutter"""
+    n = int(d * SR); t = np.arange(n) / SR
+    s = bp(rng.standard_normal(n), 1800, 7000) * (0.55 + 0.45 * np.sin(2 * np.pi * 11 * t) ** 2)
+    return s * np.sin(np.pi * np.clip(t / d, 0, 1)) ** 0.6 * 0.35
 def ding():
     n = int(1.2 * SR); t = np.arange(n) / SR
     s = sum(np.sin(2 * np.pi * f * t) * a for f, a in ((1318.5, .5), (1975.5, .25), (2637, .12))) * np.exp(-t * 4) * 0.4
@@ -68,6 +73,15 @@ for r in edl.get("beat_fx", []):
     if r.get("fx") == "punch" and r.get("sfx") in BEAT_SFX:
         sig, g, dt = BEAT_SFX[r["sfx"]]()
         put(r["at"] + dt, sig, g)
+# a card's own moments (spec "sfx": [[t, name], ...], t from the card's start): items popping in, pen strokes, the key fact
+def pen_sfx():  # a card sound only, not an editing-grammar moment sound (those are BEAT_SFX)
+    return pen(), 0.6, 0.0
+CARD_SFX = {**BEAT_SFX, "pen": pen_sfx}
+for o in edl.get("overlays", []):
+    for e in specs.get(o["id"], {}).get("sfx") or []:  # a malformed entry is skipped: a sound never stops the render
+        if isinstance(e, list) and len(e) == 2 and isinstance(e[0], (int, float)) and e[1] in CARD_SFX:
+            sig, g, dt = CARD_SFX[e[1]]()
+            put(o["at"] + e[0] + dt, sig, g)
 
 sfx /= max(1e-9, np.abs(sfx).max()) / 0.8
 d16 = (np.stack([sfx, sfx], 1) * 32767).astype(np.int16)

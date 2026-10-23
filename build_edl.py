@@ -120,7 +120,7 @@ if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anch
     BROLL = place(P["broll"], W, out, ovs)
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "sfx_db") if k in P}}
+       **{k: P[k] for k in ("music_db", "sfx_db", "audio", "steady_x") if k in P}}  # audio: voice filter chain for assemble.py; steady_x: face_track
 if BEAT_FX is not None:
     from beatfx import grammar_stamp
     edl["beat_fx"] = BEAT_FX; edl["beat_grammar"] = grammar_stamp()
