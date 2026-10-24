@@ -1,0 +1,3 @@
+# matte/.venv (behind.py, docs/adr/0005-text-behind-speaker.md): versions reviewed 2026-10-24
+onnxruntime==1.31.0
+numpy==2.5.4

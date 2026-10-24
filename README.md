@@ -42,6 +42,9 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 6. B-roll: sekret `Pexels` w Infisicalu (most `~/infisical`); bez niego reszta pipeline'u działa.
 7. Panel: `panel/` (własne repo bez remote; `panel/README.md`).
 8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff`, `npm i -g pyright`.
+9. Tekst za postacią (tylko gdy plan ma karty `"behind"`): `python3 -m venv matte/.venv && matte/.venv/bin/pip install -r matte/requirements.txt`
+   + model `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
+   (sha256 `25db300fcb6ee27f…`, `behind.py` sprawdza go przy każdym uruchomieniu; decyzja: ADR-0005).
 
 Przed publikacją shorta z b-rollem: linie autorów do opisu filmu (wytyczne API Pexels) = okno „Dobierz b-roll” w panelu albo
 `python3 broll.py plan_<film>.json --credits` w katalogu `work`.
@@ -120,13 +123,16 @@ klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, któ
 {"id": "b02_bol", "type": "float", "dur": 3.2, "html": "<div class=\"bw\" style=\"top:170px;font-size:380px\">BÓL</div>",
  "behind": {"edl": "edl_long.json"}}
 ```
-- Uruchamiają go `gfx/render.mjs` (po renderze kart) i `run_v4.sh` (przed `assemble.py`, na EDL po poprawkach krytyka);
-  karta, której okno w EDL, plik i ustawienia się nie zmieniły, jest pomijana (`<id>.mov.behind`).
+- Uruchamiają go `gfx/render.mjs` (po renderze kart; EDL jeszcze niezbudowany = później) i `run_v4.sh` (przed `assemble.py`,
+  `--edl edl_<film>.json`: karty tego filmu na jego EDL po poprawkach krytyka). Przetworzona karta ma w metadanych klucz
+  (`comment=behind:…`); ten sam klucz = pominięta, `.mov` bez znacznika = świeży render (nowy `<id>.front.mov`).
+- Plan musi mieć `"seg_exact": true`; karta 1–20 s; `id` i nazwa EDL tylko `[A-Za-z0-9_-]`. Opcja `"ratio"` (domyślnie 0.2) =
+  skala, w jakiej model patrzy na klatkę (mniejsza = szybciej, grubsza maska).
+- Efekt wyłączasz, usuwając `"behind"` ze speca i przesuwając `<id>.mov` na bok (render.mjs zrobi zwykłą kartę). Maska myli się
+  na dłoni przed głową: wtedy inne miejsce na słowo.
 - Napis musi sięgać głowy (dół słowa na wysokości czubka głowy lub niżej), inaczej efektu nie widać. `build_edl` trzyma kadr
   pod kartą nieruchomo.
-- Instalacja (osobny venv, tylko dla tej funkcji): `python3 -m venv matte/.venv && matte/.venv/bin/pip install onnxruntime numpy`
-  + `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
-  (sha256 `25db300fcb6ee27f…`, sprawdzany przy każdym uruchomieniu; ONNX = same wagi, bez wykonywania kodu). Ok. 0,1 s na klatkę 2560x1440 na CPU.
+- Instalacja: „Postawienie od zera” pkt 9. Ok. 0,1 s na klatkę 2560x1440 na CPU (wątki z `cpu_budget.py`, nice 10).
 - Testy: `matte/.venv/bin/python -m unittest matte/test_behind.py` (też w zestawie panelu: `panel/tests/test_behind.py`).
 
 ## Motyw (kolory kart, napisów i ramki PiP)

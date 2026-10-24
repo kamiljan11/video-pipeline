@@ -14,12 +14,11 @@ from unittest import mock
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+PIPE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PIPE))
 import behind
 
 W, H = 64, 36
-
-
 
 
 class FakeMatter:
@@ -44,6 +43,17 @@ class GreyMatter(FakeMatter):
         return np.full(rgb.shape[:2], float(rgb.mean()) / 255, np.float32)
 
 
+class Crash(FakeMatter):
+    def __call__(self, rgb):
+        if len(FakeMatter.seen) == 12:
+            raise RuntimeError("killed mid-way")
+        return super().__call__(rgb)
+
+
+def sha(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
 @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
 class BehindTest(unittest.TestCase):
     def setUp(self):
@@ -56,6 +66,8 @@ class BehindTest(unittest.TestCase):
                              capture_output=True, check=True).stdout
         self.grey = [round(float(f.mean())) for f in np.frombuffer(raw, np.uint8).reshape(-1, H, W, 3)]  # source frame n
         (self.d / "gfx").mkdir()
+        self.mov = self.d / "gfx" / "b.mov"
+        self.front = self.d / "gfx" / "b.front.mov"
         self.card(1.0)
         self.edl = {"sources": {"A": str(self.src)}, "w": W, "h": H, "src_w": W, "src_h": H, "face": [0.5, 0.5], "seg_exact": True,
                     "segments": [{"src": "A", "in": 0.0, "out": 0.5, "zoom": 1.0}, {"src": "A", "in": 1.0, "out": 2.0, "zoom": 1.0}],
@@ -63,24 +75,28 @@ class BehindTest(unittest.TestCase):
         self.write_edl()
         self.spec = {"id": "b", "type": "float", "behind": {"edl": "edl.json"}}
 
-    def card(self, a: float):
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white@{a}:s={W}x{H}:r=30:d={20 / 30},format=rgba",
-                        "-frames:v", "20", "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(self.d / "gfx" / "b.mov")],
+    def card(self, a: float, frames: int = 20):  # what render.mjs writes
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white@{a}:s={W}x{H}:r=30,format=rgba",
+                        "-frames:v", str(frames), "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(self.mov)],
                        check=True)
 
     def write_edl(self):
         (self.d / "edl.json").write_text(json.dumps(self.edl))
 
-    def run_once(self):
-        return behind.process(self.spec, self.d / "gfx", self.d, matter_for=FakeMatter)
+    def run_once(self, matter=FakeMatter):
+        return behind.process(self.spec, self.d / "gfx", self.d, matter_for=matter)
+
+    def alpha(self) -> np.ndarray:
+        return behind.card_frames(self.mov, (W, H))[..., 3]
 
     def test_the_person_is_cut_out_and_the_rest_of_the_card_stays(self):
         self.assertIn("cut out of 20 frames", self.run_once())
-        rgba = behind.card_frames(self.d / "gfx" / "b.mov", (W, H))
-        self.assertEqual(len(rgba), 20)
-        self.assertLessEqual(int(rgba[:, :, : W // 2, 3].max()), 1)    # the speaker's side: see-through
-        self.assertGreaterEqual(int(rgba[:, :, W // 2 :, 3].min()), 254)  # elsewhere: the card as rendered
-        self.assertTrue((self.d / "gfx" / "b.front.mov").exists())
+        a = self.alpha()
+        self.assertEqual(len(a), 20)
+        self.assertLessEqual(int(a[:, :, : W // 2].max()), 1)    # the speaker's side: see-through
+        self.assertGreaterEqual(int(a[:, :, W // 2 :].min()), 254)  # elsewhere: the card as rendered
+        self.assertTrue(self.front.exists())
+        self.assertEqual(list((self.d / "gfx").glob("*.part*")), [])
 
     def test_each_card_frame_is_matched_with_the_film_frame_under_it(self):
         self.run_once()
@@ -92,10 +108,9 @@ class BehindTest(unittest.TestCase):
             self.assertAlmostEqual(got, self.grey[n], delta=1, msg=n)
 
     def test_each_card_frame_gets_the_matte_of_its_own_film_frame(self):
-        behind.process(self.spec, self.d / "gfx", self.d, matter_for=GreyMatter)
+        self.run_once(GreyMatter)
         film = [*range(15), *range(30, 44)]
-        alpha = behind.card_frames(self.d / "gfx" / "b.mov", (W, H))[..., 3].mean(axis=(1, 2))
-        for k, a in enumerate(alpha):
+        for k, a in enumerate(self.alpha().mean(axis=(1, 2))):
             self.assertAlmostEqual(float(a), 255 - self.grey[film[9 + k]], delta=2, msg=k)
 
     def test_nothing_changed_nothing_redone(self):
@@ -103,38 +118,125 @@ class BehindTest(unittest.TestCase):
         with mock.patch.object(FakeMatter, "__call__", side_effect=AssertionError("matted again")):
             self.assertIn("up to date", self.run_once())
 
-    def test_a_changed_edl_window_cuts_out_again_from_the_rendered_card(self):
+    def test_a_changed_edl_window_or_setting_cuts_out_again_from_the_rendered_card(self):
         self.run_once()
-        front = hashlib.sha256((self.d / "gfx" / "b.front.mov").read_bytes()).hexdigest()
+        front = sha(self.front)
         self.edl["segments"][1]["in"] = 1.2
         self.write_edl()
         self.assertIn("cut out", self.run_once())
-        self.assertEqual(hashlib.sha256((self.d / "gfx" / "b.front.mov").read_bytes()).hexdigest(), front)
+        self.assertEqual(sha(self.front), front)  # never the masked card
         self.assertAlmostEqual(FakeMatter.seen[15], self.grey[36], delta=1)
+        self.spec["behind"]["ratio"] = 0.3
+        self.assertIn("cut out", self.run_once())
 
     def test_a_newly_rendered_card_becomes_the_new_front(self):
         self.run_once()
-        self.card(0.5)  # render.mjs wrote a new b.mov (spec changed)
-        new = hashlib.sha256((self.d / "gfx" / "b.mov").read_bytes()).hexdigest()
+        self.card(0.5)  # render.mjs wrote a new b.mov (spec changed, the old one moved aside)
+        new = sha(self.mov)
         self.assertIn("cut out", self.run_once())
-        self.assertEqual(hashlib.sha256((self.d / "gfx" / "b.front.mov").read_bytes()).hexdigest(), new)
-        rgba = behind.card_frames(self.d / "gfx" / "b.mov", (W, H))
-        self.assertAlmostEqual(int(rgba[0, 0, -1, 3]), 128, delta=2)
+        self.assertEqual(sha(self.front), new)
+        self.assertAlmostEqual(int(self.alpha()[0, 0, -1]), 128, delta=2)
+
+    def test_a_run_killed_mid_way_leaves_the_card_whole_and_the_next_run_finishes(self):
+        before = sha(self.mov)
+        with self.assertRaises(RuntimeError):
+            self.run_once(Crash)
+        self.assertEqual(sha(self.mov), before)  # still the card as rendered: assemble / the player can use it
+        self.assertEqual(list((self.d / "gfx").glob("*.part*")), [])
+        self.assertIn("cut out", self.run_once())
+        self.assertLessEqual(int(self.alpha()[:, :, : W // 2].max()), 1)
+
+    def test_a_lost_card_is_rebuilt_from_its_front(self):
+        self.run_once()
+        self.mov.unlink()
+        self.assertIn("cut out", self.run_once())
+        self.assertLessEqual(int(self.alpha()[:, :, : W // 2].max()), 1)
+
+    def test_a_masked_card_without_its_front_stops_with_what_to_do(self):
+        self.run_once()
+        self.front.unlink()
+        self.edl["segments"][1]["in"] = 1.2
+        self.write_edl()
+        with self.assertRaisesRegex(behind.BehindError, "aside"):
+            self.run_once()
+
+    def test_a_card_longer_than_the_film_keeps_the_last_matte(self):
+        self.edl["overlays"][0]["at"] = 1.3  # 39 film frames (15 + 30... ends at frame 45): the card's last 14 frames have no film
+        self.write_edl()
+        self.run_once(GreyMatter)
+        a = self.alpha().mean(axis=(1, 2))
+        last = 255 - self.grey[30 + 29]  # film frame 44 = source 59
+        for k in range(6, 20):
+            self.assertAlmostEqual(float(a[k]), last, delta=2, msg=k)
+
+    def test_an_edl_not_built_yet_is_left_for_later(self):
+        (self.d / "edl.json").unlink()
+        self.assertIn("not built yet", self.run_once())
+        self.assertFalse(self.front.exists())
 
     def test_a_card_not_in_the_edl_is_left_alone(self):
         self.edl["overlays"] = []
         self.write_edl()
         self.assertIn("not in", self.run_once())
-        self.assertFalse((self.d / "gfx" / "b.front.mov").exists())
+        self.assertFalse(self.front.exists())
+
+    def test_without_exact_segments_it_refuses(self):
+        del self.edl["seg_exact"]
+        self.write_edl()
+        with self.assertRaisesRegex(behind.BehindError, "seg_exact"):
+            self.run_once()
+
+    def test_names_from_the_spec_never_leave_the_work_folder(self):
+        for spec in ({"id": "../../x/victim", "behind": {"edl": "edl.json"}}, {"id": "b", "behind": {"edl": "../edl.json"}},
+                     {"id": "b", "behind": {"edl": "/etc/passwd"}}):
+            with self.subTest(spec=spec), self.assertRaises(behind.BehindError):
+                behind.process(spec, self.d / "gfx", self.d, matter_for=FakeMatter)
+
+    def test_cli_only_the_named_films_cards_and_a_failure_is_exit_1(self):
+        specs = self.d / "gfx_specs.json"
+        specs.write_text(json.dumps([self.spec, {"id": "other", "behind": {"edl": "edl_other.json"}}]))
+        with mock.patch.object(behind, "Matter", FakeMatter), mock.patch.object(behind, "low_priority"):
+            self.assertEqual(behind.main(["behind.py", str(specs), str(self.d / "gfx"), "--edl", "edl.json"]), 0)
+            self.assertTrue(self.front.exists())
+            specs.write_text(json.dumps([{"id": "../x", "behind": {"edl": "edl.json"}}]))
+            self.assertEqual(behind.main(["behind.py", str(specs), str(self.d / "gfx")]), 1)
 
     def test_only_the_verified_model_file_is_loaded(self):
         bad = self.d / "model.onnx"
         bad.write_bytes(b"not the model")
-        with mock.patch.object(behind, "MODEL", bad), self.assertRaises(SystemExit) as e:
+        with mock.patch.object(behind, "MODEL", bad), self.assertRaisesRegex(behind.BehindError, "sha256"):
             behind.Matter(0.2)
-        self.assertIn("sha256", str(e.exception))
-        with mock.patch.object(behind, "MODEL", self.d / "none.onnx"), self.assertRaises(SystemExit):
+        with mock.patch.object(behind, "MODEL", self.d / "none.onnx"), self.assertRaises(behind.BehindError):
             behind.Matter(0.2)
+
+
+@unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
+class FramingMatchesAssembleTest(unittest.TestCase):
+    """film_frames == the frames assemble.py itself cuts (its rough.mkv), with a dynamic zoom, keyframes and a face"""
+
+    def test_film_frames_are_assembles_frames(self):
+        d = Path(tempfile.mkdtemp(prefix="behind-asm-"))
+        self.addCleanup(shutil.rmtree, d, True)
+        src = d / "src.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=3", "-f", "lavfi", "-i",
+                        "sine=d=3", "-c:v", "ffv1", "-c:a", "pcm_s16le", str(src)], check=True)
+        edl = {"sources": {"A": str(src)}, "w": 320, "h": 180, "src_w": 320, "src_h": 180, "face": [0.4, 0.45], "seg_exact": True,
+               "out_name": "f.mp4", "overlays": [], "grade": "null", "audio": "anull",
+               "segments": [{"src": "A", "in": 0.2, "out": 1.0, "zoom": {"a": 1.0, "b": 1.3, "t0": 0.1, "t1": 0.6}},
+                            {"src": "A", "in": 1.5, "out": 2.4, "zoom": 1.2, "face": [0.6, 0.5]},
+                            {"src": "A", "in": 2.4, "out": 2.9, "zoom": {"a": 1.1, "b": 1.1, "t0": 0, "t1": 0.5,
+                                                                          "keys": [[0.0, 1.1], [0.3, 1.4]]}}]}
+        (d / "edl.json").write_text(json.dumps(edl))
+        subprocess.run([sys.executable, str(PIPE / "assemble.py"), str(d / "edl.json"), str(d / "out")], check=True,
+                       capture_output=True, timeout=300)
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(d / "out" / "rough.mkv"), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                             capture_output=True, check=True).stdout
+        ref = np.frombuffer(raw, np.uint8).reshape(-1, 180, 320, 3).astype(np.int16)
+        n = sum(behind.seg_frames(edl))
+        self.assertEqual(len(ref), n)
+        got = np.stack(list(behind.film_frames(edl, 0, n, behind.framing(edl), (320, 180)))).astype(np.int16)
+        err = np.abs(got - ref).mean(axis=(1, 2, 3))
+        self.assertLess(float(err.max()), 4.0, err.round(1).tolist())  # x264 crf 12 in rough.mkv; a 1-frame or crop shift is > 10
 
 
 class CutOutTest(unittest.TestCase):
@@ -143,6 +245,7 @@ class CutOutTest(unittest.TestCase):
         out = behind.cut_out(rgba, np.array([[0.0, 0.5, 1.0, 1.5]], np.float32))
         self.assertEqual(out[0, :, 3].tolist(), [200, 100, 0, 0])
         self.assertEqual(out[0, :, :3].tolist(), rgba[0, :, :3].tolist())
+        self.assertEqual(behind.cut_out(rgba, None).tolist(), rgba.tolist())
 
 
 if __name__ == "__main__":

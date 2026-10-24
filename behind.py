@@ -1,32 +1,50 @@
 #!/usr/bin/env python3
-"""behind.py gfx_specs.json gfx_dir — text BEHIND the speaker: a card whose spec has "behind": {"edl": "edl_x.json"} gets
-the speaker cut out of its alpha, so the film's own picture of the speaker stays on top of the card.
+"""behind.py gfx_specs.json gfx_dir [--edl edl_x.json] — text BEHIND the speaker (docs/adr/0005-text-behind-speaker.md):
+a card whose spec has "behind": {"edl": "edl_x.json"} gets the speaker cut out of its alpha, so the film's own picture of
+the speaker stays on top of the card.
 
 The person comes from a matting model (Robust Video Matting, matte/models/rvm_resnet50_fp32.onnx, onnxruntime in
 matte/.venv) run on the film's OUTPUT frames under the card: the recording cut and framed exactly like assemble.py does
-(its vf_for is lifted out of assemble.py, so the framing has one owner). The masked card replaces <id>.mov; the card as
-rendered stays in <id>.front.mov. Everything after (assemble.py, the panel's live player) just overlays the .mov.
-Run by gfx/render.mjs after its renders; a card whose front, EDL window and spec did not change is skipped (<id>.mov.behind).
+(its vf_for is lifted out of assemble.py, so the framing has one owner). The card as rendered is kept in <id>.front.mov;
+the masked card replaces <id>.mov and carries its key in its metadata (comment=behind:<key>). So a .mov without that mark
+is a fresh render (it becomes the new front), the same key = nothing to do, and the only write is one atomic replace.
+Everything after (assemble.py, the panel's live player) just overlays the .mov.
+Run by gfx/render.mjs after its renders (an EDL that is not built yet = later) and by run_v4.sh before assemble.py with
+--edl: only that film's cards, on its final EDL.
 """
 import ast
 import hashlib
 import json
 import math
+import re
 import runpy
+import shutil
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
+
+from cpu_budget import heavy_threads, low_priority  # next to this script
 
 VP = Path(__file__).resolve().parent
 MODEL = VP / "matte" / "models" / "rvm_resnet50_fp32.onnx"
 MODEL_SHA = "25db300fcb6ee27f941a1b52c97856e8d1f13c7f35817f81a612f89af0e8a85c"  # GitHub PeterL1n/RobustVideoMatting v1.0.0
 FPS = 30
 WARM = 1.0  # seconds of film fed to the model before the card: its recurrent state settles on the person first
+MAX_DUR = 20.0  # seconds; a card is held one frame at a time, this bounds the run, not the memory
+MARK = "behind:"
+VERSION = 2  # in the key: a change of how the cut-out is made redoes every card
+SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # specs come over Syncthing: a card id / EDL name never leaves gfx_dir / work
+SAFE_EDL = re.compile(r"[A-Za-z0-9_-]+\.json")
+Matting = Callable[[float], Callable[[np.ndarray], np.ndarray]]
+
+
+class BehindError(Exception):
+    pass
 
 
 def framing(edl: dict):
@@ -45,12 +63,13 @@ def framing(edl: dict):
 
 
 def seg_frames(edl: dict) -> list[int]:
-    """frames each segment gets in the film: assemble.py's seg_exact cuts round(d*30); without it ~ the same."""
+    """frames each segment gets in the film: assemble.py's seg_exact cuts exactly round(d*30)"""
     return [max(1, round((s["out"] - s["in"]) * FPS)) for s in edl["segments"]]
 
 
-def film_frames(edl: dict, first: int, n: int, vf_for, size: tuple[int, int]):
-    """RGB uint8 frames first..first+n-1 of the film's picture (before graphics), as assemble.py stage 1 cuts them."""
+def film_frames(edl: dict, first: int, n: int, vf_for, size: tuple[int, int]) -> Iterator[np.ndarray]:
+    """RGB uint8 frames first..first+n-1 of the film's picture (before graphics), as assemble.py stage 1 cuts them;
+    fewer when the film ends."""
     w, h = size
     start = 0
     for s, k in zip(edl["segments"], seg_frames(edl), strict=True):
@@ -58,22 +77,22 @@ def film_frames(edl: dict, first: int, n: int, vf_for, size: tuple[int, int]):
         if lo < hi:
             d = k / FPS
             vf = "setpts=PTS-STARTPTS," + vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track"))
-            # from the segment start: a dynamic zoom is a function of the frame number in the segment
-            with subprocess.Popen(["ffmpeg", "-v", "error", "-ss", f"{s['in']:.3f}", "-i", edl["sources"][s["src"]], "-t", f"{d:.3f}",
-                                   "-vf", vf, "-frames:v", str(hi - start), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-                                  stdout=subprocess.PIPE) as p:
+            # from the segment start: a dynamic zoom is a function of the frame number in the segment; local files only
+            with subprocess.Popen(["ffmpeg", "-v", "error", "-ss", f"{s['in']:.3f}", "-protocol_whitelist", "file",
+                                   "-i", edl["sources"][s["src"]], "-t", f"{d:.3f}", "-vf", vf, "-frames:v", str(hi - start),
+                                   "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], stdout=subprocess.PIPE) as p:
                 assert p.stdout is not None
                 fr = None
-                for i in range(start, hi):  # streamed: a card late in a long segment must not hold the whole segment in memory
+                for i in range(start, hi):  # streamed: a card late in a long segment must not hold the segment in memory
                     b = p.stdout.read(w * h * 3)
                     if len(b) == w * h * 3:
                         fr = np.frombuffer(b, np.uint8).reshape(h, w, 3)
                     if fr is None:
-                        raise RuntimeError(f"behind: ffmpeg gave no frame of {s['src']} at {s['in']:.3f}")
+                        raise BehindError(f"ffmpeg gave no frame of {s['src']} at {s['in']:.3f}")
                     if i >= lo:
                         yield fr  # a short decode at the very end repeats its last frame (assemble pads too)
             if p.returncode:
-                raise RuntimeError(f"behind: ffmpeg failed on {s['src']} at {s['in']:.3f} (rc {p.returncode})")
+                raise BehindError(f"ffmpeg failed on {s['src']} at {s['in']:.3f} (rc {p.returncode})")
         start += k
         if start >= first + n:
             return
@@ -84,11 +103,11 @@ class Matter:
 
     def __init__(self, ratio: float):
         if not MODEL.exists():
-            sys.exit(f"behind: no matting model {MODEL} (see README: text behind the speaker)")
+            raise BehindError(f"no matting model {MODEL} (README: text behind the speaker)")
         if hashlib.sha256(MODEL.read_bytes()).hexdigest() != MODEL_SHA:
-            sys.exit(f"behind: {MODEL} is not the verified RVM v1.0.0 file (sha256 differs)")
+            raise BehindError(f"{MODEL} is not the verified RVM v1.0.0 file (sha256 differs)")
         import onnxruntime as ort  # matte/.venv only; the rest of the pipeline does not need it
-        so = ort.SessionOptions(); so.intra_op_num_threads = 16  # of 32: the desktop stays responsive
+        so = ort.SessionOptions(); so.intra_op_num_threads = heavy_threads()
         self.s = ort.InferenceSession(str(MODEL), so, providers=["CPUExecutionProvider"])
         self.rec = [np.zeros([1, 1, 1, 1], np.float32)] * 4
         self.ratio = np.array([ratio], np.float32)
@@ -101,14 +120,21 @@ class Matter:
         return np.asarray(outs[1])[0, 0]
 
 
-def cut_out(rgba: np.ndarray, person: np.ndarray) -> np.ndarray:
-    """the card with the person's pixels see-through: alpha * (1 - person); colour untouched."""
+def cut_out(rgba: np.ndarray, person: np.ndarray | None) -> np.ndarray:
+    """the card with the person's pixels see-through: alpha * (1 - person); colour untouched; None = no person known"""
     out = rgba.copy()
-    out[..., 3] = np.round(rgba[..., 3].astype(np.float32) * (1 - np.clip(person, 0, 1))).astype(np.uint8)
+    if person is not None:
+        out[..., 3] = np.round(rgba[..., 3].astype(np.float32) * (1 - np.clip(person, 0, 1))).astype(np.uint8)
     return out
 
 
+def probe(mov: Path, entry: str) -> str:
+    return subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", entry, "-of", "default=nw=1:nk=1",
+                           str(mov)], capture_output=True, text=True, check=True, timeout=60).stdout.strip()
+
+
 def card_frames(mov: Path, size: tuple[int, int]) -> np.ndarray:
+    """every frame of a (small) card at once: for tests and checks"""
     w, h = size
     p = subprocess.run(["ffmpeg", "-v", "error", "-i", str(mov), "-f", "rawvideo", "-pix_fmt", "rgba", "-"],
                        capture_output=True, check=True, timeout=600)
@@ -116,59 +142,106 @@ def card_frames(mov: Path, size: tuple[int, int]) -> np.ndarray:
 
 
 def window_key(edl: dict, at: float, n: int) -> list:
-    """what the matte depends on: the card's place and the segments under it (+ the warm-up)"""
+    """what the matte depends on in the EDL: the card's place, the segments under it (+ the warm-up) and their files"""
     first = max(0, math.floor((at - WARM) * FPS)); last = math.ceil(at * FPS) + n
     start, under = 0, []
     for s, k in zip(edl["segments"], seg_frames(edl), strict=True):
         if start < last and start + k > first:
-            under.append([start, s])
+            st = Path(edl["sources"][s["src"]]).stat()
+            under.append([start, s, st.st_size, st.st_mtime_ns])
         start += k
     return [round(at, 3), n, under, {k: edl.get(k) for k in ("w", "h", "face", "src_w", "src_h", "vertical", "face_target_y")}]
 
 
-def process(spec: dict, gfx: Path, base: Path, matter_for: Callable[[float], Callable[[np.ndarray], np.ndarray]] = Matter) -> str:
-    cid = spec["id"]
-    mov, front, stamp = gfx / f"{cid}.mov", gfx / f"{cid}.front.mov", gfx / f"{cid}.mov.behind"
-    edl = json.loads((base / spec["behind"]["edl"]).read_text())
+def sha(p: Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def process(spec: dict, gfx: Path, base: Path, matter_for: Matting = Matter) -> str:
+    cid, edl_name = str(spec["id"]), str(spec["behind"]["edl"])
+    if not SAFE_ID.fullmatch(cid) or not SAFE_EDL.fullmatch(edl_name):
+        raise BehindError(f"card id {cid!r} / edl {edl_name!r}: only letters, digits, _ and - (a file in the work folder)")
+    edl_p = base / edl_name
+    if not edl_p.exists():
+        return f"{cid}: {edl_name} not built yet (cut out when it is: run_v4.sh / the panel's next render)"
+    edl = json.loads(edl_p.read_text())
     o = next((o for o in edl.get("overlays", []) if o.get("id") == cid), None)
     if o is None:
-        return f"{cid}: not in {spec['behind']['edl']} (no cut-out)"
-    old = json.loads(stamp.read_text()) if stamp.exists() else {}
-    sha = hashlib.sha256(mov.read_bytes()).hexdigest()
-    if old and sha != old.get("out") and front.exists():
-        front.unlink()  # render.mjs made a new card: it is the new front
-    if not front.exists():
-        mov.rename(front); old = {}
+        return f"{cid}: not in {edl_name} (no cut-out)"
+    if not edl.get("seg_exact"):
+        raise BehindError(f"{cid}: {edl_name} has no seg_exact; without it the film's frames drift from the card (plan: \"seg_exact\": true)")
+    mov, front = gfx / f"{cid}.mov", gfx / f"{cid}.front.mov"
+    mark = probe(mov, "format_tags=comment") if mov.exists() else ""
+    if mov.exists() and not mark.startswith(MARK):  # a fresh render (render.mjs never writes the mark): the new front
+        part = gfx / f"{cid}.front.part.mov"
+        shutil.copyfile(mov, part); part.replace(front)
+    elif not front.exists():
+        raise BehindError(f"{cid}: {front.name} is missing; move {mov.name} aside so render.mjs renders the card again")
     w, h = edl.get("w", 2560), edl.get("h", 1440)
-    rgba = card_frames(front, (w, h))
-    key = hashlib.sha256(json.dumps([window_key(edl, o["at"], len(rgba)), hashlib.sha256(front.read_bytes()).hexdigest()],
+    n = int(probe(front, "stream=nb_frames") or 0)
+    if not 0 < n <= MAX_DUR * FPS:
+        raise BehindError(f"{cid}: {n} frames; a card behind the speaker is 1..{MAX_DUR:.0f} s")
+    ratio = float(spec["behind"].get("ratio", 0.2))
+    key = hashlib.sha256(json.dumps([VERSION, window_key(edl, o["at"], n), sha(front), ratio, MODEL_SHA],
                                     sort_keys=True).encode()).hexdigest()
-    if old.get("key") == key and mov.exists():
+    if mark == MARK + key:
         return f"{cid}: up to date"
     # card frame k is on screen at at + k/30 -> film frame ceil((at + k/30) * 30) (overlay shows the last card frame <= t)
     c0 = math.ceil(o["at"] * FPS - 1e-6); first = max(0, math.floor((o["at"] - WARM) * FPS))
-    matter = matter_for(spec["behind"].get("ratio", 0.2))
-    out = np.empty_like(rgba)
-    for i, rgb in enumerate(film_frames(edl, first, c0 - first + len(rgba), framing(edl), (w, h))):
-        person = matter(rgb)
-        k = first + i - c0
-        if k >= 0:
-            out[k] = cut_out(rgba[k], person)
+    matter = matter_for(ratio)
     tmp = gfx / f"{cid}.behind.part.mov"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}", "-framerate", str(FPS),
-                    "-i", "-", "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(tmp)],
-                   input=out.tobytes(), check=True, timeout=600)
-    tmp.replace(mov)
-    stamp.write_text(json.dumps({"key": key, "out": hashlib.sha256(mov.read_bytes()).hexdigest()}))
-    return f"{cid}: speaker cut out of {len(rgba)} frames"
+    try:
+        _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter)
+        tmp.replace(mov)
+    finally:
+        tmp.unlink(missing_ok=True)  # a failed run leaves the card as it was (the .mov is only ever replaced whole)
+    return f"{cid}: speaker cut out of {n} frames"
 
 
-def main(argv: list[str]) -> None:
-    specs_p, gfx = Path(argv[1]), Path(argv[2])
+def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int, int], frames: Iterator[np.ndarray],
+            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray]) -> None:
+    w, h = size
+    with subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(front), "-f", "rawvideo", "-pix_fmt", "rgba", "-"], stdout=subprocess.PIPE) as dec, \
+         subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}", "-framerate", str(FPS),
+                           "-i", "-", "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
+                           "-metadata", f"comment={MARK}{key}", str(tmp)], stdin=subprocess.PIPE) as enc:
+        assert dec.stdout is not None and enc.stdin is not None
+        src, sink = dec.stdout, enc.stdin
+        fsz = w * h * 4
+        done, person = 0, None
+
+        def put(p):
+            b = src.read(fsz)
+            if len(b) != fsz:
+                raise BehindError(f"{cid}: {front.name} has fewer frames than its {n}")
+            sink.write(cut_out(np.frombuffer(b, np.uint8).reshape(h, w, 4), p).tobytes())
+
+        for i, rgb in enumerate(frames):
+            person = matter(rgb)
+            if first + i >= c0:
+                put(person); done += 1
+        for _ in range(done, n):  # the film ends under the card: its last matte (deterministic, never empty memory)
+            put(person)
+        sink.close()
+        if enc.wait(timeout=600) or dec.wait(timeout=60):
+            raise BehindError(f"{cid}: ffmpeg could not write the card (rc {enc.returncode}/{dec.returncode})")
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    only = args[args.index("--edl") + 1] if "--edl" in args else None
+    specs_p, gfx = Path(args[0]), Path(args[1])
+    low_priority()
+    rc = 0
     for sp in json.loads(specs_p.read_text()):
-        if sp.get("behind"):
+        if not sp.get("behind") or (only and sp["behind"].get("edl") != only):
+            continue
+        try:
             print("behind", process(sp, gfx, specs_p.resolve().parent), flush=True)
+        except (BehindError, subprocess.SubprocessError, OSError) as e:
+            print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
+    return rc
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    sys.exit(main(sys.argv))
