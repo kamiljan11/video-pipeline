@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cpu_budget import heavy_threads, low_priority
+
 b = sys.argv[1]; W = "/home/kamil-jan/video-pipeline"
 dur = float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", b + ".wav"]))
 vals = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(b + ".sil").read_text())]
@@ -26,8 +28,8 @@ for k in range(len(cuts) - 1):
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{cuts[k]:.3f}", "-to", f"{cuts[k+1]:.3f}", "-i", b + ".wav", f], check=True)
 todo = [f for f in files if not os.path.exists(f[:-4] + ".json")]
 if todo:
-    subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl", "-t", "30",
-                    "-ml", "1", "-sow", "-oj", "--dtw", "large.v3", "-nf", *todo], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl", "-t", str(heavy_threads()),
+                    "-ml", "1", "-sow", "-oj", "--dtw", "large.v3", "-nf", *todo], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=low_priority)
 words = []
 for f in files:
     off = float(os.path.basename(f)[4:-4])

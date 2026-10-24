@@ -8,13 +8,15 @@ import sys
 import tempfile
 from pathlib import Path
 
+from cpu_budget import heavy_threads, low_priority
+
 exp_txt, video = sys.argv[1], sys.argv[2]
 W = "/home/kamil-jan/video-pipeline"
 tmp = tempfile.mkdtemp()
 wav = os.path.join(tmp, "a.wav")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-ac", "1", "-ar", "16000", wav], check=True)
-subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl", "-t", "30",
-                "-otxt", "-of", os.path.join(tmp, "a"), wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl", "-t", str(heavy_threads()),
+                "-otxt", "-of", os.path.join(tmp, "a"), wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, preexec_fn=low_priority)
 norm = lambda t: re.findall(r"[a-ząćęłńóśźż0-9%]+", t.lower())
 e = norm(Path(exp_txt).read_text()); g = norm(Path(os.path.join(tmp, "a.txt")).read_text())
 sm = difflib.SequenceMatcher(None, e, g, autojunk=False)

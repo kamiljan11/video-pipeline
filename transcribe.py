@@ -6,9 +6,12 @@ from pathlib import Path
 
 from faster_whisper import WhisperModel
 
+from cpu_budget import heavy_threads, low_priority
+
 # usage: transcribe.py out_dir wav1 wav2 ...
 out_dir = sys.argv[1]
-model = WhisperModel("large-v3", device="cpu", compute_type="int8", cpu_threads=30)
+low_priority()
+model = WhisperModel("large-v3", device="cpu", compute_type="int8", cpu_threads=heavy_threads())
 for wav in sys.argv[2:]:
     name = os.path.splitext(os.path.basename(wav))[0]
     dst = os.path.join(out_dir, name + ".json")

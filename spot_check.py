@@ -9,6 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from cpu_budget import heavy_threads, low_priority
+
 edl = json.loads(Path(sys.argv[1]).read_text()); W = json.loads(Path(sys.argv[2]).read_text())["transcription"]; video = sys.argv[3]
 norm = lambda t: re.sub(r"[^a-ząćęłńóśźż0-9 ]", "", t.lower()).split()
 def src2out(t):
@@ -29,6 +31,6 @@ for ph in sys.argv[4:]:
     wav = os.path.join(tmp, "x.wav")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{max(0, hit - 3):.2f}", "-t", "7", "-i", video, "-ac", "1", "-ar", "16000", wav], check=True)
     r = subprocess.run(["/home/kamil-jan/video-pipeline/whisper.cpp/build/bin/whisper-cli", "-m", "/home/kamil-jan/video-pipeline/models/ggml-large-v3-q5_0.bin",
-                        "-l", "pl", "-t", "16", "-nt", wav], check=False, capture_output=True, text=True).stdout.strip().replace("\n", " ")
+                        "-l", "pl", "-t", str(heavy_threads()), "-nt", wav], check=False, preexec_fn=low_priority, capture_output=True, text=True).stdout.strip().replace("\n", " ")
     ok = all(w in norm(r) for w in p)
     print(f"[{ph}] @ {hit:.1f}s -> {'OK' if ok else 'BRAK?'} | słychać: {r}")

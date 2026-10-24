@@ -12,7 +12,7 @@ for s in e['segments']:
 echo "t=$T"
 ffprobe -v error -show_entries format=duration -of csv=p=0 $F
 ffmpeg -v error -y -ss $T -t 6 -i $F -ac 1 -ar 16000 $R/chk.wav
-/home/kamil-jan/video-pipeline/whisper.cpp/build/bin/whisper-cli -m /home/kamil-jan/video-pipeline/models/ggml-large-v3-q5_0.bin -l pl -t 16 -nt $R/chk.wav 2>/dev/null
+nice -n 10 /home/kamil-jan/video-pipeline/whisper.cpp/build/bin/whisper-cli -m /home/kamil-jan/video-pipeline/models/ggml-large-v3-q5_0.bin -l pl -t "$(python3 /home/kamil-jan/video-pipeline/cpu_budget.py)" -nt $R/chk.wav 2>/dev/null
 ffmpeg -i $F -af ebur128=peak=true:framelog=quiet -f null - 2>&1 | grep -E " I:| Peak:" | tail -2
 for n in short1_95procent short2_cichy_bol short3_jedno_zlecenie short4_drugi_tydzien; do
   echo "$n $(ffmpeg -i ../out/$n.mp4 -af ebur128=framelog=quiet -f null - 2>&1 | grep ' I:' | tail -1)"
