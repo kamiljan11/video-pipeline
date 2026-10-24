@@ -99,6 +99,19 @@ def paper():
     for c in rng.uniform(0, 0.45, 26):
         i = int(c * SR); m = min(n - i, int(0.03 * SR)); env[i:i + m] += rng.uniform(0.3, 1.0) * np.exp(-np.arange(m) / SR * 110)
     return pk(bp(rng.standard_normal(n), 2000, 9000) * np.minimum(env, 1.2) * np.sin(np.pi * t / 0.5) ** 0.5, 0.6)
+def pencil(d=0.55):
+    """a pencil writing on paper: uneven strokes (no steady flutter: a fixed rate sounds like a rattle), graphite grain
+    as dense tiny ticks on soft friction noise, up-strokes a little brighter than down-strokes"""
+    n = int(d * SR); out = np.zeros(n); i, up = int(rng.uniform(0, 0.02) * SR), False
+    while i < n:
+        m = min(n - i, int(rng.uniform(0.06, 0.15) * SR)); t = np.arange(m) / SR
+        grain = (rng.random(m) < rng.uniform(0.04, 0.09)) * rng.uniform(0.3, 1.0, m)  # graphite catching on the fibres
+        lo, hi = (2200, 7000) if up else (1200, 4500)
+        body = bp(grain + 0.35 * rng.standard_normal(m), lo, hi)
+        env = np.minimum(1, t / 0.006) * np.minimum(1, (m / SR - t) / 0.02) * (0.7 + 0.3 * rng.uniform() * np.sin(np.pi * t / max(t[-1], 1e-3)))
+        out[i:i + m] += body * env * rng.uniform(0.6, 1.0)
+        i += m + int(rng.uniform(0.012, 0.05) * SR); up = not up
+    return pk(out, 0.5)
 def scatter():
     """things falling apart: little clatter hits, dense at first, then fewer and quieter"""
     n = int(0.9 * SR); out = np.zeros(n)
@@ -188,7 +201,7 @@ def pen_sfx():  # a card sound only, not an editing-grammar moment sound (those 
     return pen(), 0.6, 0.0
 def sfx_of(fn, g, dt=0.0):  # a card sound for CARD_SFX
     return lambda: (fn(), g, dt)
-CARD_SFX = {**BEAT_SFX, "pen": pen_sfx, "tick": sfx_of(keytick, 0.4), "type": sfx_of(typing, 0.4), "click": sfx_of(click, 0.5), "riser": sfx_of(riser, 0.55), "impact": sfx_of(impact, 0.7), "paper": sfx_of(paper, 0.6), "scatter": sfx_of(scatter, 0.6), "roar": sfx_of(roar, 0.8), "swoosh": sfx_of(swoosh, 0.45), "drop": sfx_of(thud, 0.8)}
+CARD_SFX = {**BEAT_SFX, "pen": pen_sfx, "pencil": sfx_of(pencil, 0.5), "tick": sfx_of(keytick, 0.4), "type": sfx_of(typing, 0.4), "click": sfx_of(click, 0.5), "riser": sfx_of(riser, 0.55), "impact": sfx_of(impact, 0.7), "paper": sfx_of(paper, 0.6), "scatter": sfx_of(scatter, 0.6), "roar": sfx_of(roar, 0.8), "swoosh": sfx_of(swoosh, 0.45), "drop": sfx_of(thud, 0.8)}
 for o in edl.get("overlays", []):
     for e in specs.get(o["id"], {}).get("sfx") or []:  # a malformed entry is skipped: a sound never stops the render
         if isinstance(e, list) and len(e) == 2 and isinstance(e[0], (int, float)) and np.isfinite(e[0]) and isinstance(e[1], str) and e[1] in CARD_SFX:

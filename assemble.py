@@ -13,9 +13,15 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
 from pathlib import Path
 
+import edl_guard  # next to this script: what an EDL may carry into an ffmpeg command line
 import themes  # next to this script (sys.path[0])
 
-edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]; os.makedirs(out, exist_ok=True)
+edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]
+try:
+    edl_guard.check(edl)  # before any ffmpeg: plans and EDLs can arrive over Syncthing (no filter text, protocol or option from them)
+except edl_guard.EdlError as e:
+    sys.exit(f"assemble.py {sys.argv[1]}: {e}")
+os.makedirs(out, exist_ok=True)
 # --proxy (editing panel preview): same compositing, fast low-quality encodes, output scaled to 640 px on the long side
 PROXY = "--proxy" in sys.argv[3:]
 SEG_ENC = ["-preset", "ultrafast", "-crf", "26"] if PROXY else ["-preset", "veryfast", "-crf", "12"]

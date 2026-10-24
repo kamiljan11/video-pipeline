@@ -34,6 +34,12 @@ from pathlib import Path
 import numpy as np
 
 from cpu_budget import heavy_threads, low_priority  # next to this script
+from edl_guard import (  # next to this script, as in assemble.py
+    framing_ok,
+    num,
+    segment_ok,
+    shape_ok,
+)
 
 VP = Path(__file__).resolve().parent
 MODEL = VP / "matte" / "models" / "rvm_resnet50_fp32.onnx"
@@ -182,20 +188,6 @@ def sha(p: Path) -> str:
     return h.hexdigest()
 
 
-def num(v) -> bool:
-    return isinstance(v, int | float) and not isinstance(v, bool) and -1e9 < v < 1e9  # NaN, inf and 10**400 fail too
-
-
-def shape_ok(edl) -> bool:
-    if not isinstance(edl, dict):
-        return False
-    segs, ovs, srcs = edl.get("segments"), edl.get("overlays", []), edl.get("sources")  # no overlays = no card in it
-    if not (isinstance(segs, list) and isinstance(ovs, list) and isinstance(srcs, dict)):
-        return False
-    return (all(isinstance(v, str) for v in srcs.values()) and all(isinstance(o, dict) and num(o.get("at")) for o in ovs)
-            and all(isinstance(g, dict) and num(g.get("in")) and num(g.get("out")) and g.get("src") in srcs for g in segs))
-
-
 def check_shape(edl) -> None:
     """what every step below indexes: segments with numeric in/out and a known source, overlays with a numeric at"""
     if not shape_ok(edl):
@@ -203,23 +195,14 @@ def check_shape(edl) -> None:
 
 
 def check_edl(edl: dict) -> None:
-    """the EDL-wide framing values vf_for pastes into the ffmpeg filter: numbers only, like check_segment"""
-    face = edl.get("face", [0.5, 0.45])  # present means set: framing() takes a key's value as it is, null included
-    ok = all(num(edl[k]) for k in ("w", "h", "src_w", "src_h") if k in edl)
-    ok = ok and (edl.get("face_target_y") is None or num(edl["face_target_y"]))  # null = vf_for's own default
-    ok = ok and isinstance(face, list) and len(face) == 2 and all(map(num, face))
-    if not (ok and isinstance(edl.get("vertical", False), bool)):
+    """the EDL-wide framing values vf_for pastes into the ffmpeg filter: numbers only (edl_guard, as assemble.py)"""
+    if not framing_ok(edl):
         raise NotReady("EDL: w / h / src_w / src_h / face / face_target_y must be numbers, vertical true or false")
 
 
 def check_segment(s: dict) -> None:
     """numbers only where vf_for pastes them into the ffmpeg filter (plans come over Syncthing: no filter text from a plan)"""
-    z, face, track = s.get("zoom", 1.0), s.get("face"), s.get("track")
-    ok = num(z) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("a", "b", "t0", "t1"))
-                    and all(isinstance(p, list) and len(p) == 2 and all(map(num, p)) for p in z.get("keys") or []))
-    ok = ok and (face is None or (isinstance(face, list) and len(face) == 2 and all(map(num, face))))
-    ok = ok and (track is None or (isinstance(track, list) and all(isinstance(p, list) and len(p) == 2 and all(map(num, p)) for p in track)))
-    if not ok:
+    if not segment_ok(s):
         raise NotReady(f"segment at {s.get('in')}: zoom / face / track must be numbers")
 
 
