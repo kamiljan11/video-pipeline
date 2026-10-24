@@ -15,6 +15,13 @@ postaci na klatkach filmu. W pipeline nie było nic do segmentacji osoby (YuNet 
 - Uruchamiają go `gfx/render.mjs` (zaraz po renderze, żeby panel od razu pokazał efekt) i `run_v4.sh` (przed `assemble.py`
   na EDL po poprawkach krytyka, tylko karty tego filmu). Przetworzony `.mov` niesie klucz w metadanych (`comment=behind:<klucz>`);
   plik bez niego = świeży render. Nie ma osobnego pliku stanu, a jedyny zapis to atomowe `replace`.
+- Klucz karty obejmuje też kod kadrowania z `assemble.py` (`vf_for`, `keys_expr`, `track_expr`): zmiana kadrowania wycina
+  karty od nowa. Karta musi mieć rozmiar klatki filmu (najwyżej 4K), do 20 s.
+- `gfx/` i plany mogą przyjść przez Syncthing, więc: pliki tymczasowe tylko przez `mkstemp` (losowa nazwa, bez podążania
+  za linkiem), odczyt karty z `O_NOFOLLOW`, odmowa symlinku na miejscu `<id>.mov`, a pola EDL wklejane do filtra ffmpeg
+  (`face`, `face_target_y`, `w/h`, `src_w/src_h`, `zoom/face/track` segmentu) tylko jako liczby.
+- Wywołanie z `render.mjs` (bez `--edl`) nie przerywa grafik innych filmów, gdy EDL nie jest jeszcze gotowy: wypisuje
+  „left for run_v4.sh” i rc 0. Wywołanie z `run_v4.sh` (`--edl`, EDL końcowy) jest ścisłe: błąd = rc 1, film się nie składa.
 
 **Odrzucone alternatywy:**
 - **MediaPipe Selfie Segmentation:** lżejszy, ale słabsze krawędzie włosów; RVM ma stan rekurencyjny (stabilna maska w czasie).

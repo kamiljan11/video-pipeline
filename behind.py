@@ -13,6 +13,7 @@ Run by gfx/render.mjs after its renders (an EDL that is not built yet = later) a
 --edl: only that film's cards, on its final EDL.
 """
 import ast
+import contextlib
 import hashlib
 import json
 import math
@@ -24,6 +25,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Iterator
 from itertools import pairwise
 from pathlib import Path
@@ -38,6 +40,7 @@ MODEL_SHA = "25db300fcb6ee27f941a1b52c97856e8d1f13c7f35817f81a612f89af0e8a85c"  
 FPS = 30
 WARM = 1.0  # seconds of film fed to the model before the card: its recurrent state settles on the person first
 MAX_DUR = 20.0  # seconds; a card is held one frame at a time, this bounds the run, not the memory
+STALE_PART = 2 * 3600  # seconds; a temp file this old is from a killed run (run_v4.sh's timeout is 3600 s)
 MARK = "behind:"
 VERSION = 2  # in the key: a change of how the cut-out is made redoes every card
 SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # specs come over Syncthing: a card id / EDL name never leaves gfx_dir / work
@@ -48,6 +51,10 @@ Matting = Callable[[float], Callable[[np.ndarray], np.ndarray]]
 
 class BehindError(Exception):
     pass
+
+
+class BadName(BehindError):
+    """a card id / EDL name that is not a plain file name: a fault in the spec, never an EDL not ready yet"""
 
 
 def framing_src() -> str:
@@ -162,9 +169,13 @@ def window_key(edl: dict, at: float, n: int) -> list:
     return [round(at, 3), n, under, {k: edl.get(k) for k in ("w", "h", "face", "src_w", "src_h", "vertical", "face_target_y")}]
 
 
+def open_nofollow(p: Path):
+    return os.fdopen(os.open(p, os.O_RDONLY | os.O_NOFOLLOW), "rb")
+
+
 def sha(p: Path) -> str:
     h = hashlib.sha256()
-    with p.open("rb") as f:
+    with open_nofollow(p) as f:
         while b := f.read(1 << 22):
             h.update(b)
     return h.hexdigest()
@@ -172,6 +183,14 @@ def sha(p: Path) -> str:
 
 def num(v) -> bool:
     return isinstance(v, int | float) and not isinstance(v, bool)
+
+
+def check_edl(edl: dict) -> None:
+    """the EDL-wide framing values vf_for pastes into the ffmpeg filter: numbers only, like check_segment"""
+    face, ok = edl.get("face"), all(edl.get(k) is None or num(edl[k]) for k in ("w", "h", "src_w", "src_h", "face_target_y"))
+    ok = ok and (face is None or (isinstance(face, list) and len(face) == 2 and all(map(num, face))))
+    if not (ok and isinstance(edl.get("vertical", False), bool)):
+        raise BehindError("EDL: w / h / src_w / src_h / face / face_target_y must be numbers, vertical true or false")
 
 
 def check_segment(s: dict) -> None:
@@ -190,7 +209,7 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     for a cut-out is left for later instead of failing every film's graphics"""
     cid, edl_name = str(spec["id"]), str(spec["behind"]["edl"])
     if not SAFE_ID.fullmatch(cid) or not SAFE_EDL.fullmatch(edl_name):
-        raise BehindError(f"card id {cid!r} / edl {edl_name!r}: only letters, digits, _ and - (a file in the work folder)")
+        raise BadName(f"card id {cid!r} / edl {edl_name!r}: only letters, digits, _ and - (a file in the work folder)")
     edl_p = base / edl_name
     if not edl_p.exists():
         return f"{cid}: {edl_name} not built yet (cut out when it is: run_v4.sh / the panel's next render)"
@@ -202,13 +221,20 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
         if not strict:
             return f"{cid}: {edl_name} has no seg_exact yet (cut out when run_v4.sh rebuilds it)"
         raise BehindError(f"{cid}: {edl_name} has no seg_exact; without it the film's frames drift from the card (plan: \"seg_exact\": true)")
+    check_edl(edl)
     mov, front = gfx / f"{cid}.mov", gfx / f"{cid}.front.mov"
     if mov.is_symlink() or front.is_symlink():  # gfx/ can be a synced folder: never write through a link
         raise BehindError(f"{cid}: {mov.name} / {front.name} is a symlink")
+    sweep(gfx, cid)
     mark = probe(mov, "format_tags=comment") if mov.exists() else ""
     if mov.exists() and not mark.startswith(MARK):  # a fresh render (render.mjs never writes the mark): the new front
         part = temp_in(gfx, cid)
-        shutil.copyfile(mov, part); part.replace(front)
+        try:
+            with open_nofollow(mov) as src, part.open("wb") as dst:  # a link swapped in after the check is not read
+                shutil.copyfileobj(src, dst, 1 << 22)
+            part.replace(front)
+        finally:
+            part.unlink(missing_ok=True)
     elif not front.exists():
         raise BehindError(f"{cid}: {front.name} is missing; move {mov.name} aside so render.mjs renders the card again")
     w, h = edl.get("w", 2560), edl.get("h", 1440)
@@ -268,8 +294,19 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
 def temp_in(gfx: Path, cid: str) -> Path:
     """a new file with an unguessable name (O_EXCL): nothing planted in a synced gfx/ can redirect the write"""
     fd, name = tempfile.mkstemp(dir=gfx, prefix=f".{cid}.", suffix=".part.mov")
+    umask = os.umask(0); os.umask(umask)
+    os.fchmod(fd, 0o666 & ~umask)  # the card ends up with the folder's usual mode, not mkstemp's 0600
     os.close(fd)
     return Path(name)
+
+
+def sweep(gfx: Path, cid: str) -> None:
+    """temp files of this card left by a killed run (SIGKILL skips finally); a younger one may be a run still going"""
+    now = time.time()
+    for p in gfx.glob(f".{cid}.*.part.mov"):
+        with contextlib.suppress(FileNotFoundError):  # gone in between: a run finishing at the same time
+            if now - p.lstat().st_mtime > STALE_PART:
+                p.unlink()
 
 
 def on_term(*_) -> None:
@@ -297,7 +334,12 @@ def main(argv: list[str]) -> int:
             continue
         try:
             print("behind", process(sp, gfx, specs_p.resolve().parent, strict=only is not None), flush=True)
-        except (BehindError, subprocess.SubprocessError, OSError, ValueError, KeyError) as e:
+        except BehindError as e:
+            if only is None and not isinstance(e, BadName):  # render.mjs: an EDL run_v4.sh has not rebuilt yet; --edl fails for real
+                print(f"behind {sp.get('id')}: left for run_v4.sh: {e}", flush=True)
+                continue
+            print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
+        except (subprocess.SubprocessError, OSError, ValueError, KeyError) as e:
             print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
     return rc
 

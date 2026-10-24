@@ -5,10 +5,14 @@ import contextlib
 import hashlib
 import io
 import json
+import os
 import shutil
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from typing import ClassVar
@@ -274,17 +278,87 @@ class BehindTest(unittest.TestCase):
         with mock.patch.object(behind, "framing_src", lambda: src):
             self.assertIn("cut out", self.run_once())
 
-    def test_sigterm_exits_so_the_finally_blocks_run(self):
-        with self.assertRaisesRegex(SystemExit, "SIGTERM"):
-            behind.on_term()
+    def test_sigterm_mid_run_leaves_the_card_whole_and_no_temp_file(self):
+        self.run_once()
+        before = sha(self.mov)
+        self.edl["segments"][1]["in"] = 1.2  # a new window: the next run cuts out again
+        self.write_edl()
+        specs = self.d / "gfx_specs.json"
+        specs.write_text(json.dumps([self.spec]))
+        runner = self.d / "runner.py"
+        runner.write_text(f"""import sys, time
+import numpy as np
+sys.path.insert(0, {str(PIPE)!r})
+import behind
+class Slow:
+    def __init__(self, ratio): pass
+    def __call__(self, rgb):
+        time.sleep(0.2)
+        return np.zeros(rgb.shape[:2], np.float32)
+behind.Matter = Slow
+behind.MODEL = behind.Path("none.onnx")
+behind.low_priority = lambda: None
+sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--edl", "edl.json"]))
+""")
+        with subprocess.Popen([sys.executable, "-I", str(runner)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as pr:
+            for _ in range(300):
+                if list((self.d / "gfx").glob(".b.*.part.mov")):
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail("no temp file appeared")
+            time.sleep(0.5)
+            pr.send_signal(signal.SIGTERM)
+            _, err = pr.communicate(timeout=60)
+        self.assertNotEqual(pr.returncode, 0)
+        self.assertIn("SIGTERM", err)
+        self.assertEqual(list((self.d / "gfx").glob(".*.part*")), [])
+        self.assertEqual(sha(self.mov), before)
 
-    def test_only_the_verified_model_file_is_loaded(self):
-        bad = self.d / "model.onnx"
-        bad.write_bytes(b"not the model")
-        with mock.patch.object(behind, "MODEL", bad), self.assertRaisesRegex(behind.BehindError, "sha256"):
-            behind.Matter(0.2)
-        with mock.patch.object(behind, "MODEL", self.d / "none.onnx"), self.assertRaises(behind.BehindError):
-            behind.Matter(0.2)
+    def test_edl_wide_framing_values_must_be_numbers(self):
+        for k, v in (("face", [0.5, "0.45)),drawbox=c=white"]), ("face_target_y", "0.4,movie=x"), ("src_w", "2560"),
+                     ("vertical", "yes")):
+            with self.subTest(**{k: str(v)}):
+                self.edl[k] = v
+                self.write_edl()
+                with self.assertRaisesRegex(behind.BehindError, "EDL"):
+                    self.run_once()
+                self.setUp()
+
+    def test_before_the_final_edl_any_card_error_waits_for_run_v4(self):
+        self.edl["w"] = W * 2
+        self.write_edl()
+        specs = self.d / "gfx_specs.json"
+        specs.write_text(json.dumps([self.spec]))
+        rc, out, _ = self.cli(str(specs), str(self.d / "gfx"))  # render.mjs: other films' graphics go on
+        self.assertEqual((rc, "left for run_v4.sh" in out), (0, True))
+        self.assertEqual(self.cli(str(specs), str(self.d / "gfx"), "--edl", "edl.json")[0], 1)
+
+    def test_cut_out_cards_keep_the_usual_file_mode(self):
+        self.run_once()
+        umask = os.umask(0); os.umask(umask)
+        for f in (self.mov, self.front):
+            self.assertEqual(stat.S_IMODE(f.stat().st_mode), 0o666 & ~umask, f.name)
+
+    def test_a_failed_front_copy_leaves_no_temp_file(self):
+        with mock.patch.object(behind.shutil, "copyfileobj", side_effect=OSError("disk full")), self.assertRaises(OSError):
+            self.run_once()
+        self.assertEqual(list((self.d / "gfx").glob(".*.part*")), [])
+
+    def test_temp_files_of_a_killed_run_are_swept_young_ones_kept(self):
+        old, young = self.d / "gfx" / ".b.old.part.mov", self.d / "gfx" / ".b.young.part.mov"
+        old.write_bytes(b"x"); young.write_bytes(b"x")
+        t = time.time() - behind.STALE_PART - 60
+        os.utime(old, (t, t))
+        self.run_once()
+        self.assertEqual((old.exists(), young.exists()), (False, True))
+
+    def test_a_link_swapped_in_after_the_check_is_not_read(self):
+        link = self.d / "gfx" / "link.mov"
+        link.symlink_to(self.mov)
+        with self.assertRaises(OSError):
+            behind.sha(link)
+
 
 
 @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")

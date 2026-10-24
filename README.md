@@ -123,11 +123,11 @@ klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, któ
 {"id": "b02_bol", "type": "float", "dur": 3.2, "html": "<div class=\"bw\" style=\"top:170px;font-size:380px\">BÓL</div>",
  "behind": {"edl": "edl_long.json"}}
 ```
-- Uruchamiają go `gfx/render.mjs` (po renderze kart; EDL jeszcze niezbudowany albo bez `seg_exact` = później) i `run_v4.sh` (przed `assemble.py`,
+- Uruchamiają go `gfx/render.mjs` (po renderze kart; EDL jeszcze niezbudowany albo nie gotowy = komunikat „left for run_v4.sh”, reszta grafik idzie dalej) i `run_v4.sh` (przed `assemble.py`,
   `--edl edl_<film>.json`: karty tego filmu na jego EDL po poprawkach krytyka). Przetworzona karta ma w metadanych klucz
   (`comment=behind:…`); ten sam klucz = pominięta, `.mov` bez znacznika = świeży render (nowy `<id>.front.mov`).
 - Plan musi mieć `"seg_exact": true`; karta do 20 s, w rozmiarze klatki filmu (najwyżej 4K); `id` i nazwa EDL tylko
-  `[A-Za-z0-9_-]`. Opcja `"ratio"` (0–1, domyślnie 0.2) = skala, w jakiej model patrzy na klatkę (mniejsza = szybciej, grubsza maska).
+  `[A-Za-z0-9_-]`. Opcja `"ratio"` (większa od 0, najwyżej 1; domyślnie 0.2) = skala, w jakiej model patrzy na klatkę (mniejsza = szybciej, grubsza maska).
 - Efekt wyłączasz, usuwając `"behind"` ze speca i przesuwając `<id>.mov` i `<id>.front.mov` na bok (render.mjs zrobi zwykłą kartę). Maska myli się
   na dłoni przed głową: wtedy inne miejsce na słowo.
 - Napis musi sięgać głowy (dół słowa na wysokości czubka głowy lub niżej), inaczej efektu nie widać. `build_edl` trzyma kadr
