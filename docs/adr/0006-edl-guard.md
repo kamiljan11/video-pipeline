@@ -21,8 +21,9 @@ Poprawne EDL dają identyczne komendy ffmpeg (test zgodności z `assemble.py.ori
 zamyka filtrów).
 
 **Zakres i ryzyko resztkowe (pg-review 2026-10-24):**
-- Guard działa w `assemble.py`, czyli po `make_beds`, `face_track` i `behind.py` w `run_v4.sh`. `behind.py` sprawdza te same
-  reguły kadrowania; zły łańcuch `audio` wychodzi dopiero na końcu (wywołanie zaraz po `build_edl` w `run_v4.sh` = następny krok).
+- `run_v4.sh` woła `python3 edl_guard.py edl_<film>.json` zaraz po pętli krytyka (przed `make_beds`, `behind.py`, `assemble.py`):
+  odmowa = `FAILED edl_guard <film>` od razu. `face_track.py` czyta EDL wcześniej (tylko `sources.A` przez OpenCV). Podgląd panelu
+  (`assemble.py --proxy`) dostaje odmowę z samego `assemble.py`.
 - Wejścia mogą wskazywać dowolny lokalny plik (np. inne nagranie z `~/Videos`); ograniczenie do katalogu projektu = decyzja Kamila.
 - Odrzucone przez recenzję ścieżki (playlista HLS jako źródło, `subfile` -> http) są bezpieczne dzięki zagnieżdżonym
   whitelistom protokołów ffmpeg 8.0.1; starszy ffmpeg = sprawdzić ponownie.

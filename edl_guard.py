@@ -30,6 +30,10 @@ def num(v) -> bool:
     return isinstance(v, int | float) and not isinstance(v, bool) and -1e9 < v < 1e9  # NaN, inf and 10**400 fail too
 
 
+def pos(v) -> bool:
+    return num(v) and v > 0  # a zoom divides the crop
+
+
 def pair(p) -> bool:
     return isinstance(p, list) and len(p) == 2 and all(map(num, p))
 
@@ -56,8 +60,9 @@ def framing_ok(edl: dict) -> bool:
 def segment_ok(s: dict) -> bool:
     """a segment's zoom (number or {a, b, t0, t1, keys}), face and track: numbers only"""
     z, face, track = s.get("zoom", 1.0), s.get("face"), s.get("track")
-    ok = (num(z) and z > 0) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("a", "b", "t0", "t1"))
-                                and z["a"] > 0 and z["b"] > 0 and isinstance(z.get("keys") or [], list) and all(map(pair, z.get("keys") or [])))
+    keys = z.get("keys") or [] if isinstance(z, dict) else []
+    ok = pos(z) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("t0", "t1")) and pos(z.get("a")) and pos(z.get("b"))
+                    and isinstance(keys, list) and all(map(pair, keys)) and all(pos(k[1]) for k in keys))
     return ok and (face is None or pair(face)) and (track is None or (isinstance(track, list) and all(map(pair, track))))
 
 
@@ -88,7 +93,7 @@ def problems(edl) -> list[str]:
     if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:
         out.append(f"tail: 0 to {MAX_TAIL:g} s")
     if "out_name" in edl and not (isinstance(edl["out_name"], str) and OUT_NAME.fullmatch(edl["out_name"])):
-        out.append("out_name: a bare file name like film.mp4 (no / and no leading dot)")
+        out.append("out_name: a bare file name like film_v2.mp4 (letters, digits, _ . - and an extension; no /, space, Polish letter or leading dot)")
     out += [f"{k}: only the filters {sorted(allowed)}, options with plain values" for k, allowed in (("audio", AUDIO), ("grade", VIDEO))
             if k in edl and not chain_ok(edl[k], allowed)]
     for o in edl.get("overlays", []):
@@ -113,3 +118,15 @@ def problems(edl) -> list[str]:
 def check(edl) -> None:
     if bad := problems(edl):
         raise EdlError("EDL refused (" + "; ".join(bad) + ")")
+
+
+if __name__ == "__main__":  # run_v4.sh: right after build_edl, so a refused EDL fails before face_track / make_beds / behind
+    import json
+    import sys
+
+    try:
+        with open(sys.argv[1], encoding="utf-8") as f:
+            edl = json.load(f)
+        check(edl)
+    except (OSError, ValueError, RecursionError) as e:  # EdlError is a ValueError, so is bad JSON
+        sys.exit(f"edl_guard {sys.argv[1]}: {e}")

@@ -22,6 +22,8 @@ for n in "$@"; do
     python3 $VP/build_edl.py plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED build_edl $n" >> "$R/render.log"; failed="$failed $n"; continue 2; }
     $PY $VP/face_track.py edl_$n.json >> "$L" 2>&1 || { echo "FAILED face_track $n" >> "$R/render.log"; failed="$failed $n"; continue 2; }
   done
+  # the final EDL against edl_guard.py (ADR-0006) before the heavy steps: a refused value fails now, named, not after behind.py
+  python3 $VP/edl_guard.py edl_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED edl_guard $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   $PY $VP/music/make_beds.py edl_$n.json "$R/beds_$n" >> "$R/render.log" 2>&1 || { echo "FAILED make_beds $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # "behind" cards of THIS film (behind.py --edl): the speaker cut out on its final EDL (the gfx render above ran before the
   # critic's fixes); a card whose window did not change is skipped
