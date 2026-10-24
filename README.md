@@ -111,6 +111,24 @@ pod kartą działa); `canvas: "v"`: górny pas shortu. Logika: `gfx/maxim_lib.mj
 - Dźwięk: miękki whoosh na wejście (`make_beds.py`); własne chwile karty (np. pop na wyróżnieniu) w `sfx`.
 - Kiedy: 1 zdanie-puenta (`maxim` w gramatyce), maks. ok. 1 na 3–4 min w long; nie razem z inną kartą.
 
+## Tekst za postacią (`"behind"` w karcie)
+Duże słowo ZA głową mówiącego (głowa zasłania środek napisu). Karta dowolnego typu (zwykle `float` z własnym html) dostaje
+`"behind": {"edl": "edl_long.json"}`; `behind.py` wycina z jej kanału alfa postać, wyliczoną modelem Robust Video Matting na
+klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, którego `vf_for` czyta). Wynik zastępuje `<id>.mov`
+(oryginał: `<id>.front.mov`), więc `assemble.py` i odtwarzacz panelu po prostu nakładają kartę.
+```json
+{"id": "b02_bol", "type": "float", "dur": 3.2, "html": "<div class=\"bw\" style=\"top:170px;font-size:380px\">BÓL</div>",
+ "behind": {"edl": "edl_long.json"}}
+```
+- Uruchamiają go `gfx/render.mjs` (po renderze kart) i `run_v4.sh` (przed `assemble.py`, na EDL po poprawkach krytyka);
+  karta, której okno w EDL, plik i ustawienia się nie zmieniły, jest pomijana (`<id>.mov.behind`).
+- Napis musi sięgać głowy (dół słowa na wysokości czubka głowy lub niżej), inaczej efektu nie widać. `build_edl` trzyma kadr
+  pod kartą nieruchomo.
+- Instalacja (osobny venv, tylko dla tej funkcji): `python3 -m venv matte/.venv && matte/.venv/bin/pip install onnxruntime numpy`
+  + `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
+  (sha256 `25db300fcb6ee27f…`, sprawdzany przy każdym uruchomieniu; ONNX = same wagi, bez wykonywania kodu). Ok. 0,1 s na klatkę 2560x1440 na CPU.
+- Testy: `matte/.venv/bin/python -m unittest matte/test_behind.py` (też w zestawie panelu: `panel/tests/test_behind.py`).
+
 ## Motyw (kolory kart, napisów i ramki PiP)
 Kolory są danymi, nie kodem: `work/theme.json` `{"theme": "cetus"}` wybiera `style/themes/cetus.json`. Bez `theme.json` wszystko
 zostaje jak było (kolory z `gfx/template.html`, bit w bit).

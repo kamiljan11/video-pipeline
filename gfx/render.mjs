@@ -134,3 +134,10 @@ async function one(sp) {
 }
 const q = [...specs]; await Promise.all([0,1,2,3,4,5].map(async () => { while (q.length) await one(q.shift()); }));
 await browser.close();
+// "behind" cards: behind.py cuts the speaker out of each one's alpha (text behind the head); skipped when nothing changed
+if (specs.some(sp => sp.behind)) {
+  const PY = '/home/kamil-jan/video-pipeline/matte/.venv/bin/python';
+  if (!fs.existsSync(PY)) { console.error('FAILED gfx: "behind" cards need matte/.venv (README: text behind the speaker)'); process.exit(1); }
+  try { execFileSync(PY, ['/home/kamil-jan/video-pipeline/behind.py', specFile, outDir], { stdio: 'inherit', timeout: 1800000 }); }
+  catch (e) { console.error(`FAILED gfx: behind.py ${e.status ?? e.message}`); process.exit(1); }
+}

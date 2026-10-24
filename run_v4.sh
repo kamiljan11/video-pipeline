@@ -23,6 +23,11 @@ for n in "$@"; do
     $PY $VP/face_track.py edl_$n.json >> "$L" 2>&1 || { echo "FAILED face_track $n" >> "$R/render.log"; failed="$failed $n"; continue 2; }
   done
   $PY $VP/music/make_beds.py edl_$n.json "$R/beds_$n" >> "$R/render.log" 2>&1 || { echo "FAILED make_beds $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+  # "behind" cards (behind.py): the speaker cut out of the card under THIS film's final EDL (the gfx render above ran before
+  # the critic's fixes); a card whose window did not change is skipped
+  if [ -f gfx_specs.json ] && grep -q '"behind"' gfx_specs.json; then
+    $VP/matte/.venv/bin/python $VP/behind.py gfx_specs.json gfx >> "$R/render.log" 2>&1 || { echo "FAILED behind $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+  fi
   f=$(python3 -c "import json;print(json.load(open('edl_$n.json'))['out_name'])")
   # out_name comes from the plan (Syncthing): a bare file name only, never a path out of OUTDIR
   case "$f" in ""|*/*|.*) echo "FAILED out_name $n" >> "$R/render.log"; failed="$failed $n"; continue;; esac
