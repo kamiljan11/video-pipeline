@@ -1,6 +1,6 @@
 # ADR-0006 — EDL nie niesie tekstu do ffmpeg: `edl_guard.py` przed `assemble.py`
 
-Data: 2026-10-24 | Status: przyjęte | Drzwi: dwukierunkowe (jedno wywołanie w `assemble.py`) | Przegląd: 2027-01-31
+Data: 2026-10-24 | Status: przyjęte | Drzwi: dwukierunkowe (wywołania w `assemble.py` i `run_v4.sh`) | Przegląd: 2027-01-31
 
 **Kontekst:** recenzja `behind.py` (r15–r16, potwierdzone przez weryfikatora) pokazała, że `assemble.py` wkleja wartości EDL
 do tekstu `-vf` / `-filter_complex` (`face`, `face_target_y`, `w/h`, `src_w/src_h`, `zoom/face/track` segmentu, `tail`,
@@ -22,7 +22,8 @@ zamyka filtrów).
 
 **Zakres i ryzyko resztkowe (pg-review 2026-10-24):**
 - `run_v4.sh` woła `python3 edl_guard.py edl_<film>.json` zaraz po pętli krytyka (przed `make_beds`, `behind.py`, `assemble.py`):
-  odmowa = `FAILED edl_guard <film>` od razu. `face_track.py` czyta EDL wcześniej (tylko `sources.A` przez OpenCV). Podgląd panelu
+  odmowa = `FAILED edl_guard <film>` od razu. `face_track.py` i `critic.py` czytają EDL wcześniej (`sources.A` przez OpenCV, `in`/`out`/`zoom` segmentów): zły typ tam
+  = traceback i `FAILED face_track` bez nazwy pola (ryzyko resztkowe; guard przed pierwszym `face_track` = możliwy następny krok). Podgląd panelu
   (`assemble.py --proxy`) dostaje odmowę z samego `assemble.py`.
 - Wejścia mogą wskazywać dowolny lokalny plik (np. inne nagranie z `~/Videos`); ograniczenie do katalogu projektu = decyzja Kamila.
 - Odrzucone przez recenzję ścieżki (playlista HLS jako źródło, `subfile` -> http) są bezpieczne dzięki zagnieżdżonym

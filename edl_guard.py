@@ -120,10 +120,12 @@ def check(edl) -> None:
         raise EdlError("EDL refused (" + "; ".join(bad) + ")")
 
 
-if __name__ == "__main__":  # run_v4.sh: right after build_edl, so a refused EDL fails before face_track / make_beds / behind
+if __name__ == "__main__":  # run_v4.sh, after the critic loop: a refused EDL fails before make_beds / behind / assemble
     import json
     import sys
 
+    if len(sys.argv) != 2:
+        sys.exit("usage: edl_guard.py EDL.json")
     try:
         with open(sys.argv[1], encoding="utf-8") as f:
             edl = json.load(f)
