@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
 from pathlib import Path
 
+import themes  # next to this script (sys.path[0])
+
 edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]; os.makedirs(out, exist_ok=True)
 # --proxy (editing panel preview): same compositing, fast low-quality encodes, output scaled to 640 px on the long side
 PROXY = "--proxy" in sys.argv[3:]
@@ -105,8 +107,7 @@ grade = edl.get("grade", "eq=contrast=1.04:saturation=1.07:gamma=0.98,unsharp=5:
 tail = edl.get("tail", 0)
 body = sum(sg["out"] - sg["in"] for sg in edl["segments"])
 THEME = edl.get("theme")  # build_edl from work/theme.json (themes.py): accent of the progress bar and the PiP frame
-ACC = THEME["acc"][1:] if THEME else "2de2c4"
-pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x{ACC}@0.85:t=fill:enable=lt(t\\,{body:.3f})" if edl.get("progress") else "")
+pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x{themes.bar_hex(THEME)}@0.85:t=fill:enable=lt(t\\,{body:.3f})" if edl.get("progress") else "")
 fc.append(f"[0:v]{grade}" + (f",tpad=stop_mode=clone:stop_duration={tail}" if tail else "") + pbar + "[v0]")
 last = "v0"
 # stock b-roll (build_edl "broll"): full-frame cutaway under graphics and captions, picture only (the voice goes on);
@@ -138,8 +139,7 @@ for k, o in enumerate(edl.get("overlays", [])):
     fc.append(f"[{last}][g{k}]overlay=eof_action=pass:format=auto[v{k+1}]"); last = f"v{k+1}"
 if pips:
     nimg = len(inputs) // 2 if False else None
-    frame = f"/home/kamil-jan/video-pipeline/gfx/pip_frame{'_' + THEME['name'] if THEME else ''}.png"
-    if not os.path.exists(frame): sys.exit(f"no PiP frame {frame}: node gfx/pip_assets.mjs 600 <#acc> <theme name>")
+    frame = themes.pip_frame(THEME)
     inputs += ["-loop", "1", "-i", "/home/kamil-jan/video-pipeline/gfx/pip_mask.png", "-loop", "1", "-i", frame]
     i_mask = 1 + len(edl.get("overlays", [])); i_frame = i_mask + 1
     fc.append(f"[{i_mask}:v]format=gray,scale={PS}:{PS}[pm]")

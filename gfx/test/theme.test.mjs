@@ -31,6 +31,10 @@ test('loadTheme: a bad theme.json or theme file stops with a named error', () =>
     pick(bad);
     assert.throws(() => loadTheme(spec, dir), /"theme" must be a name/, String(bad));
   }
+  for (const raw of ['[]', 'null', '{"theme": "cetus"', '"cetus"']) {
+    write(path.join(work, 'theme.json'), raw);
+    assert.throws(() => loadTheme(spec, dir), /theme\.json: (not valid JSON|expected a JSON object)/, raw);
+  }
   pick('none');
   assert.throws(() => loadTheme(spec, dir), /no theme "none"/);
   pick('t');
@@ -42,6 +46,8 @@ test('loadTheme: a bad theme.json or theme file stops with a named error', () =>
     write(path.join(dir, 't.json'), { css });
     assert.throws(() => loadTheme(spec, dir), re, JSON.stringify(css));
   }
+  write(path.join(dir, 't.json'), '[1]');
+  assert.throws(() => loadTheme(spec, dir), /t\.json: expected a JSON object/);
 });
 
 // share of pixels within 12 of rgb in the card's last frame (alpha > 0)
