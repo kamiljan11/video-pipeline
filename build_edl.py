@@ -222,6 +222,17 @@ Style: Cap,Montserrat,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,10
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
+    if type(P.get("caption_box", False)) is not bool: sys.exit(f"caption_box: true/false, got {P['caption_box']!r}")
+    if P.get("caption_box"):  # STYL-SHORTOW R2: one line in a box at ~63 % height (under the chin), not bare text at 72 %
+        box = themes.ass_color(THEME["ink"], 0) if THEME else "&H00000000"  # BorderStyle 3 box = OutlineColour; opaque: a see-through box doubles where colour runs meet
+        hdr = hdr.replace("Style: Cap,Montserrat,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,2,70,130,540,1",
+                          f"Style: Cap,Montserrat,80,&H00FFFFFF,&H00FFFFFF,{box},&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,70,70,650,1")
+    # captions pause under a card in their own zone (a "pill" hook card, STYL-SHORTOW R3): never two texts on one spot
+    for o in ovs:  # the pill css exists only for a 9:16 maxim: anything else would silence captions under nothing
+        sp = specs.get(o["id"], {})
+        if "pill" in sp and (type(sp["pill"]) is not bool or sp["pill"] and (sp.get("type"), sp.get("canvas")) != ("maxim", "v")):
+            sys.exit(f"{o['id']}: pill = true/false, only on a maxim with canvas \"v\", got {sp['pill']!r}")
+    quiet = [(o["at"], o["at"] + o["dur"]) for o in ovs if specs.get(o["id"], {}).get("pill") is True]
     ev = []; i = 0
     CAP_ACC = themes.ass_color(THEME["acc"]) if THEME else "&HC4E22D"  # spoken word in the accent colour
     while i < len(kept):
@@ -231,7 +242,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for j, w in enumerate(grp):  # karaoke-style: current word in accent colour
             end = grp[j + 1][0] if j + 1 < len(grp) else (kept[i][0] if i < len(kept) else w[1])
             txt = " ".join(("{\\c" + CAP_ACC + "&}" + x[2].strip(",.").upper() + "{\\c&HFFFFFF&}") if k == j else x[2].strip(",.").upper() for k, x in enumerate(grp))
-            ev.append(f"Dialogue: 0,{ts(w[0], '.')[1:-1]},{ts(min(end, w[1] + 0.6), '.')[1:-1]},Cap,,0,0,0,,{txt}")
+            if any(q0 - 0.05 <= w[0] < q1 for q0, q1 in quiet): continue  # 0.05: card "at" is rounded to ms, the word is not
+            e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]])
+            ev.append(f"Dialogue: 0,{ts(w[0], '.')[1:-1]},{ts(e, '.')[1:-1]},Cap,,0,0,0,,{txt}")
     if P.get("hook_text"):
         # BorderStyle 3 = opaque box drawn in OutlineColour (libass, like VSFilter); BackColour would only colour a shadow
         box, back = (themes.ass_color(THEME["ink"], 0), "&H00000000") if THEME else ("&H00000000", "&HD8120F0D")  # no theme: as before

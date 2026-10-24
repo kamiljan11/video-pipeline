@@ -28,11 +28,12 @@ const html = sp => {
 };
 // "maxim": the sentence typed while it is said (gfx/maxim_lib.mjs); every letter is in the layout from the start (hidden) and the
 // caret takes no width, so the lines never re-wrap or shift while typing; window.__seek = maximSeek shows the state at time t
+// "pill": true (9:16 hook card): a white pill in the caption zone instead of the top band; build_edl pauses captions under it
 function maxim(sp) {
   const words = maximWords(sp.text), times = wordTimes(words, sp.dur, sp.at), chars = charTimes(words, times, sp.dur);
   const body = words.map(({ w, hl }, i) => `<span class="w${hl ? ' hl' : ''}">${[...w].map((c, j) =>
     `<i data-t="${chars[i][j].toFixed(3)}">${esc(c)}</i>`).join('')}${hl ? `<b class="mk" data-t="${(chars[i].at(-1) + 0.05).toFixed(3)}"></b>` : ''}</span>`).join(' ');
-  return `<div class="maxim"><div class="scrim"></div><div class="box"><div class="bar"></div><div class="t">${body}<span class="caret"></span></div></div></div>`;
+  return `<div class="maxim${sp.pill ? ' pill' : ''}"><div class="scrim"></div><div class="box"><div class="bar"></div><div class="t">${body}<span class="caret"></span></div></div></div>`;
 }
 // "web": the cited page in a browser window (capture: webshot.mjs), scrolled to the quote, which is then marked
 const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right

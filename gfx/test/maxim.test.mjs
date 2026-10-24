@@ -75,3 +75,20 @@ test('the same maxim gives the same frames twice, types on while said, then hold
     assert.ok(new Set(fa.slice(6, 40)).size > 10, `${id}: the sentence does not type on`);
   }
 });
+
+// one rgba frame at t; [x, y] -> [r, g, b, a]
+const frameAt = (mov, t, w = 1080) => {
+  const raw = execFileSync('ffmpeg', ['-v', 'error', '-ss', String(t), '-i', mov, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'],
+    { maxBuffer: 64 << 20 });
+  return (x, y) => [...raw.subarray((y * w + x) * 4, (y * w + x) * 4 + 4)];
+};
+
+test('"pill" puts the 9:16 maxim in a white box in the caption zone, not in the top band', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const dir = render([{ id: 'p', type: 'maxim', canvas: 'v', pill: true, text: '*95%* firm', dur: 2 },
+    { id: 'q', type: 'maxim', canvas: 'v', text: '*95%* firm', dur: 2 }]);
+  const pill = frameAt(path.join(dir, 'p.mov'), 1.5), plain = frameAt(path.join(dir, 'q.mov'), 1.5);
+  assert.deepEqual(pill(100, 1150), [255, 255, 255, 255]);  // left edge of the pill at ~60 % height: opaque white
+  assert.equal(pill(540, 100)[3], 0);  // nothing in the top band (no scrim)
+  assert.ok(plain(540, 100)[3] > 0, 'a plain 9:16 maxim keeps its top scrim');
+  assert.equal(plain(100, 1150)[3], 0);
+});
