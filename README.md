@@ -135,7 +135,7 @@ kończy się na ostatnim słowie jak dotąd (test: `panel/tests/test_pipeline_co
 ```
 
 ## Hak shorta w pigułce i napisy w boxie (styl shortów, `render/montaz/2026-10-22/STYL-SHORTOW.md` R1–R3)
-- **Hak = karta, nie napis u góry:** `maxim` z `"canvas": "v", "pill": true` to biała pigułka w strefie napisów (58–64 % wysokości),
+- **Hak = karta, nie napis u góry:** `maxim` z `"canvas": "v", "pill": true` to biała pigułka w strefie napisów (od ~61 % wysokości w dół, pod brodą),
   zdanie pisane literami, słowa w `*gwiazdkach*` w `--acc-dim` (kontrast na bieli). W planie: `{"id": "v_hook1", "word": 0}`
   zamiast `hook_text`; `dur` ~3–3.5 s.
   ```json

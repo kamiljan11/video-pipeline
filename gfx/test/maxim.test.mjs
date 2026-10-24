@@ -87,8 +87,9 @@ test('"pill" puts the 9:16 maxim in a white box in the caption zone, not in the 
   const dir = render([{ id: 'p', type: 'maxim', canvas: 'v', pill: true, text: '*95%* firm', dur: 2 },
     { id: 'q', type: 'maxim', canvas: 'v', text: '*95%* firm', dur: 2 }]);
   const pill = frameAt(path.join(dir, 'p.mov'), 1.5), plain = frameAt(path.join(dir, 'q.mov'), 1.5);
-  assert.deepEqual(pill(100, 1150), [255, 255, 255, 255]);  // left edge of the pill at ~60 % height: opaque white
+  assert.deepEqual(pill(100, 1330), [255, 255, 255, 255]);  // left edge of the pill at ~69 % height: opaque white
+  assert.equal(pill(540, 1080)[3], 0);  // nothing at 56 %: the mouth stays free
   assert.equal(pill(540, 100)[3], 0);  // nothing in the top band (no scrim)
   assert.ok(plain(540, 100)[3] > 0, 'a plain 9:16 maxim keeps its top scrim');
-  assert.equal(plain(100, 1150)[3], 0);
+  assert.equal(plain(100, 1330)[3], 0);
 });
