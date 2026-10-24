@@ -3,7 +3,7 @@
 **One talking-head recording in, an edited long video (16:9) and a set of vertical shorts (9:16) out.**
 A local, scriptable editing pipeline: transcript, edit plan, EDL, face-aware framing, motion cards, music beds and an
 ffmpeg render, with an automatic critic between every step. The browser editor that sits on top of it lives in its own
-repository: [kamiljan11/montazownia](https://github.com/kamiljan11/montazownia).
+repository: [kamiljan11/video-pipeline-panel](https://github.com/kamiljan11/video-pipeline-panel).
 
 Built for the author's own channel; published as a reference and a backup. See [LICENSE](LICENSE) (all rights reserved).
 
@@ -43,7 +43,7 @@ flowchart LR
 
 The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
 from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
-(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/montazownia/blob/main/docs/GLOSSARY.md).
+(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/video-pipeline-panel/blob/main/docs/GLOSSARY.md).
 
 ## Quick start (Ubuntu)
 
@@ -71,7 +71,7 @@ ruff check .
 ```
 
 The larger suite (compatibility of every script with its pre-panel baseline, live player, HTTP API) is in the
-[montazownia](https://github.com/kamiljan11/montazownia) repository; it expects this repo as its parent directory.
+[video-pipeline-panel](https://github.com/kamiljan11/video-pipeline-panel) repository; it expects this repo as its parent directory.
 
 ---
 
@@ -119,7 +119,7 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 5. `models/face_detection_yunet_2023mar.onnx`: detektor twarzy YuNet z https://github.com/opencv/opencv_zoo
    (`models/face_detection_yunet/`, plik przez Git LFS); sha256 lokalnej kopii zaczyna się od `8f2383e4dd3cfbb4`.
 6. B-roll: sekret `Pexels` w Infisicalu (most `~/infisical`); bez niego reszta pipeline'u działa.
-7. Panel: `panel/` = osobne repo https://github.com/kamiljan11/montazownia sklonowane do `panel/` (`panel/README.md`).
+7. Panel: `panel/` = osobne repo https://github.com/kamiljan11/video-pipeline-panel sklonowane do `panel/` (`panel/README.md`).
 8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff`, `npm i -g pyright`.
 9. Tekst za postacią (tylko gdy plan ma karty `"behind"`): `python3 -m venv matte/.venv && matte/.venv/bin/pip install -r matte/requirements.txt`
    + model `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
@@ -130,7 +130,7 @@ Przed publikacją shorta z b-rollem: linie autorów do opisu filmu (wytyczne API
 
 Bramki: pre-commit (ruff, pyright, skan sekretów) działa przez globalne `core.hooksPath=~/.claude/git-hooks` laptopa, nie z repo;
 na innej maszynie uruchamiaj `ruff check . && pyright` ręcznie.
-**Kopia kodu i zasad stylu:** publiczne repo https://github.com/kamiljan11/video-pipeline (+ panel: kamiljan11/montazownia),
+**Kopia kodu i zasad stylu:** publiczne repo https://github.com/kamiljan11/video-pipeline (+ panel: kamiljan11/video-pipeline-panel),
 od 2026-10-24 (ADR-0007). Nagrania, transkrypcje, plany i rendery NIE idą do gita (`.gitignore`): kopii poza laptopem nie mają.
 **Dysk:** od 2026-10-24 `~/video-pipeline` i `~/Videos` to symlinki do `~/Dane/...` (dysk Dane, LUKS, montowany przy starcie z
 `/etc/crypttab`); ścieżki w skryptach i planach się nie zmieniły. Panel kluczuje swoje katalogi po ścieżce rozwiązanej (`render/panel/*/<klucz>`).

@@ -20,7 +20,7 @@ nie wychodzi poza laptop; (3) zero kosztów; (4) ścieżki w skryptach, planach 
 | **Suma** | 3,0 | 4,2 | 4,7 | |
 
 **Decyzja:** C. `kamiljan11/video-pipeline` (to samo repo, `main` jako domyślna, widoczność public) + nowe
-`kamiljan11/montazownia` (panel). Licencja: „all rights reserved” (kod do wglądu i jako kopia; zmiana na MIT później jest
+`kamiljan11/video-pipeline-panel` (panel). Licencja: „all rights reserved” (kod do wglądu i jako kopia; zmiana na MIT później jest
 łatwa, odwrotnie nie — opublikowanej licencji otwartej nie da się odebrać). `.gitignore`: `render/`, media (`*.mp4/*.mov/*.wav/*.mkv/*.m4a/*.mp3/*.webm`), napisy (`*.srt/*.ass`),
 dane projektu (`words*.json`, `plan_*.json`, `edl_*.json`, `gfx_specs.json`), `.env*`, modele, `node_modules/`, `.venv/`. CI (`.github/workflows/quality.yml`): ruff, testy node i Pythona bez modeli, gitleaks.
 
@@ -35,10 +35,10 @@ zamiast symlinków: kilkadziesiąt miejsc (`/home/kamil-jan/video-pipeline` w 21
 **Konsekwencje:** historia commitów (autor, e-mail `mountainallservice@gmail.com`) jest publiczna. Każdy przyszły commit = publikacja:
 skan sekretów pre-commit + gitleaks w CI; transkrypcje, plany i nagrania zostają poza gitem. Dysk Dane jest montowany przy starcie
 (`/etc/crypttab` z plikiem klucza, `nofail`): gdy się nie zamontuje, symlinki prowadzą donikąd, a render i panel padną z „brak pliku”
-(pierwszy krok diagnozy: `findmnt ~/Dane`). Stare kopie na dysku systemowym: `~/STARE-KOPIE-2026-10-24/` (122 GB) do usunięcia
+(pierwszy krok diagnozy: `findmnt ~/Dane`). Stare kopie na dysku systemowym: `~/old-copies-2026-10-24/` (122 GB) do usunięcia
 przez Kamila po sprawdzeniu.
 
 **Koszt cykliczny:** 0 zł (GitHub Free; minuty Actions w publicznych repo bez limitu płatnego; obraz gitleaks pobierany przy każdym biegu).
 
 **Wykonanie / rollback:** widoczność repo z powrotem na private w ustawieniach GitHuba (to, co już pobrano, zostaje u pobierających).
-Dysk: `rm` symlinku + `mv ~/STARE-KOPIE-2026-10-24/<katalog> ~/<katalog>` (dopóki kopie istnieją) albo `rsync` z `~/Dane` z powrotem.
+Dysk: `rm` symlinku + `mv ~/old-copies-2026-10-24/<katalog> ~/<katalog>` (dopóki kopie istnieją) albo `rsync` z `~/Dane` z powrotem.
