@@ -233,9 +233,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             txt = " ".join(("{\\c" + CAP_ACC + "&}" + x[2].strip(",.").upper() + "{\\c&HFFFFFF&}") if k == j else x[2].strip(",.").upper() for k, x in enumerate(grp))
             ev.append(f"Dialogue: 0,{ts(w[0], '.')[1:-1]},{ts(min(end, w[1] + 0.6), '.')[1:-1]},Cap,,0,0,0,,{txt}")
     if P.get("hook_text"):
-        hdr = hdr.replace("[Events]", "Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,3,0,0,8,90,130,330,1\n\n[Events]")
-        hdr = hdr.replace("Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000", "Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,&H00000000,"
-                          + (themes.ass_color(THEME["ink"], 0xD8) if THEME else "&HD8120F0D"))
+        # BorderStyle 3 = opaque box drawn in OutlineColour (libass, like VSFilter); BackColour would only colour a shadow
+        box, back = (themes.ass_color(THEME["ink"], 0), "&H00000000") if THEME else ("&H00000000", "&HD8120F0D")  # no theme: as before
+        hdr = hdr.replace("[Events]", f"Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,{box},{back},-1,0,0,0,100,100,0,0,3,0,0,8,90,130,330,1\n\n[Events]")
         ev.insert(0, f"Dialogue: 1,0:00:00.00,0:00:{P.get('hook_dur', 3.0):05.2f},Hook,,0,0,0,,{{\\fad(0,250)\\bord14}}{P['hook_text']}")
     Path(P["ass_out"]).write_text(hdr + "\n".join(ev) + "\n")
 
