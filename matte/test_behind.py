@@ -1,7 +1,9 @@
 """behind.py (text behind the speaker), run with matte/.venv/bin/python -m unittest matte/test_behind.py from ~/video-pipeline
 (the panel suite runs it: panel/tests/test_behind.py). A fake matting model on a synthetic film whose every frame has its
 own grey level, so the test sees WHICH film frame the model got for each card frame."""
+import contextlib
 import hashlib
+import io
 import json
 import shutil
 import subprocess
@@ -192,14 +194,89 @@ class BehindTest(unittest.TestCase):
             with self.subTest(spec=spec), self.assertRaises(behind.BehindError):
                 behind.process(spec, self.d / "gfx", self.d, matter_for=FakeMatter)
 
+    def cli(self, *args: str) -> tuple[int, str, str]:
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(behind, "Matter", FakeMatter), mock.patch.object(behind, "MODEL", self.d / "none.onnx"), \
+                mock.patch.object(behind, "low_priority"), mock.patch.object(behind.signal, "signal"), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = behind.main(["behind.py", *args])
+        return rc, out.getvalue(), err.getvalue()
+
     def test_cli_only_the_named_films_cards_and_a_failure_is_exit_1(self):
         specs = self.d / "gfx_specs.json"
         specs.write_text(json.dumps([self.spec, {"id": "other", "behind": {"edl": "edl_other.json"}}]))
-        with mock.patch.object(behind, "Matter", FakeMatter), mock.patch.object(behind, "low_priority"):
-            self.assertEqual(behind.main(["behind.py", str(specs), str(self.d / "gfx"), "--edl", "edl.json"]), 0)
-            self.assertTrue(self.front.exists())
-            specs.write_text(json.dumps([{"id": "../x", "behind": {"edl": "edl.json"}}]))
-            self.assertEqual(behind.main(["behind.py", str(specs), str(self.d / "gfx")]), 1)
+        rc, out, _ = self.cli(str(specs), str(self.d / "gfx"), "--edl", "edl.json")  # no model file: only the fake can run
+        self.assertEqual(rc, 0)
+        self.assertTrue(self.front.exists())
+        self.assertIn("other: for edl_other.json, not edl.json", out)  # a card skipped by --edl shows in render.log
+        specs.write_text(json.dumps([{"id": "../x", "behind": {"edl": "edl.json"}}]))
+        self.assertEqual(self.cli(str(specs), str(self.d / "gfx"))[0], 1)
+
+    def test_cli_bad_specs_json_is_exit_1_with_the_reason(self):
+        specs = self.d / "gfx_specs.json"
+        specs.write_text("[{")
+        rc, _, err = self.cli(str(specs), str(self.d / "gfx"))
+        self.assertEqual(rc, 1)
+        self.assertIn("FAILED behind", err)
+
+    def test_before_the_final_edl_a_card_without_seg_exact_waits_for_run_v4(self):
+        del self.edl["seg_exact"]
+        self.write_edl()
+        specs = self.d / "gfx_specs.json"
+        specs.write_text(json.dumps([self.spec]))
+        rc, out, _ = self.cli(str(specs), str(self.d / "gfx"))  # render.mjs: no --edl
+        self.assertEqual((rc, "seg_exact yet" in out), (0, True))
+        rc, _, err = self.cli(str(specs), str(self.d / "gfx"), "--edl", "edl.json")  # run_v4.sh: the final EDL must have it
+        self.assertEqual((rc, "seg_exact" in err), (1, True))
+
+    def test_a_symlinked_card_is_refused(self):
+        victim = self.d / "victim.mov"
+        self.mov.rename(victim)
+        self.mov.symlink_to(victim)
+        with self.assertRaisesRegex(behind.BehindError, "symlink"):
+            self.run_once()
+
+    def test_temp_files_get_fresh_names_so_a_planted_link_is_never_written_through(self):
+        victim = self.d / "victim.txt"
+        victim.write_text("keep")
+        for name in ("b.front.part.mov", "b.behind.part.mov", ".b.part.mov"):
+            (self.d / "gfx" / name).symlink_to(victim)
+        self.assertIn("cut out", self.run_once())
+        self.assertEqual(victim.read_text(), "keep")
+
+    def test_a_card_not_the_films_size_is_refused(self):
+        self.edl["w"] = W * 2
+        self.write_edl()
+        with self.assertRaisesRegex(behind.BehindError, "is not"):
+            self.run_once()
+
+    def test_a_card_longer_than_max_dur_is_refused(self):
+        with mock.patch.object(behind, "MAX_DUR", 0.5), self.assertRaisesRegex(behind.BehindError, "at most"):
+            self.run_once()
+
+    def test_ratio_out_of_range_is_refused(self):
+        for r in (0, 1.5, "0.2", True):
+            self.spec["behind"]["ratio"] = r
+            with self.subTest(ratio=r), self.assertRaisesRegex(behind.BehindError, "ratio"):
+                self.run_once()
+
+    def test_zoom_face_track_must_be_numbers(self):
+        for k, v in (("zoom", "1,movie=x"), ("face", ["0.5", 0.5]), ("track", [[0, "x"]]), ("zoom", {"a": 1, "b": "2", "t0": 0, "t1": 1})):
+            seg = dict(self.edl["segments"][1], **{k: v})
+            self.edl["segments"] = [self.edl["segments"][0], seg]
+            self.write_edl()
+            with self.subTest(**{k: str(v)}), self.assertRaisesRegex(behind.BehindError, "numbers"):
+                self.run_once()
+
+    def test_a_change_in_assembles_framing_cuts_out_again(self):
+        self.run_once()
+        src = behind.framing_src() + "\n# vf_for changed"
+        with mock.patch.object(behind, "framing_src", lambda: src):
+            self.assertIn("cut out", self.run_once())
+
+    def test_sigterm_exits_so_the_finally_blocks_run(self):
+        with self.assertRaisesRegex(SystemExit, "SIGTERM"):
+            behind.on_term()
 
     def test_only_the_verified_model_file_is_loaded(self):
         bad = self.d / "model.onnx"

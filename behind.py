@@ -16,9 +16,11 @@ import ast
 import hashlib
 import json
 import math
+import os
 import re
 import runpy
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -40,6 +42,7 @@ MARK = "behind:"
 VERSION = 2  # in the key: a change of how the cut-out is made redoes every card
 SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # specs come over Syncthing: a card id / EDL name never leaves gfx_dir / work
 SAFE_EDL = re.compile(r"[A-Za-z0-9_-]+\.json")
+MAX_PIXELS = 3840 * 2160
 Matting = Callable[[float], Callable[[np.ndarray], np.ndarray]]
 
 
@@ -47,10 +50,15 @@ class BehindError(Exception):
     pass
 
 
-def framing(edl: dict):
-    """assemble.py's vf_for(zoom, face, track) for this EDL (same globals as assemble.py sets from the EDL)."""
+def framing_src() -> str:
+    """assemble.py's vf_for / keys_expr / track_expr as code (part of every card's key: a framing change redoes the cut-outs)"""
     src = (VP / "assemble.py").read_text(encoding="utf-8")
     fns: list[ast.stmt] = [n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name in ("vf_for", "keys_expr", "track_expr")]
+    return ast.unparse(ast.Module(body=fns, type_ignores=[]))
+
+
+def framing(edl: dict):
+    """assemble.py's vf_for(zoom, face, track) for this EDL (same globals as assemble.py sets from the EDL)."""
     vertical = edl.get("vertical", False)
     fx, fy = edl.get("face", [0.5, 0.45])
     ns = {"W": edl.get("w", 2560), "H": edl.get("h", 1440), "SW": edl.get("src_w", 2560), "SH": edl.get("src_h", 1440),
@@ -58,7 +66,7 @@ def framing(edl: dict):
           "E": "\\", "pairwise": pairwise}
     with tempfile.TemporaryDirectory() as d:
         mod = Path(d) / "assemble_framing.py"
-        mod.write_text(ast.unparse(ast.Module(body=fns, type_ignores=[])), encoding="utf-8")
+        mod.write_text(framing_src(), encoding="utf-8")
         return runpy.run_path(str(mod), init_globals=ns)["vf_for"]
 
 
@@ -147,6 +155,7 @@ def window_key(edl: dict, at: float, n: int) -> list:
     start, under = 0, []
     for s, k in zip(edl["segments"], seg_frames(edl), strict=True):
         if start < last and start + k > first:
+            check_segment(s)
             st = Path(edl["sources"][s["src"]]).stat()
             under.append([start, s, st.st_size, st.st_mtime_ns])
         start += k
@@ -154,10 +163,31 @@ def window_key(edl: dict, at: float, n: int) -> list:
 
 
 def sha(p: Path) -> str:
-    return hashlib.sha256(p.read_bytes()).hexdigest()
+    h = hashlib.sha256()
+    with p.open("rb") as f:
+        while b := f.read(1 << 22):
+            h.update(b)
+    return h.hexdigest()
 
 
-def process(spec: dict, gfx: Path, base: Path, matter_for: Matting = Matter) -> str:
+def num(v) -> bool:
+    return isinstance(v, int | float) and not isinstance(v, bool)
+
+
+def check_segment(s: dict) -> None:
+    """numbers only where vf_for pastes them into the ffmpeg filter (plans come over Syncthing: no filter text from a plan)"""
+    z, face, track = s.get("zoom", 1.0), s.get("face"), s.get("track")
+    ok = num(z) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("a", "b", "t0", "t1"))
+                    and all(isinstance(p, list) and len(p) == 2 and all(map(num, p)) for p in z.get("keys") or []))
+    ok = ok and (face is None or (isinstance(face, list) and len(face) == 2 and all(map(num, face))))
+    ok = ok and (track is None or (isinstance(track, list) and all(isinstance(p, list) and len(p) == 2 and all(map(num, p)) for p in track)))
+    if not ok:
+        raise BehindError(f"segment at {s.get('in')}: zoom / face / track must be numbers")
+
+
+def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None, strict: bool = True) -> str:
+    """strict = run_v4.sh's final EDL; not strict (render.mjs, before run_v4.sh rebuilds the EDLs): an EDL that is not ready
+    for a cut-out is left for later instead of failing every film's graphics"""
     cid, edl_name = str(spec["id"]), str(spec["behind"]["edl"])
     if not SAFE_ID.fullmatch(cid) or not SAFE_EDL.fullmatch(edl_name):
         raise BehindError(f"card id {cid!r} / edl {edl_name!r}: only letters, digits, _ and - (a file in the work folder)")
@@ -169,27 +199,35 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting = Matter) -> 
     if o is None:
         return f"{cid}: not in {edl_name} (no cut-out)"
     if not edl.get("seg_exact"):
+        if not strict:
+            return f"{cid}: {edl_name} has no seg_exact yet (cut out when run_v4.sh rebuilds it)"
         raise BehindError(f"{cid}: {edl_name} has no seg_exact; without it the film's frames drift from the card (plan: \"seg_exact\": true)")
     mov, front = gfx / f"{cid}.mov", gfx / f"{cid}.front.mov"
+    if mov.is_symlink() or front.is_symlink():  # gfx/ can be a synced folder: never write through a link
+        raise BehindError(f"{cid}: {mov.name} / {front.name} is a symlink")
     mark = probe(mov, "format_tags=comment") if mov.exists() else ""
     if mov.exists() and not mark.startswith(MARK):  # a fresh render (render.mjs never writes the mark): the new front
-        part = gfx / f"{cid}.front.part.mov"
+        part = temp_in(gfx, cid)
         shutil.copyfile(mov, part); part.replace(front)
     elif not front.exists():
         raise BehindError(f"{cid}: {front.name} is missing; move {mov.name} aside so render.mjs renders the card again")
     w, h = edl.get("w", 2560), edl.get("h", 1440)
+    if not (num(w) and num(h) and 0 < w * h <= MAX_PIXELS) or probe(front, "stream=width,height").split() != [str(w), str(h)]:
+        raise BehindError(f"{cid}: the card is not {w}x{h} (the film's frame, at most 4K)")
     n = int(probe(front, "stream=nb_frames") or 0)
     if not 0 < n <= MAX_DUR * FPS:
-        raise BehindError(f"{cid}: {n} frames; a card behind the speaker is 1..{MAX_DUR:.0f} s")
-    ratio = float(spec["behind"].get("ratio", 0.2))
-    key = hashlib.sha256(json.dumps([VERSION, window_key(edl, o["at"], n), sha(front), ratio, MODEL_SHA],
-                                    sort_keys=True).encode()).hexdigest()
+        raise BehindError(f"{cid}: {n} frames; a card behind the speaker is at most {MAX_DUR:.0f} s")
+    ratio = spec["behind"].get("ratio", 0.2)
+    if not (num(ratio) and 0 < ratio <= 1):
+        raise BehindError(f"{cid}: ratio {ratio!r} must be a number in (0, 1]")
+    key = hashlib.sha256(json.dumps([VERSION, window_key(edl, o["at"], n), sha(front), ratio, MODEL_SHA,
+                                     hashlib.sha256(framing_src().encode()).hexdigest()], sort_keys=True).encode()).hexdigest()
     if mark == MARK + key:
         return f"{cid}: up to date"
     # card frame k is on screen at at + k/30 -> film frame ceil((at + k/30) * 30) (overlay shows the last card frame <= t)
     c0 = math.ceil(o["at"] * FPS - 1e-6); first = max(0, math.floor((o["at"] - WARM) * FPS))
-    matter = matter_for(ratio)
-    tmp = gfx / f"{cid}.behind.part.mov"
+    matter = (matter_for or Matter)(ratio)
+    tmp = temp_in(gfx, cid)
     try:
         _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter)
         tmp.replace(mov)
@@ -227,18 +265,39 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
             raise BehindError(f"{cid}: ffmpeg could not write the card (rc {enc.returncode}/{dec.returncode})")
 
 
+def temp_in(gfx: Path, cid: str) -> Path:
+    """a new file with an unguessable name (O_EXCL): nothing planted in a synced gfx/ can redirect the write"""
+    fd, name = tempfile.mkstemp(dir=gfx, prefix=f".{cid}.", suffix=".part.mov")
+    os.close(fd)
+    return Path(name)
+
+
+def on_term(*_) -> None:
+    """run_v4.sh's timeout sends SIGTERM: say so, and let the finally blocks remove the half-written file"""
+    sys.exit("FAILED behind: stopped by SIGTERM (run_v4.sh timeout 3600 s?)")
+
+
 def main(argv: list[str]) -> int:
     args = argv[1:]
     only = args[args.index("--edl") + 1] if "--edl" in args else None
     specs_p, gfx = Path(args[0]), Path(args[1])
+    signal.signal(signal.SIGTERM, on_term)
     low_priority()
     rc = 0
-    for sp in json.loads(specs_p.read_text()):
-        if not sp.get("behind") or (only and sp["behind"].get("edl") != only):
+    try:
+        specs = json.loads(specs_p.read_text())
+    except (OSError, ValueError) as e:
+        print(f"FAILED behind: {specs_p}: {e}", file=sys.stderr, flush=True)
+        return 1
+    for sp in specs:
+        if not sp.get("behind"):
+            continue
+        if only and sp["behind"].get("edl") != only:
+            print(f"behind {sp.get('id')}: for {sp['behind'].get('edl')}, not {only}", flush=True)  # a typo shows in render.log
             continue
         try:
-            print("behind", process(sp, gfx, specs_p.resolve().parent), flush=True)
-        except (BehindError, subprocess.SubprocessError, OSError) as e:
+            print("behind", process(sp, gfx, specs_p.resolve().parent, strict=only is not None), flush=True)
+        except (BehindError, subprocess.SubprocessError, OSError, ValueError, KeyError) as e:
             print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
     return rc
 
