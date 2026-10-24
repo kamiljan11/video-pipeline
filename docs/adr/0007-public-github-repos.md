@@ -21,8 +21,8 @@ nie wychodzi poza laptop; (3) zero kosztów; (4) ścieżki w skryptach, planach 
 
 **Decyzja:** C. `kamiljan11/video-pipeline` (to samo repo, `main` jako domyślna, widoczność public) + nowe
 `kamiljan11/montazownia` (panel). Licencja: „all rights reserved” (kod do wglądu i jako kopia; zmiana na MIT później jest
-łatwa, odwrotnie nie — opublikowanej licencji otwartej nie da się odebrać). `.gitignore` bez zmian: `render/`, `*.mp4/*.mov/*.wav`,
-modele, `node_modules/`, `.venv/`. CI (`.github/workflows/quality.yml`): ruff, testy node i Pythona bez modeli, gitleaks.
+łatwa, odwrotnie nie — opublikowanej licencji otwartej nie da się odebrać). `.gitignore`: `render/`, media (`*.mp4/*.mov/*.wav/*.mkv/*.m4a/*.mp3/*.webm`), napisy (`*.srt/*.ass`),
+dane projektu (`words*.json`, `plan_*.json`, `edl_*.json`, `gfx_specs.json`), `.env*`, modele, `node_modules/`, `.venv/`. CI (`.github/workflows/quality.yml`): ruff, testy node i Pythona bez modeli, gitleaks.
 
 Media: `~/video-pipeline`, `~/Videos`, `~/Downloads`, `~/Desktop/Movies` przeniesione rsynciem na `~/Dane/...` i zastąpione
 symlinkami o tej samej ścieżce (Syncthing `user-videos` widzi te same pliki: po zmianie `localDeleted` bez zmian). Panel kluczuje

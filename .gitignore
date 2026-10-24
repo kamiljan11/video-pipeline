@@ -13,3 +13,16 @@ models/
 gfx/test_out/
 # the panel is its own git repo
 panel/
+# project data and secrets never go public (ADR-0007): recordings, transcripts, plans, EDLs, captions, env files
+.env
+.env.*
+*.mkv
+*.m4a
+*.mp3
+*.webm
+*.srt
+*.ass
+words*.json
+plan_*.json
+edl_*.json
+gfx_specs.json
