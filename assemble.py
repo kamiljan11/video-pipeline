@@ -19,6 +19,10 @@ edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]; os.makedirs(
 # --proxy (editing panel preview): same compositing, fast low-quality encodes, output scaled to 640 px on the long side
 PROXY = "--proxy" in sys.argv[3:]
 SEG_ENC = ["-preset", "ultrafast", "-crf", "26"] if PROXY else ["-preset", "veryfast", "-crf", "12"]
+# EDL "seg_exact" (plan key, via build_edl): frame-exact segments. Without it every segment's picture is rounded to frames
+# and starts 1 frame late while its sound is exact; the joins add up and the picture drifts up to ~1 s behind the voice
+# (measured on the 2026-10-22 long: 137 sound gaps = 2.3 s in rough.mkv)
+EXACT = bool(edl.get("seg_exact"))
 OUT_ENC = ["-preset", "ultrafast", "-crf", "30"] if PROXY else ["-preset", "medium", "-crf", "18"]
 seg_dir = os.path.join(out, "segs"); os.makedirs(seg_dir, exist_ok=True)
 W, H = edl.get("w", 2560), edl.get("h", 1440); fx, fy = edl.get("face", [0.5, 0.45])
@@ -86,11 +90,18 @@ def zkey(z):
 def cut(i_s):
     i, s = i_s
     dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{zkey(s.get('zoom',1.0))}_{'-'.join(str(v) for v in s.get('face', []))}{'_tr' + __import__('hashlib').md5(str(s.get('track')).encode()).hexdigest()[:6] if s.get('track') else ''}.mkv")
+    if EXACT: dst = dst[:-4] + "_x.mkv"
     if os.path.exists(dst): return dst
-    d = s["out"] - s["in"]; f = min(0.012, d / 4)
+    d = s["out"] - s["in"]
+    vf, extra = vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track")), []
+    if EXACT:  # n whole frames from 0 and exactly n/30 s of sound, so the concat below has no gaps for the sound to drift by
+        n = max(1, round(d * 30)); d = n / 30
+        vf, extra = "setpts=PTS-STARTPTS," + vf, ["-frames:v", str(n)]
+    f = min(0.012, d / 4)
     af = f"afade=t=in:d={f},afade=t=out:st={d - f:.3f}:d={f},aresample=48000"
+    if EXACT: af = f"asetpts=PTS-STARTPTS,aresample=48000,apad,atrim=0:{d:.6f}," + af
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{s['in']:.3f}", "-i", edl["sources"][s["src"]], "-t", f"{d:.3f}",
-                    "-vf", vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track")), "-af", af, "-c:v", "libx264", *SEG_ENC,
+                    "-vf", vf, *extra, "-af", af, "-c:v", "libx264", *SEG_ENC,
                     "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", "-ac", "1", dst], check=True)
     return dst
 

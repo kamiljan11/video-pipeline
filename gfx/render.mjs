@@ -33,6 +33,7 @@ const html = sp => {
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
   if (sp.type === 'maxim') return maxim(sp);
+  if (sp.type === 'float') return `<div class="float">${sp.html}</div>`;  // illustration beside the speaker: the spec's own pieces (template.html › float)
   if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
 };
 // "maxim": the sentence typed while it is said (gfx/maxim_lib.mjs); every letter is in the layout from the start (hidden) and the

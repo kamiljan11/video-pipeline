@@ -52,13 +52,22 @@ for k in P["keeps"]:
     ranges.append([max(0.0, t0), t1, a])
 if EF is not None: print("edge_fix moved", moved, "keep edges")
 # tighten long pauses inside kept ranges using measured silence
+if "seg_exact" in P and type(P["seg_exact"]) is not bool: sys.exit(f"seg_exact: true or false, got {P['seg_exact']!r}")  # assemble.py reads bool(): "false" would turn it on
+MIN_SEG = P.get("min_seg")  # s: no piece shorter than this between two cuts (a 0.7 s flash reads as a double cut)
+if MIN_SEG is not None and (type(MIN_SEG) not in (int, float) or not 0 < MIN_SEG <= 3): sys.exit(f"min_seg: seconds 0..3, got {MIN_SEG!r}")
 segs = []
 for t0, t1, a in ranges:
-    cur = t0
+    cur = t0; rs = []
     for ss, se in SIL:
         if ss > cur + 0.3 and se < t1 - 0.3 and se - ss > MINGAP:
-            segs.append([cur, ss + KEEP_L, "pause"]); cur = se - KEEP_R
-    segs.append([cur, t1, "end"])
+            rs.append([cur, ss + KEEP_L, "pause"]); cur = se - KEEP_R
+    rs.append([cur, t1, "end"])
+    while MIN_SEG and len(rs) > 1:  # keep the shorter of the two pauses around a too-short piece (merge across it)
+        k = next((i for i, r in enumerate(rs) if r[1] - r[0] < MIN_SEG), None)
+        if k is None: break
+        j = k - 1 if k == len(rs) - 1 or (k > 0 and rs[k][0] - rs[k - 1][1] < rs[k + 1][0] - rs[k][1]) else k
+        rs[j:j + 2] = [[rs[j][0], rs[j + 1][1], rs[j + 1][2]]]
+    segs += rs
 # zoom: toggle only on real jump cuts (removed > 0.8 s of source) -> hides the jump
 zs = P.get("zooms", [1.0, 1.15]); zi = 0; out = []; prev_end = None
 for s0, s1, kind in segs:
@@ -148,7 +157,7 @@ if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _t
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "sfx_db", "audio", "steady_x") if k in P}}  # audio: voice filter chain for assemble.py; steady_x: face_track
+       **{k: P[k] for k in ("music_db", "sfx_db", "audio", "steady_x", "seg_exact", "sfx_style", "music_moods") if k in P}}  # audio: voice filter chain for assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods: music/make_beds.py
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME
@@ -230,6 +239,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         box = themes.ass_color(THEME["ink"], 0) if THEME else "&H00000000"  # BorderStyle 3 box = OutlineColour; opaque: a see-through box doubles where colour runs meet
         hdr = hdr.replace("Style: Cap,Montserrat,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,2,70,130,540,1",
                           f"Style: Cap,Montserrat,80,&H00FFFFFF,&H00FFFFFF,{box},&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,70,70,650,1")
+    cv = P.get("caption_v")  # MarginV of the captions (px from the bottom of 1920); lower = further from the face
+    if cv is not None:
+        if type(cv) is not int or not 300 <= cv <= 900: sys.exit(f"caption_v: whole px 300..900, got {cv!r}")
+        hdr = re.sub(r"^(Style: Cap,(?:[^,]*,){20})\d+,", rf"\g<1>{cv},", hdr, flags=re.MULTILINE)
     # captions pause under a card in their own zone (a "pill" hook card, STYL-SHORTOW R3): never two texts on one spot
     for o in ovs:  # the pill css exists only for a 9:16 maxim: anything else would silence captions under nothing
         sp = specs.get(o["id"], {})

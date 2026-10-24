@@ -137,6 +137,22 @@ Kolumna "Status": SRC = liczba w źródle, HEUR = blogi/vendorzy bez metody, PRO
 
 ---
 
+## Lekcje z poprawek Kamila (long 2026-10-22, 35 uwag, POPRAWKI-2026-10-24.md)
+
+Źródło: uwagi właściciela przy oglądaniu (V, jeden film); stosować domyślnie, mierzyć krzywą.
+
+1. **Wizualizuj to, co mówisz, w wolnym miejscu kadru.** Zamiast osobnego ekranu z tekstem: ilustracje obok mówcy (lewo x 60-720, prawo x 1820-2500, pas nad głową y 30-300 na 2560x1440). Mowa o rzeczy = ta rzecz na ekranie (chipy, ikony, makieta, schemat), ruch = czasownik ze zdania („rozsypie się” -> rozsypanie, „dinozaury” -> dinozaur + ryk). Typ gfx `float`, generator projektu `work/build_floats.py`.
+2. **Mówisz o produkcie -> pokaż produkt.** Zrzut/nagranie prawdziwej aplikacji w oknie przeglądarki, dane osób zamazane PRZED zrzutem (rozmycie w stronie, potem kontrola wzrokiem: pola formularzy też). Makiety z liczbami = podpis „dane przykładowe”.
+3. **Kotwica karty = pierwszy dźwięk słowa-treści**, nie łącznik („drugiej zasadzie”, nie „I teraz”), z energii nagrania (start słowa z ASR bywa za wcześnie). Karta za wcześnie zdradza puentę, za późno = szum.
+4. **Rozjazd dźwięk/obraz rośnie z czasem filmu, gdy segmenty są zaokrąglane do klatki** -> składanie z dokładnymi segmentami (`seg_exact`); karty „za wcześnie” w drugiej połowie filmu to często ten sam błąd, nie zła kotwica.
+5. **Cięcia: kawałek < 1 s między dwoma cięciami = „podwójne cięcie”** (`min_seg`); cięcie w środku frazy słychać, nawet gdy obraz ukrywa toggle. Każdy szew sprawdź skanerem energii + whisperem.
+6. **SFX według rodzaju ruchu:** pisanie = klawiatura pod litery, przesuwanie = swoosh, pojawienie = pop z wariacją wysokości, narastanie = riser + uderzenie; nigdy ten sam dźwięk na różne ruchy (`sfx_style: v2`).
+7. **Muzyka niesie nastrój momentu** (napięcie / opowieść / lekkość / puenta / cisza-drop), nie jeden podkład (`music_moods`).
+8. **Shorts: 1-3 ciągłe fragmenty z jedną myślą**; każdy przeskok musi dać się zrozumieć bez longa (nie wycinaj warunku zdania ani odwołań, które coś zapowiadają). Tekst hooka i napisy nie zasłaniają twarzy: półprzezroczyste tło, napisy niżej (`caption_v`).
+9. **Ekran końcowy: pół kadru mówca, rozmyte przejście, druga połowa treść** (adres, kolejny film, subskrypcja); żadnego „przebłysku” twarzy przy zasłonie.
+
+---
+
 ## Anty-wzorce
 
 1. **Zoom na każdym cięciu bez powodu** (toggle używany jako "efekt"): widz przestaje rozróżniać akcent od ukrywania cięcia. Zoom toggle = alternating 100/110-115% i tyle; punch-in tylko z wyzwalaczem w skrypcie. [S20: "gdy wszystko jest wzorem..."]
