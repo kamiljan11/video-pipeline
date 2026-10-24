@@ -10,6 +10,9 @@ Candidates for 9:16 shorts from the long's kept text, ranked, so the choice is r
   + body: concrete moments inside (stat, example, story, list), capped; - a length far from the sweet spot (~42 s)
   - a CTA of the long inside (subscribe, link below): it belongs to the long
 Moments come from the same cues as beats.py (style/grammar.json), so the editing grammar and the picking agree.
+Length = speech time (sum of sentence spans; pauses between sentences are not counted, build_edl tightens them),
+so the printed start–end in the long can be longer. No metric yet: the ranking was checked once by hand on the long of
+2026-10-22 (4 of the 5 hand-picked shorts overlap a top-6 candidate); weights are a first guess, tune them on new longs.
 Output: table + (--json) candidates with "keeps" (word ranges) ready for a plan_short*.json; a person (or a Claude
 session) picks and writes the hook text. Reads only; writes only the --json file.
 """
@@ -108,21 +111,38 @@ def mmss(t):
     return f"{int(t // 60)}:{t % 60:04.1f}"
 
 
+def opt(argv, k, v):
+    """Value after flag k as the type of the default v; a missing or wrong value stops with a named error."""
+    if k not in argv: return v
+    i = argv.index(k) + 1
+    if i >= len(argv) or argv[i].startswith("--"): sys.exit(f"{k}: brak wartości")
+    try:
+        return type(v)(argv[i])
+    except ValueError:
+        sys.exit(f"{k}: oczekiwano {type(v).__name__}, jest {argv[i]!r}")
+
+
 def main(argv):
     if not argv or argv[0].startswith("-"): sys.exit(__doc__)
-    opt = lambda k, v: type(v)(argv[argv.index(k) + 1]) if k in argv else v
     with open(argv[0], encoding="utf-8") as f:
         plan = json.load(f)
     W = load_words(plan, os.path.dirname(os.path.abspath(argv[0])))
-    lo, hi, n = opt("--min", 25.0), opt("--max", 60.0), opt("--n", 5)
+    lo, hi, n = opt(argv, "--min", 25.0), opt(argv, "--max", 60.0), opt(argv, "--n", 5)
     if not 5 <= lo < hi <= 180: sys.exit(f"--min/--max: 5 <= min < max <= 180 s, got {lo} {hi}")
-    best = pick(candidates(plan, W, load_grammar(opt("--grammar", "") or None), lo, hi), n)
+    if n < 1: sys.exit(f"--n: co najmniej 1, jest {n}")
+    out = opt(argv, "--json", "")
+    if out and (os.path.basename(out).startswith(("plan_", "edl_", "gfx_specs")) or os.path.exists(out) and not out.endswith(".shorts.json")):
+        sys.exit(f"--json {out}: to nie może być plan ani istniejący plik (wynik = nowy plik, np. kandydaci.shorts.json)")
+    best = pick(candidates(plan, W, load_grammar(opt(argv, "--grammar", "") or None), lo, hi), n)
+    if not best: sys.exit(f"brak kandydatów {lo:.0f}–{hi:.0f} s (za krótki long albo za wąskie okno)")
     for k, c in enumerate(best, 1):
-        print(f"#{k}  {mmss(c['start'])}–{mmss(c['end'])}  {c['dur']:.0f} s  wynik {c['score']:+.1f}  ({'; '.join(c['why'])})")
+        print(f"#{k}  {mmss(c['start'])}–{mmss(c['end'])}  {c['dur']:.0f} s mowy  wynik {c['score']:+.1f}  ({'; '.join(c['why'])})")
         print(f"    start: {c['opens']}\n    koniec: …{c['closes']}")
-    if "--json" in argv:
-        with open(opt("--json", ""), "w", encoding="utf-8") as f:
+    if out:
+        tmp = out + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(best, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, out)
 
 
 if __name__ == "__main__":
