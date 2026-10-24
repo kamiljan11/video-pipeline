@@ -123,7 +123,8 @@ klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, któ
 {"id": "b02_bol", "type": "float", "dur": 3.2, "html": "<div class=\"bw\" style=\"top:170px;font-size:380px\">BÓL</div>",
  "behind": {"edl": "edl_long.json"}}
 ```
-- Uruchamiają go `gfx/render.mjs` (po renderze kart; EDL jeszcze niezbudowany albo nie gotowy = komunikat „left for run_v4.sh”, reszta grafik idzie dalej) i `run_v4.sh` (przed `assemble.py`,
+- Uruchamiają go `gfx/render.mjs` (po renderze kart; EDL jeszcze niezbudowany albo niepasujący do karty = komunikat „left for run_v4.sh”, reszta grafik idzie dalej;
+  błąd samej karty, np. zły `ratio`, = FAILED) i `run_v4.sh` (przed `assemble.py`,
   `--edl edl_<film>.json`: karty tego filmu na jego EDL po poprawkach krytyka). Przetworzona karta ma w metadanych klucz
   (`comment=behind:…`); ten sam klucz = pominięta, `.mov` bez znacznika = świeży render (nowy `<id>.front.mov`).
 - Plan musi mieć `"seg_exact": true`; karta do 20 s, w rozmiarze klatki filmu (najwyżej 4K); `id` i nazwa EDL tylko

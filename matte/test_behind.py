@@ -254,6 +254,13 @@ class BehindTest(unittest.TestCase):
         with self.assertRaisesRegex(behind.BehindError, "is not"):
             self.run_once()
 
+    def test_before_the_final_edl_a_card_or_setup_fault_still_fails(self):
+        self.spec["behind"]["ratio"] = 5  # a spec fault, not an EDL that run_v4.sh will rebuild
+        specs = self.d / "gfx_specs.json"
+        specs.write_text(json.dumps([self.spec]))
+        rc, _, err = self.cli(str(specs), str(self.d / "gfx"))
+        self.assertEqual((rc, "FAILED behind b" in err), (1, True))
+
     def test_a_card_longer_than_max_dur_is_refused(self):
         with mock.patch.object(behind, "MAX_DUR", 0.5), self.assertRaisesRegex(behind.BehindError, "at most"):
             self.run_once()
@@ -317,7 +324,7 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
 
     def test_edl_wide_framing_values_must_be_numbers(self):
         for k, v in (("face", [0.5, "0.45)),drawbox=c=white"]), ("face_target_y", "0.4,movie=x"), ("src_w", "2560"),
-                     ("vertical", "yes")):
+                     ("vertical", "yes"), ("face", None), ("src_h", None), ("face_target_y", float("nan"))):
             with self.subTest(**{k: str(v)}):
                 self.edl[k] = v
                 self.write_edl()
@@ -325,7 +332,7 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
                     self.run_once()
                 self.setUp()
 
-    def test_before_the_final_edl_any_card_error_waits_for_run_v4(self):
+    def test_before_the_final_edl_an_edl_that_does_not_fit_waits_for_run_v4(self):
         self.edl["w"] = W * 2
         self.write_edl()
         specs = self.d / "gfx_specs.json"
@@ -333,6 +340,36 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
         rc, out, _ = self.cli(str(specs), str(self.d / "gfx"))  # render.mjs: other films' graphics go on
         self.assertEqual((rc, "left for run_v4.sh" in out), (0, True))
         self.assertEqual(self.cli(str(specs), str(self.d / "gfx"), "--edl", "edl.json")[0], 1)
+
+    def test_an_edl_of_the_wrong_shape_is_named_not_a_traceback(self):
+        base = json.dumps(self.edl)
+        for change in ({"segments": [{"src": "A", "in": "0", "out": 0.5}]}, {"segments": [{"src": "B", "in": 0, "out": 0.5}]},
+                       {"overlays": [{"id": "b", "at": "0.3"}]}, {"overlays": ["b"]}, {"sources": {"A": 1}}, {"segments": None}):
+            with self.subTest(change=change):
+                self.edl = dict(json.loads(base), **change)
+                self.write_edl()
+                with self.assertRaisesRegex(behind.NotReady, "EDL"):
+                    self.run_once()
+
+    def test_any_other_fault_in_one_card_is_a_line_and_the_next_card_still_runs(self):
+        specs = self.d / "gfx_specs.json"
+        specs.write_text(json.dumps(["x", {"id": "x", "behind": "edl.json"}, {"id": "y", "behind": {"edl": 5}}, self.spec]))
+        rc, out, err = self.cli(str(specs), str(self.d / "gfx"))
+        self.assertEqual((rc, "cut out" in out, "Traceback" in err), (1, True, False))
+        self.assertEqual(self.cli(str(specs), str(self.d / "gfx"), "--edl", "edl.json")[0], 0)  # not its film's cards: skipped
+        real = behind.process
+        with mock.patch.object(behind, "process", side_effect=[TypeError("a bug"), real(self.spec, self.d / "gfx", self.d)]):
+            specs.write_text(json.dumps([self.spec, self.spec]))
+            self.assertEqual(self.cli(str(specs), str(self.d / "gfx"))[0], 1)
+
+    def test_the_front_copy_never_writes_through_a_link(self):
+        victim = self.d / "victim.txt"
+        victim.write_text("keep")
+        link = self.d / "gfx" / ".b.link.part.mov"
+        link.symlink_to(victim)
+        with mock.patch.object(behind, "temp_in", return_value=link), self.assertRaises(OSError):
+            self.run_once()
+        self.assertEqual(victim.read_text(), "keep")
 
     def test_cut_out_cards_keep_the_usual_file_mode(self):
         self.run_once()
@@ -346,7 +383,7 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
         self.assertEqual(list((self.d / "gfx").glob(".*.part*")), [])
 
     def test_temp_files_of_a_killed_run_are_swept_young_ones_kept(self):
-        old, young = self.d / "gfx" / ".b.old.part.mov", self.d / "gfx" / ".b.young.part.mov"
+        old, young = self.d / "gfx" / ".gone_card.old.part.mov", self.d / "gfx" / ".b.young.part.mov"  # any card's
         old.write_bytes(b"x"); young.write_bytes(b"x")
         t = time.time() - behind.STALE_PART - 60
         os.utime(old, (t, t))
@@ -354,10 +391,27 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
         self.assertEqual((old.exists(), young.exists()), (False, True))
 
     def test_a_link_swapped_in_after_the_check_is_not_read(self):
-        link = self.d / "gfx" / "link.mov"
-        link.symlink_to(self.mov)
+        secret = self.d / "secret.txt"
+        secret.write_text("private")
+        real_open = behind.open_nofollow
+
+        def swap_then_open(p):  # the peer wins the race: the card turns into a link between the check and the copy
+            if p == self.mov:
+                self.mov.unlink(); self.mov.symlink_to(secret)
+            return real_open(p)
+        with mock.patch.object(behind, "open_nofollow", swap_then_open), self.assertRaises(OSError):
+            self.run_once()
+        self.assertFalse(self.front.exists())
         with self.assertRaises(OSError):
-            behind.sha(link)
+            behind.sha(self.mov)
+
+    def test_only_the_verified_model_file_is_loaded(self):
+        bad = self.d / "model.onnx"
+        bad.write_bytes(b"not the model")
+        with mock.patch.object(behind, "MODEL", bad), self.assertRaisesRegex(behind.BehindError, "sha256"):
+            behind.Matter(0.2)
+        with mock.patch.object(behind, "MODEL", self.d / "none.onnx"), self.assertRaises(behind.BehindError):
+            behind.Matter(0.2)
 
 
 

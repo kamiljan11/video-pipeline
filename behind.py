@@ -53,8 +53,8 @@ class BehindError(Exception):
     pass
 
 
-class BadName(BehindError):
-    """a card id / EDL name that is not a plain file name: a fault in the spec, never an EDL not ready yet"""
+class NotReady(BehindError):
+    """the EDL does not fit the card (yet): render.mjs runs on the EDL of the last run, run_v4.sh rebuilds it before --edl"""
 
 
 def framing_src() -> str:
@@ -182,15 +182,33 @@ def sha(p: Path) -> str:
 
 
 def num(v) -> bool:
-    return isinstance(v, int | float) and not isinstance(v, bool)
+    return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def shape_ok(edl) -> bool:
+    if not isinstance(edl, dict):
+        return False
+    segs, ovs, srcs = edl.get("segments"), edl.get("overlays"), edl.get("sources")
+    if not (isinstance(segs, list) and isinstance(ovs, list) and isinstance(srcs, dict)):
+        return False
+    return (all(isinstance(v, str) for v in srcs.values()) and all(isinstance(o, dict) and num(o.get("at")) for o in ovs)
+            and all(isinstance(g, dict) and num(g.get("in")) and num(g.get("out")) and g.get("src") in srcs for g in segs))
+
+
+def check_shape(edl) -> None:
+    """what every step below indexes: segments with numeric in/out and a known source, overlays with a numeric at"""
+    if not shape_ok(edl):
+        raise NotReady("EDL: segments need numeric in/out and a source from sources, overlays a numeric at")
 
 
 def check_edl(edl: dict) -> None:
     """the EDL-wide framing values vf_for pastes into the ffmpeg filter: numbers only, like check_segment"""
-    face, ok = edl.get("face"), all(edl.get(k) is None or num(edl[k]) for k in ("w", "h", "src_w", "src_h", "face_target_y"))
-    ok = ok and (face is None or (isinstance(face, list) and len(face) == 2 and all(map(num, face))))
+    face = edl.get("face", [0.5, 0.45])  # present means set: framing() takes a key's value as it is, null included
+    ok = all(num(edl[k]) for k in ("w", "h", "src_w", "src_h") if k in edl)
+    ok = ok and (edl.get("face_target_y") is None or num(edl["face_target_y"]))  # null = vf_for's own default
+    ok = ok and isinstance(face, list) and len(face) == 2 and all(map(num, face))
     if not (ok and isinstance(edl.get("vertical", False), bool)):
-        raise BehindError("EDL: w / h / src_w / src_h / face / face_target_y must be numbers, vertical true or false")
+        raise NotReady("EDL: w / h / src_w / src_h / face / face_target_y must be numbers, vertical true or false")
 
 
 def check_segment(s: dict) -> None:
@@ -201,7 +219,7 @@ def check_segment(s: dict) -> None:
     ok = ok and (face is None or (isinstance(face, list) and len(face) == 2 and all(map(num, face))))
     ok = ok and (track is None or (isinstance(track, list) and all(isinstance(p, list) and len(p) == 2 and all(map(num, p)) for p in track)))
     if not ok:
-        raise BehindError(f"segment at {s.get('in')}: zoom / face / track must be numbers")
+        raise NotReady(f"segment at {s.get('in')}: zoom / face / track must be numbers")
 
 
 def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None, strict: bool = True) -> str:
@@ -209,12 +227,13 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     for a cut-out is left for later instead of failing every film's graphics"""
     cid, edl_name = str(spec["id"]), str(spec["behind"]["edl"])
     if not SAFE_ID.fullmatch(cid) or not SAFE_EDL.fullmatch(edl_name):
-        raise BadName(f"card id {cid!r} / edl {edl_name!r}: only letters, digits, _ and - (a file in the work folder)")
+        raise BehindError(f"card id {cid!r} / edl {edl_name!r}: only letters, digits, _ and - (a file in the work folder)")
     edl_p = base / edl_name
     if not edl_p.exists():
         return f"{cid}: {edl_name} not built yet (cut out when it is: run_v4.sh / the panel's next render)"
     edl = json.loads(edl_p.read_text())
-    o = next((o for o in edl.get("overlays", []) if o.get("id") == cid), None)
+    check_shape(edl)
+    o = next((o for o in edl["overlays"] if o.get("id") == cid), None)
     if o is None:
         return f"{cid}: not in {edl_name} (no cut-out)"
     if not edl.get("seg_exact"):
@@ -225,12 +244,12 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     mov, front = gfx / f"{cid}.mov", gfx / f"{cid}.front.mov"
     if mov.is_symlink() or front.is_symlink():  # gfx/ can be a synced folder: never write through a link
         raise BehindError(f"{cid}: {mov.name} / {front.name} is a symlink")
-    sweep(gfx, cid)
+    sweep(gfx)
     mark = probe(mov, "format_tags=comment") if mov.exists() else ""
     if mov.exists() and not mark.startswith(MARK):  # a fresh render (render.mjs never writes the mark): the new front
         part = temp_in(gfx, cid)
         try:
-            with open_nofollow(mov) as src, part.open("wb") as dst:  # a link swapped in after the check is not read
+            with open_nofollow(mov) as src, os.fdopen(os.open(part, os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW), "wb") as dst:
                 shutil.copyfileobj(src, dst, 1 << 22)
             part.replace(front)
         finally:
@@ -239,7 +258,7 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
         raise BehindError(f"{cid}: {front.name} is missing; move {mov.name} aside so render.mjs renders the card again")
     w, h = edl.get("w", 2560), edl.get("h", 1440)
     if not (num(w) and num(h) and 0 < w * h <= MAX_PIXELS) or probe(front, "stream=width,height").split() != [str(w), str(h)]:
-        raise BehindError(f"{cid}: the card is not {w}x{h} (the film's frame, at most 4K)")
+        raise NotReady(f"{cid}: the card is not {w}x{h} (the film's frame, at most 4K)")
     n = int(probe(front, "stream=nb_frames") or 0)
     if not 0 < n <= MAX_DUR * FPS:
         raise BehindError(f"{cid}: {n} frames; a card behind the speaker is at most {MAX_DUR:.0f} s")
@@ -300,10 +319,10 @@ def temp_in(gfx: Path, cid: str) -> Path:
     return Path(name)
 
 
-def sweep(gfx: Path, cid: str) -> None:
-    """temp files of this card left by a killed run (SIGKILL skips finally); a younger one may be a run still going"""
+def sweep(gfx: Path) -> None:
+    """temp files left by a killed run (SIGKILL skips finally), any card's; a younger one may be a run still going"""
     now = time.time()
-    for p in gfx.glob(f".{cid}.*.part.mov"):
+    for p in gfx.glob(".*.part.mov"):
         with contextlib.suppress(FileNotFoundError):  # gone in between: a run finishing at the same time
             if now - p.lstat().st_mtime > STALE_PART:
                 p.unlink()
@@ -326,8 +345,8 @@ def main(argv: list[str]) -> int:
     except (OSError, ValueError) as e:
         print(f"FAILED behind: {specs_p}: {e}", file=sys.stderr, flush=True)
         return 1
-    for sp in specs:
-        if not sp.get("behind"):
+    for sp in specs if isinstance(specs, list) else []:
+        if not (isinstance(sp, dict) and isinstance(sp.get("behind"), dict)):
             continue
         if only and sp["behind"].get("edl") != only:
             print(f"behind {sp.get('id')}: for {sp['behind'].get('edl')}, not {only}", flush=True)  # a typo shows in render.log
@@ -335,11 +354,11 @@ def main(argv: list[str]) -> int:
         try:
             print("behind", process(sp, gfx, specs_p.resolve().parent, strict=only is not None), flush=True)
         except BehindError as e:
-            if only is None and not isinstance(e, BadName):  # render.mjs: an EDL run_v4.sh has not rebuilt yet; --edl fails for real
+            if only is None and isinstance(e, NotReady):  # render.mjs: an EDL run_v4.sh has not rebuilt yet; --edl fails for real
                 print(f"behind {sp.get('id')}: left for run_v4.sh: {e}", flush=True)
                 continue
             print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
-        except (subprocess.SubprocessError, OSError, ValueError, KeyError) as e:
+        except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError, AttributeError) as e:  # never a traceback that skips the rest
             print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
     return rc
 
