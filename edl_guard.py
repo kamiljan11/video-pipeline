@@ -1,6 +1,6 @@
 """What an EDL may carry into an ffmpeg command line. assemble.py pastes EDL values into -vf / -filter_complex text and
 passes its file names to -i; plans and EDLs can arrive over Syncthing, so a value there must never become a filter, an
-option or a protocol. check(edl) refuses anything else with the field it found (ADR-0005; behind.py uses the same rules).
+option or a protocol. check(edl) refuses anything else with the field it found (ADR-0006; behind.py uses the same rules).
 
 Numbers: finite, |v| < 1e9. Filter chains ("audio", "grade"): only the filters in AUDIO / VIDEO, options k=v with a plain
 value (no file, no quoting). File names: local paths (no "proto:" prefix). The subtitles file and its style are pasted

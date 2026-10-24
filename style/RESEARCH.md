@@ -149,7 +149,12 @@ Kolumna "Status": SRC = liczba w źródle, HEUR = blogi/vendorzy bez metody, PRO
 6. **SFX według rodzaju ruchu:** pisanie = klawiatura pod litery, przesuwanie = swoosh, pojawienie = pop z wariacją wysokości, narastanie = riser + uderzenie; nigdy ten sam dźwięk na różne ruchy (`sfx_style: v2`).
 7. **Muzyka niesie nastrój momentu** (napięcie / opowieść / lekkość / puenta / cisza-drop), nie jeden podkład (`music_moods`).
 8. **Shorts: 1-3 ciągłe fragmenty z jedną myślą**; każdy przeskok musi dać się zrozumieć bez longa (nie wycinaj warunku zdania ani odwołań, które coś zapowiadają). Tekst hooka i napisy nie zasłaniają twarzy: półprzezroczyste tło, napisy niżej (`caption_v`).
-9. **Ekran końcowy: pół kadru mówca, rozmyte przejście, druga połowa treść** (adres, kolejny film, subskrypcja); żadnego „przebłysku” twarzy przy zasłonie.
+9. **Ekran końcowy: pół kadru mówca, rozmyte przejście, druga połowa treść** (adres, logo, subskrypcja); żadnego „przebłysku” twarzy przy zasłonie. Bez pustego pola „następny film” (Kamil: błąd; elementy końcowe YouTube dokłada sam w Studio).
+10. **Tekst za głową (`"behind"`, `behind.py`) = fraza-puenta z wypowiedzi, nie pojedyncze słowo wyrwane z kontekstu** („TYLE CO NIC”, „MOCNY BÓL”, nie „GODZINY”, „BÓL”). Wejście na pierwszym słowie frazy, najwyżej 3,2 s, przed kolejną kartą. 1 słowo = 380 px, top 170; 2+ słowa = 250 px, top 245-300. Klatka kontrolna (peek): głowa zasłania najwyżej część jednej litery, środek frazy czytelny; za wysoko = brak efektu „za głową”.
+11. **Głośność muzyki w longu ok. -22 dB** (-16 przeszkadzało). Podgląd panelu gra podkład bez ściszania pod mową, render końcowy ma sidechain: oceniaj głośność na renderze albo pamiętaj, że podgląd jest głośniejszy.
+12. **Pisanie ręczne / rysowanie na karcie = sfx `pencil`** (nierówne pociągnięcia), nie `pen` (regularne drganie brzmi jak grzechotnik). Pisanie na klawiaturze = klawisze.
+13. **Render końcowy w rozdzielczości nagrania** (long 2560x1440, 30 kl/s); shorty 1080x1920 z wycinka 1440 px wysokości.
+14. **Przed renderem końcowym**: przejrzyj ekran końcowy i karty-zaślepki (placeholdery) — w renderze nie zostaje żaden tekst roboczy. Po renderze: `blackdetect` na całym pliku (czarne mignięcia przy cięciach).
 
 ---
 
