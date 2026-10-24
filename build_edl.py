@@ -76,7 +76,10 @@ specs = {s["id"]: s for s in json.loads(Path(P["gfx_specs"]).read_text())} if P.
 ovs = []
 def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:16 top card (canvas "v") sits above the face
     sp = specs.get(gid, {}); return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
+if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
+    sys.exit("gfx: the plan places graphics, so it needs \"gfx_specs\" (cards file) and \"gfx_dir\" (their .mov folder)")
 for g in P.get("gfx", []):
+    if g.get("id") not in specs: sys.exit(f"gfx {g.get('id')!r}: no such card in {P['gfx_specs']}")
     if "find" in g:
         c = [i for i in range(max(0, g["near"] - 25), min(len(W), g["near"] + 25)) if g["find"].lower() in W[i][2].lower()]
         g["word"] = min(c, key=lambda i: abs(i - g["near"]))
