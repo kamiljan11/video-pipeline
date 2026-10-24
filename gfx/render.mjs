@@ -1,6 +1,6 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
-import crypto from 'crypto'; import fs from 'fs'; import { execFileSync } from 'child_process';
+import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
@@ -13,13 +13,22 @@ const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&
 const icon = n => n ? fs.readFileSync(`/home/kamil-jan/video-pipeline/node_modules/lucide-static/icons/${n}.svg`, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '';
 // "kw" box; "count" is the same box with counting numbers in its title
 const kwBox = (sp, title, cls = 'kw') => `<div class="${cls} ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${title}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
+// "end" card: optional brand row under the address, "logo" = image file (path relative to the specs file), "logo_sub" = its line
+// (e.g. the company site). A logo that is not there stops the render with its name, never an end card with a broken image.
+const logoFile = sp => path.resolve(path.dirname(specFile), sp.logo);
+const endBrand = sp => {
+  if (!sp.logo) return '';
+  const f = logoFile(sp);
+  if (!fs.existsSync(f)) { console.error(`FAILED gfx ${sp.id}: logo ${f} not found`); process.exit(1); }
+  return `<div class="brand"><img src="${pathToFileURL(f).href.replace(/"/g, '%22')}">${sp.logo_sub ? `<div class="u">${esc(sp.logo_sub)}</div>` : ''}</div>`;
+};
 const html = sp => {
   if (sp.type === 'kw') return kwBox(sp, esc(sp.text));
   if (sp.type === 'count') return kwBox(sp, countParts(sp.text).map(p => typeof p === 'string' ? esc(p)
     : `<span class="num" data-to="${p.value}" data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(0, p.dec, p.group)}</span>`).join(''), 'kw count');
   if (sp.type === 'lower') return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
   if (sp.type === 'list') return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
-  if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div></div>`;
+  if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div>${endBrand(sp)}</div>`;
   if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
@@ -55,6 +64,10 @@ function web(sp) {
     + `<div class="view" style="height:${WIN.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${WIN.w}px">${marks}</div></div></div>`
     + `<div class="src">${esc(src)} · stan na ${day}</div></div>`;
 }
+function logoStamp(sp) {
+  const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
+  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
+}
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
   const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
@@ -72,7 +85,8 @@ async function one(sp) {
   // a "web" card's .mov belongs to its spec and to one capture (a new capture of the same page included): either changes
   // -> rendered again. Other types keep the old rule (the panel moves a changed graphic's .mov aside).
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
-  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : null, stamp = `${out}.key`;
+  // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
+  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : sp.logo ? logoStamp(sp) : null, stamp = `${out}.key`;
   const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
   if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
@@ -83,6 +97,9 @@ async function one(sp) {
   if (THEME) await page.evaluate(css => { for (const [k, val] of Object.entries(css)) document.documentElement.style.setProperty(k, val); }, THEME.css);
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
+  // images (end card logo, web capture) loaded before the first frame; one that cannot load stops the render with its name
+  const broken = await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().then(() => null, () => i.src))));
+  if (broken.some(Boolean)) { console.error(`FAILED gfx ${sp.id}: image not loaded ${broken.filter(Boolean).join(', ')}`); process.exit(1); }
   // GSAP only on a page with a "count" card (docs/adr/0003-gsap-count-card.md): one paused timeline, seeked to each frame's time -> same frames every run
   if (sp.type === 'count') {
     await page.addScriptTag({ path: GSAP });
