@@ -234,7 +234,7 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
         return f"{cid}: {edl_name} not built yet (cut out when it is: run_v4.sh / the panel's next render)"
     try:
         edl = json.loads(edl_p.read_text())
-    except ValueError as e:  # build_edl.py writes it in place: caught mid-write
+    except (ValueError, RecursionError) as e:  # build_edl.py writes it in place: caught mid-write (or absurdly deep)
         raise NotReady(f"{cid}: {edl_name} is not whole JSON ({e})") from e
     check_shape(edl)
     o = next((o for o in edl.get("overlays", []) if o.get("id") == cid), None)
@@ -347,7 +347,7 @@ def main(argv: list[str]) -> int:
     rc = 0
     try:
         specs = json.loads(specs_p.read_text())
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, RecursionError) as e:
         print(f"FAILED behind: {specs_p}: {e}", file=sys.stderr, flush=True)
         return 1
     for sp in specs if isinstance(specs, list) else []:
@@ -363,7 +363,7 @@ def main(argv: list[str]) -> int:
                 print(f"behind {sp.get('id')}: left for run_v4.sh: {e}", flush=True)
                 continue
             print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
-        except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError, AttributeError, ArithmeticError) as e:  # never a traceback that skips the rest
+        except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError, AttributeError, ArithmeticError, RecursionError) as e:  # never a traceback that skips the rest
             print(f"FAILED behind {sp.get('id')}: {type(e).__name__}: {e}", file=sys.stderr, flush=True); rc = 1
     return rc
 

@@ -15,14 +15,14 @@ postaci na klatkach filmu. W pipeline nie było nic do segmentacji osoby (YuNet 
 - Uruchamiają go `gfx/render.mjs` (zaraz po renderze, żeby panel od razu pokazał efekt) i `run_v4.sh` (przed `assemble.py`
   na EDL po poprawkach krytyka, tylko karty tego filmu). Przetworzony `.mov` niesie klucz w metadanych (`comment=behind:<klucz>`);
   plik bez niego = świeży render. Nie ma osobnego pliku stanu, a jedyny zapis karty to atomowe `replace` (z pliku `mkstemp`, z trybem wg umask jak
-  reszta `gfx/`). Pliki tymczasowe zabitego biegu (`.*.part.mov`) starsze niż 2 h (`STALE_PART`) kasuje następny bieg;
+  reszta `gfx/`). Pliki tymczasowe zabitego biegu (zwykłe pliki `.*.part.mov`, katalog o tej nazwie zostaje) starsze niż 2 h (`STALE_PART`) kasuje następny bieg;
   te 2 h są sprzężone z `timeout 3600` w `run_v4.sh` (dłuższy timeout = podnieś `STALE_PART`).
 - Klucz karty obejmuje też kod kadrowania z `assemble.py` (`vf_for`, `keys_expr`, `track_expr`): zmiana kadrowania wycina
   karty od nowa. Karta musi mieć rozmiar klatki filmu (najwyżej 4K), do 20 s.
 - `gfx/` i plany mogą przyjść przez Syncthing, więc: pliki tymczasowe tylko przez `mkstemp` (losowa nazwa, bez podążania
   za linkiem), odczyt karty z `O_NOFOLLOW`, odmowa symlinku na miejscu `<id>.mov`, a pola EDL wklejane do filtra ffmpeg
-  (`face`, `face_target_y`, `w/h`, `src_w/src_h`, `zoom/face/track` segmentu) tylko jako liczby.
-- Wywołanie z `render.mjs` (bez `--edl`) nie przerywa grafik innych filmów, gdy EDL nie pasuje do karty (brak `seg_exact`,
+  (`face`, `face_target_y`, `w/h`, `src_w/src_h`, `zoom/face/track` segmentu) tylko jako skończone liczby, |v| < 1e9.
+- Wywołanie z `render.mjs` (bez `--edl`) nie przerywa grafik innych filmów, gdy EDL nie pasuje do karty (złapany w połowie zapisu, brak `seg_exact`,
   pola EDL, rozmiar karty): wypisuje „left for run_v4.sh” i rc 0. Błąd karty lub środowiska (nazwa, `ratio`, długość,
   symlink, model) to rc 1 także tu. Wywołanie z `run_v4.sh` (`--edl`, EDL końcowy) jest ścisłe: błąd = rc 1, film się nie składa.
 

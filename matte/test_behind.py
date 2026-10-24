@@ -185,6 +185,14 @@ class BehindTest(unittest.TestCase):
         with self.assertRaisesRegex(behind.NotReady, "whole JSON"):
             self.run_once()
 
+    def test_an_absurdly_deep_edl_or_specs_is_named_not_a_traceback(self):
+        (self.d / "edl.json").write_text("[" * 200000)
+        with self.assertRaisesRegex(behind.NotReady, "whole JSON"):
+            self.run_once()
+        specs = self.d / "gfx_specs.json"
+        specs.write_text("[" * 200000)
+        self.assertEqual(self.cli(str(specs), str(self.d / "gfx"))[0], 1)
+
     def test_an_edl_without_overlays_has_no_card(self):
         del self.edl["overlays"]
         self.write_edl()
