@@ -3,8 +3,9 @@ passes its file names to -i; plans and EDLs can arrive over Syncthing, so a valu
 option or a protocol. check(edl) refuses anything else with the field it found (ADR-0006; behind.py uses the same rules).
 
 Numbers: finite, |v| < 1e9. Filter chains ("audio", "grade"): only the filters in AUDIO / VIDEO, options k=v with a plain
-value (no file, no quoting). File names: local paths (no "proto:" prefix). The subtitles file and its style are pasted
-inside quotes, so their text has no quote, backslash or filtergraph separator."""
+value (no file, no quoting). File names: local paths (nothing but a path before a ":", so no "proto:" and no
+"subfile,,opts,,:" form). out_name: a bare file name (ffmpeg writes it with -y inside the render dir). The subtitles file
+and its style are pasted inside quotes, so their text has no quote, backslash or filtergraph separator."""
 import re
 
 AUDIO = frozenset({"highpass", "lowpass", "bandpass", "equalizer", "afftdn", "anlmdn", "acompressor", "agate", "alimiter",
@@ -12,11 +13,13 @@ AUDIO = frozenset({"highpass", "lowpass", "bandpass", "equalizer", "afftdn", "an
 VIDEO = frozenset({"eq", "unsharp", "hue", "colorbalance", "vibrance", "colortemperature", "null"})
 VALUE = r"[A-Za-z0-9.+-]+"  # a number, dB, a word: never a path (no /), a quote or a nested filter
 FILTER = re.compile(rf"([a-z][a-z0-9_]*)(?:=(\w+={VALUE}(?::\w+={VALUE})*|{VALUE}(?::{VALUE})*))?", re.ASCII)
-PROTOCOL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")  # http:, concat:, subfile:, data: ... (a path from the plan is a file)
+PROTOCOL = re.compile(r"[^/]*:")  # http:, concat:, data:, "subfile,,start,0,,:" ... (a path has a / before any ":")
 QUOTED_TEXT = re.compile(r"[^'\\:,;\[\]=\n\r]*")  # pasted between '...' in the filtergraph (subtitles file name)
 STYLE = re.compile(r"[A-Za-z0-9 =,.&#-]*")  # ASS force_style: Fontname=..,Fontsize=..,PrimaryColour=&H..
 HEX = re.compile(r"#[0-9A-Fa-f]{6}")
 NAME = re.compile(r"[A-Za-z0-9_-]+")
+OUT_NAME = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z0-9]+")  # "95procent_v2_long.mp4": no /, no leading dot
+MAX_TAIL = 60.0  # s of frozen last frame (tpad / apad): a huge value would encode for days
 
 
 class EdlError(ValueError):
@@ -39,7 +42,8 @@ def shape_ok(edl) -> bool:
     if not (isinstance(segs, list) and isinstance(ovs, list) and isinstance(srcs, dict)):
         return False
     return (all(isinstance(v, str) for v in srcs.values()) and all(isinstance(o, dict) and num(o.get("at")) for o in ovs)
-            and all(isinstance(g, dict) and num(g.get("in")) and num(g.get("out")) and g.get("src") in srcs for g in segs))
+            and all(isinstance(g, dict) and num(g.get("in")) and num(g.get("out")) and g["out"] > g["in"]
+                    and isinstance(g.get("src"), str) and g["src"] in srcs for g in segs))
 
 
 def framing_ok(edl: dict) -> bool:
@@ -52,8 +56,8 @@ def framing_ok(edl: dict) -> bool:
 def segment_ok(s: dict) -> bool:
     """a segment's zoom (number or {a, b, t0, t1, keys}), face and track: numbers only"""
     z, face, track = s.get("zoom", 1.0), s.get("face"), s.get("track")
-    ok = num(z) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("a", "b", "t0", "t1"))
-                    and isinstance(z.get("keys") or [], list) and all(map(pair, z.get("keys") or [])))
+    ok = (num(z) and z > 0) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("a", "b", "t0", "t1"))
+                                and z["a"] > 0 and z["b"] > 0 and isinstance(z.get("keys") or [], list) and all(map(pair, z.get("keys") or [])))
     return ok and (face is None or pair(face)) and (track is None or (isinstance(track, list) and all(map(pair, track))))
 
 
@@ -74,13 +78,17 @@ def local_file(v) -> bool:
 def problems(edl) -> list[str]:
     """every field of the EDL that assemble.py would carry into ffmpeg and that breaks the rules above"""
     if not shape_ok(edl):
-        return ["segments (in/out numbers, src in sources), overlays (at number), sources (file names)"]
+        return ["segments (in < out numbers, src a name in sources), overlays (at number), sources (file names)"]
     out = []
     if not framing_ok(edl):
         out.append("w / h / src_w / src_h / face / face_target_y must be numbers, vertical true or false")
     out += [f"segment at {s['in']}: zoom / face / track must be numbers" for s in edl["segments"] if not segment_ok(s)]
     out += [f"{k} must be a number" for k in ("tail", "music_db", "sfx_db", "pip_size", "music_offset")
-            if edl.get(k) is not None and not num(edl[k])]
+            if k in edl and not num(edl[k])]  # present means set (as framing_ok): null would reach ffmpeg as "None"
+    if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:
+        out.append(f"tail: 0 to {MAX_TAIL:g} s")
+    if "out_name" in edl and not (isinstance(edl["out_name"], str) and OUT_NAME.fullmatch(edl["out_name"])):
+        out.append("out_name: a bare file name like film.mp4 (no / and no leading dot)")
     out += [f"{k}: only the filters {sorted(allowed)}, options with plain values" for k, allowed in (("audio", AUDIO), ("grade", VIDEO))
             if k in edl and not chain_ok(edl[k], allowed)]
     for o in edl.get("overlays", []):
