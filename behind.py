@@ -22,6 +22,7 @@ import re
 import runpy
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -182,13 +183,13 @@ def sha(p: Path) -> str:
 
 
 def num(v) -> bool:
-    return isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+    return isinstance(v, int | float) and not isinstance(v, bool) and -1e9 < v < 1e9  # NaN, inf and 10**400 fail too
 
 
 def shape_ok(edl) -> bool:
     if not isinstance(edl, dict):
         return False
-    segs, ovs, srcs = edl.get("segments"), edl.get("overlays"), edl.get("sources")
+    segs, ovs, srcs = edl.get("segments"), edl.get("overlays", []), edl.get("sources")  # no overlays = no card in it
     if not (isinstance(segs, list) and isinstance(ovs, list) and isinstance(srcs, dict)):
         return False
     return (all(isinstance(v, str) for v in srcs.values()) and all(isinstance(o, dict) and num(o.get("at")) for o in ovs)
@@ -231,9 +232,12 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     edl_p = base / edl_name
     if not edl_p.exists():
         return f"{cid}: {edl_name} not built yet (cut out when it is: run_v4.sh / the panel's next render)"
-    edl = json.loads(edl_p.read_text())
+    try:
+        edl = json.loads(edl_p.read_text())
+    except ValueError as e:  # build_edl.py writes it in place: caught mid-write
+        raise NotReady(f"{cid}: {edl_name} is not whole JSON ({e})") from e
     check_shape(edl)
-    o = next((o for o in edl["overlays"] if o.get("id") == cid), None)
+    o = next((o for o in edl.get("overlays", []) if o.get("id") == cid), None)
     if o is None:
         return f"{cid}: not in {edl_name} (no cut-out)"
     if not edl.get("seg_exact"):
@@ -324,7 +328,8 @@ def sweep(gfx: Path) -> None:
     now = time.time()
     for p in gfx.glob(".*.part.mov"):
         with contextlib.suppress(FileNotFoundError):  # gone in between: a run finishing at the same time
-            if now - p.lstat().st_mtime > STALE_PART:
+            st = p.lstat()
+            if stat.S_ISREG(st.st_mode) and now - st.st_mtime > STALE_PART:  # only files: a planted folder stays, harmless
                 p.unlink()
 
 
@@ -358,8 +363,8 @@ def main(argv: list[str]) -> int:
                 print(f"behind {sp.get('id')}: left for run_v4.sh: {e}", flush=True)
                 continue
             print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
-        except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError, AttributeError) as e:  # never a traceback that skips the rest
-            print(f"FAILED behind {sp.get('id')}: {e}", file=sys.stderr, flush=True); rc = 1
+        except (subprocess.SubprocessError, OSError, ValueError, KeyError, TypeError, AttributeError, ArithmeticError) as e:  # never a traceback that skips the rest
+            print(f"FAILED behind {sp.get('id')}: {type(e).__name__}: {e}", file=sys.stderr, flush=True); rc = 1
     return rc
 
 

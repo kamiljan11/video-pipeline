@@ -180,6 +180,16 @@ class BehindTest(unittest.TestCase):
         self.assertIn("not built yet", self.run_once())
         self.assertFalse(self.front.exists())
 
+    def test_an_edl_caught_mid_write_waits_for_run_v4(self):
+        (self.d / "edl.json").write_text(json.dumps(self.edl)[:40])
+        with self.assertRaisesRegex(behind.NotReady, "whole JSON"):
+            self.run_once()
+
+    def test_an_edl_without_overlays_has_no_card(self):
+        del self.edl["overlays"]
+        self.write_edl()
+        self.assertIn("not in", self.run_once())
+
     def test_a_card_not_in_the_edl_is_left_alone(self):
         self.edl["overlays"] = []
         self.write_edl()
@@ -324,7 +334,7 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
 
     def test_edl_wide_framing_values_must_be_numbers(self):
         for k, v in (("face", [0.5, "0.45)),drawbox=c=white"]), ("face_target_y", "0.4,movie=x"), ("src_w", "2560"),
-                     ("vertical", "yes"), ("face", None), ("src_h", None), ("face_target_y", float("nan"))):
+                     ("vertical", "yes"), ("face", None), ("src_h", None), ("face_target_y", float("nan")), ("face_target_y", float("inf")), ("src_w", 10**400)):
             with self.subTest(**{k: str(v)}):
                 self.edl[k] = v
                 self.write_edl()
@@ -344,7 +354,7 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
     def test_an_edl_of_the_wrong_shape_is_named_not_a_traceback(self):
         base = json.dumps(self.edl)
         for change in ({"segments": [{"src": "A", "in": "0", "out": 0.5}]}, {"segments": [{"src": "B", "in": 0, "out": 0.5}]},
-                       {"overlays": [{"id": "b", "at": "0.3"}]}, {"overlays": ["b"]}, {"sources": {"A": 1}}, {"segments": None}):
+                       {"overlays": [{"id": "b", "at": "0.3"}]}, {"overlays": [{"id": "b", "at": 10**400}]}, {"overlays": ["b"]}, {"sources": {"A": 1}}, {"segments": None}):
             with self.subTest(change=change):
                 self.edl = dict(json.loads(base), **change)
                 self.write_edl()
@@ -360,7 +370,9 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
         real = behind.process
         with mock.patch.object(behind, "process", side_effect=[TypeError("a bug"), real(self.spec, self.d / "gfx", self.d)]):
             specs.write_text(json.dumps([self.spec, self.spec]))
-            self.assertEqual(self.cli(str(specs), str(self.d / "gfx"))[0], 1)
+            rc, _, err = self.cli(str(specs), str(self.d / "gfx"))
+        self.assertEqual(rc, 1)
+        self.assertIn("FAILED behind b: TypeError: a bug", err)  # which card and what kind of fault, in render.log
 
     def test_the_front_copy_never_writes_through_a_link(self):
         victim = self.d / "victim.txt"
@@ -387,8 +399,11 @@ sys.exit(behind.main(["behind.py", {str(specs)!r}, {str(self.d / "gfx")!r}, "--e
         old.write_bytes(b"x"); young.write_bytes(b"x")
         t = time.time() - behind.STALE_PART - 60
         os.utime(old, (t, t))
+        planted = self.d / "gfx" / ".planted.part.mov"
+        planted.mkdir()
+        os.utime(planted, (t, t))
         self.run_once()
-        self.assertEqual((old.exists(), young.exists()), (False, True))
+        self.assertEqual((old.exists(), young.exists(), planted.is_dir()), (False, True, True))
 
     def test_a_link_swapped_in_after_the_check_is_not_read(self):
         secret = self.d / "secret.txt"
