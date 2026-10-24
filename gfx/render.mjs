@@ -123,6 +123,9 @@ async function one(sp) {
       if (window.__seek) window.__seek(t);
       const r = document.getElementById('root'); const fo = fadeOut;
       r.style.opacity = (window.__noout) ? 1 : t > dur - fo ? Math.max(0, (dur - t) / fo) : 1;
+      // a delayed CSS animation that starts on this frame reaches the compositor one frame later: wait for it, else the
+      // screenshot can show the previous state (count test: frame 5, the bar's first grow frame, differed between runs)
+      return new Promise(res => requestAnimationFrame(() => res()));
     }, [t, sp.dur, FADE_OUT]);
     await page.screenshot({ path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true });
   }
