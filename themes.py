@@ -13,7 +13,7 @@ NAME = re.compile(r"[a-z0-9-]{1,40}")
 HEX = re.compile(r"#[0-9A-Fa-f]{6}")
 
 
-def load(work=".", themes=THEMES):
+def load(work: "str | Path" = ".", themes: Path = THEMES):
     """-> None without <work>/theme.json, else {"name", "acc" (#RRGGBB), "ink" (#RRGGBB)}; a bad file stops with a named error."""
     f = Path(work) / "theme.json"
     if not f.is_file(): return None
