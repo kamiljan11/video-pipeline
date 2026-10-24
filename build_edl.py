@@ -157,7 +157,8 @@ if BROLL is not None:
     for b in BROLL[0]: print("broll", b["id"], b["at"])
     for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
 if P.get("vertical"):
-    edl.update({"vertical": True, "w": 1080, "h": 1920, "subs": P.get("ass_out"), "tail": 0})
+    # a short has no tail unless its plan asks for one (an end screen card: gfx word "END", e.g. "tail": 3)
+    edl.update({"vertical": True, "w": 1080, "h": 1920, "subs": P.get("ass_out"), "tail": P.get("tail", 0)})
 
 txt = []
 for k in P["keeps"]: txt.append("".join(W[i][2] for i in range(k[0], k[1] + 1)).strip())
