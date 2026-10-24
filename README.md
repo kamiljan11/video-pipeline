@@ -1,6 +1,85 @@
 # video-pipeline
 
-Skrypty montażu nagrań (talking head -> long 16:9 + shorty 9:16). Lokalne repo gita bez remote (ADR: `docs/adr/0001-*`, karta `web`: `docs/adr/0002-*`).
+**One talking-head recording in, an edited long video (16:9) and a set of vertical shorts (9:16) out.**
+A local, scriptable editing pipeline: transcript, edit plan, EDL, face-aware framing, motion cards, music beds and an
+ffmpeg render, with an automatic critic between every step. The browser editor that sits on top of it lives in its own
+repository: [kamiljan11/montazownia](https://github.com/kamiljan11/montazownia).
+
+Built for the author's own channel; published as a reference and a backup. See [LICENSE](LICENSE) (all rights reserved).
+
+```mermaid
+flowchart LR
+  rec[recording .mp4] --> tr[transcript<br/>whisper.cpp]
+  tr --> plan[plan_film.json<br/>cuts, zooms, cards]
+  grammar[(style/grammar.json<br/>editing grammar)] --> beats[beats.py<br/>intent moments]
+  beats --> plan
+  plan --> edl[build_edl.py<br/>EDL]
+  edl --> face[face_track.py<br/>YuNet framing]
+  face --> critic{critic.py<br/>C1-C13, --fix}
+  critic -->|issues| plan
+  critic --> guard[edl_guard.py]
+  guard --> beds[make_beds.py<br/>music + sfx]
+  gfx[gfx/render.mjs<br/>HTML cards -> .mov] --> asm
+  beds --> asm[assemble.py<br/>ffmpeg]
+  asm --> out[long 16:9<br/>shorts 9:16]
+```
+
+## What it does
+
+| Stage | Script | Notes |
+|---|---|---|
+| Transcript | `chunked_whisper.py` | whisper.cpp large-v3 (q5), word timings; `transcribe.py` = faster-whisper fallback |
+| Edit moments | `beats.py`, `beatfx.py` | hooks, numbers, contrasts, punchlines, lists, questions -> zooms, cards, cuts, by the rules in `style/grammar.json` |
+| Edit decision list | `build_edl.py`, `edges.py` | cuts on word boundaries, dead-air trimming, cut-edge repair (`edge_fix`) |
+| Framing | `face_track.py`, `head_check.py` | face tracking for 16:9 and 9:16 crops, zoom limits that keep the head in frame |
+| Critic | `critic.py` | 13 checks: static stretches, overlay collisions, hook timing, choppy shots, caption length, end screen, loudness (-14 LUFS), clipped speech, unverified numbers on screen, editing grammar, b-roll, dead air and loud cuts at edges; `--fix` rewrites the plan |
+| Safety | `edl_guard.py` | an EDL may carry only numbers, local paths and allow-listed filters into ffmpeg ([ADR-0006](docs/adr/0006-edl-guard.md)) |
+| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists) rendered by Chrome to ProRes 4444 with alpha |
+| Text behind the speaker | `behind.py` | RobustVideoMatting matte, the card sits between the background and the person ([ADR-0005](docs/adr/0005-text-behind-speaker.md)) |
+| B-roll | `broll.py`, `stock.py` | free Pexels clips where the speech names a concrete thing; credits for the description |
+| Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |
+| Render | `assemble.py`, `run_v4.sh` | segment cache, grading, captions for shorts, final mix; `--proxy` for 360p previews |
+| Viewer review | `viewer_pack.py`, `review/viewer.md` | frame sheets + what is said + what is on screen, for an agent acting as a first-time viewer |
+
+The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
+from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
+(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/montazownia/blob/main/docs/GLOSSARY.md).
+
+## Quick start (Ubuntu)
+
+The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author's machine; the path is written into
+`run_v4.sh`, `assemble.py`, `face_track.py`, `gfx/*.mjs` and others). Elsewhere, symlink that path to your checkout, as
+CI does, or replace it (`grep -rl /home/kamil-jan`). Chrome is expected at `/usr/bin/google-chrome`. Linux only.
+
+```bash
+sudo apt install ffmpeg poppler-utils python3.12-venv   # + Node 24 and Google Chrome
+npm ci
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# whisper.cpp + model, YuNet face model, optional matting model: see "Postawienie od zera" below
+bash run_v4.sh <project>/work <project>/out long short1
+```
+
+A project directory holds the recording, `words.json` (transcript), `plan_<film>.json` and `gfx_specs.json`; renders
+and caches go to `render/` (ignored by git). Recordings, transcripts and renders are never committed.
+
+## Tests
+
+```bash
+npm test                                              # cards (node --test; needs Chrome)
+.venv/bin/python -m unittest discover -s tests
+ruff check .
+```
+
+The larger suite (compatibility of every script with its pre-panel baseline, live player, HTTP API) is in the
+[montazownia](https://github.com/kamiljan11/montazownia) repository; it expects this repo as its parent directory.
+
+---
+
+## Dokumentacja (PL)
+
+Operational notes below are in Polish, the working language of the project.
+
+Skrypty montażu nagrań (talking head -> long 16:9 + shorty 9:16). Repo gita, publiczne na GitHubie od 2026-10-24 (ADR: `docs/adr/0007-*`, wcześniej `docs/adr/0001-*`, karta `web`: `docs/adr/0002-*`).
 
 | Krok | Skrypt | Uruchamia |
 |---|---|---|
@@ -40,7 +119,7 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 5. `models/face_detection_yunet_2023mar.onnx`: detektor twarzy YuNet z https://github.com/opencv/opencv_zoo
    (`models/face_detection_yunet/`, plik przez Git LFS); sha256 lokalnej kopii zaczyna się od `8f2383e4dd3cfbb4`.
 6. B-roll: sekret `Pexels` w Infisicalu (most `~/infisical`); bez niego reszta pipeline'u działa.
-7. Panel: `panel/` (własne repo bez remote; `panel/README.md`).
+7. Panel: `panel/` = osobne repo https://github.com/kamiljan11/montazownia sklonowane do `panel/` (`panel/README.md`).
 8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff`, `npm i -g pyright`.
 9. Tekst za postacią (tylko gdy plan ma karty `"behind"`): `python3 -m venv matte/.venv && matte/.venv/bin/pip install -r matte/requirements.txt`
    + model `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
@@ -51,8 +130,10 @@ Przed publikacją shorta z b-rollem: linie autorów do opisu filmu (wytyczne API
 
 Bramki: pre-commit (ruff, pyright, skan sekretów) działa przez globalne `core.hooksPath=~/.claude/git-hooks` laptopa, nie z repo;
 na innej maszynie uruchamiaj `ruff check . && pyright` ręcznie.
-**Kopia zapasowa: brak poza tym dyskiem** (stan 2026-10-21: repo bez remote, Timeshift wyklucza `/home`, Déjà Dup wyłączony,
-restic `mas-vault-backup` kopiuje tylko vault Obsidiana, Syncthing nie obejmuje `~/video-pipeline`). Do decyzji: ADR-0001.
+**Kopia kodu i zasad stylu:** publiczne repo https://github.com/kamiljan11/video-pipeline (+ panel: kamiljan11/montazownia),
+od 2026-10-24 (ADR-0007). Nagrania, transkrypcje, plany i rendery NIE idą do gita (`.gitignore`): kopii poza laptopem nie mają.
+**Dysk:** od 2026-10-24 `~/video-pipeline` i `~/Videos` to symlinki do `~/Dane/...` (dysk Dane, LUKS, montowany przy starcie z
+`/etc/crypttab`); ścieżki w skryptach i planach się nie zmieniły. Panel kluczuje swoje katalogi po ścieżce rozwiązanej (`render/panel/*/<klucz>`).
 
 Testy skryptów: `cd panel && .venv/bin/python -m unittest discover -s tests` (strażnik zgodności: bez nowych kluczy planu
 wynik identyczny jak `panel/tests/pipeline_baseline/*.py.orig`). Lint: `ruff check .`, `pyright` (pre-commit).

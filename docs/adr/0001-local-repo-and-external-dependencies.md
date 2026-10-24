@@ -1,6 +1,6 @@
 # ADR-0001 — Pipeline w lokalnym gicie; zależności zewnętrzne (Node, ffmpeg, Pexels)
 
-Data: 2026-10-21 | Status: przyjęte | Drzwi: dwukierunkowe | Przegląd: 2026-12-01
+Data: 2026-10-21 | Status: przyjęte, część „bez remote” zastąpiona przez ADR-0007 (2026-10-24, publiczne repo) | Drzwi: dwukierunkowe | Przegląd: 2026-12-01
 
 **Kontekst:** `~/video-pipeline` (skrypty montażu: transkrypcja, `build_edl.py`, `assemble.py`, grafiki `gfx/render.mjs`) działał
 bez kontroli wersji; jedyną historią były tary `render/pipeline-snapshot-*.tar.gz` i kopie `.orig` w repo panelu. Kamil

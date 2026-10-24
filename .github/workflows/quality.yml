@@ -1,0 +1,48 @@
+name: quality
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Author's path (scripts expect the checkout at /home/kamil-jan/video-pipeline, README "Quick start")
+        run: sudo mkdir -p /home/kamil-jan && sudo ln -s "$GITHUB_WORKSPACE" /home/kamil-jan/video-pipeline
+      - name: System tools (ffmpeg; card tests need Chrome at /usr/bin/google-chrome, else they skip silently)
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+          test -x /usr/bin/google-chrome
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install
+        run: |
+          npm ci
+          python -m venv .venv && .venv/bin/pip install -r requirements.txt ruff==0.16.10
+      - name: Lint (ruff)
+        run: .venv/bin/ruff check .
+      - name: Card tests (node --test)
+        run: npm test
+      - name: Python tests (no models, no recordings needed)
+        run: .venv/bin/python -m unittest discover -s tests -v
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+      - name: Gitleaks (whole history, built-in rules only)
+        run: |
+          # a committed .gitleaks.toml / .gitleaksignore would let the repo allow-list its own leak
+          test ! -e .gitleaks.toml && test ! -e .gitleaksignore
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.24.2 git /repo --redact --verbose --exit-code 1

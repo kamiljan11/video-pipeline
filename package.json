@@ -1,18 +1,22 @@
 {
   "name": "video-pipeline",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Talking-head recording -> edited long 16:9 + vertical shorts: transcript, edit plan, EDL, motion cards, render",
   "scripts": {
     "test": "node --test gfx/test/*.test.mjs"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Kamil Jan",
+  "license": "UNLICENSED",
   "type": "commonjs",
   "dependencies": {
     "gsap": "3.15.0",
     "lucide-static": "^0.460.0",
     "playwright-core": "^1.58.2"
+  },
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamiljan11/video-pipeline"
   }
 }
