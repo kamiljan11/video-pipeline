@@ -144,7 +144,9 @@ edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": 
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
        **{k: P[k] for k in ("music_db", "sfx_db", "audio", "steady_x") if k in P}}  # audio: voice filter chain for assemble.py; steady_x: face_track
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
-if THEME is not None: edl["theme"] = THEME
+if THEME is not None:
+    edl["theme"] = THEME
+    themes.pip_frame(THEME)  # fail now, not in assemble after the long steps: the theme needs its PiP frame
 if BEAT_FX is not None:
     from beatfx import grammar_stamp
     edl["beat_fx"] = BEAT_FX; edl["beat_grammar"] = grammar_stamp()

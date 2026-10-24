@@ -4,7 +4,8 @@
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 const S = Number(process.argv[2] || 600), R = Math.round(S * 0.08), PAD = 40;
 const [ACC = '#2de2c4', NAME] = process.argv.slice(3);
-if (!/^#[0-9a-fA-F]{6}$/.test(ACC) || (NAME !== undefined && !/^[a-z0-9-]{1,40}$/.test(NAME))) throw new Error(`usage: pip_assets.mjs SIZE [#RRGGBB NAME], got ${ACC} ${NAME}`);
+// an accent always comes with a theme name: the default frame stays the template's (no theme = output unchanged)
+if (!/^#[0-9a-fA-F]{6}$/.test(ACC) || (process.argv.length > 3) !== (NAME !== undefined) || (NAME !== undefined && !/^[a-z0-9-]{1,40}$/.test(NAME))) throw new Error(`usage: pip_assets.mjs SIZE [#RRGGBB NAME], got ${ACC} ${NAME}`);
 const b = await chromium.launch({ executablePath: '/usr/bin/google-chrome' });
 const p = await b.newPage({ viewport: { width: S, height: S } });
 await p.setContent(`<html><body style="margin:0;background:#000"><div style="width:${S}px;height:${S}px;background:#fff;border-radius:${R}px"></div></body></html>`);
