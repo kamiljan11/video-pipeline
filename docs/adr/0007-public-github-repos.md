@@ -42,3 +42,5 @@ przez Kamila po sprawdzeniu.
 
 **Wykonanie / rollback:** widoczność repo z powrotem na private w ustawieniach GitHuba (to, co już pobrano, zostaje u pobierających).
 Dysk: `rm` symlinku + `mv ~/old-copies-2026-10-24/<katalog> ~/<katalog>` (dopóki kopie istnieją) albo `rsync` z `~/Dane` z powrotem.
+
+**Zmiana 2026-10-25 (Kamil):** oba repo na licencji MIT, żeby inni mogli zainstalować i używać narzędzia (prompt instalacyjny w README). Zdjęcie autora, nazwisko i marka nie są objęte licencją.

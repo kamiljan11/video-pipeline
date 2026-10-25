@@ -1,9 +1,21 @@
-Copyright (c) 2026 Kamil Jan. All rights reserved.
+MIT License
 
-The source code in this repository is published for reference and as a backup of the author's own tooling.
-No licence is granted to use, copy, modify, merge, publish, distribute, sublicense or sell it, in whole or in
-part, without the author's prior written permission (contact: mountainallservice@gmail.com).
+Copyright (c) 2026 Kamil Jan
 
-Third-party components keep their own licences: npm packages listed in package.json / package-lock.json,
-Python packages in requirements.txt, and external tools and models named in README.md (ffmpeg, whisper.cpp,
-OpenCV YuNet, RobustVideoMatting) are not part of this repository.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
