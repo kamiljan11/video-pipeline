@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import edges
+import edl_guard
 import themes
 from gfx_types import PIP, SIDE_BOX
 
@@ -152,12 +153,16 @@ BROLL = None
 if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anchor words, never under a graphic
     from broll import place
     BROLL = place(P["broll"], W, out, ovs)
+# plan values assemble.py turns into ffmpeg filters: refused here, at plan time, not minutes later in the render
+if P.get("progress", False) not in (True, False, "fill"): sys.exit(f"progress: true, false or \"fill\", got {P['progress']!r}")
+if "music_duck" in P and not edl_guard.duck_ok(P["music_duck"]):
+    sys.exit(f"music_duck: {{\"threshold\": 0.001..1, \"ratio\": 1..20}}, got {P['music_duck']!r}")
 _tail = P.get("tail", 0)  # end screen seconds (long: YouTube end screen; short: end card), goes to ffmpeg tpad/apad
 if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _tail <= 60:
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "sfx_db", "audio", "steady_x", "seg_exact", "sfx_style", "music_moods") if k in P}}  # audio: voice filter chain for assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods: music/make_beds.py
+       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods: music/make_beds.py
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME
@@ -171,9 +176,18 @@ if BROLL is not None:
     edl["broll_removed"] = sum(isinstance(r, dict) for r in rej) if isinstance(rej, list) else 0
     for b in BROLL[0]: print("broll", b["id"], b["at"])
     for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
+if "face_target_y" in P and not P.get("vertical"):
+    print("face_target_y: ignored, only vertical films use it", file=sys.stderr)
 if P.get("vertical"):
     # a short has no tail unless its plan asks for one (an end screen card: gfx word "END", e.g. "tail": 3)
     edl.update({"vertical": True, "w": 1080, "h": 1920, "subs": P.get("ass_out"), "tail": P.get("tail", 0)})
+    # face_target_y: height of the face centre in the 9:16 frame (assemble.py and face_track.py default 0.40). At zoom 1.0
+    # the crop has no vertical room and the face sits where it was recorded, so 0.40 made the head jump between wide and
+    # zoomed shots; the head's own height at zoom 1.0 (~0.47 for the 2026-10-22 recording) keeps one level in every shot
+    if "face_target_y" in P:
+        if type(P["face_target_y"]) not in (int, float) or not 0.3 <= P["face_target_y"] <= 0.6:
+            sys.exit(f"face_target_y: 0.3..0.6 (face centre height in the vertical frame), got {P['face_target_y']!r}")
+        edl["face_target_y"] = P["face_target_y"]
 
 txt = []
 for k in P["keeps"]: txt.append("".join(W[i][2] for i in range(k[0], k[1] + 1)).strip())

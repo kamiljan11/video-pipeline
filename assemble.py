@@ -97,6 +97,10 @@ def cut(i_s):
     i, s = i_s
     dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{zkey(s.get('zoom',1.0))}_{'-'.join(str(v) for v in s.get('face', []))}{'_tr' + __import__('hashlib').md5(str(s.get('track')).encode()).hexdigest()[:6] if s.get('track') else ''}.mkv")
     if EXACT: dst = dst[:-4] + "_x.mkv"
+    # the crop also depends on face_target_y: without it in the name a re-render after a plan change reused segments cut
+    # for the old height (2026-10-25 shorts: fixed-zoom shots kept the 0.40 head line). Only when the key is set, so old
+    # EDLs keep their segment names (video-pipeline-panel tests/test_pipeline_compat.py)
+    if "face_target_y" in edl: dst = dst[:-4] + f"_ty{TY}.mkv"
     if os.path.exists(dst): return dst
     d = s["out"] - s["in"]
     vf, extra = vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track")), []
@@ -124,9 +128,15 @@ grade = edl.get("grade", "eq=contrast=1.04:saturation=1.07:gamma=0.98,unsharp=5:
 tail = edl.get("tail", 0)
 body = sum(sg["out"] - sg["in"] for sg in edl["segments"])
 THEME = edl.get("theme")  # build_edl from work/theme.json (themes.py): accent of the progress bar and the PiP frame
-pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x{themes.bar_hex(THEME)}@0.85:t=fill:enable=lt(t\\,{body:.3f})" if edl.get("progress") else "")
+# "progress": "fill" = a bar that fills with the film time. true = the old drawbox bar, kept for old EDLs (video-pipeline-panel tests/test_pipeline_compat.py):
+# drawbox evaluates its w once, so that bar stands full width from the first frame
+pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x{themes.bar_hex(THEME)}@0.85:t=fill:enable=lt(t\\,{body:.3f})"
+        if edl.get("progress") and edl.get("progress") != "fill" else "")
 fc.append(f"[0:v]{grade}" + (f",tpad=stop_mode=clone:stop_duration={tail}" if tail else "") + pbar + "[v0]")
 last = "v0"
+if edl.get("progress") == "fill":  # overlay evaluates x on every frame
+    fc.append(f"color=c=0x{themes.bar_hex(THEME)}@0.85:s={W}x8:r=30,format=rgba[pbar]")
+    fc.append(f"[v0][pbar]overlay=x='-w+w*min(t/{body:.3f},1)':y=H-8:shortest=1:enable='lt(t,{body:.3f})'[vbar]"); last = "vbar"
 # stock b-roll (build_edl "broll"): full-frame cutaway under graphics and captions, picture only (the voice goes on);
 # its inputs come after the graphics and the pip images, so their input numbers stay as they were
 BROLL = edl.get("broll", [])
@@ -176,7 +186,8 @@ if edl.get("music"):
     inputs += [*mo, "-i", edl["music"], *mo, "-i", edl["sfx"]]
     fc.append(va + ",asplit=2[vm][vsc]")
     fc.append(f"[{nin}:a]aresample=48000,volume={edl.get('music_db', -13)}dB[mu]")
-    fc.append("[mu][vsc]sidechaincompress=threshold=0.015:ratio=6:attack=30:release=500:makeup=1[mud]")
+    duck = {"threshold": 0.015, "ratio": 6, **edl.get("music_duck", {})}  # how far the music dips under the voice (edl_guard checks)
+    fc.append(f"[mu][vsc]sidechaincompress=threshold={duck['threshold']:g}:ratio={duck['ratio']:g}:attack=30:release=500:makeup=1[mud]")
     fc.append(f"[{nin+1}:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sx]")
     fc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[a]")
 else:

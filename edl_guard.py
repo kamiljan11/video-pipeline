@@ -10,7 +10,7 @@ import re
 
 AUDIO = frozenset({"highpass", "lowpass", "bandpass", "equalizer", "afftdn", "anlmdn", "acompressor", "agate", "alimiter",
                    "loudnorm", "dynaudnorm", "volume", "deesser", "anull"})
-VIDEO = frozenset({"eq", "unsharp", "hue", "colorbalance", "vibrance", "colortemperature", "null"})
+VIDEO = frozenset({"eq", "unsharp", "hue", "colorbalance", "vibrance", "colortemperature", "hqdn3d", "null"})  # hqdn3d: sensor grain of a cropped 9:16 frame
 VALUE = r"[A-Za-z0-9.+-]+"  # a number, dB, a word: never a path (no /), a quote or a nested filter
 FILTER = re.compile(rf"([a-z][a-z0-9_]*)(?:=(\w+={VALUE}(?::\w+={VALUE})*|{VALUE}(?::{VALUE})*))?", re.ASCII)
 PROTOCOL = re.compile(r"[^/]*:")  # http:, concat:, data:, "subfile,,start,0,,:" ... (a path has a / before any ":")
@@ -66,6 +66,15 @@ def segment_ok(s: dict) -> bool:
     return ok and (face is None or pair(face)) and (track is None or (isinstance(track, list) and all(map(pair, track))))
 
 
+DUCK_MIN_THRESHOLD = 0.001  # ffmpeg sidechaincompress refuses below 0.000976563 (2**-10 itself too), mid-render
+
+
+def duck_ok(v) -> bool:
+    """music_duck for assemble.py's sidechaincompress: how far the music dips under the voice"""
+    return (isinstance(v, dict) and set(v) <= {"threshold", "ratio"} and all(num(x) for x in v.values())
+            and DUCK_MIN_THRESHOLD <= v.get("threshold", 0.5) <= 1 and 1 <= v.get("ratio", 2) <= 20)
+
+
 def chain_ok(text, allowed: frozenset) -> bool:
     if not isinstance(text, str) or not text:
         return False
@@ -90,6 +99,10 @@ def problems(edl) -> list[str]:
     out += [f"segment at {s['in']}: zoom / face / track must be numbers" for s in edl["segments"] if not segment_ok(s)]
     out += [f"{k} must be a number" for k in ("tail", "music_db", "sfx_db", "pip_size", "music_offset")
             if k in edl and not num(edl[k])]  # present means set (as framing_ok): null would reach ffmpeg as "None"
+    if edl.get("progress", False) not in (True, False, "fill"):  # a typo ("Fill") would silently give the old full-width bar
+        out.append("progress: true, false or \"fill\" (a bar that fills with the film time)")
+    if "music_duck" in edl and not duck_ok(edl["music_duck"]):
+        out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
     if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:
         out.append(f"tail: 0 to {MAX_TAIL:g} s")
     if "out_name" in edl and not (isinstance(edl["out_name"], str) and OUT_NAME.fullmatch(edl["out_name"])):
