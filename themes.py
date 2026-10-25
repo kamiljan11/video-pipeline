@@ -41,7 +41,7 @@ def _object(f):
 
 
 def bar_hex(theme):
-    """Progress bar colour for ffmpeg drawbox (0x...): the theme accent, else the template's own accent."""
+    """Progress bar colour for the ffmpeg color source (0x...): the theme accent, else the template's own accent."""
     return theme["acc"][1:] if theme else "2de2c4"
 
 
