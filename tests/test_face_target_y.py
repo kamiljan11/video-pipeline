@@ -45,6 +45,15 @@ class FaceTargetYTest(unittest.TestCase):
         self.assertNotIn("face_target_y", self.edl(face_target_y=0.47))
         self.assertIn("face_target_y: ignored", self.build(face_target_y=0.47).stderr)
 
+    def test_plan_grade_reaches_the_edl_and_the_guard_takes_hqdn3d(self):
+        sys.path.insert(0, str(ROOT))
+        import edl_guard
+        grade = "hqdn3d=3:2.5:8:6,eq=contrast=1.04,unsharp=5:5:0.25"
+        edl = self.edl(vertical=True, grade=grade)
+        self.assertEqual(edl["grade"], grade)
+        self.assertTrue(edl_guard.chain_ok(grade, edl_guard.VIDEO))
+        self.assertNotIn("grade", self.edl(vertical=True))  # no key: assemble.py's default grade
+
     def test_a_bad_value_is_a_named_error(self):
         for bad in (0.1, 0.9, "0.47", True, None):
             with self.subTest(bad=bad):

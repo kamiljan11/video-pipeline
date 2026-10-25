@@ -10,7 +10,7 @@ import re
 
 AUDIO = frozenset({"highpass", "lowpass", "bandpass", "equalizer", "afftdn", "anlmdn", "acompressor", "agate", "alimiter",
                    "loudnorm", "dynaudnorm", "volume", "deesser", "anull"})
-VIDEO = frozenset({"eq", "unsharp", "hue", "colorbalance", "vibrance", "colortemperature", "null"})
+VIDEO = frozenset({"eq", "unsharp", "hue", "colorbalance", "vibrance", "colortemperature", "hqdn3d", "null"})  # hqdn3d: sensor grain of a cropped 9:16 frame
 VALUE = r"[A-Za-z0-9.+-]+"  # a number, dB, a word: never a path (no /), a quote or a nested filter
 FILTER = re.compile(rf"([a-z][a-z0-9_]*)(?:=(\w+={VALUE}(?::\w+={VALUE})*|{VALUE}(?::{VALUE})*))?", re.ASCII)
 PROTOCOL = re.compile(r"[^/]*:")  # http:, concat:, data:, "subfile,,start,0,,:" ... (a path has a / before any ":")
