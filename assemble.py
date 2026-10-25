@@ -97,6 +97,10 @@ def cut(i_s):
     i, s = i_s
     dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{zkey(s.get('zoom',1.0))}_{'-'.join(str(v) for v in s.get('face', []))}{'_tr' + __import__('hashlib').md5(str(s.get('track')).encode()).hexdigest()[:6] if s.get('track') else ''}.mkv")
     if EXACT: dst = dst[:-4] + "_x.mkv"
+    # the crop also depends on face_target_y: without it in the name a re-render after a plan change reused segments cut
+    # for the old height (2026-10-25 shorts: fixed-zoom shots kept the 0.40 head line). Only when the key is set, so old
+    # EDLs keep their segment names (video-pipeline-panel tests/test_pipeline_compat.py)
+    if "face_target_y" in edl: dst = dst[:-4] + f"_ty{TY}.mkv"
     if os.path.exists(dst): return dst
     d = s["out"] - s["in"]
     vf, extra = vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track")), []

@@ -79,6 +79,23 @@ class AssembleMixTest(unittest.TestCase):
         self.assertGreater(none - default, 3, (none, default, hard))
         self.assertGreater(default - hard, 1, (none, default, hard))
 
+    def test_segment_cache_follows_face_target_y(self):
+        """a re-render into the same folder after a face_target_y change cuts the segments again (not the old head line)"""
+        out = Path(tempfile.mkdtemp(dir=self.tmp))
+        names = []
+        for ty in (0.35, 0.55, 0.35):
+            edl = {"sources": {"A": str(self.src)}, "segments": [{"src": "A", "in": 0.0, "out": DUR, "zoom": 1.3, "face": [0.5, 0.5]}],
+                   "w": 180, "h": 320, "src_w": W, "src_h": H, "vertical": True, "face_target_y": ty, "out_name": "final.mp4"}
+            self.assertEqual(edl_guard.problems(edl), [])
+            (out / "edl.json").write_text(json.dumps(edl))
+            r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(out / "edl.json"), str(out)],
+                               capture_output=True, text=True, check=False)
+            self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+            names.append((out / "concat.txt").read_text())
+        self.assertNotEqual(names[0], names[1])
+        self.assertEqual(names[0], names[2])  # same value: the cache still works
+        self.assertEqual(len(list((out / "segs").glob("*.mkv"))), 2)
+
     def test_guard_refuses_bad_music_duck(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
         for bad in ({"threshold": 0}, {"threshold": 0.0001}, {"threshold": 2}, {"ratio": 0.5}, {"ratio": 30}, {"ratio": "6"}, {"knee": 2},
