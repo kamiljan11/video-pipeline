@@ -45,6 +45,21 @@ The editing style is data, not code: `style/grammar.json` (rules per format), `s
 from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
 (plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/video-pipeline-panel/blob/main/docs/GLOSSARY.md).
 
+## Plan keys (sound, picture, framing)
+
+The full table of plan keys lives in the panel repo: [README › Klucze planu](https://github.com/kamiljan11/video-pipeline-panel/blob/main/README.md).
+The keys below change how the film sounds and looks; `build_edl.py` checks them when it reads the plan and `edl_guard.py`
+checks the EDL again before ffmpeg runs. A bad value stops the build with the key named.
+
+| Key | Values | Effect |
+|---|---|---|
+| `progress` | `"fill"`, `true`, `false` | `"fill"`: a bar at the bottom that grows with the film time. `true`: the old `drawbox` bar, which stands full width from the first frame; kept so old EDLs render the same |
+| `music_duck` | `{"threshold": 0.001..1, "ratio": 1..20}` | how far the music dips under the voice (`sidechaincompress`). Default 0.015 / 6 nearly hides music under speech; 0.05 / 2.5 keeps it audible |
+| `music_db`, `sfx_db` | dB | music and sound-effect level |
+| `audio` | ffmpeg filter chain for the voice | replaces the default voice chain; only filters on the `AUDIO` list in `edl_guard.py` |
+| `grade` | ffmpeg filter chain for the picture | replaces the default colour grade; only filters on the `VIDEO` list (`hqdn3d` included, against sensor grain in 9:16 crops) |
+| `face_target_y` | 0.3..0.6, vertical films only | height of the face centre in a zoomed 9:16 crop (default 0.40). Set it close to where the face sits in the recording (about 0.48 for a seated talking head), or the head jumps between zoomed and unzoomed shots. A 16:9 plan ignores it with a warning. Changing it re-cuts the segments on the next render |
+
 ## Quick start (Ubuntu)
 
 The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author's machine; the path is written into
@@ -52,7 +67,7 @@ The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author'
 CI does, or replace it (`grep -rl /home/kamil-jan`). Chrome is expected at `/usr/bin/google-chrome`. Linux only.
 
 ```bash
-sudo apt install ffmpeg poppler-utils python3.12-venv   # + Node 24 and Google Chrome
+sudo apt install ffmpeg poppler-utils python3.12-venv   # ffmpeg 8 or newer (24.04 apt has 6.1); + Node 24, Google Chrome
 npm ci
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # whisper.cpp + model, YuNet face model, optional matting model: see "Postawienie od zera" below
@@ -84,7 +99,8 @@ from where you clone it.
    needs sudo before running it.
 4. Run the tests (`npm test`, `.venv/bin/python -m unittest discover -s tests`, `ruff check .`) and fix only what
    blocks them on this machine. Tell me what you changed.
-5. B-roll needs a free Pexels API key in the environment; ask me for it, never write it into a file in the repo.
+5. B-roll needs a free Pexels API key in the environment variable `PEXELS_API_KEY` (`stock.py`); ask me for it, never
+   write it into a file in the repo.
 6. Then take my recording <path to my .mp4>: transcribe it, propose plan_long.json (cuts, zooms, cards) and one short,
    show me the plan before rendering, render a 360p proxy (`--proxy`), and only after my OK the full render.
 ```
@@ -136,7 +152,7 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 Ścieżka `/home/kamil-jan` jest wpisana w wielu skryptach (m.in. `run_v4.sh`, `assemble.py`, `face_track.py`, `head_check.py`,
 `chunked_whisper.py`, `gfx/*.mjs`): na innym koncie/komputerze najpierw znajdź wszystkie (`grep -rl /home/kamil-jan --include=*.py
 --include=*.sh --include=*.mjs . | grep -v -e node_modules -e whisper.cpp -e panel/`).
-1. System: `ffmpeg`, `python3` (systemowy: build_edl, critic, assemble, beats, beatfx, broll, stock), Node 24, Google Chrome w
+1. System: `ffmpeg` 8 lub nowszy (apt w Ubuntu 24.04 ma 6.1), `python3` (systemowy: build_edl, critic, assemble, beats, beatfx, broll, stock), Node 24, Google Chrome w
    `/usr/bin/google-chrome` (plansze renderuje `playwright-core` na tym Chrome), `poppler-utils` (karty `web` z PDF). `.venv`: face_track, head_check, make_beds, to_otio.
 2. `npm ci` (playwright-core, lucide-static, gsap z `package-lock.json`; gsap tylko dla kart `count`).
 3. `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt` (wersje przypięte, stan 2026-10-21).
@@ -145,7 +161,8 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
    `models/ggml-large-v3-q5_0.bin`.
 5. `models/face_detection_yunet_2023mar.onnx`: detektor twarzy YuNet z https://github.com/opencv/opencv_zoo
    (`models/face_detection_yunet/`, plik przez Git LFS); sha256 lokalnej kopii zaczyna się od `8f2383e4dd3cfbb4`.
-6. B-roll: sekret `Pexels` w Infisicalu (most `~/infisical`); bez niego reszta pipeline'u działa.
+6. B-roll: klucz API Pexels w zmiennej `PEXELS_API_KEY` (albo `Pexels`; u autora sekret `Pexels` w Infisicalu, most `~/infisical`);
+   bez niego reszta pipeline'u działa.
 7. Panel: `panel/` = osobne repo https://github.com/kamiljan11/video-pipeline-panel sklonowane do `panel/` (`panel/README.md`).
 8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff`, `npm i -g pyright`.
 9. Tekst za postacią (tylko gdy plan ma karty `"behind"`): `python3 -m venv matte/.venv && matte/.venv/bin/pip install -r matte/requirements.txt`
