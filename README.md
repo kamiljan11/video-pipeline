@@ -94,7 +94,7 @@ from where you clone it.
    `grep -rl /home/kamil-jan --include=*.py --include=*.sh --include=*.mjs .`). Replace it with this checkout's path,
    or create that path as a symlink if I agree to it. Chrome is expected at /usr/bin/google-chrome.
 3. Install the system packages: ffmpeg 8 or newer (Ubuntu 24.04 apt has 6.1, too old; CI uses a static 8.x build),
-   poppler-utils, Python 3.12 venv, Node 24, Google Chrome, ruff (`pipx install ruff`). Then whisper.cpp at
+   poppler-utils, Python 3.12 venv, Node 24, Google Chrome, ruff (`pipx install ruff==0.16.10`, the version CI uses). Then whisper.cpp at
    the commit named in the README with the large-v3-q5_0 model, and the YuNet face model. Show me each command that
    needs sudo before running it.
 4. Run the tests (`npm test`, `.venv/bin/python -m unittest discover -s tests`, `ruff check .`) and fix only what
@@ -164,7 +164,7 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 6. B-roll: klucz API Pexels w zmiennej `PEXELS_API_KEY` (albo `Pexels`; u autora sekret `Pexels` w Infisicalu, most `~/infisical`);
    bez niego reszta pipeline'u działa.
 7. Panel: `panel/` = osobne repo https://github.com/kamiljan11/video-pipeline-panel sklonowane do `panel/` (`panel/README.md`).
-8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff`, `npm i -g pyright`.
+8. Lint/typy (globalnie, nie w `.venv`): `pipx install ruff==0.16.10` (wersja z CI), `npm i -g pyright`.
 9. Tekst za postacią (tylko gdy plan ma karty `"behind"`): `python3 -m venv matte/.venv && matte/.venv/bin/pip install -r matte/requirements.txt`
    + model `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
    (sha256 `25db300fcb6ee27f…`, `behind.py` sprawdza go przy każdym uruchomieniu; decyzja: ADR-0005).

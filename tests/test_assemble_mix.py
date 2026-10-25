@@ -96,6 +96,10 @@ class AssembleMixTest(unittest.TestCase):
         self.assertEqual(names[0], names[2])  # same value: the cache still works
         self.assertEqual(len(list((out / "segs").glob("*.mkv"))), 2)
 
+    def test_without_face_target_y_segment_names_stay_as_before(self):  # old EDLs keep their cached segments
+        names = [p.name for p in (self.render().parent / "segs").glob("*.mkv")]
+        self.assertEqual(names, ["0000_0.000_2.000_1.0__x.mkv"])
+
     def test_guard_refuses_bad_music_duck(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
         for bad in ({"threshold": 0}, {"threshold": 0.0001}, {"threshold": 2}, {"ratio": 0.5}, {"ratio": 30}, {"ratio": "6"}, {"knee": 2},
