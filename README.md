@@ -78,7 +78,8 @@ from where you clone it.
 2. The scripts contain the author's path /home/kamil-jan/video-pipeline (find them with
    `grep -rl /home/kamil-jan --include=*.py --include=*.sh --include=*.mjs .`). Replace it with this checkout's path,
    or create that path as a symlink if I agree to it. Chrome is expected at /usr/bin/google-chrome.
-3. Install the system packages (ffmpeg, poppler-utils, Python 3.12 venv, Node 24, Google Chrome), then whisper.cpp at
+3. Install the system packages: ffmpeg 8 or newer (Ubuntu 24.04 apt has 6.1, too old; CI uses a static 8.x build),
+   poppler-utils, Python 3.12 venv, Node 24, Google Chrome, ruff (`pipx install ruff`). Then whisper.cpp at
    the commit named in the README with the large-v3-q5_0 model, and the YuNet face model. Show me each command that
    needs sudo before running it.
 4. Run the tests (`npm test`, `.venv/bin/python -m unittest discover -s tests`, `ruff check .`) and fix only what

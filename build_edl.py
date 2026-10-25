@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import edges
+import edl_guard
 import themes
 from gfx_types import PIP, SIDE_BOX
 
@@ -152,6 +153,10 @@ BROLL = None
 if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anchor words, never under a graphic
     from broll import place
     BROLL = place(P["broll"], W, out, ovs)
+# plan values assemble.py turns into ffmpeg filters: refused here, at plan time, not minutes later in the render
+if P.get("progress", False) not in (True, False, "fill"): sys.exit(f"progress: true, false or \"fill\", got {P['progress']!r}")
+if "music_duck" in P and not edl_guard.duck_ok(P["music_duck"]):
+    sys.exit(f"music_duck: {{\"threshold\": 0.001..1, \"ratio\": 1..20}}, got {P['music_duck']!r}")
 _tail = P.get("tail", 0)  # end screen seconds (long: YouTube end screen; short: end card), goes to ffmpeg tpad/apad
 if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _tail <= 60:
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
@@ -171,6 +176,8 @@ if BROLL is not None:
     edl["broll_removed"] = sum(isinstance(r, dict) for r in rej) if isinstance(rej, list) else 0
     for b in BROLL[0]: print("broll", b["id"], b["at"])
     for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
+if "face_target_y" in P and not P.get("vertical"):
+    print("face_target_y: ignored, only vertical films use it", file=sys.stderr)
 if P.get("vertical"):
     # a short has no tail unless its plan asks for one (an end screen card: gfx word "END", e.g. "tail": 3)
     edl.update({"vertical": True, "w": 1080, "h": 1920, "subs": P.get("ass_out"), "tail": P.get("tail", 0)})

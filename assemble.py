@@ -124,7 +124,7 @@ grade = edl.get("grade", "eq=contrast=1.04:saturation=1.07:gamma=0.98,unsharp=5:
 tail = edl.get("tail", 0)
 body = sum(sg["out"] - sg["in"] for sg in edl["segments"])
 THEME = edl.get("theme")  # build_edl from work/theme.json (themes.py): accent of the progress bar and the PiP frame
-# "progress": "fill" = a bar that fills with the film time. true = the old drawbox bar, kept for old EDLs (test_pipeline_compat):
+# "progress": "fill" = a bar that fills with the film time. true = the old drawbox bar, kept for old EDLs (video-pipeline-panel tests/test_pipeline_compat.py):
 # drawbox evaluates its w once, so that bar stands full width from the first frame
 pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x{themes.bar_hex(THEME)}@0.85:t=fill:enable=lt(t\\,{body:.3f})"
         if edl.get("progress") and edl.get("progress") != "fill" else "")

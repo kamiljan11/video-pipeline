@@ -29,8 +29,8 @@ class AssembleMixTest(unittest.TestCase):
         cls.src = cls.tmp / "src.mp4"
         ffmpeg("-f", "lavfi", "-i", f"color=c=black:s={W}x{H}:r=30:d={DUR}", "-f", "lavfi", "-i", f"sine=f=220:d={DUR}",
                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(cls.src))
-        for name in ("music", "sfx"):
-            ffmpeg("-f", "lavfi", "-i", f"sine=f=440:d={DUR + 1}", "-ac", "2", str(cls.tmp / f"{name}.wav"))
+        ffmpeg("-f", "lavfi", "-i", f"sine=f=440:d={DUR + 1}", "-ac", "2", str(cls.tmp / "music.wav"))
+        ffmpeg("-f", "lavfi", "-i", f"anullsrc=r=48000:cl=stereo:d={DUR + 1}", str(cls.tmp / "sfx.wav"))
 
     def render(self, **keys) -> Path:
         out = Path(tempfile.mkdtemp(dir=self.tmp))
@@ -63,11 +63,21 @@ class AssembleMixTest(unittest.TestCase):
     def test_no_progress_key_no_bar(self):
         self.assertEqual(self.bar_px(self.render(), 1.5), 0)
 
-    def test_music_duck_renders(self):
-        mix = {"music": str(self.tmp / "music.wav"), "sfx": str(self.tmp / "sfx.wav"), "music_db": -12}
-        for duck in ({}, {"threshold": 0.05, "ratio": 2.5}, {"ratio": 3}):
-            with self.subTest(duck=duck):
-                self.assertTrue(self.render(**mix, **({"music_duck": duck} if duck else {})).stat().st_size > 0)
+    def music_db_under_voice(self, **duck) -> float:
+        """level of the 440 Hz music under the 220 Hz voice in the final mix (dBFS RMS)"""
+        v = self.render(music=str(self.tmp / "music.wav"), sfx=str(self.tmp / "sfx.wav"), music_db=-12, **duck)
+        r = subprocess.run(["ffmpeg", "-v", "info", "-nostats", "-ss", "0.5", "-t", "1", "-i", str(v), "-af",
+                            "bandpass=f=440:width_type=q:w=8,bandpass=f=440:width_type=q:w=8,astats=measure_overall=RMS_level:measure_perchannel=none",
+                            "-f", "null", "-"], capture_output=True, text=True, check=True)
+        return float(r.stderr.rsplit("RMS level dB:", 1)[1].split()[0])
+
+    def test_music_duck_reaches_the_sidechain(self):
+        none = self.music_db_under_voice(music_duck={"ratio": 1})  # ratio 1 = no ducking
+        hard = self.music_db_under_voice(music_duck={"threshold": 0.001, "ratio": 20})
+        default = self.music_db_under_voice()  # 0.015 / 6
+        self.assertGreater(none - hard, 10, (none, default, hard))
+        self.assertGreater(none - default, 3, (none, default, hard))
+        self.assertGreater(default - hard, 1, (none, default, hard))
 
     def test_guard_refuses_bad_music_duck(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
@@ -77,6 +87,19 @@ class AssembleMixTest(unittest.TestCase):
                 self.assertTrue(any("music_duck" in p for p in edl_guard.problems({**base, "music_duck": bad})))
         for ok in ({"threshold": 0.05, "ratio": 2.5}, {"threshold": edl_guard.DUCK_MIN_THRESHOLD}, {}):
             self.assertEqual(edl_guard.problems({**base, "music_duck": ok}), [], ok)
+
+    def test_build_edl_refuses_them_at_plan_time(self):
+        for key, bad in (("progress", "Fill"), ("music_duck", {"threshold": 0})):
+            with self.subTest(key=key):
+                d = Path(tempfile.mkdtemp(dir=self.tmp))
+                (d / "rec.cw.json").write_text(json.dumps({"transcription": [{"offsets": {"from": 1000, "to": 1500}, "text": " a"}]}))
+                (d / "rec.sil").write_text("")
+                (d / "plan.json").write_text(json.dumps({"words": "rec.cw.json", "sil": "rec.sil", "src": "rec.mp4",
+                                                         "keeps": [[0, 0]], "edl_out": "edl.json", key: bad}))
+                r = subprocess.run([sys.executable, str(ROOT / "build_edl.py"), "plan.json"], cwd=d, capture_output=True,
+                                   text=True, check=False)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(f"{key}:", r.stderr)
 
     def test_guard_progress_values(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}

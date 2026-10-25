@@ -41,8 +41,9 @@ class FaceTargetYTest(unittest.TestCase):
     def test_without_the_key_the_edl_has_none(self):  # assemble.py / face_track.py keep their 0.40 default
         self.assertNotIn("face_target_y", self.edl(vertical=True))
 
-    def test_a_16_9_film_ignores_it(self):
+    def test_a_16_9_film_ignores_it_and_says_so(self):
         self.assertNotIn("face_target_y", self.edl(face_target_y=0.47))
+        self.assertIn("face_target_y: ignored", self.build(face_target_y=0.47).stderr)
 
     def test_a_bad_value_is_a_named_error(self):
         for bad in (0.1, 0.9, "0.47", True, None):
