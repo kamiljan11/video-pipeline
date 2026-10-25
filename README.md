@@ -5,7 +5,8 @@ A local, scriptable editing pipeline: transcript, edit plan, EDL, face-aware fra
 ffmpeg render, with an automatic critic between every step. The browser editor that sits on top of it lives in its own
 repository: [kamiljan11/video-pipeline-panel](https://github.com/kamiljan11/video-pipeline-panel).
 
-Built for the author's own channel; published as a reference and a backup. See [LICENSE](LICENSE) (all rights reserved).
+Built for the author's own channel. Code under the [MIT licence](LICENSE); the author's photo (`gfx/test_kw.jpg`), name and
+brand are not part of that grant.
 
 ```mermaid
 flowchart LR

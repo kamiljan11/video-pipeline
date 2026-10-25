@@ -7,7 +7,7 @@
   },
   "keywords": [],
   "author": "Kamil Jan",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "gsap": "3.15.0",
