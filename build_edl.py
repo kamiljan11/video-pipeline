@@ -174,6 +174,13 @@ if BROLL is not None:
 if P.get("vertical"):
     # a short has no tail unless its plan asks for one (an end screen card: gfx word "END", e.g. "tail": 3)
     edl.update({"vertical": True, "w": 1080, "h": 1920, "subs": P.get("ass_out"), "tail": P.get("tail", 0)})
+    # face_target_y: height of the face centre in the 9:16 frame (assemble.py and face_track.py default 0.40). At zoom 1.0
+    # the crop has no vertical room and the face sits where it was recorded, so 0.40 made the head jump between wide and
+    # zoomed shots; the head's own height at zoom 1.0 (~0.47 for the 2026-10-22 recording) keeps one level in every shot
+    if "face_target_y" in P:
+        if type(P["face_target_y"]) not in (int, float) or not 0.3 <= P["face_target_y"] <= 0.6:
+            sys.exit(f"face_target_y: 0.3..0.6 (face centre height in the vertical frame), got {P['face_target_y']!r}")
+        edl["face_target_y"] = P["face_target_y"]
 
 txt = []
 for k in P["keeps"]: txt.append("".join(W[i][2] for i in range(k[0], k[1] + 1)).strip())

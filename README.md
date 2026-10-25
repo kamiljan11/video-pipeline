@@ -62,6 +62,32 @@ bash run_v4.sh <project>/work <project>/out long short1
 A project directory holds the recording, `words.json` (transcript), `plan_<film>.json` and `gfx_specs.json`; renders
 and caches go to `render/` (ignored by git). Recordings, transcripts and renders are never committed.
 
+## Install with Claude Code
+
+The pipeline is a Linux tool (developed on Ubuntu 26.04). Nobody has installed it on another machine yet, so expect a
+few fixes. The quickest route is to let an AI coding agent do the setup on your machine: open
+[Claude Code](https://claude.com/claude-code) in an empty directory and paste the prompt below. On Windows, run it
+inside WSL2 (Ubuntu); native Windows is not supported.
+
+```text
+Install the video pipeline from https://github.com/kamiljan11/video-pipeline on this Linux machine and make it run
+from where you clone it.
+
+1. Read README.md first: "Quick start", "Postawienie od zera (Ubuntu)" (Polish, the full setup) and the table of
+   scripts. requirements.txt and package-lock.json pin the versions; install exactly those.
+2. The scripts contain the author's path /home/kamil-jan/video-pipeline (find them with
+   `grep -rl /home/kamil-jan --include=*.py --include=*.sh --include=*.mjs .`). Replace it with this checkout's path,
+   or create that path as a symlink if I agree to it. Chrome is expected at /usr/bin/google-chrome.
+3. Install the system packages (ffmpeg, poppler-utils, Python 3.12 venv, Node 24, Google Chrome), then whisper.cpp at
+   the commit named in the README with the large-v3-q5_0 model, and the YuNet face model. Show me each command that
+   needs sudo before running it.
+4. Run the tests (`npm test`, `.venv/bin/python -m unittest discover -s tests`, `ruff check .`) and fix only what
+   blocks them on this machine. Tell me what you changed.
+5. B-roll needs a free Pexels API key in the environment; ask me for it, never write it into a file in the repo.
+6. Then take my recording <path to my .mp4>: transcribe it, propose plan_long.json (cuts, zooms, cards) and one short,
+   show me the plan before rendering, render a 360p proxy (`--proxy`), and only after my OK the full render.
+```
+
 ## Tests
 
 ```bash
