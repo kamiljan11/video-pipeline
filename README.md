@@ -332,7 +332,7 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
   0,25 + 0,7·i), lekki najazd 5 %. Katalog szablonów (id imgflip, pola tekstu jako ułamki obrazu, „dark”/„light”, do czego
   pasuje) = `style/memes.json`; obraz pobiera `python3 memes.py add <slug>` do `render/memes/` (poza repo: to cudze obrazy, ADR-0008).
   Mem tylko pod konkretną frazę, 2–3,5 s (UFD: mediana 1,7 s, ~1 na 8–10 s); bez dźwięku. Nieznany `meme`, za dużo tekstów albo
-  mem w 16:9 = nazwany błąd (`build_edl.py`, `render.mjs`). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`.
+  mem w 16:9 = nazwany błąd (`build_edl.py`, `render.mjs`). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
   ```json
   {"id": "m_excel", "type": "meme", "canvas": "v", "dur": 3, "meme": "drake", "text": ["Nowe narzędzie", "Stary dobry Excel"], "at": [0.2, 1.0]}
   ```

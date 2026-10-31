@@ -6,8 +6,10 @@ they stay out of the public repo (render/ is ignored). Only https://i.imgflip.co
 from __future__ import annotations
 
 import datetime
+import http.client
 import json
 import os
+import re
 import sys
 import urllib.parse
 import urllib.request
@@ -17,6 +19,8 @@ CATALOGUE = os.path.join(ROOT, "style", "memes.json")
 OUT = os.environ.get("VP_MEMES", os.path.join(ROOT, "render", "memes"))
 API = "https://api.imgflip.com/get_memes"
 MAX_BYTES = 5_000_000
+# every failure the CLI names in one line instead of a traceback (HTTPException: a dropped or garbled reply is not an OSError)
+FAILURES = (ValueError, OSError, KeyError, http.client.HTTPException, AttributeError, TypeError)
 
 
 def kind(data: bytes) -> str:
@@ -48,8 +52,10 @@ def get(url: str, limit: int) -> bytes:
     opener = urllib.request.build_opener(_SameHost)
     with opener.open(urllib.request.Request(url, headers={"User-Agent": "video-pipeline memes.py"}), timeout=30) as r:
         if urllib.parse.urlsplit(r.geturl()).hostname != urllib.parse.urlsplit(url).hostname: raise ValueError(f"answered from {r.geturl()[:80]}")
-        data = r.read(limit + 1)
+        data, said = r.read(limit + 1), r.headers.get("Content-Length")
     if len(data) > limit: raise ValueError(f"{url}: over {limit} bytes")
+    # read(n) returns a short body without an error when the connection drops: a cut picture would pass kind() and be cached
+    if said is not None and said.isdigit() and int(said) != len(data): raise ValueError(f"{url}: got {len(data)} of {said} bytes")
     return data
 
 
@@ -62,7 +68,7 @@ def write_atomic(path: str, data: bytes) -> None:
 
 def add(slug: str) -> str:
     with open(CATALOGUE, encoding="utf-8") as f: cat = json.load(f)
-    if slug.startswith("_") or slug not in cat: raise ValueError(f"no template {slug!r} in {CATALOGUE}")
+    if not re.fullmatch(r"[a-z0-9_]+", slug) or slug.startswith("_") or slug not in cat: raise ValueError(f"no template {slug!r} in {CATALOGUE}")
     try: reply = json.loads(get(API, MAX_BYTES))
     except json.JSONDecodeError as ex: raise ValueError(f"imgflip API: not JSON ({ex})") from ex
     if not reply.get("success") or "data" not in reply:
@@ -81,4 +87,4 @@ def add(slug: str) -> str:
 if __name__ == "__main__":
     if len(sys.argv) != 3 or sys.argv[1] != "add": sys.exit("usage: memes.py add <slug>  (slugs: style/memes.json)")
     try: print(add(sys.argv[2]))
-    except (ValueError, OSError, KeyError) as ex: sys.exit(f"FAILED memes {sys.argv[2]}: {type(ex).__name__}: {ex}")
+    except FAILURES as ex: sys.exit(f"FAILED memes {sys.argv[2]}: {type(ex).__name__}: {ex}")

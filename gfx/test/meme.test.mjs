@@ -45,3 +45,18 @@ test('an unknown meme or too many words stop the card by name', { skip: !fs.exis
     assert.match(r.stderr, why);
   }
 });
+
+test('a re-fetch of the same picture keeps the card; new boxes re-render it', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const red = JSON.parse(fs.readFileSync(path.join(lib, 'red.json'), 'utf8'));
+  const keyOf = (json) => {
+    fs.writeFileSync(path.join(lib, 'red.json'), JSON.stringify(json));
+    const r = render([{ id: 'm3', type: 'meme', canvas: 'v', dur: 1, meme: 'red', text: ['T'] }]);
+    assert.equal(r.status, 0, r.stderr);
+    return fs.readFileSync(path.join(work, 'gfx', 'm3.mov.key'), 'utf8');
+  };
+  try {
+    const first = keyOf({ ...red, fetched: '2026-10-01' });
+    assert.equal(keyOf({ ...red, fetched: '2026-10-31' }), first, 'the download date alone changed the stamp');
+    assert.notEqual(keyOf({ ...red, fetched: '2026-10-31', boxes: [[0, 0, 0.5, 0.5, 'dark']] }), first, 'new boxes kept the old card');
+  } finally { fs.writeFileSync(path.join(lib, 'red.json'), JSON.stringify(red)); }
+});

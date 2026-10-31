@@ -5,6 +5,7 @@ memes.py takes only JPEG/PNG pictures from i.imgflip.com and writes the boxes of
 """
 from __future__ import annotations
 
+import http.client
 import io
 import json
 import shutil
@@ -84,7 +85,9 @@ class MemesToolTest(unittest.TestCase):
         """build_opener() stand-in: each open() gives the next reply (bytes, or an exception to raise)"""
         it = iter(replies)
         class Reply:
-            def __init__(self, url, body): self.url, self.body = url, body
+            def __init__(self, url, body, said=None):
+                self.url, self.body = url, body
+                self.headers = {"Content-Length": str(len(body) if said is None else said)}
             def __enter__(self): return self
             def __exit__(self, *a): return False
             def geturl(self): return self.url
@@ -93,8 +96,8 @@ class MemesToolTest(unittest.TestCase):
             def open(self, req, timeout):
                 r = next(it)
                 if isinstance(r, BaseException): raise r
-                url, body = r if isinstance(r, tuple) else (req.full_url, r)
-                return Reply(url, body)
+                url, body, *said = r if isinstance(r, tuple) else (req.full_url, r)
+                return Reply(url, body, *said)
         return mock.patch.object(urllib.request, "build_opener", return_value=Opener())
 
     def add(self, *replies):
@@ -114,11 +117,14 @@ class MemesToolTest(unittest.TestCase):
         cases = {"timeout": (TimeoutError("timed out"),), "429": (urllib.error.HTTPError(memes.API, 429, "Too Many", Message(), None),),
                  "api says no": (json.dumps({"success": False, "error_message": "down"}).encode(),),
                  "not json": (b"<html>",), "too big": (self.API_OK, b"\xff\xd8\xff" + b"0" * memes.MAX_BYTES),
-                 "not a picture": (self.API_OK, b"<html>"), "answered elsewhere": (self.API_OK, ("https://evil.example/x", b"\xff\xd8\xff"))}
+                 "not a picture": (self.API_OK, b"<html>"), "answered elsewhere": (self.API_OK, ("https://evil.example/x", b"\xff\xd8\xff")),
+                 "cut short": (self.API_OK, (self.TPL["url"], b"\xff\xd8\xffabc", 100)),
+                 "dropped": (http.client.IncompleteRead(b"\xff"),),
+                 "odd reply": (json.dumps([1, 2]).encode(),)}
         for name, replies in cases.items():
             with self.subTest(name=name):
                 out = tempfile.mkdtemp(prefix="memes-out-"); self.addCleanup(shutil.rmtree, out, True)
-                with self.opener(*replies), mock.patch.object(memes, "OUT", out), self.assertRaises((ValueError, OSError)) as cm:
+                with self.opener(*replies), mock.patch.object(memes, "OUT", out), self.assertRaises(memes.FAILURES) as cm:
                     memes.add("drake")
                 self.assertTrue(str(cm.exception))
                 self.assertEqual(list(Path(out).iterdir()), [])

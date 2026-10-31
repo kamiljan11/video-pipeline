@@ -111,8 +111,8 @@ function meme(sp) {
     + `<div class="src" style="left:${left}px;top:${top + h + 14}px">${esc(sp.src ?? `mem: ${m.name}`)}</div></div>`;
 }
 function memeStamp(sp) {
-  const m = memeLib(sp);
-  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(JSON.stringify(m)).update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
+  const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
+  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
 }
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name

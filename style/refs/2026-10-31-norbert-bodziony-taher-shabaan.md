@@ -262,6 +262,3 @@ Uwaga implementacyjna: zdarzenia explainera da się zapisać jako `{t_in, t_out,
 - Skala twarzy w FB i sketchach (kadr statyczny/ręczny) nie mierzona.
 - Produkt w żółtym halftone clipie (COM 12.4-13.5).
 - Czy sticker za głową to maska per klatka (wygląda na tak, bez dostępu do projektu).
-
-
-Hook `post-bash-edit-check.js` wyświetlał przy każdym wywołaniu Bash błędy ruff dla `youtube/yt_auth.py` i `youtube/yt_upload.py`. To nie moje pliki i nie ruszałem ich.
