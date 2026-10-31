@@ -59,6 +59,7 @@ checks the EDL again before ffmpeg runs. A bad value stops the build with the ke
 | `music_db`, `sfx_db` | dB | music and sound-effect level |
 | `audio` | ffmpeg filter chain for the voice | replaces the default voice chain; only filters on the `AUDIO` list in `edl_guard.py` |
 | `grade` | ffmpeg filter chain for the picture | replaces the default colour grade; only filters on the `VIDEO` list (`hqdn3d` included, against sensor grain in 9:16 crops) |
+| `pads` | `{"pre", "post", "keep_l", "keep_r", "mingap"}`, seconds 0..2, each optional | more air at cuts. `pre`/`post`: sound kept before the first and after the last word of a keep (default 0.10 / 0.16); `keep_l`/`keep_r`: pause left after / before speech when a long pause inside a keep is shortened (0.15 / 0.12); `mingap`: only pauses longer than this are shortened (0.45); `keep_l + keep_r` must stay below `mingap`, or two pieces would overlap and play the same sound twice. Absent = the defaults, old plans cut as before |
 | `face_target_y` | 0.3..0.6, vertical films only | height of the face centre in a zoomed 9:16 crop (default 0.40). Set it close to where the face sits in the recording (about 0.48 for a seated talking head), or the head jumps between zoomed and unzoomed shots. A 16:9 plan ignores it with a warning. Changing it re-cuts the segments on the next render |
 
 ## Quick start (Ubuntu)
@@ -307,6 +308,9 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
 - **`"caption_box": true`** w planie shorta (R2): napisy w pełnym boxie w kolorze `--ink` motywu (bez motywu czarny), 80 px,
   środek ~64 % wysokości (pod brodą) zamiast gołego tekstu z obrysem na ~72 %. Box nieprzezroczysty: libass rysuje box osobno
   dla każdego kawałka koloru, półprzezroczyste nachodzą na siebie ciemnymi pasami. Bez klucza = stare napisy (test bit w bit).
+- **Pasek z nazwą (`lower`) w 9:16** stoi w lewym górnym rogu (`top: 300px`, `gfx/template.html`), nie na dole jak w 16:9: dół
+  kadru należy do napisów i pigułki. Górny pas dzieli z `hook_text`, więc w planie wchodzi po haku: `"lead"` ≥ `hook_dur`
+  (np. `{"id": "l_name", "word": 0, "lead": 3.2}` przy haku 3 s).
 - **Ręczne `"pill": true` na karcie, która ma już `.mov`:** `gfx/render.mjs` nie renderuje jej ponownie (stary wygląd u góry, a napisy
   i tak pauzują). Odsuń `gfx/<id>.mov` albo dodaj nową kartę (nowe `id`); panel odsuwa stary `.mov` sam.
 - **Wymiary pigułki i boxa są w kodzie** (`gfx/template.html`, styl `Cap` w `build_edl.py`), nie w danych: jedna seria, jeden styl

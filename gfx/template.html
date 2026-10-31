@@ -150,6 +150,11 @@ html.v .maxim.pill .t{font-size:72px;line-height:1.12;letter-spacing:-1px;color:
 html.v .maxim.pill .w.hl{color:var(--acc-dim)}
 html.v .maxim.pill .mk{opacity:.45}
 html.v .maxim.pill .caret{background:var(--acc-dim)}
+/* 9:16 lower third (name strip): top left, not bottom left as in 16:9, because the captions and the pill hook own the
+   lower part of a vertical frame; it shares the top band with hook_text, so a plan brings it in after the hook ("lead" >= hook_dur) */
+html.v .lower{left:70px;top:300px;bottom:auto}
+html.v .lower .acc{width:14px}html.v .lower .box{padding:24px 40px 26px}
+html.v .lower .n{font-size:68px}html.v .lower .r{font-size:44px;margin-top:4px}
 /* 9:16 end screen of a short (plan "tail" + gfx word "END"): where the full episode is, the subscribe line as a pill */
 html.v .endc{padding:0 80px;align-items:center;text-align:center}
 html.v .endc .t{font-size:96px;line-height:1.08;letter-spacing:-2px;max-width:920px;text-wrap:balance}

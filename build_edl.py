@@ -17,6 +17,19 @@ W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x i
 v = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(P["sil"]).read_text())]
 SIL = [(v[i], v[i + 1]) for i in range(0, len(v) - 1, 2)]
 PRE, POST, MINGAP, KEEP_L, KEEP_R = 0.10, 0.16, 0.45, 0.15, 0.12
+# plan key "pads" (optional): more air at cuts, e.g. {"pre": 0.18, "post": 0.28, "keep_l": 0.28, "keep_r": 0.22, "mingap": 0.7}
+# pre/post = sound kept before the first / after the last word of a keep; keep_l/keep_r = pause kept after / before speech
+# where a long pause inside a keep is shortened; mingap = only pauses longer than this are shortened. Absent = defaults above.
+_pads = P.get("pads")
+if _pads is not None:
+    if not isinstance(_pads, dict) or set(_pads) - {"pre", "post", "keep_l", "keep_r", "mingap"}:
+        sys.exit(f"pads: object with keys pre, post, keep_l, keep_r, mingap, got {_pads!r}")
+    for _k, _v in _pads.items():
+        if isinstance(_v, bool) or not isinstance(_v, (int, float)) or not 0 <= _v <= 2: sys.exit(f"pads.{_k}: seconds 0..2, got {_v!r}")
+    PRE, POST, MINGAP, KEEP_L, KEEP_R = (_pads.get(k, d) for k, d in (("pre", PRE), ("post", POST), ("mingap", MINGAP), ("keep_l", KEEP_L), ("keep_r", KEEP_R)))
+    # a shortened pause is longer than mingap and keeps keep_l + keep_r of it: more than mingap would let the next piece start
+    # before the previous one ends (the same sound twice)
+    if KEEP_L + KEEP_R >= MINGAP: sys.exit(f"pads: keep_l + keep_r ({KEEP_L:g} + {KEEP_R:g}) must be below mingap ({MINGAP:g})")
 ranges = []
 EF = edges.options(P); ENERGY = None; moved = 0  # plan key "edge_fix" (edges.py): dead air / loud cuts at keep edges
 if EF is not None and EF["dips"]:
