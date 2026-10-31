@@ -32,6 +32,7 @@ const html = sp => {
   if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
+  if (sp.type === 'meme') return meme(sp);
   if (sp.type === 'maxim') return maxim(sp);
   if (sp.type === 'float') return `<div class="float">${sp.html}</div>`;  // illustration beside the speaker: the spec's own pieces (template.html › float)
   if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
@@ -72,6 +73,36 @@ function web(sp) {
     + `<div class="view" style="height:${W.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${(m.width * z.s).toFixed(1)}px;margin-left:${(-z.x0 * z.s).toFixed(1)}px">${marks}</div></div></div>`
     + `<div class="src"${v ? ` style="left:${W.x}px;top:${W.y + CHROME + W.view + 18}px"` : ''}>${esc(src)} · stan na ${day}</div></div>`;
 }
+// "meme": a known meme picture with the spec's own words in the template's boxes, 9:16 only, "split" (the face box under it,
+// as a "web" card) or "full". Catalogue (boxes, imgflip id) = style/memes.json; the pictures are third-party, so they live in
+// render/memes/ (memes.py add <slug>), never in the public repo. "text" i comes in at "at"[i] s (default 0.25 + 0.7 i).
+const MEMES = process.env.VP_MEMES ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'render', 'memes');  // VP_MEMES: tests
+const MEME_BOX = { split: { y: 120, h: 880 }, full: { y: 260, h: 1240 } };  // split: ends above the captions (gfx_types.SPLIT)
+const memeLib = sp => {
+  const f = `${MEMES}/${sp.meme}.json`;
+  if (typeof sp.meme !== 'string' || !/^[a-z0-9_]+$/.test(sp.meme) || !fs.existsSync(f)) throw new Error(`"${sp.id}": meme ${JSON.stringify(sp.meme)} not in ${MEMES} (python3 memes.py add <slug>)`);
+  return JSON.parse(fs.readFileSync(f, 'utf8'));
+};
+function meme(sp) {
+  const layout = sp.layout ?? 'split', B = MEME_BOX[layout];
+  if (sp.canvas !== 'v' || !B) throw new Error(`"${sp.id}": a meme is a 9:16 card (canvas "v"), layout "split" or "full", got ${JSON.stringify(sp.layout)}`);
+  const m = memeLib(sp), texts = sp.text ?? [];
+  if (!Array.isArray(texts) || texts.length > m.boxes.length) throw new Error(`"${sp.id}": "${sp.meme}" has ${m.boxes.length} text box(es), got ${JSON.stringify(sp.text)}`);
+  const s = Math.min(960 / m.width, B.h / m.height), w = Math.round(m.width * s), h = Math.round(m.height * s);
+  const left = Math.round((1080 - w) / 2), top = Math.round(B.y + (B.h - h) / 2);
+  const boxes = texts.map((t, i) => {
+    const [fx, fy, fw, fh, style] = m.boxes[i], at = (sp.at ?? [])[i] ?? 0.25 + 0.7 * i;
+    const size = Math.round(Math.min(fh * h * 0.34, 64));
+    return `<div class="tx ${style}" style="left:${(fx * w).toFixed(0)}px;top:${(fy * h).toFixed(0)}px;width:${(fw * w).toFixed(0)}px;height:${(fh * h).toFixed(0)}px;font-size:${size}px;animation:pop .35s ${at.toFixed(2)}s cubic-bezier(.2,1.5,.4,1) both">${esc(t)}</div>`;
+  }).join('');
+  return `<div class="web ${layout} meme"><div class="mm" style="left:${left}px;top:${top}px;width:${w}px;height:${h}px">`
+    + `<img src="${pathToFileURL(`${MEMES}/${m.img}`).href}" style="animation:mmzoom ${sp.dur}s linear both">${boxes}</div>`
+    + `<div class="src" style="left:${left}px;top:${top + h + 14}px">${esc(sp.src ?? `mem: ${m.name}`)}</div></div>`;
+}
+function memeStamp(sp) {
+  const m = memeLib(sp);
+  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(JSON.stringify(m)).update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
+}
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
@@ -94,13 +125,13 @@ async function one(sp) {
   // -> rendered again. Other types keep the old rule (the panel moves a changed graphic's .mov aside).
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
   // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
-  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : sp.logo ? logoStamp(sp) : null, stamp = `${out}.key`;
+  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : sp.type === 'meme' ? memeStamp(sp) : sp.logo ? logoStamp(sp) : null, stamp = `${out}.key`;
   const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
   if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';
   const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });
-  await page.goto('file:///home/kamil-jan/video-pipeline/gfx/template.html');
+  await page.goto(new URL('./template.html', import.meta.url).href);  // next to this file: a worktree renders with its own template
   if (v) await page.evaluate(() => document.documentElement.classList.add('v'));
   if (THEME) await page.evaluate(css => { for (const [k, val] of Object.entries(css)) document.documentElement.style.setProperty(k, val); }, THEME.css);
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));

@@ -212,7 +212,9 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
   zostaje w pamięci: po poprawce wystarczy uruchomić ponownie.
 - **Short (9:16): `"canvas": "v"`**, wzorzec z rozbioru `style/REF-shorts-proof-cards.md`. Karta pokazuje stronę powiększoną na cytacie
   (okno ≥ 40 % szerokości zrzutu, cytat + 5 % z boków; `gfx/webshot_lib.mjs` › `vZoom`), żeby tekst dało się przeczytać na telefonie.
-  Ten sam zrzut co w 16:9 (klucz go nie rozróżnia). Bez PiP w rogu. `"layout"`:
+  Zrzut 9:16 robiony w szerokości telefonu (430×932 CSS px @3x, `VIEW_V`): strona ma jedną kolumnę, więc okno to ≥ 90 % szerokości
+  zrzutu (`V_MIN_WIN_PHONE`); własny klucz pamięci (zrzuty 16:9 bez zmian, klucz przypięty w teście). Warstwy zgód (cookie/CMP)
+  ukrywane także po przewinięciu i w zwykłym przepływie strony (po id/klasie, nie po tekście). Bez PiP w rogu. `"layout"`:
   - `"split"` (domyślnie): jasne tło, karta u góry (y 110–992), twarz w boksie pod nią z zaokrąglonymi górnymi rogami
     (`gfx_types.SPLIT`: x 130, y 1240, 820×680, węższy niż karta, żeby zmieścić głowę z brodą; `assemble.py` wycina go z kadru mówcy; punkt
     w połowie między `face[1]` a `face_target_y` stoi na 58 % wysokości boksu, więc mieści się czubek głowy), napisy w szczelinie między kartą a boksem (`\pos(540,1150)`, `build_edl.py`). Boks znika 0,18 s przed
@@ -323,6 +325,17 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
 - **`"caption_box": true`** w planie shorta (R2): napisy w pełnym boxie w kolorze `--ink` motywu (bez motywu czarny), 80 px,
   środek ~64 % wysokości (pod brodą) zamiast gołego tekstu z obrysem na ~72 %. Box nieprzezroczysty: libass rysuje box osobno
   dla każdego kawałka koloru, półprzezroczyste nachodzą na siebie ciemnymi pasami. Bez klucza = stare napisy (test bit w bit).
+- **`"caption_pop": true`**: nowa linia napisów wskakuje (60 % -> 108 % -> 100 % w 0,13 s, wejście z rozbioru UFD Tech /
+  Norbert Bodziony 2026-10-31); kolejne słowa tej samej linii zmieniają tylko kolor. Bez klucza jak dotąd.
+- **Mem 9:16 (`"type": "meme"`)**: znany mem jako karta u góry (układ `split` jak karta `web`: twarz w boksie, napisy w szczelinie;
+  albo `"layout": "full"`), własne słowa w polach szablonu, wskakują po kolei (`"at"` = sekundy od wejścia karty, domyślnie
+  0,25 + 0,7·i), lekki najazd 5 %. Katalog szablonów (id imgflip, pola tekstu jako ułamki obrazu, „dark”/„light”, do czego
+  pasuje) = `style/memes.json`; obraz pobiera `python3 memes.py add <slug>` do `render/memes/` (poza repo: to cudze obrazy, ADR-0008).
+  Mem tylko pod konkretną frazę, 2–3,5 s (UFD: mediana 1,7 s, ~1 na 8–10 s); bez dźwięku. Nieznany `meme`, za dużo tekstów albo
+  mem w 16:9 = nazwany błąd (`build_edl.py`, `render.mjs`). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`.
+  ```json
+  {"id": "m_excel", "type": "meme", "canvas": "v", "dur": 3, "meme": "drake", "text": ["Nowe narzędzie", "Stary dobry Excel"], "at": [0.2, 1.0]}
+  ```
 - **`"caption_case": "as_said"`** (domyślnie `"upper"`): słowa tak, jak je zapisał whisper (wielka litera tylko na początku
   zdania), zamiast CAPS. **`"caption_ahead": "dim"`** (domyślnie `"same"`): słowo z linii, które jeszcze nie padło, stoi szare
   (`&H8C8C8C`), wypowiadane jest w akcencie, wypowiedziane białe. Oba za wzorcem `style/REF-shorts-proof-cards.md` („Napisy”);

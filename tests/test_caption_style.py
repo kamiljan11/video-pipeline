@@ -53,8 +53,15 @@ class CaptionStyleTest(unittest.TestCase):
         self.assertNotIn("&H8C8C8C&", third)  # the last word: nothing ahead
         self.assertTrue(third.startswith("Ten model "))  # said words are plain white
 
+    def test_pop_only_where_a_line_comes_in(self):
+        first, second, third = self.lines(caption_pop=True)
+        self.assertTrue(first.startswith("{\\fscx60\\fscy60\\t(0,70,"))
+        self.assertNotIn("fscx", second + third)  # same line, next word: colour only
+        self.assertNotIn("fscx", "".join(self.lines()))  # no key: as before
+
     def test_bad_values_are_named_errors(self):
-        for key, bad in (("caption_case", "lower"), ("caption_case", True), ("caption_ahead", "grey"), ("caption_ahead", None)):
+        for key, bad in (("caption_case", "lower"), ("caption_case", True), ("caption_ahead", "grey"), ("caption_ahead", None),
+                         ("caption_pop", "yes")):
             with self.subTest(key=key, bad=bad):
                 r = self.run_plan(**{key: bad})
                 self.assertNotEqual(r.returncode, 0)
