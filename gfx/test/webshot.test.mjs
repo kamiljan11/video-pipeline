@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (pure helpers of the "web" card; the browser part is checked by hand, see README)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkUrl, allowedRequest, privateIp, findQuote, lines, motion, pdfWords, cacheKey } from '../webshot_lib.mjs';
+import { checkUrl, allowedRequest, privateIp, findQuote, lines, motion, pdfWords, cacheKey, vZoom, V_MIN_WIN } from '../webshot_lib.mjs';
 
 test('only public https pages are captured', () => {
   assert.equal(checkUrl('https://en.wikipedia.org/wiki/Teleprompter').hostname, 'en.wikipedia.org');
@@ -72,4 +72,25 @@ test('cache key changes with what is captured, not with timing', () => {
   const own = { id: 'w3', type: 'web', dur: 6, img: 'zrzut.png' };
   for (const b of [{ ...own, box: [1, 2, 3, 4] }, { ...own, title: 'Raport' }]) assert.notEqual(cacheKey(own), cacheKey(b));
   assert.notEqual(cacheKey(own, 'aaa'), cacheKey(own, 'bbb'));  // a new file under the same name
+});
+
+test('9:16 card: zoomed on the quote, never past the capture edges', () => {
+  // a short quote in the middle of a 2400 px capture: the narrowest window (40 % = 960 px) centred on it
+  const mid = vZoom({ width: 2400, height: 6000, rects: [[1000, 3000, 400, 40]] }, 960);
+  assert.equal(mid.x0, 1200 - 2400 * V_MIN_WIN / 2);
+  assert.equal(mid.s, 960 / (2400 * V_MIN_WIN));
+  assert.deepEqual(mid.rects[0], [(1000 - mid.x0) * mid.s, 3000 * mid.s, 400 * mid.s, 40 * mid.s]);
+  assert.equal(mid.height, 6000 * mid.s);
+  // a quote at the left edge: the window starts at 0, not before the page
+  assert.equal(vZoom({ width: 2400, height: 3000, rects: [[40, 100, 300, 40]] }, 960).x0, 0);
+  // a quote at the right edge: the window ends at the page edge
+  const right = vZoom({ width: 2400, height: 3000, rects: [[2200, 100, 180, 40]] }, 960);
+  assert.equal(right.x0, 2400 - 2400 * V_MIN_WIN);
+  // a quote wider than the narrowest window: wide enough for all its lines plus 5 % each side
+  const wide = vZoom({ width: 2400, height: 3000, rects: [[200, 100, 1600, 40], [200, 150, 900, 40]] }, 960);
+  assert.equal(wide.s, 960 / (1600 * 1.1));
+  assert.ok(wide.rects.every(([x, , w]) => x >= 0 && x + w <= 960));
+  // nothing to mark (own screenshot without a box) or a quote as wide as the page: the whole capture
+  assert.equal(vZoom({ width: 2400, height: 3000, rects: [] }, 960).s, 960 / 2400);
+  assert.equal(vZoom({ width: 1000, height: 3000, rects: [[0, 0, 1000, 40]] }, 960).x0, 0);
 });

@@ -208,7 +208,22 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
   z nich = nowy zrzut i nowy `.mov` karty. Ten sam adres od nowa (strona się zmieniła): usuń te dwa pliki.
 - Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny, > 150 s na kartę) = `FAILED webshot <id>: powód` w `gfx.log`
   (render z `run_v4.sh`) albo w wyniku zadania w panelu (podgląd), i film się nie renderuje (`FAILED gfx`). Nieudany zrzut nie
-  zostaje w pamięci: po poprawce wystarczy uruchomić ponownie. Karta jest tylko do filmu 16:9 (shorty: później).
+  zostaje w pamięci: po poprawce wystarczy uruchomić ponownie.
+- **Short (9:16): `"canvas": "v"`**, wzorzec z rozbioru `style/REF-shorts-proof-cards.md`. Karta pokazuje stronę powiększoną na cytacie
+  (okno ≥ 40 % szerokości zrzutu, cytat + 5 % z boków; `gfx/webshot_lib.mjs` › `vZoom`), żeby tekst dało się przeczytać na telefonie.
+  Ten sam zrzut co w 16:9 (klucz go nie rozróżnia). Bez PiP w rogu. `"layout"`:
+  - `"split"` (domyślnie): jasne tło, karta u góry (y 110–992), twarz w boksie pod nią z zaokrąglonymi górnymi rogami
+    (`gfx_types.SPLIT`: x 130, y 1240, 820×680, węższy niż karta, żeby zmieścić głowę z brodą; `assemble.py` wycina go z kadru mówcy; punkt
+    w połowie między `face[1]` a `face_target_y` stoi na 58 % wysokości boksu, więc mieści się czubek głowy), napisy w szczelinie między kartą a boksem (`\pos(540,1150)`, `build_edl.py`). Boks znika 0,18 s przed
+    końcem karty (w połowie jej wygaszania);
+  - `"full"`: ciemne tło, sama karta (y 230–1132), napisy na swoim miejscu, bez twarzy.
+  `layout` tylko na `web` z `canvas: "v"` (inaczej nazwany błąd w `build_edl.py` i `render.mjs`). Karta 9:16 nie może wejść pod
+  `hook_text` (krytyk C2). Test: `tests/test_vertical_web.py`, `gfx/test/webshot.test.mjs`.
+  ```json
+  {"id": "w_mit", "type": "web", "canvas": "v", "dur": 4, "url": "https://…", "find": "dokładne zdanie"}
+  ```
+  Paywall, który rozmywa tekst (np. Fortune), przechodzi przez zrzut bez błędu i daje kartę z rozmytym tekstem: obejrzyj
+  `gfx/web/<klucz>.png` przed renderem; wtedy inne źródło albo własny zrzut (`img`).
 - Prawo cytatu: krótki fragment z podanym źródłem; nie pokazuj całych artykułów zza paywalla.
 
 ## Karta licznika `count` (liczba odliczana od 0)

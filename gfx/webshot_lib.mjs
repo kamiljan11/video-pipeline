@@ -110,6 +110,19 @@ export function motion(meta, viewH, dur) {
   return { target, start, scroll, mark };
 }
 
+// 9:16 "web" card (shorts): a whole 1200 px page in a 960 px card would leave 13 px letters on a phone, so the card shows a
+// window of the capture around the quote, at least V_MIN_WIN of its width (480 of 1200 CSS px: 16 px text -> 32 px) and
+// wide enough for the quote lines plus 5 % on each side; never wider than the capture. Returns the scale, the window's
+// left edge (capture px) and the shown size and marks (card px, x relative to the window) for motion() and the marks.
+export const V_MIN_WIN = 0.4;
+export function vZoom(meta, viewW) {
+  const q0 = meta.rects.length ? Math.min(...meta.rects.map(r => r[0])) : 0;
+  const q1 = meta.rects.length ? Math.max(...meta.rects.map(r => r[0] + r[2])) : meta.width;
+  const win = Math.min(meta.width, Math.max(meta.width * V_MIN_WIN, (q1 - q0) * 1.1));
+  const x0 = Math.min(Math.max((q0 + q1) / 2 - win / 2, 0), meta.width - win), s = viewW / win;
+  return { s, x0, height: meta.height * s, rects: meta.rects.map(([x, y, w, h]) => [(x - x0) * s, y * s, w * s, h * s]) };
+}
+
 // the capture depends on these only (not on dur/src/id); imgSum = content hash of an own screenshot, so a new file under the
 // same name is captured again. render.mjs keys the card's .mov by the same value.
 export const cacheKey = (sp, imgSum = null) => crypto.createHash('sha1').update(JSON.stringify({ v: 2, url: sp.url ?? null,

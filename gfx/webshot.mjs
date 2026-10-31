@@ -156,7 +156,6 @@ export async function capture(specFile, outDir, opts = {}) {
   }
 
   async function one(job, sp, key) {
-    if (sp.canvas === 'v') throw new Error('karta "web" jest na razie tylko do filmu 16:9 (canvas "v" nie obsługiwany)');
     if (sp.img) return own(job, sp, key);
     if (typeof sp.find !== 'string') throw new Error('brak "find" (zdanie ze strony do zaznaczenia)');
     const { res, url } = await head(sp.url);

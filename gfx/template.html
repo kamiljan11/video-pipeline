@@ -150,6 +150,12 @@ html.v .maxim.pill .t{font-size:72px;line-height:1.12;letter-spacing:-1px;color:
 html.v .maxim.pill .w.hl{color:var(--acc-dim)}
 html.v .maxim.pill .mk{opacity:.45}
 html.v .maxim.pill .caret{background:var(--acc-dim)}
+/* 9:16 "web" card (render.mjs WIN_V): "split" = light background, the card on top, the face box under it (assemble.py, gfx_types.SPLIT);
+   "full" = the dark background of the 16:9 card, the card alone. Accent frame + softer shadow: the card is the proof, not a slide */
+html.v .web.split{background:linear-gradient(180deg,var(--soft-2),var(--soft) 60%,var(--paper))}
+html.v .web .win{border:3px solid rgba(var(--acc-rgb),.9);border-radius:26px;box-shadow:0 24px 70px rgba(0,0,0,.35)}
+html.v .web .src{bottom:auto;font-size:28px;max-width:960px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.v .web.split .src{color:var(--paper-ink)}
 /* 9:16 end screen of a short (plan "tail" + gfx word "END"): where the full episode is, the subscribe line as a pill */
 html.v .endc{padding:0 80px;align-items:center;text-align:center}
 html.v .endc .t{font-size:96px;line-height:1.08;letter-spacing:-2px;max-width:920px;text-wrap:balance}

@@ -14,6 +14,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import edl_guard  # next to this script: what an EDL may carry into an ffmpeg command line
+import gfx_types  # next to this script: where a 9:16 split card puts the face box
 import themes  # next to this script (sys.path[0])
 
 edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]
@@ -147,6 +148,18 @@ for k, b in enumerate(BROLL):
     fc.append(f"[{i_broll + k}:v]trim=start={ss:.3f}:duration={b['dur']:.3f},setpts=PTS-STARTPTS+{b['at']:.3f}/TB,"
               f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H},setsar=1,fps=30,format=yuv420p[br{k}]")
     fc.append(f"[{last}][br{k}]overlay=eof_action=pass:format=auto[vb{k}]"); last = f"vb{k}"
+# 9:16 "web" card with layout "split" (build_edl.py): the face goes in a box under the card, over the card's own background.
+# The box is cut from the picture before the cards (the same frame, zooms included). In that picture the face is at its
+# recorded height fy in unzoomed shots and at TY in zoomed ones, so the box aims between the two and puts that point at 58 %
+# of its height: the box is wide, so it holds less height than the frame, and aiming at TY alone cut the top of the head
+# off (2026-10-31 short1 demo: fy 0.42, TY 0.48)
+splits = [o for o in edl.get("overlays", []) if o.get("split")] if vertical else []
+(bx, by, bw, bh), R = gfx_types.SPLIT["face_box"], gfx_types.SPLIT["radius"]
+if splits:
+    fc.append(f"[{last}]split=2[vsb][splitsrc]"); last = "vsb"
+    ch = round(bh * W / bw / 2) * 2  # source rows that fill the box at its width
+    y0 = int(min(max((fy + TY) / 2 * H - ch * 0.58, 0), H - ch))
+    fc.append(f"[splitsrc]crop={W}:{ch}:0:{y0},scale={bw}:{bh}:flags=lanczos,format=yuva444p[sf]")
 # picture-in-picture: face cam in the corner on top of full-screen slides
 pips = [o for o in edl.get("overlays", []) if o.get("pip")]
 pip_inputs = []
@@ -176,6 +189,16 @@ if pips:
 for b in BROLL:
     # a downloaded file: only the MP4 demuxer and local reads (an HLS playlist named .mp4 could open other files/URLs)
     inputs += ["-protocol_whitelist", "file", "-f", "mov", "-t", f"{b.get('ss', 0.0) + b['dur']:.3f}", "-i", b["file"]]
+if splits:  # after the cards, so the box sits on the card's background; gone just before the card fades out (FADE_OUT 0.35 s)
+    mask = os.path.join(out, "split_mask.png")  # white box, top corners rounded (alpha of the face box)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white:s={bw}x{bh}", "-frames:v", "1", "-vf",
+                    f"format=gray,geq=lum='if(lt(Y,{R})*(lt(X,{R})*gt(hypot({R}-X,{R}-Y),{R})+gt(X,{bw - R})*gt(hypot(X-{bw - R},{R}-Y),{R})),0,255)'",
+                    mask], check=True)
+    i_smask = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", mask]
+    s_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - 0.18:.3f})" for o in splits)
+    fc.append(f"[{i_smask}:v]format=gray[sm]")
+    fc.append("[sf][sm]alphamerge[sbox]")
+    fc.append(f"[{last}][sbox]overlay={bx}:{by}:enable={s_en}:shortest=1[vsp]"); last = "vsp"
 if edl.get("subs"):
     fc.append(f"[{last}]subtitles='{edl['subs']}':force_style='{edl.get('sub_style','')}'[vs]"); last = "vs"
 audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")

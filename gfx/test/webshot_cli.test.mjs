@@ -27,7 +27,6 @@ test('a refused card fails loudly and leaves no half capture', () => {
     [{ id: 'w2', type: 'web', dur: 6, url: 'https://localhost./', find: 'zdanie ze strony' }, /lokalny\/prywatny/],
     [{ id: 'w3', type: 'web', dur: 6, url: 'https://[::ffff:127.0.0.1]:8790/', find: 'zdanie ze strony' }, /lokalny\/prywatny/],
     [{ id: 'w4', type: 'web', dur: 6, img: '../poza.png' }, /sama nazwa pliku/],
-    [{ id: 'w5', type: 'web', dur: 6, url: 'https://example.com/', find: 'zdanie ze strony', canvas: 'v' }, /16:9/],
     [{ id: 'w6', type: 'web', dur: 6, url: 'https://example.com/' }, /brak "find"/],
   ];
   for (const [sp, why] of bad) {

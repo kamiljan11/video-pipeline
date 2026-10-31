@@ -10,7 +10,7 @@ from pathlib import Path
 import edges
 import edl_guard
 import themes
-from gfx_types import PIP, SIDE_BOX
+from gfx_types import PIP, SIDE_BOX, SPLIT
 
 P = json.loads(Path(sys.argv[1]).read_text())
 W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x in json.loads(Path(P["words"]).read_text())["transcription"]]
@@ -94,7 +94,13 @@ for g in P.get("gfx", []):
         c = [i for i in range(max(0, g["near"] - 25), min(len(W), g["near"] + 25)) if g["find"].lower() in W[i][2].lower()]
         g["word"] = min(c, key=lambda i: abs(i - g["near"]))
     at = total if g["word"] == "END" else src2out(W[g["word"]][0]) + g.get("lead", 0.0)
-    ovs.append({"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": specs[g["id"]]["dur"], "id": g["id"], "pip": specs[g["id"]].get("type") in PIP})
+    sp = specs[g["id"]]; vert = sp.get("canvas") == "v"
+    # 9:16 "web" card: "split" (default) = face in a box under the card (assemble.py), "full" = the card alone; no corner PiP
+    if "layout" in sp and (not vert or sp.get("type") != "web" or sp["layout"] not in ("split", "full")):
+        sys.exit(f"{g['id']}: layout = \"split\" or \"full\", only on a \"web\" card with canvas \"v\", got {sp['layout']!r}")
+    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert}
+    if vert and sp.get("type") == "web" and sp.get("layout", "split") == "split": o["split"] = True
+    ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
 for sg in out:
@@ -264,6 +270,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             sys.exit(f"{o['id']}: pill = true/false, only on a maxim with canvas \"v\", got {sp['pill']!r}")
     quiet = [(o["at"], o["at"] + o["dur"]) for o in ovs if specs.get(o["id"], {}).get("pill") is True]
     PILL_MIN_LEFT = 0.3  # s: a shorter rest of a line after the pill leaves would only flash
+    split_win = [(o["at"], o["at"] + o["dur"]) for o in ovs if o.get("split")]  # under a split "web" card: captions in the gap above the face box
     ev = []; i = 0
     CAP_ACC = themes.ass_color(THEME["acc"]) if THEME else "&HC4E22D"  # spoken word in the accent colour
     while i < len(kept):
@@ -276,6 +283,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]])
             s = max([w[0]] + [q1 for q0, q1 in quiet if q0 - 0.05 <= w[0] < q1])  # 0.05: card "at" is rounded to ms, the word is not
             if s > w[0] and e - s < PILL_MIN_LEFT: continue  # said under the pill: a line still on when it leaves shows from then, no blank gap
+            if any(q0 - 0.05 <= s < q1 for q0, q1 in split_win): txt = f"{{\\an5\\pos(540,{SPLIT['caption_y']})}}" + txt
             ev.append(f"Dialogue: 0,{ts(s, '.')[1:-1]},{ts(e, '.')[1:-1]},Cap,,0,0,0,,{txt}")
     if P.get("hook_text"):
         # BorderStyle 3 = opaque box drawn in OutlineColour (libass, like VSFilter); BackColour would only colour a shadow
