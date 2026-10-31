@@ -50,9 +50,9 @@ class PadsTest(unittest.TestCase):
         self.assertAlmostEqual(self.segments(keeps=((1, 2),), pads={"pre": 0.02})[0][0], 1.58, places=2)
 
     def test_keep_l_and_keep_r_set_the_pause_left_around_a_cut(self):
-        (_, out1), (in2, _) = self.segments(pads={"keep_l": 0.3, "keep_r": 0.2})
-        self.assertAlmostEqual(out1, 3.0 + 0.3, places=2)
-        self.assertAlmostEqual(in2, 3.95 - 0.2, places=2)
+        (_, out1), (in2, _) = self.segments(pads={"keep_l": 0.25, "keep_r": 0.15})
+        self.assertAlmostEqual(out1, 3.0 + 0.25, places=2)
+        self.assertAlmostEqual(in2, 3.95 - 0.15, places=2)
 
     def test_a_pause_shorter_than_mingap_is_not_cut(self):
         self.assertEqual(len(self.segments()), 2)
@@ -61,7 +61,8 @@ class PadsTest(unittest.TestCase):
     def test_bad_pads_are_named_errors(self):
         for bad, msg in (([0.2], "pads: object"), ({"pre": 0.2, "gap": 1}, "pads: object"),
                          ({"pre": "0.2"}, "pads.pre"), ({"post": True}, "pads.post"), ({"mingap": 3}, "pads.mingap"),
-                         ({"keep_l": -0.1}, "pads.keep_l")):
+                         ({"keep_l": -0.1}, "pads.keep_l"), ({"keep_l": 0.9, "keep_r": 0.9, "mingap": 0.1}, "below mingap"),
+                         ({"keep_l": 0.4}, "below mingap")):  # 0.4 + default keep_r 0.12 >= default mingap 0.45: pieces would overlap
             with self.subTest(bad=bad):
                 r = self.build(pads=bad)
                 self.assertNotEqual(r.returncode, 0)

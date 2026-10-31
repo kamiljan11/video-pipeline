@@ -27,6 +27,9 @@ if _pads is not None:
     for _k, _v in _pads.items():
         if isinstance(_v, bool) or not isinstance(_v, (int, float)) or not 0 <= _v <= 2: sys.exit(f"pads.{_k}: seconds 0..2, got {_v!r}")
     PRE, POST, MINGAP, KEEP_L, KEEP_R = (_pads.get(k, d) for k, d in (("pre", PRE), ("post", POST), ("mingap", MINGAP), ("keep_l", KEEP_L), ("keep_r", KEEP_R)))
+    # a shortened pause is longer than mingap and keeps keep_l + keep_r of it: more than mingap would let the next piece start
+    # before the previous one ends (the same sound twice)
+    if KEEP_L + KEEP_R >= MINGAP: sys.exit(f"pads: keep_l + keep_r ({KEEP_L:g} + {KEEP_R:g}) must be below mingap ({MINGAP:g})")
 ranges = []
 EF = edges.options(P); ENERGY = None; moved = 0  # plan key "edge_fix" (edges.py): dead air / loud cuts at keep edges
 if EF is not None and EF["dips"]:
