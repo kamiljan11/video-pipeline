@@ -5,14 +5,20 @@ memes.py takes only JPEG/PNG pictures from i.imgflip.com and writes the boxes of
 """
 from __future__ import annotations
 
+import io
 import json
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.error
+import urllib.request
+from email.message import Message
+from http.client import HTTPMessage
 from pathlib import Path
 from typing import ClassVar
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -73,6 +79,57 @@ class MemesToolTest(unittest.TestCase):
     def test_a_picture_from_another_host_is_refused(self):
         with self.assertRaises(ValueError):
             memes.entry("drake", {**self.TPL, "url": "https://evil.example/x.jpg"}, {"boxes": []}, "jpg", "2026-10-31")
+
+    def opener(self, *replies):
+        """build_opener() stand-in: each open() gives the next reply (bytes, or an exception to raise)"""
+        it = iter(replies)
+        class Reply:
+            def __init__(self, url, body): self.url, self.body = url, body
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def geturl(self): return self.url
+            def read(self, n): return self.body[:n]
+        class Opener:
+            def open(self, req, timeout):
+                r = next(it)
+                if isinstance(r, BaseException): raise r
+                url, body = r if isinstance(r, tuple) else (req.full_url, r)
+                return Reply(url, body)
+        return mock.patch.object(urllib.request, "build_opener", return_value=Opener())
+
+    def add(self, *replies):
+        out = tempfile.mkdtemp(prefix="memes-out-"); self.addCleanup(shutil.rmtree, out, True)
+        with self.opener(*replies), mock.patch.object(memes, "OUT", out):
+            return memes.add("drake"), out
+
+    API_OK = json.dumps({"success": True, "data": {"memes": [{**TPL, "id": "181913649"}]}}).encode()
+
+    def test_add_saves_the_picture_and_its_json(self):
+        path, out = self.add(self.API_OK, b"\xff\xd8\xffpicture")
+        self.assertEqual(Path(path).read_bytes(), b"\xff\xd8\xffpicture")
+        self.assertEqual(json.loads((Path(out) / "drake.json").read_text())["source"], self.TPL["url"])
+        self.assertEqual(sorted(p.name for p in Path(out).iterdir()), ["drake.jpg", "drake.json"])  # no .part left
+
+    def test_failures_are_named_and_leave_nothing(self):
+        cases = {"timeout": (TimeoutError("timed out"),), "429": (urllib.error.HTTPError(memes.API, 429, "Too Many", Message(), None),),
+                 "api says no": (json.dumps({"success": False, "error_message": "down"}).encode(),),
+                 "not json": (b"<html>",), "too big": (self.API_OK, b"\xff\xd8\xff" + b"0" * memes.MAX_BYTES),
+                 "not a picture": (self.API_OK, b"<html>"), "answered elsewhere": (self.API_OK, ("https://evil.example/x", b"\xff\xd8\xff"))}
+        for name, replies in cases.items():
+            with self.subTest(name=name):
+                out = tempfile.mkdtemp(prefix="memes-out-"); self.addCleanup(shutil.rmtree, out, True)
+                with self.opener(*replies), mock.patch.object(memes, "OUT", out), self.assertRaises((ValueError, OSError)) as cm:
+                    memes.add("drake")
+                self.assertTrue(str(cm.exception))
+                self.assertEqual(list(Path(out).iterdir()), [])
+
+    def test_a_redirect_may_not_leave_https_or_the_host(self):
+        h, req = memes._SameHost(), urllib.request.Request("https://i.imgflip.com/a.jpg")
+        for bad in ("http://i.imgflip.com/a.jpg", "https://evil.example/a.jpg", "https://127.0.0.1/a.jpg"):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                h.redirect_request(req, io.BytesIO(), 302, "Found", HTTPMessage(), bad)
+        self.assertIsNotNone(h.redirect_request(req, io.BytesIO(), 302, "Found", HTTPMessage(), "https://i.imgflip.com/b.jpg"))
+        with self.assertRaises(ValueError): memes.get("http://i.imgflip.com/a.jpg", 10)
 
     def test_catalogue_boxes_are_well_formed(self):
         cat = json.loads((ROOT / "style" / "memes.json").read_text())

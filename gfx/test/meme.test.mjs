@@ -10,6 +10,8 @@ test.after(() => fs.rmSync(work, { recursive: true, force: true }));
 const lib = path.join(work, 'memes'); fs.mkdirSync(lib);
 // a 400x400 red picture; one box over its right half (dark words)
 execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=400x400', '-frames:v', '1', path.join(lib, 'red.png')]);
+fs.writeFileSync(path.join(lib, 'nopic.json'), JSON.stringify({ name: 'N', img: 'gone.png', width: 10, height: 10, boxes: [] }));
+fs.writeFileSync(path.join(lib, 'badbox.json'), JSON.stringify({ name: 'B', img: 'red.png', width: 400, height: 400, boxes: [[0, 0, 1, 1, 'blue']] }));
 fs.writeFileSync(path.join(lib, 'red.json'), JSON.stringify({ name: 'Red', img: 'red.png', width: 400, height: 400, boxes: [[0.5, 0, 0.5, 0.5, 'dark']] }));
 
 const render = specs => {
@@ -35,8 +37,9 @@ test('a split meme sits in the top part, above the face box, with its words on t
 });
 
 test('an unknown meme or too many words stop the card by name', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
-  for (const [sp, why] of [[{ meme: 'nope' }, /meme "nope" not in/], [{ meme: 'red', text: ['a', 'b'] }, /1 text box/], [{ meme: '../x' }, /not in/],
-                           [{ meme: 'red', canvas: undefined }, /9:16 card/]]) {
+  for (const [sp, why] of [[{ meme: 'nope' }, /meme "nope": not in/], [{ meme: 'red', text: ['a', 'b'] }, /1 text box/], [{ meme: '../x' }, /not in/],
+                           [{ meme: 'red', canvas: undefined }, /9:16 card/], [{ meme: 'red', text: ['a'], at: ['1'] }, /"at" = seconds/],
+                           [{ meme: 'nopic' }, /picture "gone.png" missing/], [{ meme: 'badbox' }, /boxes \[x, y, w, h/]]) {
     const r = render([{ id: 'm2', type: 'meme', canvas: 'v', dur: 2, ...sp }]);
     assert.notEqual(r.status, 0, JSON.stringify(sp));
     assert.match(r.stderr, why);

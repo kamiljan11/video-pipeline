@@ -113,8 +113,8 @@ export async function capture(specFile, outDir, opts = {}) {
         for (const el of document.querySelectorAll('body *')) {
           if (quote.some(n => el.contains(n))) continue;
           // a consent layer in the page flow (intelligentcio.com: div.cf_modal_container, position static) is known by its
-          // id/class only: by its text it would also hit an article that talks about cookies
-          if (/cookie|consent|gdpr|cmp-|cf_modal/i.test(el.id + ' ' + el.className)) { el.style.setProperty('display', 'none', 'important'); continue; }
+          // id/class only: by its text it would also hit an article that talks about cookies; no "cmp-" (AEM content: cmp-text)
+          if (/cookie|consent|gdpr|cf_modal/i.test(el.id + ' ' + el.className)) { el.style.setProperty('display', 'none', 'important'); continue; }
           const cs = getComputedStyle(el);
           if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
           const r = el.getBoundingClientRect(), big = r.width * r.height > area * 0.2;

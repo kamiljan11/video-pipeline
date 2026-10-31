@@ -7,7 +7,7 @@ skecze POV). Poprzedni wzorzec (karty-dowody, split): `style/REF-shorts-proof-ca
 
 | kanał | memy | co robi najlepiej |
 |---|---|---|
-| UFD Tech (0,3–1,5 mln wyśw.) | 21 pozycji w 7 filmach, ~1 na 8–10 s, 0,5–4 s (mediana 1,7 s), bez dźwięku, zawsze pod konkretną frazę („or else” -> Arthur, „sunk cost” -> Teddy KGB, „Swiss” -> „I'm Switzerland”, „always watching” -> Roz) | co 5–12 s zmiana trybu: twarz <-> rozmyta twarz + karta; nigdy > 12 s bez nowego obrazu |
+| UFD Tech (0,3–1,5 mln wyśw.) | 21 pozycji w 7 filmach (~12 to memy sensu stricto), ~1 na 8–10 s, 0,5–5,8 s (mediana 1,7 s), bez dźwięku, zawsze pod konkretną frazę („or else” -> Arthur, „sunk cost” -> Teddy KGB, „Swiss” -> „I'm Switzerland”, „always watching” -> Roz) | co 5–12 s zmiana trybu: twarz <-> rozmyta twarz + karta; nigdy > 12 s bez nowego obrazu |
 | Norbert Bodziony | brak klasycznych memów; znane symbole jako naklejki (logo, flaga) za głową | split dowód/twarz 80–90 % czasu, flash light-leak 0,25 s przy wejściu dowodu, licznik, marker na frazie |
 | Taher Shabaan (FB) | brak | animowany panel u góry, twarz na dole, napis na szwie |
 

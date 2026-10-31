@@ -78,16 +78,27 @@ function web(sp) {
 // render/memes/ (memes.py add <slug>), never in the public repo. "text" i comes in at "at"[i] s (default 0.25 + 0.7 i).
 const MEMES = process.env.VP_MEMES ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'render', 'memes');  // VP_MEMES: tests
 const MEME_BOX = { split: { y: 120, h: 880 }, full: { y: 260, h: 1240 } };  // split: ends above the captions (gfx_types.SPLIT)
+const CATALOGUE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'style', 'memes.json');
+// the picture's own json (name, size, file) + the text boxes of the catalogue in the repo (a fixed box works without a new
+// fetch; a picture placed by hand keeps the boxes of its own json); every field checked, so a bad one stops the card by name
 const memeLib = sp => {
-  const f = `${MEMES}/${sp.meme}.json`;
-  if (typeof sp.meme !== 'string' || !/^[a-z0-9_]+$/.test(sp.meme) || !fs.existsSync(f)) throw new Error(`"${sp.id}": meme ${JSON.stringify(sp.meme)} not in ${MEMES} (python3 memes.py add <slug>)`);
-  return JSON.parse(fs.readFileSync(f, 'utf8'));
+  const f = `${MEMES}/${sp.meme}.json`, bad = why => new Error(`"${sp.id}": meme ${JSON.stringify(sp.meme)}: ${why}`);
+  if (typeof sp.meme !== 'string' || !/^[a-z0-9_]+$/.test(sp.meme) || !fs.existsSync(f)) throw bad(`not in ${MEMES} (python3 memes.py add <slug>)`);
+  let m; try { m = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { throw bad(`${f}: ${e.message}`); }
+  const cat = JSON.parse(fs.readFileSync(CATALOGUE, 'utf8'))[sp.meme];
+  if (cat?.boxes) m.boxes = cat.boxes;
+  const box = b => Array.isArray(b) && b.length === 5 && b.slice(0, 4).every(x => typeof x === 'number' && x >= 0 && x <= 1) && ['dark', 'light'].includes(b[4]);
+  if (!(m.width > 0 && m.height > 0) || !Array.isArray(m.boxes) || !m.boxes.every(box)) throw bad(`${f}: needs width, height and boxes [x, y, w, h, "dark"|"light"]`);
+  if (typeof m.img !== 'string' || !/^[a-z0-9_]+\.(jpg|png)$/.test(m.img) || !fs.existsSync(`${MEMES}/${m.img}`)) throw bad(`picture ${JSON.stringify(m.img)} missing in ${MEMES}`);
+  return m;
 };
 function meme(sp) {
   const layout = sp.layout ?? 'split', B = MEME_BOX[layout];
   if (sp.canvas !== 'v' || !B) throw new Error(`"${sp.id}": a meme is a 9:16 card (canvas "v"), layout "split" or "full", got ${JSON.stringify(sp.layout)}`);
   const m = memeLib(sp), texts = sp.text ?? [];
   if (!Array.isArray(texts) || texts.length > m.boxes.length) throw new Error(`"${sp.id}": "${sp.meme}" has ${m.boxes.length} text box(es), got ${JSON.stringify(sp.text)}`);
+  if (sp.at !== undefined && !(Array.isArray(sp.at) && sp.at.every(t => typeof t === 'number' && t >= 0 && t < sp.dur)))
+    throw new Error(`"${sp.id}": "at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
   const s = Math.min(960 / m.width, B.h / m.height), w = Math.round(m.width * s), h = Math.round(m.height * s);
   const left = Math.round((1080 - w) / 2), top = Math.round(B.y + (B.h - h) / 2);
   const boxes = texts.map((t, i) => {
