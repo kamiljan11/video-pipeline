@@ -308,6 +308,9 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
 - **`"caption_box": true`** w planie shorta (R2): napisy w pełnym boxie w kolorze `--ink` motywu (bez motywu czarny), 80 px,
   środek ~64 % wysokości (pod brodą) zamiast gołego tekstu z obrysem na ~72 %. Box nieprzezroczysty: libass rysuje box osobno
   dla każdego kawałka koloru, półprzezroczyste nachodzą na siebie ciemnymi pasami. Bez klucza = stare napisy (test bit w bit).
+- **Pasek z nazwą (`lower`) w 9:16** stoi w lewym górnym rogu (`top: 300px`, `gfx/template.html`), nie na dole jak w 16:9: dół
+  kadru należy do napisów i pigułki. Górny pas dzieli z `hook_text`, więc w planie wchodzi po haku: `"lead"` ≥ `hook_dur`
+  (np. `{"id": "l_name", "word": 0, "lead": 3.2}` przy haku 3 s).
 - **Ręczne `"pill": true` na karcie, która ma już `.mov`:** `gfx/render.mjs` nie renderuje jej ponownie (stary wygląd u góry, a napisy
   i tak pauzują). Odsuń `gfx/<id>.mov` albo dodaj nową kartę (nowe `id`); panel odsuwa stary `.mov` sam.
 - **Wymiary pigułki i boxa są w kodzie** (`gfx/template.html`, styl `Cap` w `build_edl.py`), nie w danych: jedna seria, jeden styl
