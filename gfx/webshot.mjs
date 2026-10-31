@@ -108,15 +108,20 @@ export async function capture(specFile, outDir, opts = {}) {
       if (!spans) throw new Error(`nie ma cytatu na stronie (sprawdź brzmienie albo daj własny zrzut "img"): „${sp.find}”`);
       // cookie/newsletter layers are hidden, never answered (no consent is given on Kamil's behalf); never the quote's own box
       await pg.addStyleTag({ content: '#onetrust-banner-sdk,#onetrust-consent-sdk,#CybotCookiebotDialog,#didomi-host,#usercentrics-root,.fc-consent-root,.qc-cmp2-container,.cc-window,#cookie-law-info-bar,.cmplz-cookiebanner{display:none!important}html,body{overflow:visible!important}' });
-      await pg.evaluate((pieces) => {
+      const hideLayers = () => pg.evaluate((pieces) => {
         const quote = pieces.map(i => window.__vpNodes[i]), area = innerWidth * innerHeight;
         for (const el of document.querySelectorAll('body *')) {
+          if (quote.some(n => el.contains(n))) continue;
+          // a consent layer in the page flow (intelligentcio.com: div.cf_modal_container, position static) is known by its
+          // id/class only: by its text it would also hit an article that talks about cookies
+          if (/cookie|consent|gdpr|cmp-|cf_modal/i.test(el.id + ' ' + el.className)) { el.style.setProperty('display', 'none', 'important'); continue; }
           const cs = getComputedStyle(el);
-          if ((cs.position !== 'fixed' && cs.position !== 'sticky') || quote.some(n => el.contains(n))) continue;
+          if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
           const r = el.getBoundingClientRect(), big = r.width * r.height > area * 0.2;
           if (big || /cookie|ciasteczk|consent|zgod|rodo|gdpr|newsletter|subscribe/i.test(el.id + ' ' + el.className + ' ' + (el.innerText || '').slice(0, 300))) el.style.setProperty('display', 'none', 'important');
         }
       }, spans.map(s => s.piece));
+      await hideLayers();
       const rectsOf = () => pg.evaluate((spans) => {
         const out = [];
         for (const s of spans) {
@@ -131,6 +136,7 @@ export async function capture(specFile, outDir, opts = {}) {
       for (let y = 0; y < qy0 + AFTER; y += 700) { await pg.evaluate(y => scrollTo(0, y), y); await pg.waitForTimeout(120); }
       await pg.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
       await pg.evaluate(() => scrollTo(0, 0)); await pg.waitForTimeout(300);
+      await hideLayers();  // a consent layer that came in while scrolling (2026-10-31: intelligentcio.com at phone width)
       const { rects, docH } = await rectsOf();
       if (!rects.length) throw new Error(`cytat jest w ukrytym elemencie strony: „${sp.find}”`);
       if (!allowedRequest(pg.url())) throw new Error(`strona przekierowała na adres lokalny: ${pg.url().slice(0, 80)}`);
