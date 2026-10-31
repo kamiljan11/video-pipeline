@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (pure helpers of the "web" card; the browser part is checked by hand, see README)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { checkUrl, allowedRequest, privateIp, findQuote, lines, motion, pdfWords, cacheKey, vZoom, V_MIN_WIN } from '../webshot_lib.mjs';
+import { checkUrl, allowedRequest, privateIp, findQuote, lines, motion, pdfWords, cacheKey, vZoom, V_MIN_WIN, V_MIN_WIN_PHONE, viewOf, VIEW, VIEW_V } from '../webshot_lib.mjs';
 
 test('only public https pages are captured', () => {
   assert.equal(checkUrl('https://en.wikipedia.org/wiki/Teleprompter').hostname, 'en.wikipedia.org');
@@ -72,6 +72,9 @@ test('cache key changes with what is captured, not with timing', () => {
   const own = { id: 'w3', type: 'web', dur: 6, img: 'zrzut.png' };
   for (const b of [{ ...own, box: [1, 2, 3, 4] }, { ...own, title: 'Raport' }]) assert.notEqual(cacheKey(own), cacheKey(b));
   assert.notEqual(cacheKey(own, 'aaa'), cacheKey(own, 'bbb'));  // a new file under the same name
+  // a 9:16 card has its own capture (phone width); a 16:9 card keeps the key it had before 9:16 existed (no re-capture)
+  assert.equal(cacheKey(a), 'fae9cb8fc1203072');
+  assert.notEqual(cacheKey({ ...a, canvas: 'v' }), cacheKey(a));
 });
 
 test('9:16 card: zoomed on the quote, never past the capture edges', () => {
@@ -93,4 +96,11 @@ test('9:16 card: zoomed on the quote, never past the capture edges', () => {
   // nothing to mark (own screenshot without a box) or a quote as wide as the page: the whole capture
   assert.equal(vZoom({ width: 2400, height: 3000, rects: [] }, 960).s, 960 / 2400);
   assert.equal(vZoom({ width: 1000, height: 3000, rects: [[0, 0, 1000, 40]] }, 960).x0, 0);
+});
+
+test('9:16 card: captured at phone width, shown with only a light zoom', () => {
+  assert.equal(viewOf({ canvas: 'v' }), VIEW_V);
+  assert.equal(viewOf({}), VIEW);
+  const z = vZoom({ width: 1290, height: 5000, phone: true, rects: [[200, 2000, 300, 50]] }, 960);
+  assert.equal(z.s, 960 / (1290 * V_MIN_WIN_PHONE));
 });

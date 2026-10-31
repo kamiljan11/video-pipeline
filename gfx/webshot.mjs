@@ -8,7 +8,7 @@
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import fs from 'fs'; import https from 'https'; import path from 'path'; import { execFile } from 'child_process';
 import { pathToFileURL } from 'url'; import { promisify } from 'util';
-import { VIEW, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, blockedIp, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
+import { viewOf, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, blockedIp, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
 import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy } from './netguard.mjs';
 
 // poppler/ffmpeg on a hostile or huge file must not hang the render: 120 s each, and killed with the card when it runs
@@ -88,6 +88,7 @@ export async function capture(specFile, outDir, opts = {}) {
     // sandboxed: the page and its third-party scripts come from the internet (Playwright adds --no-sandbox otherwise)
     if (browser && !browser.isConnected()) browser = null;  // Chrome died (crash, out of memory): start a new one
     browser ??= await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: chromeArgs, proxy: chromeProxy(proxy) });
+    const VIEW = viewOf(sp);  // 9:16 card: phone width (webshot_lib VIEW_V)
     const ctx = await browser.newContext({ viewport: { width: VIEW.width, height: VIEW.height }, deviceScaleFactor: VIEW.scale, locale: 'pl-PL',
       acceptDownloads: false, ignoreHTTPSErrors: Boolean(testCa) });
     try {
@@ -138,7 +139,7 @@ export async function capture(specFile, outDir, opts = {}) {
       await pg.screenshot({ path: path.join(dir, `${key}.png`), fullPage: true, clip: { x: 0, y: y0, width: VIEW.width, height: Math.max(VIEW.height, y1 - y0) } });
       const [width, height] = await size(job, path.join(dir, `${key}.png`));
       const k = width / VIEW.width, final = new URL(pg.url());
-      return save(job, key, { kind: 'page', url: sp.url, final_url: final.href, host: final.hostname, title: (await pg.title()).trim(), width, height,
+      return save(job, key, { kind: 'page', url: sp.url, final_url: final.href, host: final.hostname, title: (await pg.title()).trim(), width, height, phone: sp.canvas === 'v',
         rects: lines(rects.map(([x, y, w, h]) => [x * k, (y - y0) * k, w * k, h * k])) });
     } finally {
       await ctx.close().catch(() => {});  // already gone when the card ran out of time
