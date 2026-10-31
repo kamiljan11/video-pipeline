@@ -290,13 +290,26 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     split_win = [(o["at"], o["at"] + o["dur"]) for o in ovs if o.get("split")]  # under a split "web" card: captions in the gap above the face box
     ev = []; i = 0
     CAP_ACC = themes.ass_color(THEME["acc"]) if THEME else "&HC4E22D"  # spoken word in the accent colour
+    # caption_case "as_said": words as transcribed (sentence case) instead of CAPS; caption_ahead "dim": a word of the line not
+    # said yet stands grey and turns white when said (REF-shorts-proof-cards.md, "Napisy"); both default to the old look
+    CASE = P.get("caption_case", "upper")
+    if CASE not in ("upper", "as_said"): sys.exit(f"caption_case: \"upper\" or \"as_said\", got {CASE!r}")
+    AHEAD = P.get("caption_ahead", "same")
+    if AHEAD not in ("same", "dim"): sys.exit(f"caption_ahead: \"same\" or \"dim\", got {AHEAD!r}")
+    CAP_DIM = "&H8C8C8C"  # grey of a word not said yet: readable on the face, clearly behind the white ones
+    def cap_word(x, k, j):
+        t = x[2].strip(",.")
+        t = t.upper() if CASE == "upper" else t
+        if k == j: return "{\\c" + CAP_ACC + "&}" + t + "{\\c&HFFFFFF&}"
+        if k > j and AHEAD == "dim": return "{\\c" + CAP_DIM + "&}" + t + "{\\c&HFFFFFF&}"
+        return t
     while i < len(kept):
         grp = [kept[i]]; i += 1
         while i < len(kept) and len(grp) < 3 and len(" ".join(x[2] for x in grp + [kept[i]])) <= 18 and not re.search(r"[.?!,]$", grp[-1][2]):
             grp.append(kept[i]); i += 1
         for j, w in enumerate(grp):  # karaoke-style: current word in accent colour
             end = grp[j + 1][0] if j + 1 < len(grp) else (kept[i][0] if i < len(kept) else w[1])
-            txt = " ".join(("{\\c" + CAP_ACC + "&}" + x[2].strip(",.").upper() + "{\\c&HFFFFFF&}") if k == j else x[2].strip(",.").upper() for k, x in enumerate(grp))
+            txt = " ".join(cap_word(x, k, j) for k, x in enumerate(grp))
             # a line ends where a pill comes in, and where a split card comes or goes (the next word's line takes the other spot)
             e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]] + [q for sw in split_win for q in sw if q > w[0] + 0.05])
             s = max([w[0]] + [q1 for q0, q1 in quiet if q0 - 0.05 <= w[0] < q1])  # 0.05: card "at" is rounded to ms, the word is not

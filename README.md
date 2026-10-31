@@ -323,6 +323,10 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
 - **`"caption_box": true`** w planie shorta (R2): napisy w pełnym boxie w kolorze `--ink` motywu (bez motywu czarny), 80 px,
   środek ~64 % wysokości (pod brodą) zamiast gołego tekstu z obrysem na ~72 %. Box nieprzezroczysty: libass rysuje box osobno
   dla każdego kawałka koloru, półprzezroczyste nachodzą na siebie ciemnymi pasami. Bez klucza = stare napisy (test bit w bit).
+- **`"caption_case": "as_said"`** (domyślnie `"upper"`): słowa tak, jak je zapisał whisper (wielka litera tylko na początku
+  zdania), zamiast CAPS. **`"caption_ahead": "dim"`** (domyślnie `"same"`): słowo z linii, które jeszcze nie padło, stoi szare
+  (`&H8C8C8C`), wypowiadane jest w akcencie, wypowiedziane białe. Oba za wzorcem `style/REF-shorts-proof-cards.md` („Napisy”);
+  inna wartość = nazwany błąd; bez kluczy napisy jak dotąd (`tests/test_caption_style.py`).
 - **Pasek z nazwą (`lower`) w 9:16** stoi w lewym górnym rogu (`top: 300px`, `gfx/template.html`), nie na dole jak w 16:9: dół
   kadru należy do napisów i pigułki. Górny pas dzieli z `hook_text`, więc w planie wchodzi po haku: `"lead"` ≥ `hook_dur`
   (np. `{"id": "l_name", "word": 0, "lead": 3.2}` przy haku 3 s).
