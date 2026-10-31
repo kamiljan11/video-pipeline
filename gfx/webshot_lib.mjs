@@ -3,6 +3,10 @@
 import crypto from 'crypto'; import fs from 'fs'; import net from 'net'; import os from 'os'; import path from 'path';
 
 export const VIEW = { width: 1200, height: 900, scale: 2 };  // CSS px of the captured browser window (narrow = bigger text in the card), device scale
+// a 9:16 card (canvas "v") captures a page at phone width: the site's own mobile layout has one column of large text, so a
+// narrow column (The Register: 16 px text in a 1200 px page) no longer ends up as small print in the card; scale 3 = 1290 px
+export const VIEW_V = { width: 430, height: 932, scale: 3 };
+export const viewOf = sp => sp.canvas === 'v' ? VIEW_V : VIEW;
 export const BEFORE = 2400, AFTER = 1000;                    // CSS px kept above / below the quote in the shot
 export const PER_CARD = 150000;                               // ms a card may take (webshot fails it; render.mjs allows that many)
 
@@ -115,18 +119,21 @@ export function motion(meta, viewH, dur) {
 // wide enough for the quote lines plus 5 % on each side; never wider than the capture. Returns the scale, the window's
 // left edge (capture px) and the shown size and marks (card px, x relative to the window) for motion() and the marks.
 export const V_MIN_WIN = 0.4;
+export const V_MIN_WIN_PHONE = 0.9;  // a phone-width capture (meta.phone) is one column already: only a light zoom
 export function vZoom(meta, viewW) {
   const q0 = meta.rects.length ? Math.min(...meta.rects.map(r => r[0])) : 0;
   const q1 = meta.rects.length ? Math.max(...meta.rects.map(r => r[0] + r[2])) : meta.width;
-  const win = Math.min(meta.width, Math.max(meta.width * V_MIN_WIN, (q1 - q0) * 1.1));
+  const win = Math.min(meta.width, Math.max(meta.width * (meta.phone ? V_MIN_WIN_PHONE : V_MIN_WIN), (q1 - q0) * 1.1));
   const x0 = Math.min(Math.max((q0 + q1) / 2 - win / 2, 0), meta.width - win), s = viewW / win;
   return { s, x0, height: meta.height * s, rects: meta.rects.map(([x, y, w, h]) => [(x - x0) * s, y * s, w * s, h * s]) };
 }
 
 // the capture depends on these only (not on dur/src/id); imgSum = content hash of an own screenshot, so a new file under the
 // same name is captured again. render.mjs keys the card's .mov by the same value.
+// a 9:16 card adds "phone" (its own capture at phone width); a 16:9 card's key is the same as before it existed
 export const cacheKey = (sp, imgSum = null) => crypto.createHash('sha1').update(JSON.stringify({ v: 2, url: sp.url ?? null,
-  find: sp.find ?? null, img: sp.img ?? null, page: sp.page ?? null, box: sp.box ?? null, title: sp.title ?? null, imgSum })).digest('hex').slice(0, 16);
+  find: sp.find ?? null, img: sp.img ?? null, page: sp.page ?? null, box: sp.box ?? null, title: sp.title ?? null, imgSum,
+  ...(sp.canvas === 'v' && !sp.img ? { phone: true } : {}) })).digest('hex').slice(0, 16);
 
 export const MAX_IMG = 50 << 20;
 // an own screenshot: a plain file name (as the panel accepts it) of a regular file in the folder of the specs

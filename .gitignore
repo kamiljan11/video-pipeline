@@ -1,6 +1,6 @@
 # outputs, caches and third-party trees (rebuilt or downloaded, not source)
-render/
-node_modules/
+/render
+node_modules
 .venv/
 __pycache__/
 .ruff_cache/

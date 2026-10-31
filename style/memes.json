@@ -1,0 +1,9 @@
+{
+ "_doc": "Meme templates for the 9:16 \"meme\" card (gfx/render.mjs). imgflip = template id in https://api.imgflip.com/get_memes; boxes = where the spec's \"text\" goes, [x, y, w, h] as fractions of the picture + \"dark\" (black on a light area) or \"light\" (white with an outline). Fetch: python3 memes.py add <slug> (picture -> render/memes/, out of the public repo).",
+ "drake": {"imgflip": "181913649", "boxes": [[0.5, 0.0, 0.5, 0.5, "dark"], [0.5, 0.5, 0.5, 0.5, "dark"]],
+           "use": "odrzucam X (góra) / wybieram Y (dół)"},
+ "woman_yelling_at_cat": {"imgflip": "188390779", "boxes": [[0.0, 0.0, 0.5, 0.25, "dark"], [0.5, 0.0, 0.5, 0.25, "dark"]],
+           "use": "głośne pretensje (lewo) vs spokojny, mały winny (prawo)"},
+ "sad_pablo_escobar": {"imgflip": "80707627", "boxes": [[0.0, 0.0, 1.0, 0.16, "light"], [0.0, 0.84, 1.0, 0.16, "light"]],
+           "use": "czekanie w pustce, nikt nie przychodzi"}
+}
