@@ -1,7 +1,7 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
-import { PER_CARD, keyOf, motion } from './webshot_lib.mjs';
+import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
@@ -47,23 +47,30 @@ function maxim(sp) {
 }
 // "web": the cited page in a browser window (capture: webshot.mjs), scrolled to the quote, which is then marked
 const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right
+// 9:16 (shorts): "split" (default) = the card in the top part over a light background; assemble.py puts the face in a box under
+// it (gfx_types.SPLIT) and build_edl.py moves the captions into the gap; "full" = the card alone on the dark background
+const WIN_V = { split: { x: 60, y: 110, w: 960, view: 760 }, full: { x: 50, y: 230, w: 980, view: 780 } };
+const CHROME = 122;  // tab row 64 + address bar 58 (template.html .web .top/.addr)
 function web(sp) {
   const base = `${outDir}/web/${keyOf(specFile, sp)}`;
   if (!fs.existsSync(`${base}.json`)) throw new Error(`no capture for "${sp.id}": run gfx/webshot.mjs first`);
-  const m = JSON.parse(fs.readFileSync(`${base}.json`, 'utf8')), s = WIN.w / m.width;
-  const shown = { height: m.height * s, rects: m.rects.map(([x, y, w, h]) => [x * s, y * s, w * s, h * s]) };
-  const mo = motion(shown, WIN.view, sp.dur), id = sp.id.replace(/[^\w-]/g, '_');
+  const v = sp.canvas === 'v', layout = sp.layout ?? 'split', W = v ? WIN_V[layout] : WIN;
+  if (!W || (!v && sp.layout !== undefined)) throw new Error(`"${sp.id}": layout "split" or "full", only on a 9:16 card (canvas "v"), got ${JSON.stringify(sp.layout)}`);
+  const m = JSON.parse(fs.readFileSync(`${base}.json`, 'utf8'));
+  const z = v ? vZoom(m, W.w) : { s: W.w / m.width, x0: 0 };
+  const shown = v ? z : { height: m.height * z.s, rects: m.rects.map(([x, y, w, h]) => [x * z.s, y * z.s, w * z.s, h * z.s]) };
+  const mo = motion(shown, W.view, sp.dur), id = sp.id.replace(/[^\w-]/g, '_');
   const anim = mo.scroll ? `animation:ws_${id} ${mo.scroll}s cubic-bezier(.45,0,.2,1) ${mo.start}s both` : '';
   const marks = shown.rects.map(([x, y, w, h], i) => `<div class="hl" style="left:${x - 6}px;top:${y - 4}px;width:${w + 12}px;height:${h + 8}px;animation:hl .5s ${(mo.mark + i * 0.25).toFixed(2)}s ease-out both"></div>`).join('');
   const day = new Date(m.captured).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const addr = m.final_url ? m.final_url.replace(/^https:\/\//, '') : (m.host || '');
   const src = sp.src || `Źródło: ${m.host || m.title}${m.title && m.host ? ` · ${m.title}` : ''}${m.kind === 'pdf' ? ` · str. ${m.page}` : ''}`;
   return `<style>@keyframes ws_${id}{from{transform:translateY(0)}to{transform:translateY(-${mo.target.toFixed(0)}px)}}</style>`
-    + `<div class="web"><div class="win" style="left:${WIN.x}px;top:${WIN.y}px;width:${WIN.w}px">`
+    + `<div class="web${v ? ` ${layout}` : ''}"><div class="win" style="left:${W.x}px;top:${W.y}px;width:${W.w}px">`
     + `<div class="top"><i></i><i></i><i></i><span class="tab">${esc(m.title || m.host)}</span></div>`
     + `<div class="addr"><span class="lock"></span>${esc(addr)}</div>`
-    + `<div class="view" style="height:${WIN.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${WIN.w}px">${marks}</div></div></div>`
-    + `<div class="src">${esc(src)} · stan na ${day}</div></div>`;
+    + `<div class="view" style="height:${W.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${(m.width * z.s).toFixed(1)}px;margin-left:${(-z.x0 * z.s).toFixed(1)}px">${marks}</div></div></div>`
+    + `<div class="src"${v ? ` style="left:${W.x}px;top:${W.y + CHROME + W.view + 18}px"` : ''}>${esc(src)} · stan na ${day}</div></div>`;
 }
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name

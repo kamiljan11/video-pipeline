@@ -36,7 +36,7 @@ blokad nie obchodzimy (żadnego udawania przeglądarki). Banery cookies ukrywane
 się nie renderuje (`FAILED webshot <id>` w `gfx.log` albo w wyniku zadania panelu), zgodnie z zasadą fail-fast; limit
 150 s na kartę, narzędzia (poppler, ffmpeg) po 120 s. Kod HTTP strony ocenia Chrome, nie wstępne zapytanie o typ (żadnego
 udawania przeglądarki, ale też żadnego fałszywego „403” od zapory na zapytanie bez przeglądarki). Zrzut to stan strony z dnia zrzutu
-(podpis „stan na …”); nowy zrzut = usunąć `work/gfx/web/<klucz>.*`. Tylko 16:9 (shorty: wersja z telefonem później).
+(podpis „stan na …”); nowy zrzut = usunąć `work/gfx/web/<klucz>.*`. Od 2026-10-31 także 9:16 (`canvas: "v"`, `layout` split/full, zoom na cytat; README › karta `web`, `style/REF-shorts-proof-cards.md`).
 Prawo cytatu: krótki fragment z podanym źródłem. Moment w gramatyce montażu: karta jest projektowana ręcznie jak `slide`
 (`auto_gfx.long = []`), więc `style/grammar.json` się nie zmienia.
 Decyzja zapisana pierwotnie jako ADR-0004 panelu (`panel/docs/adr/0004-web-source-card.md` = odnośnik tutaj), przeniesiona do repo
