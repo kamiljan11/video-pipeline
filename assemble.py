@@ -189,13 +189,16 @@ if pips:
 for b in BROLL:
     # a downloaded file: only the MP4 demuxer and local reads (an HLS playlist named .mp4 could open other files/URLs)
     inputs += ["-protocol_whitelist", "file", "-f", "mov", "-t", f"{b.get('ss', 0.0) + b['dur']:.3f}", "-i", b["file"]]
-if splits:  # after the cards, so the box sits on the card's background; gone just before the card fades out (FADE_OUT 0.35 s)
+# the card fades out over its last 0.35 s (gfx/count_lib.mjs FADE_OUT); the box goes half-way through, when the card is half
+# transparent, so neither a bare box on the full-frame face nor a box over a gone card shows for more than ~5 frames
+SPLIT_OUT = 0.18
+if splits:  # after the cards, so the box sits on the card's background
     mask = os.path.join(out, "split_mask.png")  # white box, top corners rounded (alpha of the face box)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white:s={bw}x{bh}", "-frames:v", "1", "-vf",
                     f"format=gray,geq=lum='if(lt(Y,{R})*(lt(X,{R})*gt(hypot({R}-X,{R}-Y),{R})+gt(X,{bw - R})*gt(hypot(X-{bw - R},{R}-Y),{R})),0,255)'",
                     mask], check=True)
     i_smask = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", mask]
-    s_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - 0.18:.3f})" for o in splits)
+    s_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - SPLIT_OUT:.3f})" for o in splits)
     fc.append(f"[{i_smask}:v]format=gray[sm]")
     fc.append("[sf][sm]alphamerge[sbox]")
     fc.append(f"[{last}][sbox]overlay={bx}:{by}:enable={s_en}:shortest=1[vsp]"); last = "vsp"

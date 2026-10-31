@@ -34,10 +34,10 @@ class BuildEdlSplitTest(unittest.TestCase):
             {"offsets": {"from": round(a * 1000), "to": round(b * 1000)}, "text": t} for a, b, t in words]}))
         (self.d / "rec.sil").write_text("silence_start: 0\nsilence_end: 1.0\nsilence_start: 4.6\nsilence_end: 6\n")
 
-    def build(self, spec: dict, **extra):
+    def build(self, spec: dict, lead: float = 0.0, **extra):
         (self.d / "specs.json").write_text(json.dumps([{"id": "w1", "type": "web", "dur": 1.5, "url": "https://example.com/", **spec}]))
         plan = {"words": "rec.cw.json", "sil": "rec.sil", "src": "rec.mp4", "keeps": [[0, 2]], "edl_out": "edl.json", "vertical": True,
-                "gfx": [{"id": "w1", "word": 1}], "gfx_specs": "specs.json", "gfx_dir": str(self.d), "ass_out": "c.ass", **extra}
+                "gfx": [{"id": "w1", "word": 1, "lead": lead}], "gfx_specs": "specs.json", "gfx_dir": str(self.d), "ass_out": "c.ass", **extra}
         (self.d / "plan.json").write_text(json.dumps(plan))
         return subprocess.run([sys.executable, str(ROOT / "build_edl.py"), "plan.json"], cwd=self.d, capture_output=True, text=True, check=False)
 
@@ -56,7 +56,9 @@ class BuildEdlSplitTest(unittest.TestCase):
         self.assertNotIn("split", self.overlay({"canvas": "v", "layout": "full"}))
 
     def test_a_16_9_web_card_keeps_its_pip(self):  # as before this change
-        o = self.overlay({})
+        r = self.build({}, vertical=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (o,) = json.loads((self.d / "edl.json").read_text())["overlays"]
         self.assertTrue(o["pip"])
         self.assertNotIn("split", o)
 
@@ -67,12 +69,28 @@ class BuildEdlSplitTest(unittest.TestCase):
         self.assertTrue(moved)  # words b, c are said while the card is on (it starts on word b)
         self.assertLess(len(moved), len(lines))  # word a is said before it: stays where captions always are
 
+    def test_a_line_said_before_the_card_ends_where_the_card_comes_in(self):  # not at the old spot over the face box
+        r = self.build({"canvas": "v"}, lead=-0.3)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        at = json.loads((self.d / "edl.json").read_text())["overlays"][0]["at"]
+        first = next(ln for ln in (self.d / "c.ass").read_text().splitlines() if ln.startswith("Dialogue: 0,"))
+        h, m, sec = first.split(",")[2].split(":")
+        self.assertLessEqual(int(h) * 3600 + int(m) * 60 + float(sec), at + 0.01)
+
+    def test_a_9_16_web_card_in_a_16_9_film_is_a_named_error(self):  # no box and no PiP there: the face would vanish
+        r = self.build({"canvas": "v"}, vertical=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("vertical", r.stderr)
+
     def test_bad_layout_is_a_named_error(self):
-        for spec in ({"canvas": "v", "layout": "side"}, {"layout": "full"}, {"canvas": "v", "layout": True}):
+        for spec in ({"canvas": "v", "layout": "side"}, {"canvas": "v", "layout": True}):
             with self.subTest(spec=spec):
                 r = self.build(spec)
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn("layout", r.stderr)
+        r = self.build({"layout": "full"}, vertical=False)  # layout on a 16:9 card
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("layout", r.stderr)
 
 
 class AssembleSplitTest(unittest.TestCase):

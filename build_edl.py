@@ -95,11 +95,15 @@ for g in P.get("gfx", []):
         g["word"] = min(c, key=lambda i: abs(i - g["near"]))
     at = total if g["word"] == "END" else src2out(W[g["word"]][0]) + g.get("lead", 0.0)
     sp = specs[g["id"]]; vert = sp.get("canvas") == "v"
+    if vert and sp.get("type") == "web" and not P.get("vertical"):  # a 9:16 card in a 16:9 film: no face box, no PiP = no face
+        sys.exit(f"{g['id']}: a \"web\" card with canvas \"v\" belongs to a vertical film (plan \"vertical\": true)")
     # 9:16 "web" card: "split" (default) = face in a box under the card (assemble.py), "full" = the card alone; no corner PiP
-    if "layout" in sp and (not vert or sp.get("type") != "web" or sp["layout"] not in ("split", "full")):
-        sys.exit(f"{g['id']}: layout = \"split\" or \"full\", only on a \"web\" card with canvas \"v\", got {sp['layout']!r}")
+    # a 9:16 "float" may ask for "layout": "split" too (a full-screen illustration: its own background, the face in the box under it)
+    if "layout" in sp and (not vert or sp.get("type") not in ("web", "float") or sp["layout"] not in ("split", "full")
+                           or (sp.get("type") == "float" and sp["layout"] != "split")):
+        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" card, \"split\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
     o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert}
-    if vert and sp.get("type") == "web" and sp.get("layout", "split") == "split": o["split"] = True
+    if vert and ((sp.get("type") == "web" and sp.get("layout", "split") == "split") or (sp.get("type") == "float" and sp.get("layout") == "split")): o["split"] = True
     ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
@@ -280,7 +284,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for j, w in enumerate(grp):  # karaoke-style: current word in accent colour
             end = grp[j + 1][0] if j + 1 < len(grp) else (kept[i][0] if i < len(kept) else w[1])
             txt = " ".join(("{\\c" + CAP_ACC + "&}" + x[2].strip(",.").upper() + "{\\c&HFFFFFF&}") if k == j else x[2].strip(",.").upper() for k, x in enumerate(grp))
-            e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]])
+            # a line ends where a pill comes in, and where a split card comes or goes (the next word's line takes the other spot)
+            e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]] + [q for sw in split_win for q in sw if q > w[0] + 0.05])
             s = max([w[0]] + [q1 for q0, q1 in quiet if q0 - 0.05 <= w[0] < q1])  # 0.05: card "at" is rounded to ms, the word is not
             if s > w[0] and e - s < PILL_MIN_LEFT: continue  # said under the pill: a line still on when it leaves shows from then, no blank gap
             if any(q0 - 0.05 <= s < q1 for q0, q1 in split_win): txt = f"{{\\an5\\pos(540,{SPLIT['caption_y']})}}" + txt
