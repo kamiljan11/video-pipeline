@@ -115,7 +115,7 @@ for g in P.get("gfx", []):
     if "layout" in sp and (not vert or sp.get("type") not in ("web", "float") or sp["layout"] not in ("split", "full")
                            or (sp.get("type") == "float" and sp["layout"] != "split")):
         sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" card, \"split\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
-    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert}
+    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert and sp.get("pip") is not False}
     if vert and ((sp.get("type") == "web" and sp.get("layout", "split") == "split") or (sp.get("type") == "float" and sp.get("layout") == "split")): o["split"] = True
     ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
