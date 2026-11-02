@@ -165,7 +165,7 @@ def card_v2(o, sp, ty):
             if type(dl) in (int, float) and np.isfinite(dl):
                 put2(at + dl - 0.05, swoosh(0.16), 0.2); put2(at + dl, click(2 ** (vr.uniform(-1, 1) / 12)), 0.5)
     if ty == "chap": put2(at - 0.9, riser(0.9), 0.55); put2(at, impact(), 0.7)
-    if ty in ("slide", "web"): put2(at - 0.3, whoosh(0.8), 0.9)
+    if ty in ("slide", "web", "scene"): put2(at - 0.3, whoosh(0.8), 0.9)
     if ty == "end": put2(at - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put2(at + 0.1, ding(), 0.6)
     if ty == "maxim":  # a soft key press per letter, under the voice; no whoosh. ("float": only its own "sfx" moments)
@@ -180,7 +180,7 @@ for o in edl.get("overlays", []):
     if ty == "list":
         put(o["at"], whoosh(0.5), 0.5)
         for dl in sp.get("delays", []): put(o["at"] + dl + 0.05, pop(), 0.7)
-    if ty in ("chap", "slide", "web"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
+    if ty in ("chap", "slide", "web", "scene"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
     if ty == "end": put(o["at"] - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put(o["at"] + 0.1, ding(), 0.6)
     if ty == "maxim": put(o["at"] - 0.1, whoosh(0.45), 0.45)  # the sentence comes in softly; its own moments via "sfx"

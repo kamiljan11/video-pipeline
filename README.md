@@ -35,7 +35,7 @@ flowchart LR
 | Framing | `face_track.py`, `head_check.py` | face tracking for 16:9 and 9:16 crops, zoom limits that keep the head in frame |
 | Critic | `critic.py` | 13 checks: static stretches, overlay collisions, hook timing, choppy shots, caption length, end screen, loudness (-14 LUFS), clipped speech, unverified numbers on screen, editing grammar, b-roll, dead air and loud cuts at edges; `--fix` rewrites the plan |
 | Safety | `edl_guard.py` | an EDL may carry only numbers, local paths and allow-listed filters into ffmpeg ([ADR-0006](docs/adr/0006-edl-guard.md)) |
-| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists) rendered by Chrome to ProRes 4444 with alpha |
+| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists, explainer scenes with a camera) rendered by Chrome to ProRes 4444 with alpha |
 | Text behind the speaker | `behind.py` | RobustVideoMatting matte, the card sits between the background and the person ([ADR-0005](docs/adr/0005-text-behind-speaker.md)) |
 | B-roll | `broll.py`, `stock.py` | free Pexels clips where the speech names a concrete thing; credits for the description |
 | Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |
@@ -255,6 +255,43 @@ pod kartą działa); `canvas: "v"`: górny pas shortu. Logika: `gfx/maxim_lib.mj
 - Litera pojawia się najwyżej co 0,045 s i słowo kończy się przed następnym; kursor gaśnie 0,7 s po ostatniej literze.
 - Dźwięk: miękki whoosh na wejście (`make_beds.py`); własne chwile karty (np. pop na wyróżnieniu) w `sfx`.
 - Kiedy: 1 zdanie-puenta (`maxim` w gramatyce), maks. ok. 1 na 3–4 min w long; nie razem z inną kartą.
+
+## Scena `scene` (schemat na ciemnym płótnie, twarz w kółku)
+Decyzja i koszt: `docs/adr/0008-scene-card.md`. Wzór: rozbiór filmu AI LABS z 2026-10-25 (16 min bez twarzy: płaskie ciemne
+karty, szare kreski zamiast nieistotnego tekstu, kolor tylko tam, gdzie ma patrzeć oko, kamera, która przesuwa się między
+elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py` kładzie twarz w kółku w prawym dolnym rogu
+(`gfx_types.PIP`), jak przy `slide` i `web`. Logika: `gfx/scene_lib.mjs`, test: `gfx/test/scene.test.mjs`. Bez GSAP.
+```json
+{"id": "s_szlaban", "type": "scene", "dur": 9,
+ "els": [
+   {"k": "term", "id": "term", "x": 160, "y": 260, "w": 1640, "title": "Claude Code · bash", "cmd": "git push --force origin main",
+    "out": ["[bash-guard:force-push] ZABLOKOWANE / BLOCKED (rule force-push)."], "hl": [0], "tone": "bad", "at": 0.5},
+   {"k": "stamp", "id": "stamp", "x": 1180, "y": 860, "text": "ZABLOKOWANE", "tone": "bad", "at": 5.4}
+ ],
+ "cam": [{"t": 0, "on": "term"}, {"t": 5.2, "on": "*"}]}
+```
+- **Elementy (`k`)**, każdy z `x`, `y` (piksele płótna 2560x1440, może wyjść poza nie), opcjonalnie `w`, `h`, `id`, `at` (wejście, s),
+  `anim` (`up` domyślnie, `pop`, `fade`, `left`, `right`, `drop`), `dim` (s: przygaszenie do 28 %, gdy oko ma iść gdzie indziej),
+  `gone` (s: znika), `tone` (`acc`, `ok`, `bad`, `warn`, `blue`, `orange`, `mute`):
+  - `win` okno z kropkami (`title`, `icon`, `rows`), `file` plik (`name`, `badge: {text, tone, at}`, `rows`). Wiersz: `"~60"` = szara
+    kreska na 60 % szerokości, `"tekst"`, albo `{"t", "mark": "ok"|"bad"|"warn", "mark_at", "hl": true, "hl_at", "tone"}`; `step` = odstęp wejścia wierszy.
+  - `term` terminal: `cmd` pisze się literami (28 znaków/s od `cmd_at`), potem `out` linia po linii, linie z `hl` dostają podświetlenie.
+    **`out` to prawdziwy wynik polecenia**, przepisany z terminala; skrót oznacz „…”. Nigdy wymyślony.
+  - `chip` pigułka z ikoną (`icon` z lucide, `text`), `node` duża ikona z podpisem (`icon`, `text`, `sub`, `size`), `you` osoba („Ty”),
+    `chat` dymki (`msgs: [{who: "me"|"ai", t}]`, `t` = tekst albo `"~70"`), `stamp` pieczątka (`text`, `rot`), `text` napis
+    (`t`, `*gwiazdki*` = kolor akcentu, `size`), `bar` pasek (`label`, `v` 0..1, `d`), `stat` liczba z podpisem (`value`, `label`),
+    `line` linia rysowana od `from` do `to` (`curve`, `d` = czas rysowania, `arrow: false` bez kropki na końcu).
+- **Kamera.** Bez `cam` cały rysunek jest kadrowany tak, żeby wypełnił wolną część ekranu, na lewo od kółka z twarzą. Przystanek
+  `{"t", "on": "id" | ["id", …] | "*", "pad", "zmax", "move"}` kadruje te elementy (zmierzone w przeglądarce, po ułożeniu, więc
+  nie trzeba zgadywać ich rozmiaru); `{"t", "x", "y", "z"}` = ręcznie (punkt świata w lewym górnym rogu, zoom). Ruch trwa `move` s
+  (domyślnie 0,9) i kończy się w `t`. `zmax` (domyślnie 1,8) nie pozwala za bardzo powiększyć jednej małej rzeczy. `"cam": "none"` =
+  płótno 1:1; wtedy element, który wchodzi w róg z twarzą, zatrzymuje render z nazwą (chyba że `"pip": false`).
+- `"pip": false`: scena bez kółka z twarzą (build_edl.py nie włącza PiP pod nią), kadruje na cały ekran.
+- Kiedy: zamiast `slide`, gdy mówisz o mechanizmie (kto co robi, co blokuje, co przechodzi dalej). Nowy obraz co 3–6 s:
+  jeden element na jedno zdanie, kamera przechodzi do niego, gdy o nim mówisz. Przy prawdziwym wyniku (terminal, log) pokazuj go,
+  nie rysuj od nowa innymi słowami.
+- Dźwięk: whoosh na wejście karty (`gfx_types.CARD_WHOOSH`, `make_beds.py`). Panel ma własną kopię `CARD_WHOOSH` w
+  `timeline.sfx_events`: do dopisania tam „scene” przy następnej zmianie panelu.
 
 ## Tekst za postacią (`"behind"` w karcie)
 Duże słowo ZA głową mówiącego (głowa zasłania środek napisu). Karta dowolnego typu (zwykle `float` z własnym html) dostaje
