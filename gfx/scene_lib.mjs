@@ -121,7 +121,7 @@ function piece(e, esc, icon, dur) {
   } else if (e.k === 'chat') {
     inner = (e.msgs ?? []).map((m, i) => {
       const t = num(m.at, at + i * num(e.step, 0.5)), sk = typeof m.t !== 'string' || /^~\d*$/.test(m.t);
-      return `<div class="msg ${m.who === 'me' ? 'me' : 'ai'}" style="animation:scup .4s cubic-bezier(.2,.9,.2,1) ${f2(t)}s both">${sk ? `<div class="sk" style="width:${(m.t ?? '~').length > 1 ? +(m.t ?? '~').slice(1) : 70}%"></div>` : esc(m.t)}</div>`;
+      return `<div class="msg ${m.who === 'me' ? 'me' : 'ai'}" style="animation:scup .4s cubic-bezier(.2,.9,.2,1) ${f2(t)}s both">${sk ? `<div class="sk" style="width:${((m.t ?? '~').length > 1 ? +(m.t ?? '~').slice(1) : 70) * 6}px"></div>` : esc(m.t)}</div>`;
     }).join('');
   } else if (e.k === 'stamp') {
     style += `color:${tn};border-color:${tn};--r:${num(e.rot, -6)}deg;`;
@@ -227,7 +227,6 @@ const SCENE_CSS = `<style>
 .scene .msg{max-width:78%;padding:24px 32px;border-radius:26px;font-weight:600;font-size:42px;line-height:1.25;color:#eef0f2;background:#1d2025;border:2px solid #2a2d33}
 .scene .msg.me{align-self:flex-end;background:#232a35;border-color:#2f3a4a;border-bottom-right-radius:8px}
 .scene .msg.ai{align-self:flex-start;border-bottom-left-radius:8px}
-.scene .msg .sk{width:420px}
 .scene .stamp .pi{display:inline-block;width:auto;height:auto;padding:18px 44px;border:7px solid;border-radius:18px;font-weight:900;font-size:84px;letter-spacing:6px;background:rgba(12,13,15,.86)}
 .scene .stamp{transform:rotate(var(--r))}
 .scene .text .pi{font-weight:800;line-height:1.12;letter-spacing:-1px}
