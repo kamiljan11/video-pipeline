@@ -5,6 +5,7 @@ import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
+import { camKeyframes, scene, sceneFit, sceneSafe } from './scene_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const THEME = loadTheme(specFile);  // work/theme.json -> style/themes/<name>.json colors; null = the template's own
@@ -34,6 +35,7 @@ const html = sp => {
   if (sp.type === 'web') return web(sp);
   if (sp.type === 'meme') return meme(sp);
   if (sp.type === 'maxim') return maxim(sp);
+  if (sp.type === 'scene') return scene(sp, esc, icon);  // explainer canvas, face in the PiP circle (gfx/scene_lib.mjs, README › Scena)
   if (sp.type === 'float') return `<div class="float">${sp.html}</div>`;  // illustration beside the speaker: the spec's own pieces (template.html › float)
   if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
 };
@@ -147,6 +149,9 @@ async function one(sp) {
   if (THEME) await page.evaluate(css => { for (const [k, val] of Object.entries(css)) document.documentElement.style.setProperty(k, val); }, THEME.css);
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
+  // "scene": pieces measured as laid out, camera stops ("on": piece ids) turned into a camera move (gfx/scene_lib.mjs)
+  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe]) => { new Function(`return ${fit}`)()(safe, kf); },
+    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp)]);
   // images (end card logo, web capture) loaded before the first frame; one that cannot load stops the render with its name
   const broken = await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().then(() => null, () => i.src))));
   if (broken.some(Boolean)) { console.error(`FAILED gfx ${sp.id}: image not loaded ${broken.filter(Boolean).join(', ')}`); process.exit(1); }

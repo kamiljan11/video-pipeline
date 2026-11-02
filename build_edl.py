@@ -125,7 +125,7 @@ for g in P.get("gfx", []):
                            or (sp.get("type") == "float" and sp["layout"] not in ("split", "corner"))
                            or (sp.get("type") in ("web", "meme") and sp["layout"] == "corner")):
         sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" or \"meme\" card, \"split\" or \"corner\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
-    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert}
+    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert and sp.get("pip") is not False}
     if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") == "float" and sp.get("layout") == "split")): o["split"] = True
     if o.get("split") and "face_box" in sp:  # own face box under a short card: [x, y, w, h] inside 1080x1920 (assemble.py)
         fb = sp["face_box"]
