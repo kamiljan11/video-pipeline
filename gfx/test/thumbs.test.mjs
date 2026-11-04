@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
-import { checkThumbs, longHtml, shortHtml } from '../thumbs.mjs';
+import { checkThumbs, fitProblems, longHtml, shortHtml } from '../thumbs.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-test-'));
 fs.writeFileSync(path.join(dir, 'f.png'), '');
@@ -24,4 +24,11 @@ test('html: words escaped, side and frame position used, theme colours inlined',
   assert.match(h, /&lt;b&gt;x/); assert.doesNotMatch(h, /<b>x/);
   assert.match(h, /right:60px/); assert.match(h, /background-position:-300px -100px/); assert.match(h, /--acc:#6FA7EC/);
   assert.match(shortHtml(v('s1', { dy: 150 }), dir, 'cetus'), /background-position:0 150px/);
+});
+
+test('fit: a headline wider than its column or words past the bottom are named, a fitting one passes', () => {
+  assert.deepEqual(fitProblems('long_A.jpg', { wide: [['big', 640, 640], ['sub', 600, 640]], bottom: 700 }, 720), []);
+  const bad = fitProblems('long_B.jpg', { wide: [['big', 860, 640]], bottom: 760 }, 720);
+  assert.ok(bad.some(b => b.includes('"big" is 220 px wider')), bad.join('\n'));
+  assert.ok(bad.some(b => b.includes('40 px past the bottom')), bad.join('\n'));
 });

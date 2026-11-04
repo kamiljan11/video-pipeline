@@ -68,6 +68,15 @@ html,body{width:1080px;height:1920px}
 .txt{position:absolute;left:60px;right:60px;top:200px;text-align:center}.big{font-size:${v.big.length > 6 ? 140 : 190}px}.sub{font-size:62px;margin-top:22px}</style>
 <div class="bg"></div><div class="sh"></div><div class="txt"><div class="big">${esc(v.big)}</div>${v.sub ? `<div class="sub">${esc(v.sub)}</div>` : ''}</div>`;
 
+// words that do not fit their thumbnail, measured in the browser: a headline wider than its column is cut at the frame
+// edge and a block that runs past the bottom loses its last line (film 2, long_A and long_B, 2026-11-04)
+export function fitProblems(file, m, h) {
+  const bad = [];
+  for (const [k, sc, cl] of m.wide) if (sc > cl + 1) bad.push(`${file}: "${k}" is ${sc - cl} px wider than its column (shorten it)`);
+  if (m.bottom > h + 1) bad.push(`${file}: the words run ${Math.round(m.bottom - h)} px past the bottom (shorter "big" or "sub")`);
+  return bad;
+}
+
 async function main() {
   const [specPath, out] = process.argv.slice(2);
   if (!specPath || !out) { console.error('usage: node gfx/thumbs.mjs <thumbs.json> <out dir>'); process.exit(2); }
@@ -84,6 +93,13 @@ async function main() {
       fs.writeFileSync(f, `<!doctype html><meta charset="utf-8">${html}`);
       await page.goto(pathToFileURL(f).href, { waitUntil: 'load' });
       await page.evaluate(() => document.fonts.ready);
+      const m = await page.evaluate(() => {
+        const els = ['big', 'sub', 'tag'].map(k => [k, document.querySelector(`.${k}`)]).filter(([, e]) => e);
+        return { wide: els.map(([k, e]) => [k, e.scrollWidth, e.clientWidth]),
+                 bottom: Math.max(...els.map(([, e]) => e.getBoundingClientRect().bottom)) };
+      });
+      const bad = fitProblems(file, m, h);
+      if (bad.length) throw new Error(bad.join('; '));
       const jpg = file.endsWith('.jpg');
       await page.screenshot({ path: path.join(out, file), type: jpg ? 'jpeg' : 'png', ...(jpg ? { quality: 92 } : {}) });
       await page.close();
