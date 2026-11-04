@@ -100,7 +100,7 @@ ovs = []
 def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:16 top card (canvas "v") sits above the face
     sp = specs.get(gid, {})
     # a 9:16 "float" in its own screen (layout split/corner): the face sits in a box or circle, a zoom there only jumps
-    if sp.get("canvas") == "v" and sp.get("type") == "float" and sp.get("layout") in ("split", "corner"): return True
+    if sp.get("canvas") == "v" and sp.get("type") in ("float", "scene") and sp.get("layout") in ("split", "corner"): return True
     if sp.get("canvas") == "v" and sp.get("face_corner"): return True  # a full card with the face in the corner circle
     # a 9:16 "web" card with the face in a box under it: a punch-in there shows the face far too close (Kamil 2026-10-31, c2)
     if sp.get("canvas") == "v" and sp.get("type") == "web" and sp.get("layout", "split") == "split": return True
@@ -121,12 +121,15 @@ for g in P.get("gfx", []):
     # 9:16 "web" card: "split" (default) = face in a box under the card (assemble.py), "full" = the card alone; no corner PiP
     # a 9:16 "float" may ask for "layout": "split" too (a full-screen illustration: its own background, the face in the box under it)
     # ... or "corner": the card fills the screen and the face sits in a circle in the corner (gfx_types.CORNER, assemble.py)
-    if "layout" in sp and (not vert or sp.get("type") not in ("web", "meme", "float") or sp["layout"] not in ("split", "full", "corner")
-                           or (sp.get("type") == "float" and sp["layout"] not in ("split", "corner"))
+    # a 9:16 "scene" (gfx/scene_lib.mjs, the long's animated explainer drawn for a short) must say which: split or corner
+    if vert and sp.get("type") == "scene" and sp.get("layout") not in ("split", "corner"):
+        sys.exit(f"{g['id']}: a 9:16 \"scene\" needs layout \"split\" (face box under it) or \"corner\" (face circle), got {sp.get('layout')!r}")
+    if "layout" in sp and (not vert or sp.get("type") not in ("web", "meme", "float", "scene") or sp["layout"] not in ("split", "full", "corner")
+                           or (sp.get("type") in ("float", "scene") and sp["layout"] not in ("split", "corner"))
                            or (sp.get("type") in ("web", "meme") and sp["layout"] == "corner")):
-        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" or \"meme\" card, \"split\" or \"corner\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
+        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" or \"meme\" card, \"split\" or \"corner\" on a \"float\" or \"scene\" (canvas \"v\"), got {sp['layout']!r}")
     o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert and sp.get("pip") is not False}
-    if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") == "float" and sp.get("layout") == "split")): o["split"] = True
+    if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") in ("float", "scene") and sp.get("layout") == "split")): o["split"] = True
     if o.get("split") and "face_box" in sp:  # own face box under a short card: [x, y, w, h] inside 1080x1920 (assemble.py)
         fb = sp["face_box"]
         if not (isinstance(fb, list) and len(fb) == 4 and all(isinstance(v, int) for v in fb) and fb[0] >= 0 and fb[1] >= 0
@@ -137,7 +140,7 @@ for g in P.get("gfx", []):
             if k in sp: o[k] = sp[k]
     if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
     if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
-    if vert and sp.get("type") == "float" and sp.get("layout") == "corner": o["corner"] = True
+    if vert and sp.get("type") in ("float", "scene") and sp.get("layout") == "corner": o["corner"] = True
     ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0

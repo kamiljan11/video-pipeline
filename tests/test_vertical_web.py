@@ -52,6 +52,17 @@ class BuildEdlSplitTest(unittest.TestCase):
         self.assertTrue(o["split"])
         self.assertFalse(o["pip"])
 
+    def test_a_9_16_scene_takes_the_float_layouts(self):  # the long's animated explainer drawn for a short (scene_lib canvas "v")
+        o = self.overlay({"type": "scene", "canvas": "v", "layout": "split", "els": []})
+        self.assertTrue(o["split"]); self.assertFalse(o["pip"])
+        o = self.overlay({"type": "scene", "canvas": "v", "layout": "corner", "els": []})
+        self.assertTrue(o["corner"]); self.assertNotIn("split", o)
+        for spec in ({"type": "scene", "canvas": "v"}, {"type": "scene", "canvas": "v", "layout": "full"}):
+            with self.subTest(spec=spec):
+                r = self.build(spec)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("layout", r.stderr)
+
     def test_layout_full_has_no_face_box(self):
         self.assertNotIn("split", self.overlay({"canvas": "v", "layout": "full"}))
 

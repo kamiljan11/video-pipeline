@@ -87,3 +87,21 @@ test('motion pieces: bad times and shapes are named', () => {
   for (const want of ['"words"', '"from" and "to"', '"w" and "h"', '"total"', '"steps"', '"strike_at"', '"pulse_at"', '"count"', '"bg" one of'])
     assert.ok(bad.some(b => b.includes(want)), `missing: ${want}\n${bad.join('\n')}`);
 });
+
+test('a 9:16 scene (a short) frames the drawing above the face box and must name its layout', () => {
+  const els = [{ k: 'chip', x: 0, y: 0, text: 'a' }];
+  assert.deepEqual(checkScene(ok(els, { canvas: 'v', layout: 'split' })), []);
+  const split = sceneSafe({ canvas: 'v', layout: 'split' }), corner = sceneSafe({ canvas: 'v', layout: 'corner' });
+  assert.ok(split.y + split.h <= 1150 - 60, 'the split frame reaches the captions over the face box (gfx_types.SPLIT)');
+  assert.ok(corner.y + corner.h <= 1215 - 60, 'the corner frame reaches the captions (gfx_types.CORNER)');
+  assert.ok(split.x + split.w <= 1080 && split.y >= 120, 'outside the 1080 px frame or under the Shorts shelf crop');
+  for (const [more, want] of [[{ canvas: 'v' }, '"layout"'], [{ canvas: 'v', layout: 'full' }, '"layout"'],
+                              [{ canvas: 'v', layout: 'split', cam: 'none' }, '"cam": "none"']])
+    assert.ok(checkScene(ok(els, more)).some(b => b.includes(want)), JSON.stringify(more));
+});
+
+test('a say marker split over two words is named (it would show the asterisk on screen)', () => {
+  const bad = checkScene(ok([{ k: 'say', x: 0, y: 0, words: [['Autor', 0.1], ['*bez', 0.2], ['redaktora*', 0.3]] }]));
+  assert.ok(bad.some(b => b.includes('"*bez"')), bad.join('\n'));
+  assert.deepEqual(checkScene(ok([{ k: 'say', x: 0, y: 0, words: [['*bez*', 0.2], ['[AI]', 0.3], ['~nie~', 0.4], ['!nic!', 0.5]] }])), []);
+});

@@ -11,7 +11,10 @@ export const W = 2560, H = 1440;
 // the PiP circle (assemble.py: pip_size 600, margin 72, 20 px up) + its 40 px frame, with some air
 export const PIP_ZONE = { x: W - 600 - 72 - 60, y: H - 600 - 72 - 20 - 60 };
 // where a framed drawing goes: left of the face circle (PiP on) or the whole frame ("pip": false), with a margin
-export const sceneSafe = sp => (sp.pip === false ? { x: 120, y: 100, w: W - 240, h: H - 200 } : { x: 110, y: 100, w: PIP_ZONE.x - 140, h: H - 200 });
+// 9:16 (canvas "v", a short): the part above the face box (layout split: gfx_types.SPLIT, box from y 1240, captions at 1150) or
+// above the captions over the corner circle (layout corner); 130 px kept free at the top (the Shorts shelf crops covers there)
+export const sceneSafe = sp => (sp.canvas === 'v' ? { x: 60, y: 130, w: 960, h: sp.layout === 'corner' ? 1010 : 930 }
+  : sp.pip === false ? { x: 120, y: 100, w: W - 240, h: H - 200 } : { x: 110, y: 100, w: PIP_ZONE.x - 140, h: H - 200 });
 export const TONES = { acc: 'var(--acc)', ok: '#3ecf8e', bad: '#ff5f57', warn: '#f5b84a', blue: '#6ea8fe', orange: '#ff8a3d', mute: '#8b9096' };
 export const KINDS = ['win', 'file', 'term', 'chip', 'node', 'chat', 'you', 'line', 'stamp', 'text', 'bar', 'stat', 'check', 'cursor', 'ring', 'say', 'toggle', 'steps'];
 // pieces placed by two points or a box, not by x/y alone
@@ -70,6 +73,8 @@ export function checkScene(sp) {
     if (e.k === 'say') {
       if (!Array.isArray(e.words) || !e.words.length || !e.words.every(w => Array.isArray(w) && typeof w[0] === 'string' && typeof w[1] === 'number' && w[1] >= 0 && w[1] < dur))
         bad.push(`${n}: "words" = [["word", seconds], ...], each said inside the card`);
+      for (const w of e.words ?? []) if (typeof w?.[0] === 'string' && /^[*[~!]/.test(w[0]) && !/^([*[~!]).+[*\]~!]$/.test(w[0]))
+        bad.push(`${n}: word ${JSON.stringify(w[0])} opens a marker it does not close; each word carries its own (*a* *b*, not *a b*)`);
     }
     if (e.k === 'steps') {
       if (!(Number.isInteger(e.total) && e.total > 0)) bad.push(`${n}: "total" = how many items the list has`);
@@ -95,7 +100,9 @@ export function checkScene(sp) {
     });
   } else if (sp.cam !== undefined && sp.cam !== 'none') bad.push('"cam": a list of stops, "none" or nothing (frame the whole drawing)');
   if (sp.bg !== undefined && !BGS.includes(sp.bg)) bad.push(`"bg" one of ${BGS.join(', ')}`);
-  if (sp.cam === 'none' && sp.pip !== false) {
+  if (sp.canvas === 'v' && sp.cam === 'none') bad.push('canvas "v": the camera frames the drawing above the face box, "cam": "none" has no place there');
+  if (sp.canvas === 'v' && !['split', 'corner'].includes(sp.layout)) bad.push('canvas "v": "layout" = "split" or "corner"');
+  if (sp.cam === 'none' && sp.pip !== false && sp.canvas !== 'v') {
     // no camera: the frame is the canvas, so a piece reaching into the PiP corner would sit under the face
     (sp.els || []).forEach((e, i) => {
       if (!e || FREE.includes(e.k) || e.k === 'text' || e.k === 'say' || !Number.isFinite(e.x)) return;
