@@ -141,10 +141,15 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stderr)
         self.assertIn("p9", r.stderr); self.assertIn("start_word", r.stderr); self.assertNotIn("Traceback", r.stderr)
         (self.d / "story.json").write_text(json.dumps({"parts": [{"id": "p1", "start_word": 0}]}))
-        self.ledger.write_text('{"a": ')  # a cut write of make_beds.py
+        for broken in ('{"a": ', "[]"):  # a cut write of make_beds.py; valid JSON of the wrong shape
+            self.ledger.write_text(broken)
+            r, _ = self.run_check("long")
+            self.assertEqual(r.returncode, 2, r.stderr)
+            self.assertIn("music ledger", r.stderr); self.assertNotIn("Traceback", r.stderr)
+        self.ledger.unlink()
+        (self.d / "story.json").write_text(json.dumps({"parts": 5}))
         r, _ = self.run_check("long")
-        self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn("music ledger", r.stderr); self.assertNotIn("Traceback", r.stderr)
+        self.assertEqual(r.returncode, 2, r.stderr); self.assertNotIn("Traceback", r.stderr)
 
     def test_out_thumbnails_one_variant_is_not_ab(self):
         # long_A.jpg + its 2560 copy is still one variant (thumbs.mjs stopped before B)

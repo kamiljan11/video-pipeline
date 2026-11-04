@@ -88,8 +88,9 @@ async function main() {
   // stop on variant B never leaves a new A next to an old B that film_check would count as an A/B pair
   const stage = fs.mkdtempSync(path.join(out, '.thumbs-'));
   const made = [];
-  const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
+  let browser;
   try {
+    browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
     const shot = async (html, w, h, file, scale = 1) => {
       const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: scale });
       const f = path.join(tmp, `${file}.html`);  // a file:// page: setContent (about:blank) may not load file:// images
@@ -115,7 +116,7 @@ async function main() {
     for (const f of fs.readdirSync(out)) if (/^long_.+\.(jpg|png)$|_cover\.jpg$/.test(f) && !made.includes(f)) fs.rmSync(path.join(out, f));
     for (const f of made) fs.renameSync(path.join(stage, f), path.join(out, f));
   } finally {
-    await browser.close(); fs.rmSync(tmp, { recursive: true, force: true }); fs.rmSync(stage, { recursive: true, force: true });
+    await browser?.close(); fs.rmSync(tmp, { recursive: true, force: true }); fs.rmSync(stage, { recursive: true, force: true });
   }
   console.log(`thumbs ok: ${t.long.length} long variants, ${(t.shorts ?? []).length} covers -> ${out}`);
 }

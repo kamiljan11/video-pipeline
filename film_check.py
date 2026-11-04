@@ -115,6 +115,8 @@ class Film:
         p = self.work / "story.json"
         if not p.exists(): return []
         story = load(p, "story.json"); wt = word_times(self.work / self.plan["words"]); segs = self.edl["segments"]
+        if not (isinstance(story, dict) and isinstance(story.get("parts", []), list)):
+            bad_input('story.json: {"parts": [{"id", "title", "start_word"}, ...]}')
         for pt in story.get("parts", []):
             sw = pt.get("start_word") if isinstance(pt, dict) else None
             if not (isinstance(sw, int) and not isinstance(sw, bool) and 0 <= sw < len(wt)):
@@ -165,6 +167,7 @@ class Film:
         pal = self.plan.get("music_palette")
         if not isinstance(pal, dict): return False, "no music_palette in the plan: the old bed, the same in every film"
         led = load(LEDGER, "music ledger (render/music_ledger.json, written by make_beds.py)") if LEDGER.exists() else {}
+        if not isinstance(led, dict): bad_input(f"music ledger {LEDGER}: an object of entries, got {type(led).__name__}")
         others = [v for v in led.values() if isinstance(v, dict) and v.get("work") != str(self.work.resolve())]
         if not others: return True, ""
         last = max(others, key=lambda v: v.get("at", ""))

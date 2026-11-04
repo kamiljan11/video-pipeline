@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """make_beds.py edl.json outdir -> outdir/music.wav (own generated bed), outdir/sfx.wav (synth SFX timed to graphics/zooms)
 Adds edl["music"], edl["sfx"] in place."""
+import fcntl
 import json
 import os
 import subprocess
@@ -223,15 +224,19 @@ subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_mus
                 str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else []), *pal_args], check=True)
 if pal:  # the palette this project used: film_check.py keeps the next film from reusing it (Kamil: a new music every film)
     led_p = Path(__file__).resolve().parent.parent / "render" / "music_ledger.json"
+    tmp = led_p.with_name(f"{led_p.name}.{os.getpid()}.tmp")
     try:
-        led = json.loads(led_p.read_text()) if led_p.exists() else {}
-        work = str(Path(edl_p).resolve().parent)
-        led[f"{work}::{edl.get('name', '')}"] = {"work": work, "film": edl.get("name", ""), "name": pal["name"],
-                                                 "key": pal.get("key", 0), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
         led_p.parent.mkdir(parents=True, exist_ok=True)
-        tmp = led_p.with_name(f"{led_p.name}.{os.getpid()}.tmp")  # whole file or none: a cut write never leaves broken JSON
-        tmp.write_text(json.dumps(led, indent=1, ensure_ascii=False)); os.replace(tmp, led_p)
-    except (OSError, ValueError) as e:  # the ledger only guards the next film; the bed itself is done
+        with open(led_p.with_name(led_p.name + ".lock"), "w") as lock:  # two films' make_beds at once: one update at a time
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            led = json.loads(led_p.read_text()) if led_p.exists() else {}
+            if not isinstance(led, dict): raise TypeError(f"not an object of entries: {type(led).__name__}")
+            work = str(Path(edl_p).resolve().parent)
+            led[f"{work}::{edl.get('name', '')}"] = {"work": work, "film": edl.get("name", ""), "name": pal["name"],
+                                                     "key": pal.get("key", 0), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            tmp.write_text(json.dumps(led, indent=1, ensure_ascii=False)); os.replace(tmp, led_p)  # whole file or none
+    except (OSError, ValueError, TypeError) as e:  # the ledger only guards the next film; the bed itself is done
+        tmp.unlink(missing_ok=True)
         print(f"make_beds: music ledger {led_p} not updated: {e}", file=sys.stderr)
 edl["music"] = os.path.join(od, "music.wav"); edl["sfx"] = os.path.join(od, "sfx.wav")
 Path(edl_p).write_text(json.dumps(edl, indent=1, ensure_ascii=False))

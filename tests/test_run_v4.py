@@ -38,7 +38,8 @@ class RunV4GateTest(unittest.TestCase):
         log_js = "require('fs').appendFileSync(process.env.RUNV4_LOG, '{n}\\n');"
         (vp / "gfx" / "scene_check.mjs").write_text(
             "import fs from 'fs'; fs.appendFileSync(process.env.RUNV4_LOG, 'scene_check.mjs\\n');"
-            " if (process.env.FAIL_scene_check) process.exit(1);")
+            " if (process.env.FAIL_scene_check) process.exit(1);"
+            " if (process.env.HANG_scene_check) await new Promise(r => setTimeout(r, 30000));")
         (vp / "gfx" / "render.mjs").write_text(log_js.format(n="render.mjs").replace("require('fs')", "(await import('fs'))"))
         for venv in (".venv", "matte/.venv"):
             (vp / venv / "bin").mkdir(parents=True)
@@ -83,6 +84,12 @@ class RunV4GateTest(unittest.TestCase):
         self.assertIn("WARN scene_check off", render)
         self.assertNotIn("scene_check.mjs", calls)
         self.assertIn("DONE x", render)
+
+    def test_hung_scene_check_is_stopped_and_named(self):
+        (self.work / "gfx_specs.json").write_text(json.dumps(SCENE))
+        render, calls = self.run_v4(rc=1, HANG_scene_check="1", SCENE_CHECK_TIMEOUT="1")
+        self.assertIn("FAILED scene_check rc=124 (timeout 1 s", render)
+        self.assertNotIn("render.mjs", calls)
 
     def test_failed_film_check_renders_nothing(self):
         render, calls = self.run_v4(rc=1, FAIL_film_check="1")

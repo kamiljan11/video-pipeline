@@ -26,6 +26,9 @@ każda karta jest przypięta do słowa z transkryptu (szukanego po tekście, nie
 - Więcej kroków i dłuższy render (sceny, wiele shortów). Koszt przyjęty: Kamil ogląda gotowy folder, zamiast wyliczać braki.
 - Shorty w stylu sceny (BreakingBreach): `short.punch` pomijany z powodem, gdy sceny zajmują >= 60 % shorta (zoom twarzy pod
   sceną nie istnieje; kamera sceny prowadzi oko). Do oceny po pierwszych publikacjach.
+- `film_check` jest domyślnie WŁĄCZONY także dla planów sprzed listy kontrolnej (film 1, plany z panelu): taki projekt
+  renderuje się tylko z `FILM_CHECK=off` (zostaje `WARN` w `render.log`). Odrzucona alternatywa: domyślnie wyłączony dla planów
+  bez `story.json` (ciche przepuszczanie to dokładnie to, co dało luki filmu 2 v1). Do potwierdzenia przez Kamila przy merge.
 - Nic nie jest publikowane automatycznie: `out_v2/` to paczka do obejrzenia; publikacja na LinkedIn tylko przez
   `linkedin.py publish` z kodem zatwierdzenia Kamila (ADR-0009).
 - Metryka: liczba rzeczy, które Kamil wskazuje jako pominięte po obejrzeniu (film 2 v1: 9 punktów; cel v2: 0 z tej listy).

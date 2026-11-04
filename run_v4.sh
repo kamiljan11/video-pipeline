@@ -9,8 +9,12 @@ cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # timeout: a hung Chrome must not hold the run without a log line. SCENE_CHECK=off (logged) only for a clash judged false
 if [ -f gfx_specs.json ] && grep -q '"type": *"scene"' gfx_specs.json; then
   if [ "${SCENE_CHECK:-on}" = off ]; then echo "WARN scene_check off" >> "$R/render.log"
-  elif ! timeout 600 node $VP/gfx/scene_check.mjs gfx_specs.json >> gfx.log 2>&1; then
-    echo "FAILED scene_check (gfx.log: CLASH lines; exit 124 = timeout)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
+  else
+    timeout "${SCENE_CHECK_TIMEOUT:-600}" node $VP/gfx/scene_check.mjs gfx_specs.json >> gfx.log 2>&1; rc=$?
+    if [ $rc -ne 0 ]; then
+      why="gfx.log: CLASH lines"; [ $rc -eq 124 ] && why="timeout ${SCENE_CHECK_TIMEOUT:-600} s, Chrome hung"
+      echo "FAILED scene_check rc=$rc ($why)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
+    fi
   fi
 fi
 if [ -f gfx_specs.json ] && ! node $VP/gfx/render.mjs gfx_specs.json gfx >> gfx.log 2>&1; then
