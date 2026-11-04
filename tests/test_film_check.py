@@ -93,6 +93,18 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(rep["long.memes"]["status"], "FAIL")
         self.assertEqual([k for k, v in rep.items() if v["status"] == "FAIL"], ["long.memes"])
 
+    def test_a_short_needs_a_meme_or_a_reason(self):
+        def short(ovs, specs, **plan):
+            (self.d / "edl_s1.json").write_text(json.dumps({"segments": [{"src": "A", "in": 0.0, "out": 40.0, "zoom": 1.0}], "overlays": ovs}))
+            (self.d / "specs.json").write_text(json.dumps(specs))
+            (self.d / "plan_s1.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_s1.json", "gfx_specs": "specs.json",
+                                                             "vertical": True, **plan}))
+            return self.run_check("s1")[1]["short.meme"]
+        meme = ([{"id": "m", "at": 5, "dur": 3}], [{"id": "m", "type": "meme", "canvas": "v", "meme": "drake"}])
+        self.assertEqual(short(*meme)["status"], "OK")
+        self.assertEqual(short([], [])["status"], "FAIL")
+        self.assertEqual(short([], [], skip={"short.meme": "no face gap of 3.5 s"})["status"], "SKIP")
+
     def test_opening_part_without_chapter(self):
         """the first part may say "chap": false (the hook stands there); it still needs its explainer"""
         ovs, specs, segs = self.full_long()

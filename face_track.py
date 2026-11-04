@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """face_track.py edl.json  — per-segment face position + zoom safety (head never leaves the frame).
 Samples 3 frames per segment, detects the face (OpenCV YuNet), stores seg["face"]=[cx,cy] (normalised) and
-seg["head"]=[x0,y0,x1,y1] (face box grown for hair/chin), then clamps every zoom so the head box fits the crop
+seg["head"]=[x0,y0,x1,y1] (face box grown for hair/chin; plan "punch_headroom": "face" = brow only), then clamps every zoom so the head box fits the crop
 with a margin. Writes back into edl.json. Cache: <edl>.faces.json
 With plan "steady_x" (16:9) seg["face"][0] is where the crop aims (steady face, see steady_anchors), not the raw detection."""
 import json
@@ -59,6 +59,9 @@ def track_segment(s, step=0.2):
     return keys, (min(a for a, b in spans), max(b for a, b in spans))
 
 M = 0.04  # margin around the head inside the crop (fraction of crop)
+# room above the detected face box, in face heights: the hair (default) or the brow only (plan "punch_headroom": "face",
+# a punch-in may then cut the top of the head; for a speaker sitting close to the camera)
+HAIR = {"hair": 0.45, "face": 0.12}[E.get("punch_headroom", "hair")]
 
 
 def fits(z, fx, fy, TY, head):
@@ -112,7 +115,7 @@ for si, s in enumerate(E["segments"]):
         missing += 1; s["face"] = fallback; continue
     x0 = min(f[0] for f in fs); y0 = min(f[1] for f in fs); x1 = max(f[0] + f[2] for f in fs); y1 = max(f[1] + f[3] for f in fs)
     h = max(f[3] for f in fs)
-    hx0, hy0, hx1, hy1 = x0 - 0.15 * h * SH / SW, y0 - 0.45 * h, x1 + 0.15 * h * SH / SW, y1 + 0.25 * h  # hair above, chin below
+    hx0, hy0, hx1, hy1 = x0 - 0.15 * h * SH / SW, y0 - HAIR * h, x1 + 0.15 * h * SH / SW, y1 + 0.25 * h  # hair above, chin below
     if vertical:
         keys, span = track_segment(s)
         if keys:

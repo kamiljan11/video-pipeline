@@ -108,6 +108,7 @@ def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:
     if sp.get("canvas") == "v" and sp.get("face_corner"): return True  # a full card with the face in the corner circle
     # a 9:16 "web" card with the face in a box under it: a punch-in there shows the face far too close (Kamil 2026-10-31, c2)
     if sp.get("canvas") == "v" and sp.get("type") == "web" and sp.get("layout", "split") == "split": return True
+    if sp.get("canvas") == "v" and sp.get("type") == "meme" and sp.get("layout", "split") in ("split", "corner"): return True
     return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
 if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
     sys.exit("gfx: the plan places graphics, so it needs \"gfx_specs\" (cards file) and \"gfx_dir\" (their .mov folder)")
@@ -231,6 +232,13 @@ if BROLL is not None:
     edl["broll_removed"] = sum(isinstance(r, dict) for r in rej) if isinstance(rej, list) else 0
     for b in BROLL[0]: print("broll", b["id"], b["at"])
     for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
+# punch_headroom: what a zoom must keep in frame (face_track.py). "hair" (default): the head with its hair; "face": brow to chin,
+# so a punch-in may cut the top of the head (film 2026-11-04: Kamil sits close, the head fills 73 % of the frame and "hair" left
+# zooms of about 1.01, 0.6 punch-ins a minute against the checklist's 2)
+if "punch_headroom" in P:
+    if P["punch_headroom"] not in ("hair", "face"):
+        sys.exit(f'punch_headroom: "hair" (keep the whole head) or "face" (brow to chin), got {P["punch_headroom"]!r}')
+    edl["punch_headroom"] = P["punch_headroom"]
 if "face_target_y" in P and not P.get("vertical"):
     print("face_target_y: ignored, only vertical films use it", file=sys.stderr)
 if P.get("vertical"):

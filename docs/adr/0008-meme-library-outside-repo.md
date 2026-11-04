@@ -19,6 +19,8 @@ Memy to cudze obrazy (kadry z filmów, zdjęcia stockowe), a repo jest publiczne
 
 **Decyzja:** B. `style/memes.json` = id szablonu imgflip + nasze pola tekstu; `memes.py add <slug>` zapisuje obraz i `<slug>.json`
 (z URL-em źródła) do `render/memes/`. Karta `meme` tylko w 9:16, w układzie `split`/`full` kart `web` (ta sama ścieżka twarzy w boksie).
+Uzupełnienie 2026-11-04 (Kamil: „memów nie ma”): karta działa też w 16:9 (obraz na lewo od PiP z twarzą) i w 9:16 w układzie
+`corner` (Kamil w kółku w rogu); źródło obrazów i zasady ryzyka bez zmian.
 
 **Ryzyko (zaakceptowane przez Kamila 2026-10-31; regulaminu imgflip nie sprawdzano):** memy z kadrów filmowych mogą dostać roszczenie na YouTube (Content ID łapie głównie klipy z dźwiękiem; statyczny obraz
 rzadziej, ale nie zero). Dlatego: tylko obrazy, bez dźwięku, krótko (2–3,5 s), z naszym tekstem (transformacja, komentarz). Klipy
