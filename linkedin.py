@@ -257,6 +257,23 @@ def _author(access: str) -> str:
     return f"urn:li:person:{me['sub']}"
 
 
+def _post(access: str, done: Path, rec: dict, body: dict) -> str:
+    """POST /rest/posts -> post URN; refused (4xx) removes the claim, any unclear outcome leaves state unknown"""
+    def unknown(why: str) -> ValueError:
+        _save(done, {**rec, "state": "unknown", "error": why})
+        return ValueError(f"post: {why}; it may be live: check {PROFILE}, then delete {done} only if it is not there")
+    try:
+        st, hd, _ = api(access, "POST", f"{API}/rest/posts", body)
+    except ApiError as ex:
+        if 400 <= ex.code < 500:  # LinkedIn refused the post: nothing is live, a rerun is safe
+            done.unlink(); raise
+        raise unknown(str(ex)) from ex
+    except BaseException as ex:  # a timeout may come after LinkedIn created the post: keep the record
+        raise unknown(f"{type(ex).__name__}: {ex}") from ex
+    if not hd.get("x-restli-id"): raise unknown(f"HTTP {st}, no post id")  # errors (4xx/5xx) raised in api() already
+    return hd["x-restli-id"]
+
+
 def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: float = 120, step_s: float = 3) -> dict:
     spec, rules = load(spec_path)
     if problems := check(spec, rules): raise ValueError("; ".join(problems))
@@ -284,26 +301,13 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
         done.unlink()  # nothing was posted: a rerun is safe
         raise
     rec.update(document=doc, at=_now())
-    try:
-        st, hd, _ = api(access, "POST", f"{API}/rest/posts", {
-            "author": person, "commentary": text, "visibility": "PUBLIC",
-            "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
-            "content": {"media": {"title": spec["carousel"]["title"], "id": doc}},
-            "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
-    except ApiError as ex:
-        if 400 <= ex.code < 500:  # LinkedIn refused the post: nothing is live, a rerun is safe
-            done.unlink(); raise
-        _save(done, {**rec, "state": "unknown", "error": str(ex)})
-        raise ValueError(f"post: {ex}; it may be live: check {PROFILE}, then delete {done} only if it is not there") from ex
-    except BaseException as ex:  # a timeout may come after LinkedIn created the post: keep the record
-        _save(done, {**rec, "state": "unknown", "error": f"{type(ex).__name__}: {ex}"})
-        raise ValueError(f"post: {ex}; it may be live: check {PROFILE}, then delete {done} only if it is not there") from ex
-    urn = hd.get("x-restli-id")
-    if st != 201 or not urn:
-        _save(done, {**rec, "state": "unknown", "error": f"HTTP {st}, no post id"})
-        raise ValueError(f"post: HTTP {st}, no post id; it may be live: check {PROFILE}, then delete {done} only if it is not there")
+    urn = _post(access, done, rec, {
+        "author": person, "commentary": text, "visibility": "PUBLIC",
+        "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
+        "content": {"media": {"title": spec["carousel"]["title"], "id": doc}},
+        "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
     rec.update(state="published", post=urn, url=f"https://www.linkedin.com/feed/update/{urn}/", comment=None)
-    print(f"post: {st} {rec['url']}")  # before the save: if the disk write fails, the post id is still on screen
+    print(f"post: 201 {rec['url']}")  # before the save: if the disk write fails, the post id is still on screen
     try:
         _save(done, rec)  # before the comment: a failed comment must not lead to a second post
     except OSError as ex:  # the claim (state pending) stays on disk, so a rerun is still refused

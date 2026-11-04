@@ -29,8 +29,8 @@ def save(tok: dict, out: Path = OUT) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(".part")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)  # before the first byte: an older .part with wider rights keeps its mode on O_TRUNC
     with os.fdopen(fd, "w") as f: json.dump(tok, f)
-    os.chmod(tmp, 0o600)  # an older .part with wider rights keeps its mode on O_TRUNC
     os.replace(tmp, out)
 
 
@@ -52,8 +52,12 @@ def main() -> None:
     url = "https://www.linkedin.com/oauth/v2/authorization?" + urllib.parse.urlencode({
         "response_type": "code", "client_id": cid, "redirect_uri": REDIRECT, "state": state, "scope": "openid profile w_member_social"})
     print("LinkedIn consent page:", url)
+    try:
+        srv = http.server.HTTPServer(("127.0.0.1", 8789), Callback)  # bound before the consent page opens
+    except OSError as ex:
+        raise SystemExit(f"port 8789 is taken ({ex}): close what listens there, then run linkedin_auth.py again") from ex
     webbrowser.open(url)
-    srv, deadline = http.server.HTTPServer(("127.0.0.1", 8789), Callback), time.time() + 300
+    deadline = time.time() + 300
     srv.timeout = 5  # handle_request() returns every 5 s, so the 5-minute deadline is really checked
     try:
         while "code" not in got and time.time() < deadline: srv.handle_request()

@@ -39,7 +39,7 @@ SPEC = {
 }
 
 
-def SPEC_ON_DISK(path):
+def spec_on_disk(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -133,7 +133,7 @@ class PublishTest(unittest.TestCase):
 
     def run_with(self, fake, really=True, approve: str | None = "dry run"):
         """approve="dry run" = the code the dry run printed for the current spec and PDF (what Kamil saw)"""
-        if approve == "dry run": approve = linkedin.approval(SPEC_ON_DISK(self.spec), self.pdf.read_bytes())
+        if approve == "dry run": approve = linkedin.approval(spec_on_disk(self.spec), self.pdf.read_bytes())
         with mock.patch.object(linkedin, "_open", fake), mock.patch("sys.stdout", io.StringIO()):
             return linkedin.publish(self.spec, really, approve, wait_s=5, step_s=0)
 

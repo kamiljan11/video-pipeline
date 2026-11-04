@@ -381,7 +381,8 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
   traktuj jak `unknown`. `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
   Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
 - **Token:** `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni, wspólny z zadaniem toRzeszów:
-  `~/Documents/toRzeszow/skrypty/linkedin_auth.py`, kopia tego samego skryptu; odnawiaj z tym samym zakresem `openid profile w_member_social`). Skrypt staje 3 dni
+  `~/Documents/toRzeszow/skrypty/linkedin_auth.py`, starsza, osobna wersja tego skryptu z tym samym zakresem `openid profile w_member_social`
+  i tym samym plikiem tokenu; źródłem prawdy jest `linkedin_auth.py` w tym repo, odnowienie którymkolwiek działa dla obu). Skrypt staje 3 dni
   przed wygaśnięciem. Odnowienie (Kamil klika „Zezwól” w przeglądarce), sekrety aplikacji z Infisicala (`LINKEDIN_CLIENT_ID`,
   `LINKEDIN_CLIENT_SECRET`):
   `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 linkedin_auth.py`

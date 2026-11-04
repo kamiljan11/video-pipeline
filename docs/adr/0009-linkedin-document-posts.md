@@ -5,7 +5,7 @@ Data: 2026-11-04 | Status: przyjęte | Drzwi: dwukierunkowe | Przegląd: 2027-02
 **Kontekst:** Kamil (2026-11-04): system obok shortów i longów ma robić posty na LinkedIn; „decyduj to co najpopularniejsze i
 publikuj przez api”. Na profilu kamiljan11 działa już publikacja przez API (toRzeszów, od 16.10.2026): aplikacja LinkedIn
 265006181, produkt Share on LinkedIn, token `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni) z
-`linkedin_auth.py` (kopia w tym repo od 2026-11-04, ten sam plik tokenu co toRzeszów). Sonda 2026-11-04 na tym tokenie: `POST /rest/{documents,images,videos}?action=initializeUpload`
+`linkedin_auth.py` (w tym repo od 2026-11-04 osobna, poprawiona wersja: zapis 0600 atomowo, nazwane błędy; ten sam zakres i plik tokenu co toRzeszów). Sonda 2026-11-04 na tym tokenie: `POST /rest/{documents,images,videos}?action=initializeUpload`
 z autorem `urn:li:person:…` = 200 dla wszystkich trzech (LinkedIn-Version 202609), więc format nie jest ograniczony dostępem.
 
 **Kryteria:** (1) format o najwyższym zaangażowaniu; (2) materiał z tego, co pipeline już ma (nagranie, transkrypcja, motyw);
