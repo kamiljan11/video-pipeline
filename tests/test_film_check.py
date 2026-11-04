@@ -81,6 +81,20 @@ class FilmCheckTest(unittest.TestCase):
         r, rep = self.run_check("long")
         self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
 
+    def test_opening_part_without_chapter(self):
+        """the first part may say "chap": false (the hook stands there); it still needs its explainer"""
+        ovs, specs, segs = self.full_long()
+        ovs = [o for o in ovs if o["id"] != "c0"]
+        self.project(ovs, specs, segs, sfx_style="v2", music_palette={"name": "lofi", "key": 2},
+                     music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.chapters"]["status"], "FAIL")
+        self.assertIn("Wstęp", rep["long.chapters"]["detail"])
+        story = json.loads((self.d / "story.json").read_text()); story["parts"][0]["chap"] = False
+        (self.d / "story.json").write_text(json.dumps(story))
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.chapters"]["status"], "OK")
+
     def test_skip_needs_a_reason(self):
         ovs, specs, segs = self.full_long()
         ovs = [o for o in ovs if not o["id"].startswith("b")]

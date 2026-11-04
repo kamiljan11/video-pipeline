@@ -111,12 +111,19 @@ class Film:
         starts = [(pt.get("title", pt.get("id", "?")), src2out(segs, wt[pt["start_word"]])) for pt in story.get("parts", [])]
         return [(t, a, starts[i + 1][1] if i + 1 < len(starts) else self.len) for i, (t, a) in enumerate(starts)]
 
+    def no_chap(self) -> set[str]:
+        """parts marked "chap": false (the opening: the hook goes there, not a chapter card)"""
+        p = self.work / "story.json"
+        if not p.exists(): return set()
+        return {pt.get("title", pt.get("id", "?")) for pt in load(p, "story.json").get("parts", []) if pt.get("chap") is False}
+
     # ---- metrics: name -> value (number, bool or a (bool, detail) pair) ----
     def story_parts(self): return len(self.parts())
 
     def parts_with_chap_at_start(self):
         chaps = [o["at"] for o in self.ovs if self.typ(o) == "chap"]
-        miss = [t for t, a, _ in self.parts() if not any(a - CHAP_LEAD <= c <= a + CHAP_LAG for c in chaps)]
+        free = self.no_chap()
+        miss = [t for t, a, _ in self.parts() if t not in free and not any(a - CHAP_LEAD <= c <= a + CHAP_LAG for c in chaps)]
         return (not miss and bool(self.parts())), f"no chap card at the start of: {', '.join(miss)}" if miss else ""
 
     def parts_with_explainer(self):
