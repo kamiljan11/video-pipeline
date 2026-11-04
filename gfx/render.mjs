@@ -5,7 +5,7 @@ import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
-import { camKeyframes, scene, sceneFit, sceneSafe } from './scene_lib.mjs';
+import { camKeyframes, scene, sceneFit, sceneSafe, soloKeys } from './scene_lib.mjs';
 const [specFile, outDir] = process.argv.slice(2);
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const THEME = loadTheme(specFile);  // work/theme.json -> style/themes/<name>.json colors; null = the template's own
@@ -121,7 +121,10 @@ function logoStamp(sp) {
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
 }
 // "behind" is left out: behind.py rewrites the .mov from the front card and keeps its own key in the file
-const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined })).digest('hex');
+// a scene is drawn by scene_lib.mjs: a change there (new piece look, the 9:16 solo fade) changes the same spec's frames,
+// so its source is part of a scene's key (film 2 shorts, 2026-11-04: the solo fade was not rendered, the spec was the same)
+const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB } : {}) })).digest('hex');
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
   const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
@@ -154,8 +157,8 @@ async function one(sp) {
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
   // "scene": pieces measured as laid out, camera stops ("on": piece ids) turned into a camera move (gfx/scene_lib.mjs)
-  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe]) => { new Function(`return ${fit}`)()(safe, kf); },
-    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp)]);
+  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe, solo]) => { new Function(`return ${fit}`)()(safe, kf, solo); },
+    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString()]);
   // images (end card logo, web capture) loaded before the first frame; one that cannot load stops the render with its name
   const broken = await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().then(() => null, () => i.src))));
   if (broken.some(Boolean)) { console.error(`FAILED gfx ${sp.id}: image not loaded ${broken.filter(Boolean).join(', ')}`); process.exit(1); }

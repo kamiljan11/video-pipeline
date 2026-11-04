@@ -23,3 +23,9 @@ test('a changed scene renders again, the same scene does not', { skip: !fs.exist
   assert.notEqual(third, first, 'a retimed scene kept its old .mov');
   assert.equal(render({ ...sc, els: [{ ...sc.els[0], at: 0.1 }], behind: { edl: 'x.json' } }), third, '"behind" alone re-rendered the front card');
 });
+
+test('a scene is rendered again when scene_lib.mjs changes (its source is in the key)', () => {
+  const src = fs.readFileSync(path.join(GFX, 'render.mjs'), 'utf8');
+  assert.match(src, /readFileSync\(new URL\('\.\/scene_lib\.mjs', import\.meta\.url\)\)/);
+  assert.match(src, /sp\.type === 'scene' \? \{ _lib: SCENE_LIB \}/);
+});

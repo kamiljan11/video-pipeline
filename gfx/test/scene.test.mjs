@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   ("scene" card: explainer canvas with a camera, the face in the PiP circle)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PIP_ZONE, camKeyframes, checkScene, scene, sceneFit, sceneSafe } from '../scene_lib.mjs';
+import { PIP_ZONE, camKeyframes, checkScene, scene, sceneFit, sceneSafe, soloKeys } from '../scene_lib.mjs';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const icon = n => `<svg data-i="${n}"></svg>`;
@@ -104,4 +104,22 @@ test('a say marker split over two words is named (it would show the asterisk on 
   const bad = checkScene(ok([{ k: 'say', x: 0, y: 0, words: [['Autor', 0.1], ['*bez', 0.2], ['redaktora*', 0.3]] }]));
   assert.ok(bad.some(b => b.includes('"*bez"')), bad.join('\n'));
   assert.deepEqual(checkScene(ok([{ k: 'say', x: 0, y: 0, words: [['*bez*', 0.2], ['[AI]', 0.3], ['~nie~', 0.4], ['!nic!', 0.5]] }])), []);
+});
+
+test('9:16 solo: a piece cut by the frame hides for that stop and comes back when a stop frames it', () => {
+  const safe = { x: 60, y: 130, w: 960, h: 1010 };
+  const narrow = { t: 0, x: 0, y: 0, z: 1 }, wide = { t: 5, x: -100, y: -400, z: 0.4, move: 1 };
+  const inside = { x: 100, y: 200, w: 400, h: 100 }, cut = { x: 100, y: 400, w: 1800, h: 100 };
+  const [a, b] = soloKeys([inside, cut], [narrow, wide], 8, safe);
+  assert.equal(a, null);                                   // always fits: never animated
+  assert.deepEqual(b, [[0, 0], [4.75, 0], [5, 1], [8, 1]]);   // hidden while cut, fades in at the end of the move to the whole picture
+  const [c] = soloKeys([cut], [wide, { t: 6, x: 0, y: 0, z: 1, move: 1 }], 8, safe);
+  assert.deepEqual(c, [[0, 1], [5, 1], [5.25, 0], [8, 0]]);   // fades out as the camera starts moving in
+  assert.equal(typeof new Function(`return ${soloKeys.toString()}`)(), 'function');
+});
+
+test('only a 9:16 scene asks for solo', () => {
+  const els = [{ k: 'chip', id: 'a', x: 100, y: 100, text: 'x', at: 0.1 }];
+  assert.match(scene({ id: 'v', type: 'scene', dur: 3, els, canvas: 'v', layout: 'corner' }, String, () => '<svg></svg>'), /data-solo="1"/);
+  assert.doesNotMatch(scene({ id: 'h', type: 'scene', dur: 3, els }, String, () => '<svg></svg>'), /data-solo/);
 });

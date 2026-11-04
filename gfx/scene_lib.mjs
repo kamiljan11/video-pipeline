@@ -52,6 +52,32 @@ export function camKeyframes(cam, dur) {
   return pts.map(([t, s]) => `${((t / dur) * 100).toFixed(3)}%{${tf(s)};animation-timing-function:cubic-bezier(.65,0,.35,1)}`).join('');
 }
 
+// 9:16 "solo" (a short): a camera that frames the piece being said in a narrow frame cuts its wide neighbours at the edge
+// (film 2 shorts, 2026-11-04: "same się odpalają" half off screen). So in a 9:16 scene a piece that does not fit the free area
+// at a camera stop fades out for that stop and back in when a stop frames it again; the last stop ("*") shows the whole
+// drawing. pieces: [{x, y, w, h}] in world px; stops: resolved {t, x, y, z, move}; returns per piece [[t, opacity], ...]
+// or null when it never hides. Self-contained: render.mjs ships its source into the page like camKeyframes.
+export function soloKeys(pieces, stops, dur, safe, tol = 24) {
+  const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d), FADE = 0.25, MOVE = 0.9;
+  const fits = (p, s) => {
+    const z = num(s.z, 1), x0 = (p.x - num(s.x, 0)) * z, y0 = (p.y - num(s.y, 0)) * z;
+    return x0 >= safe.x - tol && y0 >= safe.y - tol && x0 + p.w * z <= safe.x + safe.w + tol && y0 + p.h * z <= safe.y + safe.h + tol;
+  };
+  return pieces.map(p => {
+    const vis = stops.map(s => fits(p, s));
+    if (vis.every(Boolean)) return null;
+    const keys = [[0, vis[0] ? 1 : 0]];
+    for (let i = 1; i < stops.length; i++) {
+      if (vis[i] === vis[i - 1]) continue;
+      const t = num(stops[i].t, 0), start = Math.max(num(stops[i - 1].t, 0), t - num(stops[i].move, MOVE));
+      const [a, b] = vis[i] ? [Math.max(t - FADE, start), t] : [start, Math.min(start + FADE, t)];
+      keys.push([a, vis[i] ? 0 : 1], [b, vis[i] ? 1 : 0]);
+    }
+    keys.push([dur, vis.at(-1) ? 1 : 0]);
+    return keys.map(([t, o]) => [Math.min(Math.max(t, 0), dur), o]);
+  });
+}
+
 // checks the spec by name before anything is drawn; returns the list of problems (empty = fine)
 export function checkScene(sp) {
   const bad = [], dur = sp.dur;
@@ -244,13 +270,13 @@ export function scene(sp, esc, icon) {
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
   const world = sp.els.map(e => piece(e, esc, safeIcon, sp.dur)).join('');
   const bg = sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
-  return `${SCENE_CSS}<div class="scene">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"` : ''}>${world}</div></div>`;
+  return `${SCENE_CSS}<div class="scene">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
 }
 
 // in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
 // turns every "on" stop into x, y, z that put those pieces in the middle of the free area, and starts the camera animation.
 // Self-contained: its source is evaluated in the page with camKeyframes' source as the second argument.
-export function sceneFit(safe, kfSrc) {
+export function sceneFit(safe, kfSrc, soloSrc) {
   const camKeyframes = new Function(`return ${kfSrc}`)();
   const world = document.querySelector('.scene .world');
   if (!world || !world.dataset.cam) return null;
@@ -273,6 +299,16 @@ export function sceneFit(safe, kfSrc) {
   st.textContent = `@keyframes cam_fit{${camKeyframes(stops, dur)}}`;
   document.head.appendChild(st);
   world.style.animation = `cam_fit ${dur}s linear both`;
+  if (world.dataset.solo && soloSrc) {  // 9:16: a piece cut by the frame edge hides for that stop (soloKeys)
+    const soloKeys = new Function(`return ${soloSrc}`)();
+    const els = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')];
+    soloKeys(pieces, stops, dur, safe).forEach((keys, i) => {
+      const el = els[i];
+      if (!keys || !el.classList.contains('p') || el.style.animation) return;  // lines stay: a cut line reads as going on
+      st.textContent += `@keyframes solo_${i}{${keys.map(([t, o]) => `${((t / dur) * 100).toFixed(3)}%{opacity:${o}}`).join('')}}`;
+      el.style.animation = `solo_${i} ${dur}s linear both`;
+    });
+  }
   return stops;
 }
 
