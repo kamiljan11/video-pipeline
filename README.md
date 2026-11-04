@@ -291,6 +291,15 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
   (domyślnie 0,9) i kończy się w `t`. `zmax` (domyślnie 1,8) nie pozwala za bardzo powiększyć jednej małej rzeczy. `"cam": "none"` =
   płótno 1:1; wtedy element, który wchodzi w róg z twarzą, zatrzymuje render z nazwą (chyba że `"pip": false`).
 - `"pip": false`: scena bez kółka z twarzą (build_edl.py nie włącza PiP pod nią), kadruje na cały ekran.
+- **Scena w shorcie (`"canvas": "v"`, `"layout": "split"|"corner"`)**: ten sam rysunek (współrzędne świata jak w longu), kamera
+  kadruje go w wolnym polu nad boksem twarzy / nad napisami przy kółku (`sceneSafe`). Element, który przy danym przystanku kamery
+  nie mieści się w kadrze (np. szeroki napis obok kadrowanego węzła), gaśnie na ten przystanek i wraca, gdy kamera go obejmie
+  (`soloKeys`; linie zostają). Ostatni przystanek `"*"` pokazuje cały rysunek.
+- **Kolizje (`gfx/scene_check.mjs <specs.json> [id…]`)**: każda scena ułożona w Chrome bez renderu klatek; dwa elementy, które
+  zasłaniają się (podpisy węzłów wychodzą poza węzeł) w czasie, gdy oba są na ekranie, = `CLASH <scena>: <a> covers <b>` i exit 1.
+  `run_v4.sh` puszcza to przed renderem. Pieczątka, ptaszek, obwódka, kursor i linia kładą się na inne celowo: pomijane.
+- **Cache**: `.mov` sceny należy do jej specyfikacji i do źródła `gfx/scene_lib.mjs` (klucz w `<id>.mov.key`): zmiana wyglądu
+  elementów renderuje sceny od nowa, nawet przy tej samej specyfikacji.
 - Kiedy: zamiast `slide`, gdy mówisz o mechanizmie (kto co robi, co blokuje, co przechodzi dalej). Nowy obraz co 3–6 s:
   jeden element na jedno zdanie, kamera przechodzi do niego, gdy o nim mówisz. Przy prawdziwym wyniku (terminal, log) pokazuj go,
   nie rysuj od nowa innymi słowami.

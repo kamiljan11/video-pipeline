@@ -5,6 +5,10 @@ WORK=$1; OUT=$2; shift 2
 VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # fail-fast for every film (ADR-0002): a failed step never renders a stale or unclamped EDL, the film gets no DONE
+# scenes laid out in Chrome first: two pieces covering each other on screen (labels run together) stop the run, named
+if [ -f gfx_specs.json ] && grep -q '"type": *"scene"' gfx_specs.json && ! node $VP/gfx/scene_check.mjs gfx_specs.json >> gfx.log 2>&1; then
+  echo "FAILED scene_check (gfx.log: CLASH lines)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
+fi
 if [ -f gfx_specs.json ] && ! node $VP/gfx/render.mjs gfx_specs.json gfx >> gfx.log 2>&1; then
   # graphics are shared by every film of the project: none renders with missing or stale cards
   echo "FAILED gfx (gfx.log)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
