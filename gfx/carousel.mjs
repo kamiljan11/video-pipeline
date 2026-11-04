@@ -28,7 +28,8 @@ try {
   await page.evaluate(() => document.fonts.ready);
   const broken = await page.evaluate(() => [...document.querySelectorAll('.slide')].flatMap((s, i) => {
     const box = s.querySelector('.box'), img = s.querySelector('img');
-    return [...(box.scrollHeight > box.clientHeight + 1 ? [`slide ${i + 1}: text does not fit (shorten it)`] : []),
+    const tooTall = box.scrollHeight > box.clientHeight + 1, tooWide = box.scrollWidth > box.clientWidth + 1;  // a long word clips sideways
+    return [...(tooTall || tooWide ? [`slide ${i + 1}: text does not fit (shorten it${tooWide ? ', a word is wider than the slide' : ''})`] : []),
             ...(img && !img.naturalWidth ? [`slide ${i + 1}: photo did not load`] : [])];
   }));
   if (broken.length) throw new Error(broken.join('; '));

@@ -45,7 +45,9 @@ profilu i ręcznego skasowania pliku. Pierwszy komentarz jest po poście; jego b
 `linkedin.py comment` ponawia tylko komentarz). Publikacja idzie dopiero po akceptacji tekstu i PDF przez Kamila. Token i `linkedin_auth.py` dzielimy z zadaniem toRzeszów
 (jeden token na profil; odnowienie dotyczy obu).
 
-**Koszt cykliczny:** 0 zł (API LinkedIn bez opłat, render lokalnie).
+**Koszt cykliczny:** 0 zł (API LinkedIn bez opłat, render lokalnie). Czas: odnowienie tokenu ok. 6 razy w roku (Kamil klika
+„Zezwól”, 1 min), podbicie `VERSION` raz w roku, odczyt `stats_7d` per post (2 min). Ręczne wrzucenie tego samego PDF to ok. 5 min
+na post, więc automat zwraca się od kilku postów w roku, o ile zasięg z API nie jest wyraźnie gorszy (metryka niżej).
 
 **Wykonanie / rollback:** nowe pliki (`linkedin.py`, `gfx/carousel*.{mjs,html}`, `style/linkedin.json`, `style/LINKEDIN.md`), nic w
 istniejącym pipeline się nie zmienia. Rollback = revert commita; opublikowany post usuwa się na LinkedIn ręcznie.

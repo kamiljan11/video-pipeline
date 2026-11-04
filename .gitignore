@@ -26,3 +26,8 @@ words*.json
 plan_*.json
 edl_*.json
 gfx_specs.json
+# LinkedIn post drafts and their publish records (style/linkedin.json is tracked and stays)
+linkedin.json
+!style/linkedin.json
+linkedin.pdf
+linkedin.published.json

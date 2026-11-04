@@ -63,4 +63,7 @@ test('a cover photo is drawn; a text that does not fit stops by name and leaves 
   assert.notEqual(long.r.status, 0);
   assert.match(long.r.stderr, /FAILED carousel .*slide 2: text does not fit/);
   assert.equal(fs.existsSync(long.pdf), false);
+  const wide = render([{ ...SLIDES[0], title: 'Rozporządzeniowoprzetłumaczalnościowości' + 'x'.repeat(30) }, SLIDES[3]], 'wide');
+  assert.notEqual(wide.r.status, 0);
+  assert.match(wide.r.stderr, /slide 1: text does not fit .*wider than the slide/);
 });

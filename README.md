@@ -368,10 +368,13 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
 ```
 
 - **Akceptacja:** tekst pisze model, więc `--publish` idzie dopiero po tym, jak Kamil zobaczył tekst z dry runu i PDF. Dry run
-  drukuje kod akceptacji (skrót tekstu, komentarza i PDF); `--publish` bez tego kodu albo po jakiejkolwiek zmianie stoi przed
-  pierwszym wywołaniem API, więc wychodzi dokładnie to, co Kamil widział.
+  drukuje kod akceptacji (skrót tekstu, tytułu dokumentu, komentarza i PDF); `--publish` bez tego kodu albo po jakiejkolwiek
+  zmianie stoi przed pierwszym wywołaniem API, więc wychodzi dokładnie to, co pokazał dry run. Kod wiąże treść, nie dowodzi
+  zgody: sesja, która uruchomiła dry run, zna kod, więc „Kamil widział i powiedział OK” pozostaje krokiem procedury
+  (`style/LINKEDIN.md`).
 - **Komentarz:** `FAILED` = LinkedIn go odrzucił (4xx), `comment` ponawia. `UNKNOWN` = timeout albo błąd serwera: komentarz mógł
-  się pojawić; sprawdź pod postem i dopiero wtedy `comment --checked` (inaczej byłby drugi taki sam).
+  się pojawić (także gdy przebieg przerwano w trakcie wysyłki); sprawdź pod postem i dopiero wtedy `comment --checked`.
+  Ponowienie wysyła tekst zatwierdzony przy publikacji (zapisany w rekordzie); zmieniony `first_comment` w specu = odmowa.
 - **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn. `state: published` = post
   jest (URL w pliku). `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
   Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
@@ -384,6 +387,10 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
   LinkedIn (`x-li-…`) do zgłoszenia w ich supporcie.
 - **Wersja API:** `VERSION` w `linkedin.py` (nagłówek `LinkedIn-Version`, LinkedIn wycofuje wersje po ok. roku; błąd HTTP
   wspominający wersję = podbić na aktualną z dokumentacji LinkedIn).
+- **Wynik posta:** po 7 dniach Kamil przepisuje wyświetlenia i reakcje z karty posta do `linkedin.published.json` jako
+  `"stats_7d": {"views": …, "reactions": …}`; reguła decyzji w ADR-0009 › Metryka.
+- **Nowe pole w specu:** `SPEC_KEYS`/`SLIDE_KEYS` i `check()` w `linkedin.py` (inaczej `check` je odrzuci), limit w
+  `style/linkedin.json`, render slajdu w `gfx/carousel_lib.mjs` (`slidesHtml`) i styl w `gfx/carousel.html`; test w obu zestawach.
 - Testy: `tests/test_linkedin.py` (fałszywy LinkedIn, bez sieci), `gfx/test/carousel.test.mjs`.
 
 ## Gdzie są shorty w longu (`shorts.py`)

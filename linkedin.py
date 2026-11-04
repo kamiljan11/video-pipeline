@@ -169,8 +169,8 @@ def token() -> str:
     return access
 
 
-def _pdf_pages(pdf: Path) -> int:
-    return len(re.findall(rb"/Type\s*/Page(?![s\w])", pdf.read_bytes()))
+def _pdf_pages(blob: bytes) -> int:
+    return len(re.findall(rb"/Type\s*/Page(?![s\w])", blob))
 
 
 def _now() -> str:
@@ -195,8 +195,11 @@ def _claim(done: Path) -> dict:
     return {"state": "pending"}
 
 
-def _comment(access: str, person: str, done: Path, rec: dict, text: str) -> dict:
-    """the first comment under the recorded post; its result goes into the record either way"""
+def _comment(access: str, person: str, done: Path, rec: dict) -> dict:
+    """the approved first comment (from the record) under the recorded post; its result goes into the record either way"""
+    rec["comment"] = "UNKNOWN sending (the run stopped while the comment was on its way)"
+    _save(done, rec)  # a kill or Ctrl-C mid-call leaves UNKNOWN, never a state that looks safe to resend
+    text = rec["first_comment"]
     try:
         st, _, _ = api(access, "POST", f"{API}/v2/socialActions/{urllib.parse.quote(rec['post'], safe='')}/comments",
                        {"actor": person, "message": {"text": text}})
@@ -210,29 +213,29 @@ def _comment(access: str, person: str, done: Path, rec: dict, text: str) -> dict
     return rec
 
 
-def _upload(access: str, person: str, pdf: Path, wait_s: float, step_s: float) -> str:
+def _upload(access: str, person: str, blob: bytes, wait_s: float, step_s: float) -> str:
     """PDF -> document URN once LinkedIn has processed it; nothing is posted here"""
     _, _, init = api(access, "POST", f"{API}/rest/documents?action=initializeUpload", {"initializeUploadRequest": {"owner": person}})
     up, doc = init["value"]["uploadUrl"], init["value"]["document"]
     u = urllib.parse.urlsplit(up)
     if u.scheme != "https" or not (u.hostname or "").endswith(".linkedin.com"): raise ValueError(f"upload URL outside linkedin.com: {up[:80]}")
-    st, _, _ = api(access, "PUT", up, raw=pdf.read_bytes())
+    st, _, _ = api(access, "PUT", up, raw=blob)
     print(f"upload PDF: {st} {doc}")
     deadline, status = time.monotonic() + wait_s, ""
     while status != "AVAILABLE":
         _, _, d = api(access, "GET", f"{API}/rest/documents/{urllib.parse.quote(doc, safe='')}")
         status = d.get("status", "")
-        if status == "PROCESSING_FAILED": raise ValueError(f"LinkedIn could not process {pdf.name} ({doc})")
+        if status == "PROCESSING_FAILED": raise ValueError(f"LinkedIn could not process the PDF ({doc})")
         if status != "AVAILABLE":
             if time.monotonic() > deadline: raise ValueError(f"{doc} still {status or 'unknown'} after {wait_s:.0f} s; nothing was posted, run publish again")
             time.sleep(step_s)
     return doc
 
 
-def approval(spec: dict, pdf: Path) -> str:
-    """short code over exactly what would be published (post text, first comment, PDF bytes)"""
-    h = hashlib.sha256(commentary(spec).encode() + b"\0" + spec["first_comment"].encode() + b"\0" + pdf.read_bytes())
-    return h.hexdigest()[:12]
+def approval(spec: dict, blob: bytes) -> str:
+    """short code over everything the post makes public: text, document title, first comment, PDF bytes"""
+    parts = (commentary(spec), spec["carousel"]["title"], spec["first_comment"])
+    return hashlib.sha256(b"\0".join(x.encode() for x in parts) + b"\0" + blob).hexdigest()[:12]
 
 
 def _author(access: str) -> str:
@@ -247,21 +250,23 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
     done, pdf = spec_path.parent / "linkedin.published.json", spec_path.parent / "linkedin.pdf"
     if done.exists(): raise ValueError(f"{done} exists: already published or in progress; to add a missing comment: linkedin.py comment {spec_path}")
     if not pdf.is_file() or pdf.stat().st_mtime < spec_path.stat().st_mtime: raise ValueError(f"{pdf} missing or older than the spec: run linkedin.py render first")
-    if (n := _pdf_pages(pdf)) != len(spec["carousel"]["slides"]): raise ValueError(f"{pdf}: {n} pages, the spec has {len(spec['carousel']['slides'])} slides")
-    code = approval(spec, pdf)
+    blob = pdf.read_bytes()  # read once: the approved bytes are the uploaded bytes
+    if (n := _pdf_pages(blob)) != len(spec["carousel"]["slides"]): raise ValueError(f"{pdf}: {n} pages, the spec has {len(spec['carousel']['slides'])} slides")
+    code = approval(spec, blob)
     if really and approve != code:  # checked before any call: no approval, no traffic
-        raise ValueError("--publish needs --approve <code> from the dry run Kamil approved; the text, comment or PDF "
+        raise ValueError("--publish needs --approve <code> from the dry run Kamil approved; the text, title, comment or PDF "
                          "changed since then, or no code was given")
     access = token()
     person, text = _author(access), commentary(spec)
     print(f"post: {len(text)} characters, PDF {pdf.name} {n} pages")
     if not really:
-        print(f"DRY RUN, nothing sent.\n---\n{text}\n--- first comment ---\n{spec['first_comment']}\n---\n"
+        print(f"DRY RUN, nothing sent.\n---\n{text}\n--- document title ---\n{spec['carousel']['title']}\n"
+              f"--- first comment ---\n{spec['first_comment']}\n---\n"
               f"approval code: {code}  (after Kamil's OK: linkedin.py publish {spec_path} --publish --approve {code})")
         return {"dry_run": True, "approve": code}
-    rec = _claim(done)
+    rec = {**_claim(done), "approve": code, "first_comment": spec["first_comment"]}
     try:
-        doc = _upload(access, person, pdf, wait_s, step_s)
+        doc = _upload(access, person, blob, wait_s, step_s)
     except BaseException:
         done.unlink()  # nothing was posted: a rerun is safe
         raise
@@ -287,7 +292,7 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
     rec.update(state="published", post=urn, url=f"https://www.linkedin.com/feed/update/{urn}/", comment=None)
     _save(done, rec)  # before the comment: a failed comment must not lead to a second post
     print(f"post: {st} {rec['url']}")
-    return _comment(access, person, done, rec, spec["first_comment"])
+    return _comment(access, person, done, rec)
 
 
 def comment(spec_path: Path, checked: bool = False) -> dict:
@@ -299,9 +304,10 @@ def comment(spec_path: Path, checked: bool = False) -> dict:
     if rec.get("comment") == 201: raise ValueError(f"{rec['url']} already has its first comment")
     if str(rec.get("comment")).startswith("UNKNOWN") and not checked:
         raise ValueError(f"the last comment attempt may have gone through: look under {rec['url']}, then rerun with --checked if it is not there")
-    if not isinstance(spec.get("first_comment"), str) or not spec["first_comment"].strip(): raise ValueError('"first_comment" is empty')
+    if spec.get("first_comment") != rec.get("first_comment"):  # only the approved text goes out, never an edit made later
+        raise ValueError(f'"first_comment" in {spec_path} differs from the one approved at publish; the approved one is in {done}')
     access = token()
-    return _comment(access, _author(access), done, rec, spec["first_comment"])
+    return _comment(access, _author(access), done, rec)
 
 
 def main(argv: list[str]) -> int:

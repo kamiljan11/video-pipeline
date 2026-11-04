@@ -14,6 +14,7 @@ import json
 import os
 import secrets
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
@@ -40,9 +41,9 @@ def main() -> None:
         def do_GET(self):
             q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
             if q.get("state", [""])[0] == state and "code" in q:
-                got["code"], msg = q["code"][0], "OK, mozesz zamknac te karte."
+                got["code"], msg = q["code"][0], "OK, you can close this tab."
             else:
-                msg = "Blad: " + str(q.get("error_description", q.get("error", ["?"])))
+                msg = "Error: " + str(q.get("error_description", q.get("error", ["?"])))
             self.send_response(200); self.send_header("Content-Type", "text/plain; charset=utf-8"); self.end_headers()
             self.wfile.write(msg.encode())
 
@@ -53,13 +54,20 @@ def main() -> None:
     print("LinkedIn consent page:", url)
     webbrowser.open(url)
     srv, deadline = http.server.HTTPServer(("127.0.0.1", 8789), Callback), time.time() + 300
-    while "code" not in got and time.time() < deadline: srv.handle_request()
+    srv.timeout = 5  # handle_request() returns every 5 s, so the 5-minute deadline is really checked
+    try:
+        while "code" not in got and time.time() < deadline: srv.handle_request()
+    finally:
+        srv.server_close()
     if "code" not in got: raise SystemExit("no authorization code within 5 min")
     body = urllib.parse.urlencode({"grant_type": "authorization_code", "code": got["code"], "redirect_uri": REDIRECT,
                                    "client_id": cid, "client_secret": csec}).encode()
-    with urllib.request.urlopen(urllib.request.Request("https://www.linkedin.com/oauth/v2/accessToken", data=body,
-                                headers={"Content-Type": "application/x-www-form-urlencoded"}), timeout=30) as r:
-        tok = json.load(r)
+    try:
+        with urllib.request.urlopen(urllib.request.Request("https://www.linkedin.com/oauth/v2/accessToken", data=body,
+                                    headers={"Content-Type": "application/x-www-form-urlencoded"}), timeout=30) as r:
+            tok = json.load(r)
+    except urllib.error.HTTPError as ex:
+        raise SystemExit(f"token exchange: HTTP {ex.code} {ex.read().decode(errors='replace')[:300]}") from ex
     tok["obtained_at"] = int(time.time())
     save(tok)
     print("token saved to", OUT, "| expires in days:", round(tok.get("expires_in", 0) / 86400, 1))
