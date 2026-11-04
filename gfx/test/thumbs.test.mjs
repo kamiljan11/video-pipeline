@@ -32,3 +32,17 @@ test('fit: a headline wider than its column or words past the bottom are named, 
   assert.ok(bad.some(b => b.includes('"big" is 220 px wider')), bad.join('\n'));
   assert.ok(bad.some(b => b.includes('40 px past the bottom')), bad.join('\n'));
 });
+
+test('a run that stops on variant B leaves out as it was: no new A next to an old B', { skip: !fs.existsSync('/usr/bin/google-chrome') }, async () => {
+  const { execFileSync, spawnSync } = await import('child_process');
+  const w = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-run-')), out = path.join(w, 'out');
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=gray:s=320x180', '-frames:v', '1', path.join(w, 'f.png')]);
+  fs.mkdirSync(out); fs.writeFileSync(path.join(out, 'long_A.jpg'), 'old A'); fs.writeFileSync(path.join(out, 'long_B.jpg'), 'old B');
+  fs.writeFileSync(path.join(w, 't.json'), JSON.stringify({ long: [v('A'), v('B', { sub: 'x'.repeat(90) })] }));
+  const r = spawnSync('node', [new URL('../thumbs.mjs', import.meta.url).pathname, path.join(w, 't.json'), out], { encoding: 'utf8' });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /long_B/);
+  assert.equal(fs.readFileSync(path.join(out, 'long_A.jpg'), 'utf8'), 'old A');
+  assert.deepEqual(fs.readdirSync(out).sort(), ['long_A.jpg', 'long_B.jpg']);  // no staging dir left behind
+  fs.rmSync(w, { recursive: true, force: true });
+});

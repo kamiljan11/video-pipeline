@@ -8,11 +8,10 @@
 // Out: long_<id>.jpg (1280x720, the upload) + long_<id>_2560.png, <short id>_cover.jpg (1080x1920).
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
+import { esc, icon } from './html_lib.mjs';
 
 const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const icon = n => fs.readFileSync(path.join(ROOT, 'node_modules/lucide-static/icons', `${n}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
 
 // checks the spec before a browser starts; returns the problems (empty = fine)
 export function checkThumbs(t, base) {
@@ -85,6 +84,10 @@ async function main() {
   if (bad.length) { console.error(`thumbs.mjs ${specPath}:\n  ${bad.join('\n  ')}`); process.exit(1); }
   fs.mkdirSync(out, { recursive: true });
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-'));
+  // all or nothing: shots go to a staging dir next to out; only a run where every word fits replaces the set in out, so a
+  // stop on variant B never leaves a new A next to an old B that film_check would count as an A/B pair
+  const stage = fs.mkdtempSync(path.join(out, '.thumbs-'));
+  const made = [];
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
   try {
     const shot = async (html, w, h, file, scale = 1) => {
@@ -101,15 +104,19 @@ async function main() {
       const bad = fitProblems(file, m, h);
       if (bad.length) throw new Error(bad.join('; '));
       const jpg = file.endsWith('.jpg');
-      await page.screenshot({ path: path.join(out, file), type: jpg ? 'jpeg' : 'png', ...(jpg ? { quality: 92 } : {}) });
-      await page.close();
+      await page.screenshot({ path: path.join(stage, file), type: jpg ? 'jpeg' : 'png', ...(jpg ? { quality: 92 } : {}) });
+      await page.close(); made.push(file);
     };
     for (const v of t.long) {
       await shot(longHtml(v, base, theme), 1280, 720, `long_${v.id}.jpg`);
       await shot(longHtml(v, base, theme), 1280, 720, `long_${v.id}_2560.png`, 2);
     }
     for (const v of t.shorts ?? []) await shot(shortHtml(v, base, theme), 1080, 1920, `${v.id}_cover.jpg`);
-  } finally { await browser.close(); fs.rmSync(tmp, { recursive: true, force: true }); }
+    for (const f of fs.readdirSync(out)) if (/^long_.+\.(jpg|png)$|_cover\.jpg$/.test(f) && !made.includes(f)) fs.rmSync(path.join(out, f));
+    for (const f of made) fs.renameSync(path.join(stage, f), path.join(out, f));
+  } finally {
+    await browser.close(); fs.rmSync(tmp, { recursive: true, force: true }); fs.rmSync(stage, { recursive: true, force: true });
+  }
   console.log(`thumbs ok: ${t.long.length} long variants, ${(t.shorts ?? []).length} covers -> ${out}`);
 }
 

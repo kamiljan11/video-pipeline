@@ -8,9 +8,9 @@ const GFX = path.resolve(import.meta.dirname, '..');
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'cache-'));
 test.after(() => fs.rmSync(work, { recursive: true, force: true }));
 
-const render = sp => {
+const render = (sp, gfx = GFX) => {
   const specFile = path.join(work, 'specs.json'); fs.writeFileSync(specFile, JSON.stringify([sp]));
-  const r = spawnSync('node', [path.join(GFX, 'render.mjs'), specFile, path.join(work, 'gfx')], { encoding: 'utf8', timeout: 120000 });
+  const r = spawnSync('node', [path.join(gfx, 'render.mjs'), specFile, path.join(work, 'gfx')], { encoding: 'utf8', timeout: 120000 });
   assert.equal(r.status, 0, r.stderr);
   return fs.statSync(path.join(work, 'gfx', `${sp.id}.mov`)).mtimeMs;
 };
@@ -24,8 +24,13 @@ test('a changed scene renders again, the same scene does not', { skip: !fs.exist
   assert.equal(render({ ...sc, els: [{ ...sc.els[0], at: 0.1 }], behind: { edl: 'x.json' } }), third, '"behind" alone re-rendered the front card');
 });
 
-test('a scene is rendered again when scene_lib.mjs changes (its source is in the key)', () => {
-  const src = fs.readFileSync(path.join(GFX, 'render.mjs'), 'utf8');
-  assert.match(src, /readFileSync\(new URL\('\.\/scene_lib\.mjs', import\.meta\.url\)\)/);
-  assert.match(src, /sp\.type === 'scene' \? \{ _lib: SCENE_LIB \}/);
+test('a scene is rendered again when scene_lib.mjs changes (its source is in the key)', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  // a copy of gfx/ whose scene_lib.mjs gets one more byte: same spec, other library = a new .mov
+  const copy = path.join(work, 'gfxcopy');
+  fs.cpSync(GFX, copy, { recursive: true, filter: f => !/\/(test|test_out)(\/|$)/.test(f.slice(GFX.length)) });
+  const sc = { id: 'lib1', type: 'scene', dur: 0.4, cam: 'none', pip: false, els: [{ k: 'text', x: 100, y: 100, t: 'raz', at: 0 }] };
+  const first = render(sc, copy);
+  assert.equal(render(sc, copy), first, 'the same spec and library were rendered again');
+  fs.appendFileSync(path.join(copy, 'scene_lib.mjs'), '\n// changed\n');
+  assert.notEqual(render(sc, copy), first, 'a changed scene_lib.mjs kept the old .mov');
 });

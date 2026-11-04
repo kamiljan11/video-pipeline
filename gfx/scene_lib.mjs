@@ -154,93 +154,103 @@ function row(r, esc, icon, at) {
 const uid = e => 'u' + Math.abs([...JSON.stringify(e)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)).toString(36);
 const DEF_ANIM = { stamp: 'drop', line: 'fade', check: 'fade', cursor: 'fade', ring: 'fade', say: 'fade', steps: 'blur' };
 
-function piece(e, esc, icon, dur) {
-  const at = num(e.at, e.k === 'say' ? Math.max(0, Math.min(...e.words.map(w => w[1])) - 0.05) : 0);
-  const anim = ANIMS[e.anim ?? DEF_ANIM[e.k] ?? 'up'];
-  const tn = tone(e.tone);
-  let inner = '', cls = e.k, style = `left:${e.x}px;top:${e.y}px;${e.w ? `width:${e.w}px;` : ''}${e.h ? `height:${e.h}px;` : ''}`;
-  if (e.k === 'win' || e.k === 'file') {
-    const head = e.k === 'win'
-      ? `<div class="tb"><i></i><i></i><i></i><span class="ti">${e.icon ? icon(e.icon) : ''}${esc(e.title ?? '')}</span></div>`
-      : `<div class="tb fb">${icon(e.icon ?? 'file-text')}<span class="ti">${esc(e.name ?? e.title ?? '')}</span>${e.badge ? `<span class="bdg" style="color:${tone(e.badge.tone)};border-color:${tone(e.badge.tone)};animation:scpop .4s cubic-bezier(.2,1.6,.4,1) ${f2(num(e.badge.at, at + 0.5))}s both">${esc(e.badge.text)}</span>` : ''}</div>`;
-    const rows = (e.rows ?? ['~80', '~55', '~70']).map((r, i) => row(r, esc, icon, at + 0.15 + i * num(e.step, 0.12))).join('');
-    inner = `${head}<div class="bd">${rows}</div>`;
-  } else if (e.k === 'term') {
+// one drawer per piece kind (KINDS): (e, c) -> { inner, style } for a piece in the common box (entrance, pulse, dim, gone added
+// by piece()), or { html } for a kind that draws its own box (cursor, ring, line). c = { esc, icon, at, tn }.
+// A new kind = one entry here + its name in KINDS + its keys in checkScene (and README "Scena").
+const idAttr = (e, esc) => (e.id ? ` data-id="${esc(e.id)}"` : '');
+const winFile = (e, { esc, icon, at }) => {
+  const head = e.k === 'win'
+    ? `<div class="tb"><i></i><i></i><i></i><span class="ti">${e.icon ? icon(e.icon) : ''}${esc(e.title ?? '')}</span></div>`
+    : `<div class="tb fb">${icon(e.icon ?? 'file-text')}<span class="ti">${esc(e.name ?? e.title ?? '')}</span>${e.badge ? `<span class="bdg" style="color:${tone(e.badge.tone)};border-color:${tone(e.badge.tone)};animation:scpop .4s cubic-bezier(.2,1.6,.4,1) ${f2(num(e.badge.at, at + 0.5))}s both">${esc(e.badge.text)}</span>` : ''}</div>`;
+  const rows = (e.rows ?? ['~80', '~55', '~70']).map((r, i) => row(r, esc, icon, at + 0.15 + i * num(e.step, 0.12))).join('');
+  return { inner: `${head}<div class="bd">${rows}</div>` };
+};
+const PIECES = {
+  win: winFile,
+  file: winFile,
+  term: (e, { esc, at, tn }) => {
     const cmdAt = num(e.cmd_at, at + 0.5), typed = e.cmd.length / TYPE_CPS, outAt = num(e.out_at, cmdAt + typed + 0.35);
     const lines = (e.out ?? []).map((l, i) => `<div class="ol${(e.hl ?? []).includes(i) ? ' hot' : ''}" style="animation:scfade .15s ${f2(outAt + i * LINE_STEP)}s both">`
       + `${(e.hl ?? []).includes(i) ? `<span class="rhl" style="background:${tn};animation:scgrow .45s ease-out ${f2(num(e.hl_at, outAt + (e.out.length) * LINE_STEP + 0.4))}s both"></span>` : ''}<span>${esc(l)}</span></div>`).join('');
-    inner = `<div class="tb"><i></i><i></i><i></i><span class="ti">${esc(e.title ?? 'terminal')}</span></div>`
-      + `<div class="bd"><div class="cl"><span class="ps">${esc(e.prompt ?? '$')}</span> <span class="cmd" style="--n:${e.cmd.length};animation:sctype ${f2(Math.max(typed, 0.1))}s steps(${Math.max(e.cmd.length, 1)}) ${f2(cmdAt)}s both">${esc(e.cmd)}</span></div>${lines}</div>`;
-  } else if (e.k === 'chip') {
-    inner = `<span class="ci" style="background:${tn}">${icon(e.icon ?? 'zap')}</span><span>${esc(e.text ?? '')}</span>`;
-  } else if (e.k === 'node') {
+    return { inner: `<div class="tb"><i></i><i></i><i></i><span class="ti">${esc(e.title ?? 'terminal')}</span></div>`
+      + `<div class="bd"><div class="cl"><span class="ps">${esc(e.prompt ?? '$')}</span> <span class="cmd" style="--n:${e.cmd.length};animation:sctype ${f2(Math.max(typed, 0.1))}s steps(${Math.max(e.cmd.length, 1)}) ${f2(cmdAt)}s both">${esc(e.cmd)}</span></div>${lines}</div>` };
+  },
+  chip: (e, { esc, icon, tn }) => ({ inner: `<span class="ci" style="background:${tn}">${icon(e.icon ?? 'zap')}</span><span>${esc(e.text ?? '')}</span>` }),
+  node: (e, { esc, icon, tn }) => {
     const s = num(e.size, 200);
-    inner = `<div class="nt" style="width:${s}px;height:${s}px;color:${tn};border-color:${tn}">${icon(e.icon ?? 'box')}</div>${e.text ? `<div class="nl">${esc(e.text)}</div>` : ''}${e.sub ? `<div class="ns">${esc(e.sub)}</div>` : ''}`;
-  } else if (e.k === 'you') {
-    inner = `<div class="nt you">${icon('user')}</div><div class="nl">${esc(e.text ?? 'Ty')}</div>`;
-  } else if (e.k === 'chat') {
-    inner = (e.msgs ?? []).map((m, i) => {
+    return { inner: `<div class="nt" style="width:${s}px;height:${s}px;color:${tn};border-color:${tn}">${icon(e.icon ?? 'box')}</div>${e.text ? `<div class="nl">${esc(e.text)}</div>` : ''}${e.sub ? `<div class="ns">${esc(e.sub)}</div>` : ''}` };
+  },
+  you: (e, { esc, icon }) => ({ inner: `<div class="nt you">${icon('user')}</div><div class="nl">${esc(e.text ?? 'Ty')}</div>` }),
+  chat: (e, { esc, at }) => ({
+    inner: (e.msgs ?? []).map((m, i) => {
       const t = num(m.at, at + i * num(e.step, 0.5)), sk = typeof m.t !== 'string' || /^~\d*$/.test(m.t);
       return `<div class="msg ${m.who === 'me' ? 'me' : 'ai'}" style="animation:scup .4s cubic-bezier(.2,.9,.2,1) ${f2(t)}s both">${sk ? `<div class="sk" style="width:${((m.t ?? '~').length > 1 ? +(m.t ?? '~').slice(1) : 70) * 6}px"></div>` : esc(m.t)}</div>`;
-    }).join('');
-  } else if (e.k === 'stamp') {
-    style += `color:${tn};border-color:${tn};--r:${num(e.rot, -6)}deg;`;
-    inner = esc(e.text ?? '');
-  } else if (e.k === 'text') {
-    style += `font-size:${num(e.size, 64)}px;color:${e.tone ? tn : '#f1f2f4'};${e.w ? '' : 'white-space:nowrap;'}`;
-    inner = esc(e.t ?? '').replace(/\*([^*]+)\*/g, '<b>$1</b>');
-  } else if (e.k === 'bar') {
+    }).join(''),
+  }),
+  stamp: (e, { esc, tn }) => ({ style: `color:${tn};border-color:${tn};--r:${num(e.rot, -6)}deg;`, inner: esc(e.text ?? '') }),
+  text: (e, { esc, tn }) => ({
+    style: `font-size:${num(e.size, 64)}px;color:${e.tone ? tn : '#f1f2f4'};${e.w ? '' : 'white-space:nowrap;'}`,
+    inner: esc(e.t ?? '').replace(/\*([^*]+)\*/g, '<b>$1</b>'),
+  }),
+  bar: (e, { esc, at, tn }) => {
     const v = Math.min(Math.max(num(e.v, 1), 0), 1);
-    inner = `${e.label ? `<div class="bl">${esc(e.label)}</div>` : ''}<div class="tr"><div class="fl" style="width:${(v * 100).toFixed(1)}%;background:${tn};animation:scgrow ${f2(num(e.d, 1))}s cubic-bezier(.2,.8,.2,1) ${f2(at + 0.3)}s both"></div></div>`;
-  } else if (e.k === 'stat' && e.count) {  // the number counts up to its value while it is said (@property --cnt, seekable)
-    const c = e.count, u = uid(e), d = num(c.d, 1);
-    inner = `<style>@keyframes cnt_${u}{from{--cnt:${Math.round(num(c.from, 0))}}to{--cnt:${Math.round(c.to)}}}</style>`
-      + `<div class="sv cnt" data-pre="${esc(c.pre ?? '')}" data-suf="${esc(c.suf ?? '')}" style="color:${tn};animation:cnt_${u} ${f2(d)}s ${EASE_IN} ${f2(num(c.at, at + 0.2))}s both"></div><div class="sl">${esc(e.label ?? '')}</div>`;
-  } else if (e.k === 'stat') {
-    inner = `<div class="sv" style="color:${tn}">${esc(e.value ?? '')}</div><div class="sl">${esc(e.label ?? '')}</div>`;
-  } else if (e.k === 'check') {  // ring draws, tick draws, a burst ring and ten sparks fly out (deterministic angles)
+    return { inner: `${e.label ? `<div class="bl">${esc(e.label)}</div>` : ''}<div class="tr"><div class="fl" style="width:${(v * 100).toFixed(1)}%;background:${tn};animation:scgrow ${f2(num(e.d, 1))}s cubic-bezier(.2,.8,.2,1) ${f2(at + 0.3)}s both"></div></div>` };
+  },
+  stat: (e, { esc, at, tn }) => {
+    if (!e.count) return { inner: `<div class="sv" style="color:${tn}">${esc(e.value ?? '')}</div><div class="sl">${esc(e.label ?? '')}</div>` };
+    const c = e.count, u = uid(e), d = num(c.d, 1);  // the number counts up to its value while it is said (@property --cnt, seekable)
+    return { inner: `<style>@keyframes cnt_${u}{from{--cnt:${Math.round(num(c.from, 0))}}to{--cnt:${Math.round(c.to)}}}</style>`
+      + `<div class="sv cnt" data-pre="${esc(c.pre ?? '')}" data-suf="${esc(c.suf ?? '')}" style="color:${tn};animation:cnt_${u} ${f2(d)}s ${EASE_IN} ${f2(num(c.at, at + 0.2))}s both"></div><div class="sl">${esc(e.label ?? '')}</div>` };
+  },
+  check: (e, { at, tn }) => {  // ring draws, tick draws, a burst ring and ten sparks fly out (deterministic angles)
     const sz = num(e.size, 120), r = sz / 2 - 6, c = (2 * Math.PI * r).toFixed(0), tk = (sz * 0.9).toFixed(0);
-    style += `width:${sz}px;height:${sz}px;`;
     const sparks = Array.from({ length: 10 }, (_, i) => {
       const a = (i * 36 + 13) * Math.PI / 180, d = sz * (0.62 + 0.09 * (i % 3));
       return `<i class="pt" style="background:${tn};--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d).toFixed(0)}px;animation:scpart .45s ${EASE_IN} ${f2(at + 0.3)}s both"></i>`;
     }).join('');
-    inner = `<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}" style="overflow:visible">`
-      + `<circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="${tn}" fill-opacity=".14" stroke="${tn}" stroke-width="7" style="stroke-dasharray:${c};stroke-dashoffset:${c};transform:rotate(-90deg);transform-origin:center;animation:scdraw .28s ${EASE_MOVE} ${f2(at)}s forwards"/>`
-      + `<path d="M${f2(sz * 0.3)} ${f2(sz * 0.52)} L${f2(sz * 0.45)} ${f2(sz * 0.66)} L${f2(sz * 0.72)} ${f2(sz * 0.36)}" fill="none" stroke="${tn}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:${tk};stroke-dashoffset:${tk};animation:scdraw .22s ${EASE_MOVE} ${f2(at + 0.26)}s forwards"/></svg>`
-      + `<i class="bst" style="border-color:${tn};animation:scburst .4s ${EASE_IN} ${f2(at + 0.3)}s both"></i>${sparks}`;
-  } else if (e.k === 'cursor') {  // moves from -> to, arriving at click_at; presses; a ripple where it clicked
+    return { style: `width:${sz}px;height:${sz}px;`,
+      inner: `<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}" style="overflow:visible">`
+        + `<circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="${tn}" fill-opacity=".14" stroke="${tn}" stroke-width="7" style="stroke-dasharray:${c};stroke-dashoffset:${c};transform:rotate(-90deg);transform-origin:center;animation:scdraw .28s ${EASE_MOVE} ${f2(at)}s forwards"/>`
+        + `<path d="M${f2(sz * 0.3)} ${f2(sz * 0.52)} L${f2(sz * 0.45)} ${f2(sz * 0.66)} L${f2(sz * 0.72)} ${f2(sz * 0.36)}" fill="none" stroke="${tn}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:${tk};stroke-dashoffset:${tk};animation:scdraw .22s ${EASE_MOVE} ${f2(at + 0.26)}s forwards"/></svg>`
+        + `<i class="bst" style="border-color:${tn};animation:scburst .4s ${EASE_IN} ${f2(at + 0.3)}s both"></i>${sparks}` };
+  },
+  cursor: (e, { esc, at, tn }) => {  // moves from -> to, arriving at click_at; presses; a ripple where it clicked
     const [x1, y1] = e.from, [x2, y2] = e.to, ca = num(e.click_at, at + 0.75), mv = Math.min(0.7, Math.max(0.2, ca - at - 0.05));
     const gone = e.gone !== undefined ? `,scfadeout .3s ease-in ${f2(e.gone)}s forwards` : '';
-    return `<div class="p cursor"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1) + 60} ${Math.abs(y2 - y1) + 60}" style="left:0;top:0">`
+    return { html: `<div class="p cursor"${idAttr(e, esc)} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1) + 60} ${Math.abs(y2 - y1) + 60}" style="left:0;top:0">`
       + `<i class="rip" style="left:${x2}px;top:${y2}px;border-color:${tn};animation:scrip .5s ${EASE_IN} ${f2(ca)}s both"></i>`
       + `<div class="cur" style="--fx:${x1}px;--fy:${y1}px;--tx:${x2}px;--ty:${y2}px;animation:scfade .2s ${f2(at)}s both,sccur ${f2(mv)}s ${EASE_MOVE} ${f2(ca - mv)}s both${gone}">`
-      + `<svg viewBox="0 0 32 32" style="animation:scpress .18s ease-out ${f2(ca)}s"><path d="M5 3 L5 26 L11 20 L15 29 L19 27 L15 18 L23 18 Z" fill="#fff" stroke="#0c0d0f" stroke-width="2" stroke-linejoin="round"/></svg></div></div>`;
-  } else if (e.k === 'ring') {  // a hand-drawn circle around a box: one turn and a bit, the radius wobbling a few per cent
+      + `<svg viewBox="0 0 32 32" style="animation:scpress .18s ease-out ${f2(ca)}s"><path d="M5 3 L5 26 L11 20 L15 29 L19 27 L15 18 L23 18 Z" fill="#fff" stroke="#0c0d0f" stroke-width="2" stroke-linejoin="round"/></svg></div></div>` };
+  },
+  ring: (e, { esc, at, tn }) => {  // a hand-drawn circle around a box: one turn and a bit, the radius wobbling a few per cent
     const pad = num(e.pad, 24), cx = e.x + e.w / 2, cy = e.y + e.h / 2, rx = e.w / 2 + pad, ry = e.h / 2 + pad;
     const pts = Array.from({ length: 57 }, (_, i) => {
       const a = -2.2 + (i / 50) * 2 * Math.PI, w = 1 + 0.03 * Math.sin(i * 1.7);
       return `${(cx + Math.cos(a) * rx * w).toFixed(1)} ${(cy + Math.sin(a) * ry * w * (1 + (i / 56) * 0.05)).toFixed(1)}`;
     });
     const len = (Math.PI * (rx + ry) * 1.2).toFixed(0), gone = e.gone !== undefined ? `;animation:scfadeout .3s ease-in ${f2(e.gone)}s forwards` : '';
-    return `<svg class="ln"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${e.x - pad} ${e.y - pad} ${e.w + 2 * pad} ${e.h + 2 * pad}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}"><path d="M${pts.join(' L')}" stroke="${tn}" style="stroke-width:7;stroke-dasharray:${len};stroke-dashoffset:${len};animation:scdraw ${f2(num(e.d, 0.6))}s ${EASE_MOVE} ${f2(at)}s forwards"/></svg>`;
-  } else if (e.k === 'say') {  // a kinetic line: each word blurs in when it is said; *em* serif accent, [pill], ~strike~, !red!
-    style += `font-size:${num(e.size, 84)}px;${e.w ? '' : 'white-space:nowrap;'}`;
-    inner = e.words.map(([w, t]) => {
+    return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${e.x - pad} ${e.y - pad} ${e.w + 2 * pad} ${e.h + 2 * pad}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}"><path d="M${pts.join(' L')}" stroke="${tn}" style="stroke-width:7;stroke-dasharray:${len};stroke-dashoffset:${len};animation:scdraw ${f2(num(e.d, 0.6))}s ${EASE_MOVE} ${f2(at)}s forwards"/></svg>` };
+  },
+  say: (e, { esc, tn }) => ({  // a kinetic line: each word blurs in when it is said; *em* serif accent, [pill], ~strike~, !red!
+    style: `font-size:${num(e.size, 84)}px;${e.w ? '' : 'white-space:nowrap;'}`,
+    inner: e.words.map(([w, t]) => {
       const m = /^([*[~!])(.+)([*\]~!])$/.exec(w), cls = m ? { '*': 'em', '[': 'pill', '~': 'strk', '!': 'bad' }[m[1]] : '', txt = m ? m[2] : w;
       const extra = cls === 'pill' ? `<i class="hlp" style="background:${tn};animation:scgrow .4s ${EASE_IN} ${f2(t + 0.15)}s both"></i>`
         : cls === 'strk' ? `<i class="sk2" style="animation:scgrow .25s ${EASE_MOVE} ${f2(t + 0.35)}s both"></i>` : '';
       return `<span class="w ${cls}" style="animation:scword .3s ${EASE_IN} ${f2(Math.max(0, t - 0.03))}s both">${extra}<span>${esc(txt)}</span></span>`;
-    }).join(' ');
-  } else if (e.k === 'toggle') {  // a switch flips on at on_at: knob slides with a little overshoot, the track takes the colour
+    }).join(' '),
+  }),
+  toggle: (e, { esc, at, tn }) => {  // a switch flips on at on_at: knob slides with a little overshoot, the track takes the colour
     const on = num(e.on_at, at + 0.8);
-    inner = `<span class="tg"><i class="tgb" style="--on:${tn};animation:sctgbg .2s ${EASE_MOVE} ${f2(on)}s both"></i><i class="tgk" style="animation:sctgk .25s ${EASE_POP} ${f2(on)}s both"></i></span>${e.text ? `<span class="tgl">${esc(e.text)}</span>` : ''}`;
-  } else if (e.k === 'steps') {  // a progress pill "label N / total": the number changes and the bar grows at each step
+    return { inner: `<span class="tg"><i class="tgb" style="--on:${tn};animation:sctgbg .2s ${EASE_MOVE} ${f2(on)}s both"></i><i class="tgk" style="animation:sctgk .25s ${EASE_POP} ${f2(on)}s both"></i></span>${e.text ? `<span class="tgl">${esc(e.text)}</span>` : ''}` };
+  },
+  steps: (e, { esc, tn }) => {  // a progress pill "label N / total": the number changes and the bar grows at each step
     const st = e.steps;
     const nums = st.map(([t, n], i) => `<b class="sn" style="animation:scfade .15s ${f2(t)}s both${i + 1 < st.length ? `,scfadeout .12s ${f2(st[i + 1][0])}s forwards` : ''}">${n}</b>`).join('');
     const fills = st.map(([t, n], i) => `<i class="sf" style="background:${tn};--w0:${(((st[i - 1]?.[1]) ?? 0) / e.total * 100).toFixed(1)}%;--w1:${(n / e.total * 100).toFixed(1)}%;animation:scfill .35s ${EASE_IN} ${f2(t)}s both"></i>`).join('');
-    inner = `<span class="stl">${esc(e.label ?? '')}</span><span class="sbox">${nums}</span><span class="stot">/ ${e.total}</span><span class="str">${fills}</span>`;
-  } else if (e.k === 'line') {
+    return { inner: `<span class="stl">${esc(e.label ?? '')}</span><span class="sbox">${nums}</span><span class="stot">/ ${e.total}</span><span class="str">${fills}</span>` };
+  },
+  line: (e, { esc, at, tn }) => {
     const [x1, y1] = e.from, [x2, y2] = e.to, len = Math.hypot(x2 - x1, y2 - y1) * 1.3 + 40;
     const c = num(e.curve, 0.35), mx = x1 + (x2 - x1) * c, d = `M${x1} ${y1} C${mx} ${y1},${x2 - (x2 - x1) * c} ${y2},${x2} ${y2}`;
     let dx = (x2 - x1) * c, dy = 0;  // the curve ends level with its last control point; a straight vertical line has no such tangent
@@ -250,8 +260,19 @@ function piece(e, esc, icon, dur) {
       ? `<g transform="translate(${x2} ${y2}) rotate(${ang})"><path d="M4 0 L-30 -17 L-22 0 L-30 17 Z" fill="${tn}" style="transform-box:fill-box;transform-origin:right center;animation:scpop .14s ${EASE_POP} ${hat}s both"/></g>`
       : `<circle cx="${x2}" cy="${y2}" r="9" fill="${tn}" style="animation:scfade .2s ${f2(at + num(e.d, 0.7))}s both"/>`;
     const pk = e.packet_at !== undefined ? `<i class="pk" style="background:${tn};color:${tn};offset-path:path('${d}');animation:scpath ${f2(num(e.packet_d, 0.8))}s ${EASE_MOVE} ${f2(e.packet_at)}s both"></i>` : '';
-    return `<svg class="ln"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1)} ${Math.abs(y2 - y1)}" viewBox="0 0 ${W} ${H}" style="overflow:visible"><path d="${d}" stroke="${tn}" style="stroke-dasharray:${len.toFixed(0)};stroke-dashoffset:${len.toFixed(0)};animation:scdraw ${f2(num(e.d, 0.7))}s cubic-bezier(.4,0,.2,1) ${f2(at)}s forwards"/>${head}</svg>${pk}`;
-  }
+    return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1)} ${Math.abs(y2 - y1)}" viewBox="0 0 ${W} ${H}" style="overflow:visible"><path d="${d}" stroke="${tn}" style="stroke-dasharray:${len.toFixed(0)};stroke-dashoffset:${len.toFixed(0)};animation:scdraw ${f2(num(e.d, 0.7))}s cubic-bezier(.4,0,.2,1) ${f2(at)}s forwards"/>${head}</svg>${pk}` };
+  },
+};
+
+// the common box of a piece: place and size, then the drawer's inner HTML wrapped in its entrance and later moves
+function piece(e, esc, icon) {
+  const at = num(e.at, e.k === 'say' ? Math.max(0, Math.min(...e.words.map(w => w[1])) - 0.05) : 0);
+  const anim = ANIMS[e.anim ?? DEF_ANIM[e.k] ?? 'up'];
+  const tn = tone(e.tone);
+  const drawn = PIECES[e.k]?.(e, { esc, icon, at, tn }) ?? { inner: '' };
+  if (drawn.html !== undefined) return drawn.html;
+  const style = `left:${e.x}px;top:${e.y}px;${e.w ? `width:${e.w}px;` : ''}${e.h ? `height:${e.h}px;` : ''}${drawn.style ?? ''}`;
+  let inner = drawn.inner;
   if (e.hl_at !== undefined) inner = `<i class="ghl" style="background:${tn};animation:scgrow .4s ${EASE_IN} ${f2(e.hl_at)}s both"></i><span class="ght">${inner}</span>`;
   if (e.strike_at !== undefined) inner += `<i class="gstrk" style="animation:scgrow .25s ${EASE_MOVE} ${f2(e.strike_at)}s both"></i>`;
   const outs = [`${anim} ${f2(at)}s both`];
@@ -260,7 +281,7 @@ function piece(e, esc, icon, dur) {
   if (e.out_at !== undefined) outs.push(`scblurout .18s ease-in ${f2(e.out_at)}s forwards`);
   if (e.dim !== undefined) outs.push(`scdim .4s ease-out ${f2(e.dim)}s forwards`);
   if (e.gone !== undefined) outs.push(`scgone .35s ease-in ${f2(e.gone)}s forwards`);
-  return `<div class="p ${cls}"${e.id ? ` data-id="${esc(e.id)}"` : ''} style="${style}"><div class="pi" style="animation:${outs.join(',')}">${inner}</div></div>`;
+  return `<div class="p ${e.k}"${idAttr(e, esc)} style="${style}"><div class="pi" style="animation:${outs.join(',')}">${inner}</div></div>`;
 }
 
 export function scene(sp, esc, icon) {
@@ -268,7 +289,7 @@ export function scene(sp, esc, icon) {
   if (bad.length) throw new Error(`"${sp.id}": scene: ${bad.join('; ')}`);
   const safeIcon = n => { try { return icon(n); } catch { throw new Error(`"${sp.id}": no icon "${n}" in lucide-static`); } };
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
-  const world = sp.els.map(e => piece(e, esc, safeIcon, sp.dur)).join('');
+  const world = sp.els.map(e => piece(e, esc, safeIcon)).join('');
   const bg = sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
   return `${SCENE_CSS}<div class="scene">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
 }

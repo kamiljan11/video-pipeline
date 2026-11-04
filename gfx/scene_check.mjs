@@ -5,10 +5,8 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
 import { scene } from './scene_lib.mjs';
+import { esc, icon } from './html_lib.mjs';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const icon = n => (n ? fs.readFileSync(path.join(ROOT, 'node_modules/lucide-static/icons', `${n}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '');
 // pieces meant to sit on others: a stamp lands on a card, a check or ring marks it, a cursor points at it, a line joins them
 export const OVERLAY_KINDS = new Set(['stamp', 'check', 'ring', 'cursor', 'line']);
 
