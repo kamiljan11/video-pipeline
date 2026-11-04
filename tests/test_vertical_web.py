@@ -16,7 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 import edl_guard  # after the path insert: the scripts are not a package
-from gfx_types import SPLIT
+from gfx_types import CORNER, SPLIT
 
 DUR = 2.0
 
@@ -103,6 +103,28 @@ class BuildEdlSplitTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("layout", r.stderr)
 
+    def test_box_keys_reach_the_edl_with_or_without_an_own_box(self):
+        keys = {"face_zoom": 0.62, "face_anchor": 0.4, "caption_y": 1100}
+        for extra in ({}, {"face_box": [80, 1100, 920, 820]}):
+            with self.subTest(extra=extra):
+                o = self.overlay({"canvas": "v", **keys, **extra})
+                self.assertEqual({k: o[k] for k in keys}, keys)
+
+    def test_a_box_value_ffmpeg_cannot_use_is_a_named_error(self):  # face_zoom 0 divided by zero in assemble.py
+        for k, bad in (("face_zoom", 0), ("face_zoom", 1.5), ("face_anchor", 2), ("caption_y", "x"), ("caption_y", True)):
+            with self.subTest(**{k: bad}):
+                r = self.build({"canvas": "v", k: bad})
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(k, r.stderr)
+
+    def test_face_corner_and_no_fade_out_flags(self):
+        o = self.overlay({"canvas": "v", "layout": "full", "face_corner": True, "no_fade_out": True})
+        self.assertTrue(o["corner"]); self.assertTrue(o["no_fade_out"]); self.assertNotIn("split", o)
+
+    def test_captions_under_a_corner_card_sit_above_the_circle(self):
+        self.overlay({"type": "scene", "canvas": "v", "layout": "corner", "els": []})
+        self.assertIn(f"\\pos(540,{CORNER['caption_y']})", (self.d / "c.ass").read_text())
+
 
 class AssembleSplitTest(unittest.TestCase):
     """red speaker, an opaque blue card from 0.5 s to 1.5 s: inside the face box red, around it blue, before the card red"""
@@ -152,6 +174,51 @@ class AssembleSplitTest(unittest.TestCase):
     def test_without_the_card_the_frame_is_the_speaker(self):
         self.assertTrue(self.red(self.rgb(0.2, 540, 600)))
         self.assertTrue(self.red(self.rgb(1.8, 540, 600)))
+
+
+class AssembleCornerZoomTest(unittest.TestCase):
+    """the two other 9:16 face layouts: a box with face_zoom < 1 (smaller picture on its blurred copy) from 0.2 s to 0.9 s,
+    then a full card with the face in the corner circle from 1.1 s to 1.9 s"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = Path(tempfile.mkdtemp(prefix="vertical-corner-"))
+        src = cls.tmp / "src.mp4"
+        ffmpeg("-f", "lavfi", "-i", f"color=c=red:s=640x360:r=30:d={DUR}", "-f", "lavfi", "-i", f"sine=f=220:d={DUR}",
+               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src))
+        card = cls.tmp / "card.mov"
+        ffmpeg("-f", "lavfi", "-i", "color=c=blue:s=1080x1920:r=30:d=1", "-c:v", "prores_ks", "-profile:v", "4444",
+               "-pix_fmt", "yuva444p10le", str(card))
+        cls.box = [80, 1100, 920, 820]
+        edl = {"sources": {"A": str(src)}, "segments": [{"src": "A", "in": 0.0, "out": DUR}], "w": 1080, "h": 1920,
+               "src_w": 640, "src_h": 360, "vertical": True, "out_name": "final.mp4", "seg_exact": True,
+               "overlays": [{"file": str(card), "at": 0.2, "dur": 0.7, "id": "z", "pip": False, "split": True,
+                             "face_box": cls.box, "face_zoom": 0.6, "face_anchor": 0.4},
+                            {"file": str(card), "at": 1.1, "dur": 0.8, "id": "c", "pip": False, "corner": True, "no_fade_out": True}]}
+        assert edl_guard.problems(edl) == []
+        (cls.tmp / "edl.json").write_text(json.dumps(edl))
+        r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(cls.tmp / "edl.json"), str(cls.tmp), "--proxy"],
+                           capture_output=True, text=True, check=False)
+        assert r.returncode == 0, r.stderr[-2000:]
+        cls.video = cls.tmp / "final.mp4"
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, True)
+
+    rgb, red, blue = AssembleSplitTest.rgb, AssembleSplitTest.red, AssembleSplitTest.blue
+
+    def test_zoomed_out_box_shows_the_speaker_on_the_card(self):
+        bx, by, bw, bh = self.box
+        self.assertTrue(self.red(self.rgb(0.6, bx + bw // 2, by + bh // 2)))
+        self.assertTrue(self.red(self.rgb(0.6, bx + 20, by + bh // 2)))  # the blurred copy fills the box to its side edge
+        self.assertTrue(self.blue(self.rgb(0.6, 540, 600)))
+
+    def test_corner_circle_holds_the_face_and_the_card_fills_the_rest(self):
+        x, y, d = CORNER["x"], CORNER["y"], CORNER["size"]
+        self.assertTrue(self.red(self.rgb(1.5, x + d // 2, y + d // 2)))
+        self.assertTrue(self.blue(self.rgb(1.5, 540, 600)))
+        self.assertFalse(self.red(self.rgb(1.5, x + 4, y + 4)))  # the square's corner is outside the circle
 
 
 if __name__ == "__main__":

@@ -12,6 +12,10 @@ import edl_guard
 import themes
 from gfx_types import CORNER, PIP, SIDE_BOX, SPLIT
 
+# keys of the face box under a 9:16 card (assemble.py): caption line y in px, face point in the box height, picture scale
+# (< 1 = smaller picture on its blurred copy; 0 divides by zero in assemble.py, film 2 review 2026-11-04)
+BOX_KEYS = (("caption_y", 0, 1920), ("face_anchor", 0.0, 1.0), ("face_zoom", 0.4, 1.0))
+
 P = json.loads(Path(sys.argv[1]).read_text())
 W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x in json.loads(Path(P["words"]).read_text())["transcription"]]
 v = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(P["sil"]).read_text())]
@@ -136,8 +140,12 @@ for g in P.get("gfx", []):
                 and fb[2] >= 100 and fb[3] >= 100 and fb[0] + fb[2] <= 1080 and fb[1] + fb[3] <= 1920):
             sys.exit(f"{g['id']}: face_box = [x, y, w, h] in whole px inside 1080x1920, got {fb!r}")
         o["face_box"] = fb
-        for k in ("caption_y", "face_anchor", "face_zoom"):
-            if k in sp: o[k] = sp[k]
+    if o.get("split"):  # the box under the card (own face_box or the default one): named stop on a value ffmpeg cannot use
+        for k, lo, hi in BOX_KEYS:
+            if k not in sp: continue
+            if not (isinstance(sp[k], (int, float)) and not isinstance(sp[k], bool) and lo <= sp[k] <= hi):
+                sys.exit(f"{g['id']}: {k} = a number from {lo:g} to {hi:g}, got {sp[k]!r}")
+            o[k] = sp[k]
     if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
     if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
     if vert and sp.get("type") in ("float", "scene") and sp.get("layout") == "corner": o["corner"] = True
