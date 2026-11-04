@@ -4,7 +4,7 @@ music/make_beds.py (other folder) and the panel's timeline.sfx_events keep their
 """
 SIDE_BOX = ("kw", "count", "list", "slide", "web", "float", "scene")  # 16:9 graphics over the face side: no punch-in zoom under them
 # ("float" = illustration beside the speaker: a punch-in would push the head into it)
-PIP = ("slide", "web", "scene")            # full-screen cards with the face cam in the corner (assemble.py)
+PIP = ("slide", "web", "scene", "meme")  # a 16:9 meme too (gfx/render.mjs MEME_BOX "long")            # full-screen cards with the face cam in the corner (assemble.py)
 FULL = ("chap", "slide", "web", "meme", "end", "scene") # full-screen cards: head_check.py does not look for the head under them (a 9:16 "web" too: its face sits in a box)
 CARD_WHOOSH = ("chap", "slide", "web", "scene") # cards that come in with a whoosh; not "meme": a meme comes in silent, like the references
 # 9:16 "web" or "meme" card, layout "split" (gfx/render.mjs WIN_V draws the card in the top part): the face box under it (assemble.py,

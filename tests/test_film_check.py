@@ -57,6 +57,8 @@ class FilmCheckTest(unittest.TestCase):
             ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw"})
         for k, at in enumerate((2, 5)):
             ovs.append({"id": f"b{k}", "at": at, "dur": 2}); specs.append({"id": f"b{k}", "type": "float", "behind": {"edl": "edl_long.json"}})
+        for k, at in enumerate((150, 350, 550)):
+            ovs.append({"id": f"m{k}", "at": at, "dur": 3}); specs.append({"id": f"m{k}", "type": "meme", "meme": "drake"})
         ovs.append({"id": "low", "at": 6, "dur": 4}); specs.append({"id": "low", "type": "lower", "text": "Kamil Jan", "sub": BRAND})
         ovs.append({"id": "end", "at": 590, "dur": 8}); specs.append({"id": "end", "type": "end"})
         segs = [{"src": "A", "in": i * 3.0, "out": i * 3.0 + 3.0, "zoom": {"a": 1.0, "b": 1.2, "t0": 0.5, "t1": 0.8}} for i in range(200)]
@@ -80,6 +82,16 @@ class FilmCheckTest(unittest.TestCase):
                      music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
         r, rep = self.run_check("long")
         self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
+
+    def test_a_long_without_memes_is_named(self):  # Kamil 4.11: "miały być też memy, memów nie ma"
+        ovs, specs, segs = self.full_long()
+        ovs = [o for o in ovs if not o["id"].startswith("m")]
+        self.project(ovs, specs, segs, sfx_style="v2", music_palette={"name": "lofi", "key": 2},
+                     music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
+        r, rep = self.run_check("long")
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(rep["long.memes"]["status"], "FAIL")
+        self.assertEqual([k for k, v in rep.items() if v["status"] == "FAIL"], ["long.memes"])
 
     def test_opening_part_without_chapter(self):
         """the first part may say "chap": false (the hook stands there); it still needs its explainer"""

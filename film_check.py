@@ -154,6 +154,7 @@ class Film:
 
     def punches_per_min(self): return round(len(punches(self.edl)) / max(self.len / 60, 1e-9), 2)
     def behind_cards(self): return sum(1 for o in self.ovs if "behind" in self.specs.get(o["id"], {}))
+    def meme_cards(self): return sum(self.typ(o) == "meme" for o in self.ovs)
 
     def lower_matches_brand(self):
         want = load(BRAND, "style/brand.json")["lower_sub"]

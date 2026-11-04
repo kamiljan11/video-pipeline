@@ -36,9 +36,33 @@ test('a split meme sits in the top part, above the face box, with its words on t
   assert.ok(late(540, 1300)[3] > 200, 'the split background does not reach the face box area (assemble.py draws the face there)');
 });
 
+test('a corner meme fills the top of the screen and leaves the bottom for the face circle', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const r = render([{ id: 'mc', type: 'meme', canvas: 'v', layout: 'corner', dur: 1.5, meme: 'red', text: ['T'], at: [0.2] }]);
+  assert.equal(r.status, 0, r.stderr);
+  const f = frameAt(path.join(work, 'gfx', 'mc.mov'), 1.0);
+  const red = (x, y) => { const [r0, g0, b0] = f(x, y); return r0 > 180 && g0 < 80 && b0 < 80; };
+  assert.ok(red(100, 170) && red(1000, 1100), 'the picture does not fill the box x 60..1020, y 155..1115');
+  assert.ok(!red(540, 1300) && !red(540, 120), 'the picture runs out of its box (the captions and the face circle sit below it)');
+});
+
+test('a 16:9 meme sits left of the face corner, its words on time', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const r = render([{ id: 'm16', type: 'meme', dur: 2.5, meme: 'red', text: ['Tekst'], at: [1.2] }]);
+  assert.equal(r.status, 0, r.stderr);
+  const raw = t => execFileSync('ffmpeg', ['-v', 'error', '-ss', String(t), '-i', path.join(work, 'gfx', 'm16.mov'), '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 64 << 20 });
+  const px = (f, x, y) => [...f.subarray((y * 2560 + x) * 4, (y * 2560 + x) * 4 + 4)];
+  const early = raw(0.8), late = raw(1.8);
+  const [r0, g0, b0] = px(early, 700, 720);  // the picture: 1140 px square centred in x 140..1840
+  assert.ok(r0 > 180 && g0 < 80 && b0 < 80, `no red picture at (700, 720): ${[r0, g0, b0]}`);
+  const [r1, g1] = px(late, 2200, 1200);  // the PiP corner: the card background, not the picture
+  assert.ok(!(r1 > 180 && g1 < 80), 'the picture reaches the face corner');
+  const dark = f => { let n = 0; for (let x = 1000; x < 1500; x += 6) for (let y = 300; y < 600; y += 6) { const [r, g, b] = px(f, x, y); if (r < 80 && g < 80 && b < 80) n++; } return n; };
+  assert.equal(dark(early), 0, 'the words are there before their time');
+  assert.ok(dark(late) > 20, 'the words are not there after their time');
+});
+
 test('an unknown meme or too many words stop the card by name', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
   for (const [sp, why] of [[{ meme: 'nope' }, /meme "nope": not in/], [{ meme: 'red', text: ['a', 'b'] }, /1 text box/], [{ meme: '../x' }, /not in/],
-                           [{ meme: 'red', canvas: undefined }, /9:16 card/], [{ meme: 'red', text: ['a'], at: ['1'] }, /"at" = seconds/],
+                           [{ meme: 'red', canvas: undefined, layout: 'full' }, /no layout in 16:9/], [{ meme: 'red', text: ['a'], at: ['1'] }, /"at" = seconds/],
                            [{ meme: 'nopic' }, /picture "gone.png" missing/], [{ meme: 'badbox' }, /boxes \[x, y, w, h/]]) {
     const r = render([{ id: 'm2', type: 'meme', canvas: 'v', dur: 2, ...sp }]);
     assert.notEqual(r.status, 0, JSON.stringify(sp));

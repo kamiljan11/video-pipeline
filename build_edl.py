@@ -120,8 +120,8 @@ for g in P.get("gfx", []):
     sp = specs[g["id"]]; vert = sp.get("canvas") == "v"
     if vert and sp.get("type") in ("web", "meme") and not P.get("vertical"):  # a 9:16 card in a 16:9 film: no face box, no PiP = no face
         sys.exit(f"{g['id']}: a \"{sp['type']}\" card with canvas \"v\" belongs to a vertical film (plan \"vertical\": true)")
-    if sp.get("type") == "meme" and not vert:  # gfx/render.mjs draws a meme only in 9:16
-        sys.exit(f"{g['id']}: a \"meme\" card needs canvas \"v\" (shorts only)")
+    if sp.get("type") == "meme" and not vert and P.get("vertical"):  # a 16:9 meme (left of the PiP) in a short: no face
+        sys.exit(f"{g['id']}: a \"meme\" card in a vertical film needs canvas \"v\"")
     # 9:16 "web" card: "split" (default) = face in a box under the card (assemble.py), "full" = the card alone; no corner PiP
     # a 9:16 "float" may ask for "layout": "split" too (a full-screen illustration: its own background, the face in the box under it)
     # ... or "corner": the card fills the screen and the face sits in a circle in the corner (gfx_types.CORNER, assemble.py)
@@ -130,8 +130,8 @@ for g in P.get("gfx", []):
         sys.exit(f"{g['id']}: a 9:16 \"scene\" needs layout \"split\" (face box under it) or \"corner\" (face circle), got {sp.get('layout')!r}")
     if "layout" in sp and (not vert or sp.get("type") not in ("web", "meme", "float", "scene") or sp["layout"] not in ("split", "full", "corner")
                            or (sp.get("type") in ("float", "scene") and sp["layout"] not in ("split", "corner"))
-                           or (sp.get("type") in ("web", "meme") and sp["layout"] == "corner")):
-        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" or \"meme\" card, \"split\" or \"corner\" on a \"float\" or \"scene\" (canvas \"v\"), got {sp['layout']!r}")
+                           or (sp.get("type") == "web" and sp["layout"] == "corner")):
+        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" card, \"split\", \"full\" or \"corner\" on a \"meme\", \"split\" or \"corner\" on a \"float\" or \"scene\" (canvas \"v\"), got {sp['layout']!r}")
     o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert and sp.get("pip") is not False}
     if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") in ("float", "scene") and sp.get("layout") == "split")): o["split"] = True
     if o.get("split") and "face_box" in sp:  # own face box under a short card: [x, y, w, h] inside 1080x1920 (assemble.py)
@@ -148,7 +148,7 @@ for g in P.get("gfx", []):
             o[k] = sp[k]
     if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
     if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
-    if vert and sp.get("type") in ("float", "scene") and sp.get("layout") == "corner": o["corner"] = True
+    if vert and sp.get("type") in ("float", "scene", "meme") and sp.get("layout") == "corner": o["corner"] = True
     ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0

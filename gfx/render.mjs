@@ -79,7 +79,9 @@ function web(sp) {
 // as a "web" card) or "full". Catalogue (boxes, imgflip id) = style/memes.json; the pictures are third-party, so they live in
 // render/memes/ (memes.py add <slug>), never in the public repo. "text" i comes in at "at"[i] s (default 0.25 + 0.7 i).
 const MEMES = process.env.VP_MEMES ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'render', 'memes');  // VP_MEMES: tests
-const MEME_BOX = { split: { y: 120, h: 880 }, full: { y: 260, h: 1240 } };  // split: ends above the captions (gfx_types.SPLIT)
+// 9:16 split ends above the captions (gfx_types.SPLIT); 16:9 "long" keeps the bottom-right corner free for the face PiP
+// 9:16 corner: above the captions and the face circle (the free field of a corner scene, scene_lib sceneSafe)
+const MEME_BOX = { split: { x: 60, w: 960, y: 120, h: 880 }, full: { x: 60, w: 960, y: 260, h: 1240 }, corner: { x: 60, w: 960, y: 130, h: 1010 }, long: { x: 140, w: 1700, y: 150, h: 1140 } };
 const CATALOGUE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'style', 'memes.json');
 // the picture's own json (name, size, file) + the text boxes of the catalogue in the repo (a fixed box works without a new
 // fetch; a picture placed by hand keeps the boxes of its own json); every field checked, so a bad one stops the card by name
@@ -95,17 +97,20 @@ const memeLib = sp => {
   return m;
 };
 function meme(sp) {
-  const layout = sp.layout ?? 'split', B = MEME_BOX[layout];
-  if (sp.canvas !== 'v' || !B) throw new Error(`"${sp.id}": a meme is a 9:16 card (canvas "v"), layout "split" or "full", got ${JSON.stringify(sp.layout)}`);
+  // 9:16: layout "split" (default) or "full"; 16:9 (no canvas): the picture left of the face PiP, no layout key
+  const v = sp.canvas === 'v', layout = v ? sp.layout ?? 'split' : sp.layout === undefined ? 'long' : null, B = MEME_BOX[layout];
+  if (!B || (v && layout === 'long')) throw new Error(`"${sp.id}": a meme takes layout "split", "full" or "corner" in 9:16 (canvas "v") and no layout in 16:9, got ${JSON.stringify(sp.layout)}`);
   const m = memeLib(sp), texts = sp.text ?? [];
   if (!Array.isArray(texts) || texts.length > m.boxes.length) throw new Error(`"${sp.id}": "${sp.meme}" has ${m.boxes.length} text box(es), got ${JSON.stringify(sp.text)}`);
   if (sp.at !== undefined && !(Array.isArray(sp.at) && sp.at.every(t => typeof t === 'number' && t >= 0 && t < sp.dur)))
     throw new Error(`"${sp.id}": "at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
-  const s = Math.min(960 / m.width, B.h / m.height), w = Math.round(m.width * s), h = Math.round(m.height * s);
-  const left = Math.round((1080 - w) / 2), top = Math.round(B.y + (B.h - h) / 2);
+  const s = Math.min(B.w / m.width, B.h / m.height), w = Math.round(m.width * s), h = Math.round(m.height * s);
+  const left = Math.round(B.x + (B.w - w) / 2), top = Math.round(B.y + (B.h - h) / 2);
   const boxes = texts.map((t, i) => {
     const [fx, fy, fw, fh, style] = m.boxes[i], at = (sp.at ?? [])[i] ?? 0.25 + 0.7 * i;
-    const size = Math.round(Math.min(fh * h * 0.34, 64));
+    // the longest word must fit the box width (Montserrat 900 ~0.68 em per letter): long Polish words in a narrow box
+    const longest = Math.max(1, ...String(t).split(/\s+/).map(x => [...x].length));
+    const size = Math.round(Math.min(fh * h * 0.34, v ? 64 : 96, (fw * w * 0.94) / (longest * 0.68)));
     return `<div class="tx ${style}" style="left:${(fx * w).toFixed(0)}px;top:${(fy * h).toFixed(0)}px;width:${(fw * w).toFixed(0)}px;height:${(fh * h).toFixed(0)}px;font-size:${size}px;animation:pop .35s ${at.toFixed(2)}s cubic-bezier(.2,1.5,.4,1) both">${esc(t)}</div>`;
   }).join('');
   return `<div class="web ${layout} meme"><div class="mm" style="left:${left}px;top:${top}px;width:${w}px;height:${h}px">`

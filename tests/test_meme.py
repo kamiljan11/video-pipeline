@@ -42,8 +42,8 @@ class BuildEdlMemeTest(unittest.TestCase):
         (self.d / "plan.json").write_text(json.dumps(plan))
         return subprocess.run([sys.executable, str(ROOT / "build_edl.py"), "plan.json"], cwd=self.d, capture_output=True, text=True, check=False)
 
-    def overlay(self, spec: dict) -> dict:
-        r = self.build(spec)
+    def overlay(self, spec: dict, **extra) -> dict:
+        r = self.build(spec, **extra)
         self.assertEqual(r.returncode, 0, r.stderr)
         return json.loads((self.d / "edl.json").read_text())["overlays"][0]
 
@@ -53,9 +53,18 @@ class BuildEdlMemeTest(unittest.TestCase):
         self.assertFalse(o["pip"])
         self.assertNotIn("split", self.overlay({"canvas": "v", "layout": "full"}))
 
-    def test_a_meme_outside_a_short_is_a_named_error(self):
+    def test_a_9_16_meme_may_put_the_face_in_the_corner_circle(self):
+        o = self.overlay({"canvas": "v", "layout": "corner"})
+        self.assertTrue(o["corner"]); self.assertNotIn("split", o); self.assertFalse(o["pip"])
+
+    def test_a_16_9_meme_in_a_long_has_the_face_pip(self):
+        o = self.overlay({}, vertical=False)
+        self.assertTrue(o["pip"])
+        self.assertNotIn("split", o)
+
+    def test_a_meme_in_the_wrong_film_is_a_named_error(self):
         for spec, extra, why in (({}, {}, "canvas"), ({"canvas": "v"}, {"vertical": False}, "vertical"),
-                                 ({"canvas": "v", "layout": "side"}, {}, "layout")):
+                                 ({"canvas": "v", "layout": "side"}, {}, "layout"), ({"layout": "full"}, {"vertical": False}, "layout")):
             with self.subTest(spec=spec, extra=extra):
                 r = self.build(spec, **extra)
                 self.assertNotEqual(r.returncode, 0)

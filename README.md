@@ -411,12 +411,15 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
   dla każdego kawałka koloru, półprzezroczyste nachodzą na siebie ciemnymi pasami. Bez klucza = stare napisy (test bit w bit).
 - **`"caption_pop": true`**: nowa linia napisów wskakuje (60 % -> 108 % -> 100 % w 0,13 s, wejście z rozbioru UFD Tech /
   Norbert Bodziony 2026-10-31); kolejne słowa tej samej linii zmieniają tylko kolor. Bez klucza jak dotąd.
-- **Mem 9:16 (`"type": "meme"`)**: znany mem jako karta u góry (układ `split` jak karta `web`: twarz w boksie, napisy w szczelinie;
-  albo `"layout": "full"`), własne słowa w polach szablonu, wskakują po kolei (`"at"` = sekundy od wejścia karty, domyślnie
+- **Mem (`"type": "meme"`)**: znany mem jako karta. 9:16: u góry (układ `split` jak karta `web`: twarz w boksie, napisy w
+  szczelinie; `"layout": "full"`; albo `"layout": "corner"`: obraz na górze ekranu, Kamil w kółku w rogu). 16:9 (bez `canvas`
+  i bez `layout`): obraz na lewo, twarz w PiP w rogu. Własne słowa w polach szablonu, wskakują po kolei (`"at"` = sekundy od wejścia karty, domyślnie
   0,25 + 0,7·i), lekki najazd 5 %. Katalog szablonów (id imgflip, pola tekstu jako ułamki obrazu, „dark”/„light”, do czego
   pasuje) = `style/memes.json`; obraz pobiera `python3 memes.py add <slug>` do `render/memes/` (poza repo: to cudze obrazy, ADR-0008).
-  Mem tylko pod konkretną frazę, 2–3,5 s (UFD: mediana 1,7 s, ~1 na 8–10 s); bez dźwięku. Nieznany `meme`, za dużo tekstów albo
-  mem w 16:9 = nazwany błąd (`build_edl.py`, `render.mjs`). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
+  Mem tylko pod konkretną frazę, 2–3,5 s (UFD: mediana 1,7 s, ~1 na 8–10 s); bez dźwięku; napis zmniejsza się do szerokości pola.
+  Nieznany `meme`, za dużo tekstów, `layout` w 16:9 albo mem 16:9 w filmie pionowym = nazwany błąd (`build_edl.py`, `render.mjs`).
+  Lista kontrolna: `long.memes` (>= 3 w longu) i `short.meme` (>= 1; short bez luki na twarzy pomija go z powodem), bo
+  karta istniała od 10-31 i żaden film jej nie użył (Kamil 4.11: „memów nie ma”). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
   ```json
   {"id": "m_excel", "type": "meme", "canvas": "v", "dur": 3, "meme": "drake", "text": ["Nowe narzędzie", "Stary dobry Excel"], "at": [0.2, 1.0]}
   ```
