@@ -75,6 +75,7 @@ test('cache key changes with what is captured, not with timing', () => {
   // a 9:16 card has its own capture (phone width); a 16:9 card keeps the key it had before 9:16 existed (no re-capture)
   assert.equal(cacheKey(a), 'fae9cb8fc1203072');
   assert.notEqual(cacheKey({ ...a, canvas: 'v' }), cacheKey(a));
+  assert.equal(cacheKey({ ...own, canvas: 'v' }, 'aaa'), cacheKey(own, 'aaa'));  // own screenshot: no phone view, same key
 });
 
 test('9:16 card: zoomed on the quote, never past the capture edges', () => {

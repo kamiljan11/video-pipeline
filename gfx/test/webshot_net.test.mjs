@@ -19,6 +19,14 @@ const isPrivate = (ip) => ip !== '127.0.0.1';
 // a page with the quote far down (the card scrolls to it) and the same text as a PDF, made by Chrome
 const PAGE = `<html><head><title>Raport testowy</title></head><body style="margin:0;font:16px sans-serif">
   <p>Wstęp</p><div style="height:3000px"></div><p style="position:absolute;top:3000px;left:100px">${QUOTE}.</p></body></html>`;
+// a consent layer in the page flow (not fixed) that comes in only on scroll and covers the quote, as on intelligentcio.com
+// (2026-10-31); the paragraph above talks about cookies and must stay: a layer is known by its id/class, not by its text
+const CONSENT = `<html><head><title>Zgody</title></head><body style="margin:0;font:16px sans-serif">
+  <p id="about">Ten serwis używa plików cookie.</p><div style="height:1500px"></div>
+  <p style="position:absolute;top:1500px;left:20px;width:380px">${QUOTE}.</p>
+  <script>addEventListener('scroll', () => { if (document.querySelector('.cf_modal_container')) return;
+    const d = document.createElement('div'); d.className = 'cf_modal_container';
+    d.style.cssText = 'position:absolute;top:1300px;left:0;width:100%;height:600px;background:#f00'; document.body.append(d); });</script></body></html>`;
 const PDF_HTML = `<html><body style="margin:0;font:16px sans-serif"><p style="position:absolute;top:300px;left:100px;margin:0">${QUOTE}.</p></body></html>`;
 
 let srv, port, ca, pdfBytes;
@@ -33,6 +41,7 @@ test.before(async () => {
   await b.close();
   const routes = {
     '/page': (q, r) => { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); r.end(PAGE); },
+    '/consent': (q, r) => { r.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); r.end(CONSENT); },
     '/404': (q, r) => { r.writeHead(404, { 'content-type': 'text/html' }); r.end(`<p>${QUOTE}</p>`); },
     '/r1': (q, r) => { r.writeHead(302, { location: '/r2' }); r.end(); },
     '/r2': (q, r) => { r.writeHead(301, { location: `https://site.test:${port}/page` }); r.end(); },
@@ -86,4 +95,18 @@ test('network failures fail the card loudly and leave nothing behind', { skip: !
   assert.equal(r.failed, Object.keys(bad).length, r.errs);
   for (const [id, [, why]] of Object.entries(bad)) assert.match(r.errs, new RegExp(`FAILED webshot ${id} \\(.*\\): .*${why.source}`), id);
   assert.deepEqual(r.files, []);
+});
+
+test('a 9:16 card: phone-width shot, a consent layer that comes in on scroll is hidden, a text about cookies stays',
+  { skip: !fs.existsSync(CHROME) && 'no Chrome' }, async () => {
+  const sp = card('c1', '/consent', { canvas: 'v' });
+  const r = await run([sp]);
+  assert.equal(r.failed, 0, r.errs);
+  const m = r.meta(sp);
+  assert.deepEqual([m.width, m.phone], [1290, true]);  // 430 CSS px @3x
+  const png = path.join(work, 'out_c1', 'web', `${keyOf(path.join(work, 'c1.json'), sp)}.png`);
+  const rgb = ([x, y, w, h]) => [...execFileSync('ffmpeg', ['-v', 'error', '-i', png, '-vf', `crop=${Math.round(w)}:${Math.round(h)}:${Math.round(x)}:${Math.round(y)},scale=1:1:flags=area,format=rgb24`, '-f', 'rawvideo', '-'])];
+  const [cr, cg] = rgb(m.rects[0]);
+  assert.ok(!(cr > 150 && cg < 100), `the quote is under the red layer: ${cr},${cg}`);
+  assert.ok(m.height > 1500 * 3 * 0.5, 'the shot still holds the page down to the quote');
 });

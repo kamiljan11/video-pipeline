@@ -133,7 +133,7 @@ export function vZoom(meta, viewW) {
 // a 9:16 card adds "phone" (its own capture at phone width); a 16:9 card's key is the same as before it existed
 export const cacheKey = (sp, imgSum = null) => crypto.createHash('sha1').update(JSON.stringify({ v: 2, url: sp.url ?? null,
   find: sp.find ?? null, img: sp.img ?? null, page: sp.page ?? null, box: sp.box ?? null, title: sp.title ?? null, imgSum,
-  ...(sp.canvas === 'v' ? { phone: true } : {}) })).digest('hex').slice(0, 16);
+  ...(sp.canvas === 'v' && !sp.img ? { phone: true } : {}) })).digest('hex').slice(0, 16);
 
 export const MAX_IMG = 50 << 20;
 // an own screenshot: a plain file name (as the panel accepts it) of a regular file in the folder of the specs
