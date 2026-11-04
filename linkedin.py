@@ -20,6 +20,7 @@ from __future__ import annotations
 import datetime
 import fcntl
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -34,6 +35,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 RULES = ROOT / "style" / "linkedin.json"
 TOKEN = Path(os.environ.get("VP_LINKEDIN_TOKEN", "~/.config/linkedin/token.json")).expanduser()
+# one file per post text on this laptop: the same text from another folder (copy, new draft, fresh clone) is a duplicate too
+SEEN = Path(os.environ.get("VP_LINKEDIN_SEEN", "~/.local/state/vp-linkedin/seen")).expanduser()
 AUTH = f"python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 {ROOT}/linkedin_auth.py"
 API = "https://api.linkedin.com"
 PROFILE = "your LinkedIn profile (Activity > Posts)"
@@ -42,7 +45,7 @@ RESERVED = re.compile(r"([|{}@\[\]()<>#\\*_~])")  # little text format: these mu
 TAG = re.compile(r"[^\W_]+")  # a hashtag is one word: letters and digits (Polish letters too)
 LINK = re.compile(r"https?://|www\.", re.IGNORECASE)
 DASH = re.compile("[–—]")
-FAILURES = (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError)
+FAILURES = (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError, http.client.HTTPException)
 
 
 def escape(text: str) -> str:
@@ -185,13 +188,38 @@ def _save(done: Path, rec: dict) -> None:
     os.replace(tmp, done)
 
 
-def _claim(done: Path) -> dict:
-    """the record is taken (O_EXCL) before the first call that writes to LinkedIn: two runs at once cannot both post"""
+def _seen_key(text: str) -> Path:
+    return SEEN / hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def _seen_by(text: str) -> str | None:
+    """the record of an earlier publish of this exact text, from any folder"""
+    try: return json.loads(_seen_key(text).read_text()).get("record", "?")
+    except FileNotFoundError: return None
+    except (OSError, ValueError): return "unreadable"
+
+
+def _claim(done: Path, text: str) -> dict:
+    """the record and the text are taken (O_EXCL) before the first call that writes to LinkedIn: two runs, or the same
+    text from two folders, cannot both post"""
     try:
         with open(done, "x") as f: f.write(json.dumps({"state": "pending", "at": _now()}))
     except FileExistsError:
         raise ValueError(_taken(done)) from None
-    return {"state": "pending"}
+    SEEN.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(_seen_key(text), "x") as f: f.write(json.dumps({"record": str(done), "at": _now()}))
+    except FileExistsError:
+        done.unlink()
+        raise ValueError(f"this post text was already published or is being published from {_seen_by(text)}; "
+                         f"check {PROFILE}") from None
+    return {"state": "pending", "seen": str(_seen_key(text))}
+
+
+def _release(done: Path, rec: dict) -> None:
+    """nothing was posted: both claims go, a rerun is safe"""
+    done.unlink(missing_ok=True)
+    Path(rec["seen"]).unlink(missing_ok=True)
 
 
 def _taken(done: Path) -> str:
@@ -266,7 +294,7 @@ def _post(access: str, done: Path, rec: dict, body: dict) -> str:
         st, hd, _ = api(access, "POST", f"{API}/rest/posts", body)
     except ApiError as ex:
         if 400 <= ex.code < 500:  # LinkedIn refused the post: nothing is live, a rerun is safe
-            done.unlink(); raise
+            _release(done, rec); raise
         raise unknown(str(ex)) from ex
     except BaseException as ex:  # a timeout may come after LinkedIn created the post: keep the record
         raise unknown(f"{type(ex).__name__}: {ex}") from ex
@@ -279,6 +307,7 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
     if problems := check(spec, rules): raise ValueError("; ".join(problems))
     done, pdf = spec_path.parent / "linkedin.published.json", spec_path.parent / "linkedin.pdf"
     if done.exists(): raise ValueError(_taken(done))
+    if (prev := _seen_by(commentary(spec))): raise ValueError(f"this post text was already published from {prev}; check {PROFILE}")
     if not pdf.is_file() or pdf.stat().st_mtime < spec_path.stat().st_mtime: raise ValueError(f"{pdf} missing or older than the spec: run linkedin.py render first")
     blob = pdf.read_bytes()  # read once: the approved bytes are the uploaded bytes
     if (n := _pdf_pages(blob)) != len(spec["carousel"]["slides"]): raise ValueError(f"{pdf}: {n} pages, the spec has {len(spec['carousel']['slides'])} slides")
@@ -294,11 +323,11 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
               f"--- first comment ---\n{spec['first_comment']}\n---\n"
               f"approval code: {code}  (after Kamil's OK: linkedin.py publish {spec_path} --publish --approve {code})")
         return {"dry_run": True, "approve": code}
-    rec = {**_claim(done), "approve": code, "first_comment": spec["first_comment"]}
+    rec = {**_claim(done, text), "approve": code, "first_comment": spec["first_comment"]}
     try:
         doc = _upload(access, person, blob, wait_s, step_s)
     except BaseException:
-        done.unlink()  # nothing was posted: a rerun is safe
+        _release(done, rec)
         raise
     rec.update(document=doc, at=_now())
     urn = _post(access, done, rec, {
@@ -312,7 +341,7 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
         _save(done, rec)  # before the comment: a failed comment must not lead to a second post
     except OSError as ex:  # the claim (state pending) stays on disk, so a rerun is still refused
         raise ValueError(f"the post is LIVE at {rec['url']} but {done} could not be written ({ex}); "
-                         f"write state published and post {urn} into it by hand before anything else") from ex
+                         f"before anything else write this into it by hand: {json.dumps(rec, ensure_ascii=False)}") from ex
     return _comment(access, person, done, rec)
 
 

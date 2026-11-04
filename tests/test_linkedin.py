@@ -118,6 +118,8 @@ class PublishTest(unittest.TestCase):
         self.spec, self.pdf, self.tok = self.dir / "linkedin.json", self.dir / "linkedin.pdf", self.dir / "token.json"
         self.done = self.dir / "linkedin.published.json"
         p = mock.patch.object(linkedin, "TOKEN", self.tok); p.start(); self.addCleanup(p.stop)
+        self.seen = self.dir / "seen"
+        p = mock.patch.object(linkedin, "SEEN", self.seen); p.start(); self.addCleanup(p.stop)
         self.fresh()
 
     def fresh(self):
@@ -127,6 +129,7 @@ class PublishTest(unittest.TestCase):
         now = time.time(); os.utime(self.spec, (now - 10, now - 10))
         self.token(days=40)
         self.done.unlink(missing_ok=True)
+        shutil.rmtree(self.seen, ignore_errors=True)
 
     def token(self, days, scope="openid,profile,w_member_social"):
         self.tok.write_text(json.dumps({"access_token": "T", "obtained_at": time.time(), "expires_in": days * 86400, "scope": scope}))
@@ -177,7 +180,7 @@ class PublishTest(unittest.TestCase):
     def test_the_record_is_claimed_before_the_first_write_and_only_once(self):
         def init(req):  # a second run arriving now finds the claim and stops
             self.assertEqual(json.loads(self.done.read_text())["state"], "pending")
-            with self.assertRaisesRegex(ValueError, "state pending"): linkedin._claim(self.done)
+            with self.assertRaisesRegex(ValueError, "state pending"): linkedin._claim(self.done, linkedin.commentary(SPEC))
             return INIT
         self.run_with(Fake(ME, init, UP, AVAIL, POST, COMMENT))
         self.assertEqual(json.loads(self.done.read_text())["state"], "published")
@@ -258,6 +261,38 @@ class PublishTest(unittest.TestCase):
                 linkedin.comment(self.spec)
             self.assertEqual(fake.calls, [])
 
+    def test_the_same_text_from_another_folder_is_a_duplicate(self):
+        self.run_with(Fake(ME, INIT, UP, AVAIL, POST, COMMENT))
+        other = self.dir / "copy"; other.mkdir()
+        shutil.copy(self.spec, other / "linkedin.json"); shutil.copy(self.pdf, other / "linkedin.pdf")
+        os.utime(other / "linkedin.json", (time.time() - 10, time.time() - 10))
+        fake = Fake()
+        with mock.patch.object(linkedin, "_open", fake), mock.patch("sys.stdout", io.StringIO()), \
+                self.assertRaisesRegex(ValueError, f"already published from {self.done}"):
+            linkedin.publish(other / "linkedin.json", True, linkedin.approval(SPEC, self.pdf.read_bytes()))
+        self.assertEqual(fake.calls, []); self.assertFalse((other / "linkedin.published.json").exists())
+
+    def test_two_folders_racing_with_the_same_text_post_once(self):
+        def init(req):  # the other folder claims the text while this run is uploading
+            other = self.dir / "copy"; other.mkdir()
+            with self.assertRaisesRegex(ValueError, "already published or is being published"):
+                linkedin._claim(other / "linkedin.published.json", linkedin.commentary(SPEC))
+            self.assertFalse((other / "linkedin.published.json").exists())
+            return INIT
+        self.run_with(Fake(ME, init, UP, AVAIL, POST, COMMENT))
+
+    def test_a_record_written_by_hand_from_the_message_lets_the_comment_go(self):
+        real = linkedin._save
+        def save(done, rec):
+            if rec.get("state") == "published": raise OSError(28, "No space left on device")
+            real(done, rec)
+        with mock.patch.object(linkedin, "_save", save), self.assertRaises(ValueError) as ctx:
+            self.run_with(Fake(ME, INIT, UP, AVAIL, POST))
+        self.done.write_text(str(ctx.exception).split("by hand: ", 1)[1])  # exactly what the message says to write
+        fake = Fake(ME, COMMENT)
+        with mock.patch.object(linkedin, "_open", fake), mock.patch("sys.stdout", io.StringIO()):
+            self.assertEqual(linkedin.comment(self.spec, checked=True)["comment"], 201)
+
     def test_the_record_is_replaced_whole_or_not_at_all(self):
         self.done.write_text(json.dumps({"state": "pending"}))
         with mock.patch.object(linkedin.os, "replace", side_effect=OSError("disk full")), self.assertRaises(OSError):
@@ -306,6 +341,7 @@ class PublishTest(unittest.TestCase):
             with self.subTest(want=want):
                 with self.assertRaisesRegex(ValueError, want): self.run_with(fake)
                 self.assertFalse((self.dir / "linkedin.published.json").exists())
+                self.assertEqual(list(self.seen.glob("*")) if self.seen.exists() else [], [])  # the text is free again
                 if want == "upload URL outside linkedin.com": self.assertEqual(len(fake.calls), 2)  # nothing sent there
 
     def test_a_document_that_never_gets_ready_stops_before_the_post(self):

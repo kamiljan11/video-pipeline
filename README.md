@@ -376,7 +376,8 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
 - **Komentarz:** `FAILED` = LinkedIn go odrzucił (4xx), `comment` ponawia. `UNKNOWN` = timeout albo błąd serwera: komentarz mógł
   się pojawić (także gdy przebieg przerwano w trakcie wysyłki); sprawdź pod postem i dopiero wtedy `comment --checked`.
   Ponowienie wysyła tekst zatwierdzony przy publikacji (zapisany w rekordzie); zmieniony `first_comment` w specu = odmowa.
-- **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn. `state: published` = post
+- **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn, razem z wpisem
+  `~/.local/state/vp-linkedin/seen/<skrót tekstu>` (ten sam tekst z innego katalogu, kopii albo świeżego klonu = odmowa). `state: published` = post
   jest (URL w pliku). `state: pending` = przebieg publikacji trwa albo przerwano go w połowie (kill, brak prądu):
   traktuj jak `unknown`. `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
   Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
