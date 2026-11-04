@@ -42,7 +42,7 @@ więc to sygnał, nie dowód kary za API). Token wygasa co 60 dni: `linkedin.py`
 **Konsekwencje:** `linkedin.published.json` obok specu jest zakładany (O_EXCL) przed pierwszym zapisem do LinkedIn i blokuje
 drugą publikację; po niejasnym wyniku wysyłki posta (timeout, 5xx, brak id) zostaje jako `unknown`, a ponowienie wymaga sprawdzenia
 profilu i ręcznego skasowania pliku. Pierwszy komentarz jest po poście; jego błąd nie cofa posta (zapis + exit 1,
-`linkedin.py comment` ponawia tylko komentarz). Publikacja idzie dopiero po akceptacji tekstu i PDF przez Kamila. Token i `linkedin_auth.py` dzielimy z zadaniem toRzeszów
+`linkedin.py comment` ponawia tylko komentarz). Publikacja idzie dopiero po akceptacji tekstu i PDF przez Kamila; to krok procedury (jego „publikuj” w czacie), nie bramka w kodzie: kod `--approve` wiąże treść z dry runem, ale zna go sesja, która go uruchomiła (sesja z tokenem i tak mogłaby wołać API wprost). Token i `linkedin_auth.py` dzielimy z zadaniem toRzeszów
 (jeden token na profil; odnowienie dotyczy obu).
 
 **Koszt cykliczny:** 0 zł (API LinkedIn bez opłat, render lokalnie). Czas: odnowienie tokenu ok. 6 razy w roku (Kamil klika

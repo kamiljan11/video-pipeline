@@ -18,6 +18,7 @@ Token: ~/.config/linkedin/token.json from linkedin_auth.py (toRzeszów scripts, 
 from __future__ import annotations
 
 import datetime
+import fcntl
 import hashlib
 import json
 import os
@@ -189,10 +190,22 @@ def _claim(done: Path) -> dict:
     try:
         with open(done, "x") as f: f.write(json.dumps({"state": "pending", "at": _now()}))
     except FileExistsError:
-        state = json.loads(done.read_text() or "{}").get("state", "?")
-        raise ValueError(f"{done} exists (state {state}): published or in progress, a second post would be a duplicate; "
-                         f"delete that file only after checking {PROFILE}") from None
+        raise ValueError(_taken(done)) from None
     return {"state": "pending"}
+
+
+def _taken(done: Path) -> str:
+    """why a second publish is refused, and the one safe next step for that state"""
+    try: state = json.loads(done.read_text() or "{}").get("state", "?")
+    except (OSError, ValueError): state = "unreadable"
+    if state == "published":
+        return f"{done} exists (state published): already published; a missing first comment: linkedin.py comment <spec>"
+    return (f"{done} exists (state {state}): a publish is running or stopped mid-way, the post may be live; "
+            f"check {PROFILE} and delete that file only if the post is not there")
+
+
+def _sent(st: object) -> bool:
+    return isinstance(st, int) and 200 <= st < 300
 
 
 def _comment(access: str, person: str, done: Path, rec: dict) -> dict:
@@ -248,7 +261,7 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
     spec, rules = load(spec_path)
     if problems := check(spec, rules): raise ValueError("; ".join(problems))
     done, pdf = spec_path.parent / "linkedin.published.json", spec_path.parent / "linkedin.pdf"
-    if done.exists(): raise ValueError(f"{done} exists: already published or in progress; to add a missing comment: linkedin.py comment {spec_path}")
+    if done.exists(): raise ValueError(_taken(done))
     if not pdf.is_file() or pdf.stat().st_mtime < spec_path.stat().st_mtime: raise ValueError(f"{pdf} missing or older than the spec: run linkedin.py render first")
     blob = pdf.read_bytes()  # read once: the approved bytes are the uploaded bytes
     if (n := _pdf_pages(blob)) != len(spec["carousel"]["slides"]): raise ValueError(f"{pdf}: {n} pages, the spec has {len(spec['carousel']['slides'])} slides")
@@ -290,8 +303,12 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
         _save(done, {**rec, "state": "unknown", "error": f"HTTP {st}, no post id"})
         raise ValueError(f"post: HTTP {st}, no post id; it may be live: check {PROFILE}, then delete {done} only if it is not there")
     rec.update(state="published", post=urn, url=f"https://www.linkedin.com/feed/update/{urn}/", comment=None)
-    _save(done, rec)  # before the comment: a failed comment must not lead to a second post
-    print(f"post: {st} {rec['url']}")
+    print(f"post: {st} {rec['url']}")  # before the save: if the disk write fails, the post id is still on screen
+    try:
+        _save(done, rec)  # before the comment: a failed comment must not lead to a second post
+    except OSError as ex:  # the claim (state pending) stays on disk, so a rerun is still refused
+        raise ValueError(f"the post is LIVE at {rec['url']} but {done} could not be written ({ex}); "
+                         f"write state published and post {urn} into it by hand before anything else") from ex
     return _comment(access, person, done, rec)
 
 
@@ -299,15 +316,18 @@ def comment(spec_path: Path, checked: bool = False) -> dict:
     """the first comment again, for a post whose comment failed (the post itself is never repeated)"""
     spec, _ = load(spec_path)
     done = spec_path.parent / "linkedin.published.json"
-    rec = json.loads(done.read_text()) if done.is_file() else {}
-    if rec.get("state") != "published": raise ValueError(f"{done}: no published post here (state {rec.get('state')!r})")
-    if rec.get("comment") == 201: raise ValueError(f"{rec['url']} already has its first comment")
-    if str(rec.get("comment")).startswith("UNKNOWN") and not checked:
-        raise ValueError(f"the last comment attempt may have gone through: look under {rec['url']}, then rerun with --checked if it is not there")
-    if spec.get("first_comment") != rec.get("first_comment"):  # only the approved text goes out, never an edit made later
-        raise ValueError(f'"first_comment" in {spec_path} differs from the one approved at publish; the approved one is in {done}')
-    access = token()
-    return _comment(access, _author(access), done, rec)
+    with open(spec_path.parent / "linkedin.comment.lock", "w") as lock:  # two retries at once would both pass the checks below
+        try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError: raise ValueError(f"another linkedin.py comment is running for {spec_path}") from None
+        rec = json.loads(done.read_text()) if done.is_file() else {}
+        if rec.get("state") != "published": raise ValueError(f"{done}: no published post here (state {rec.get('state')!r})")
+        if _sent(rec.get("comment")): raise ValueError(f"{rec['url']} already has its first comment")
+        if str(rec.get("comment")).startswith("UNKNOWN") and not checked:
+            raise ValueError(f"the last comment attempt may have gone through: look under {rec['url']}, then rerun with --checked if it is not there")
+        if spec.get("first_comment") != rec.get("first_comment"):  # only the approved text goes out, never an edit made later
+            raise ValueError(f'"first_comment" in {spec_path} differs from the one approved at publish; the approved one is in {done}')
+        access = token()
+        return _comment(access, _author(access), done, rec)
 
 
 def main(argv: list[str]) -> int:
@@ -316,7 +336,7 @@ def main(argv: list[str]) -> int:
     cmd, spec_path = argv[0], Path(argv[1])
     try:
         if cmd == "comment":
-            return 0 if comment(spec_path, "--checked" in argv)["comment"] == 201 else 1
+            return 0 if _sent(comment(spec_path, "--checked" in argv)["comment"]) else 1
         spec, rules = load(spec_path)
         if problems := check(spec, rules):
             print("\n".join(f"- {p}" for p in problems), file=sys.stderr)

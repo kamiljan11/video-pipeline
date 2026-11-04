@@ -64,10 +64,13 @@ def main() -> None:
                                    "client_id": cid, "client_secret": csec}).encode()
     try:
         with urllib.request.urlopen(urllib.request.Request("https://www.linkedin.com/oauth/v2/accessToken", data=body,
-                                    headers={"Content-Type": "application/x-www-form-urlencoded"}), timeout=30) as r:
+                                    headers={"Content-Type": "application/x-www-form-urlencoded",
+                                             "User-Agent": "video-pipeline linkedin_auth.py"}), timeout=30) as r:
             tok = json.load(r)
     except urllib.error.HTTPError as ex:
         raise SystemExit(f"token exchange: HTTP {ex.code} {ex.read().decode(errors='replace')[:300]}") from ex
+    except (urllib.error.URLError, TimeoutError) as ex:  # no answer: the code is single-use, so authorize again
+        raise SystemExit(f"token exchange: no answer from LinkedIn ({ex}); run linkedin_auth.py again") from ex
     tok["obtained_at"] = int(time.time())
     save(tok)
     print("token saved to", OUT, "| expires in days:", round(tok.get("expires_in", 0) / 86400, 1))

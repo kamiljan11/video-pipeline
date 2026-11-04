@@ -41,6 +41,7 @@ flowchart LR
 | Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |
 | Render | `assemble.py`, `run_v4.sh` | segment cache, grading, captions for shorts, final mix; `--proxy` for 360p previews |
 | Viewer review | `viewer_pack.py`, `review/viewer.md` | frame sheets + what is said + what is on screen, for an agent acting as a first-time viewer |
+| LinkedIn post | `linkedin.py`, `gfx/carousel.mjs` | text + PDF carousel + first comment from the film, published on Kamil's profile through the official API after his OK ([ADR-0009](docs/adr/0009-linkedin-document-posts.md), section below) |
 
 The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
 from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
@@ -376,9 +377,11 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
   się pojawić (także gdy przebieg przerwano w trakcie wysyłki); sprawdź pod postem i dopiero wtedy `comment --checked`.
   Ponowienie wysyła tekst zatwierdzony przy publikacji (zapisany w rekordzie); zmieniony `first_comment` w specu = odmowa.
 - **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn. `state: published` = post
-  jest (URL w pliku). `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
+  jest (URL w pliku). `state: pending` = przebieg publikacji trwa albo przerwano go w połowie (kill, brak prądu):
+  traktuj jak `unknown`. `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
   Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
-- **Token:** `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni, wspólny z zadaniem toRzeszów). Skrypt staje 3 dni
+- **Token:** `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni, wspólny z zadaniem toRzeszów:
+  `~/Documents/toRzeszow/skrypty/linkedin_auth.py`, kopia tego samego skryptu; odnawiaj z tym samym zakresem `openid profile w_member_social`). Skrypt staje 3 dni
   przed wygaśnięciem. Odnowienie (Kamil klika „Zezwól” w przeglądarce), sekrety aplikacji z Infisicala (`LINKEDIN_CLIENT_ID`,
   `LINKEDIN_CLIENT_SECRET`):
   `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 linkedin_auth.py`
@@ -387,6 +390,7 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
   LinkedIn (`x-li-…`) do zgłoszenia w ich supporcie.
 - **Wersja API:** `VERSION` w `linkedin.py` (nagłówek `LinkedIn-Version`, LinkedIn wycofuje wersje po ok. roku; błąd HTTP
   wspominający wersję = podbić na aktualną z dokumentacji LinkedIn).
+- **Logi:** `linkedin.py` pisze tylko na stdout/stderr (bez pliku logu); stan każdego posta = `<dir>/linkedin.published.json`.
 - **Wynik posta:** po 7 dniach Kamil przepisuje wyświetlenia i reakcje z karty posta do `linkedin.published.json` jako
   `"stats_7d": {"views": …, "reactions": …}`; reguła decyzji w ADR-0009 › Metryka.
 - **Nowe pole w specu:** `SPEC_KEYS`/`SLIDE_KEYS` i `check()` w `linkedin.py` (inaczej `check` je odrzuci), limit w

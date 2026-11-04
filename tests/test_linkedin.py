@@ -226,6 +226,38 @@ class PublishTest(unittest.TestCase):
         with mock.patch.object(linkedin, "_open", fake), mock.patch("sys.stdout", io.StringIO()): linkedin.comment(self.spec)
         self.assertEqual(json.loads(fake.calls[1].data)["message"]["text"], SPEC["first_comment"])
 
+    def test_a_stopped_publish_points_at_the_profile_not_at_comment(self):
+        self.done.write_text(json.dumps({"state": "pending"}))
+        fake = Fake()
+        with self.assertRaisesRegex(ValueError, "state pending.*may be live.*Activity > Posts.*delete that file only if"): self.run_with(fake)
+        self.assertEqual(fake.calls, [])
+
+    def test_a_record_that_cannot_be_written_after_the_post_names_the_live_post(self):
+        real = linkedin._save
+        def save(done, rec):
+            if rec.get("state") == "published": raise OSError(28, "No space left on device")
+            real(done, rec)
+        with mock.patch.object(linkedin, "_save", save), self.assertRaisesRegex(ValueError, "LIVE at .*urn:li:share:42"):
+            self.run_with(Fake(ME, INIT, UP, AVAIL, POST))
+        self.assertEqual(json.loads(self.done.read_text())["state"], "pending")  # the claim stays: no second post
+        with self.assertRaisesRegex(ValueError, "may be live"): self.run_with(Fake())
+
+    def test_any_2xx_comment_counts_as_sent(self):
+        self.done.write_text(json.dumps({"state": "published", "post": "urn:li:share:42", "url": "u", "comment": 200,
+                                         "first_comment": SPEC["first_comment"]}))
+        with mock.patch.object(linkedin, "_open", Fake()), self.assertRaisesRegex(ValueError, "already has"): linkedin.comment(self.spec)
+
+    def test_two_comment_retries_at_once_send_one_comment(self):
+        import fcntl
+        self.done.write_text(json.dumps({"state": "published", "post": "urn:li:share:42", "url": "u", "comment": "FAILED x",
+                                         "first_comment": SPEC["first_comment"]}))
+        with open(self.dir / "linkedin.comment.lock", "w") as held:
+            fcntl.flock(held, fcntl.LOCK_SH)  # even a shared hold must stop a retry
+            fake = Fake()
+            with mock.patch.object(linkedin, "_open", fake), self.assertRaisesRegex(ValueError, "another linkedin.py comment"):
+                linkedin.comment(self.spec)
+            self.assertEqual(fake.calls, [])
+
     def test_the_record_is_replaced_whole_or_not_at_all(self):
         self.done.write_text(json.dumps({"state": "pending"}))
         with mock.patch.object(linkedin.os, "replace", side_effect=OSError("disk full")), self.assertRaises(OSError):
