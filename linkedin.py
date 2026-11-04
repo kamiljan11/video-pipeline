@@ -55,9 +55,13 @@ def _lines(text: str) -> list[str]:
     return [ln.strip() for ln in text.strip().split("\n") if ln.strip()]
 
 
+SPEC_KEYS, SLIDE_KEYS = {"text", "hashtags", "first_comment", "carousel"}, {"type", "title", "sub", "body", "photo"}
+
+
 def check(spec: dict, rules: dict) -> list[str]:
     """every rule the spec breaks, named; [] = fine"""
-    t, c, out = rules["text"], rules["carousel"], []
+    t, c = rules["text"], rules["carousel"]
+    out = [f'unknown key "{k}" (a typo? known: {", ".join(sorted(SPEC_KEYS))})' for k in sorted(set(spec) - SPEC_KEYS)]
     text = spec.get("text")
     if not isinstance(text, str) or not text.strip(): return ['"text" must be a non-empty text']
     lines = _lines(text)
@@ -88,6 +92,7 @@ def check(spec: dict, rules: dict) -> list[str]:
     for i, sp in enumerate(slides):
         at, want = f"slide {i + 1}", "cover" if i == 0 else "end" if i == len(slides) - 1 else "point"
         if not isinstance(sp, dict) or sp.get("type") != want: out.append(f'{at}: "type" must be "{want}"'); continue
+        out += [f'{at}: unknown key "{k}"' for k in sorted(set(sp) - SLIDE_KEYS)]
         if not isinstance(sp.get("title"), str) or not 0 < len(sp["title"]) <= c["title_max"]: out.append(f'{at}: "title" of 1-{c["title_max"]} characters')
         for k in ("sub", "body"):
             if k in sp and (not isinstance(sp[k], str) or len(sp[k]) > c["body_max"]): out.append(f'{at}: "{k}" a text of at most {c["body_max"]} characters')

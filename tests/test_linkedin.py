@@ -59,6 +59,8 @@ class CheckTest(unittest.TestCase):
             "at least": spec(text=HOOK),
             "first_comment": spec(first_comment="x" * 2000),
             '"first_comment": required': spec(first_comment=" "),
+            'unknown key "first_coment"': spec(first_coment="x"),
+            'slide 2: unknown key "bdy"': spec(carousel={"title": "t", "slides": [slides[0], {**slides[1], "bdy": "x"}, *slides[2:]]}),
             '"carousel" must': spec(carousel=None),
             "slides": spec(carousel={"title": "t", "slides": slides[:2]}),
             '"type" must be "end"': spec(carousel={"title": "t", "slides": slides[:4] + [slides[1]]}),
