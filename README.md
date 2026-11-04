@@ -43,10 +43,14 @@ flowchart LR
 | Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |
 | Render | `assemble.py`, `run_v4.sh` | segment cache, grading, captions for shorts, final mix; `--proxy` for 360p previews |
 | Viewer review | `viewer_pack.py`, `review/viewer.md` | frame sheets + what is said + what is on screen, for an agent acting as a first-time viewer |
+| Checklist gate | `film_check.py`, `style/checklist.json` | every feature a long, a short and the out folder must have (chapters, explainer scenes, lower third, new music, A/B thumbnails, posts...); an item is met or skipped with a reason in the plan, else the film does not render ([ADR-0011](docs/adr/0011-editorial-team.md)) |
+| Scene collisions | `gfx/scene_check.mjs` | pieces of an explainer scene that cover each other, found in Chrome before any frame is rendered |
+| Thumbnails | `gfx/thumbs.mjs` | YouTube A/B/C thumbnails for the long and a cover per short from `thumbs.json`; stops when a word does not fit |
+| Editorial team | `team/RUNBOOK.md`, `team/roles/` | the 12 steps of an edit, one role card each (mission, input, output file, when done) |
 
 The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
 from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
-(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/video-pipeline-panel/blob/main/docs/GLOSSARY.md).
+(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/video-pipeline-panel/blob/main/docs/GLOSSARY.md). Terms of this repo (card vs role card, scene, gate, checklist, palette): [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
 ## Plan keys (sound, picture, framing)
 
@@ -62,6 +66,8 @@ checks the EDL again before ffmpeg runs. A bad value stops the build with the ke
 | `audio` | ffmpeg filter chain for the voice | replaces the default voice chain; only filters on the `AUDIO` list in `edl_guard.py` |
 | `grade` | ffmpeg filter chain for the picture | replaces the default colour grade; only filters on the `VIDEO` list (`hqdn3d` included, against sensor grain in 9:16 crops) |
 | `pads` | `{"pre", "post", "keep_l", "keep_r", "mingap"}`, seconds 0..2, each optional | more air at cuts. `pre`/`post`: sound kept before the first and after the last word of a keep (default 0.10 / 0.16); `keep_l`/`keep_r`: pause left after / before speech when a long pause inside a keep is shortened (0.15 / 0.12); `mingap`: only pauses longer than this are shortened (0.45); `keep_l + keep_r` must stay below `mingap`, or two pieces would overlap and play the same sound twice. Absent = the defaults, old plans cut as before |
+| `music_palette` | `{"name": "lofi"\|"drive"\|"cinematic"\|"tech"\|"bright", "key": -6..6}` | another piece of music per film (`gen_music.py --palette --key`); `make_beds.py` writes it to `render/music_ledger.json` and `film_check.py` refuses the palette and key of the last other project. Absent = the old bed |
+| `skip` | `{"<checklist item id>": "why"}` | `film_check.py` lets the item pass and prints the reason in its report; an item without a reason stops the render |
 | `face_target_y` | 0.3..0.6, vertical films only | height of the face centre in a zoomed 9:16 crop (default 0.40). Set it close to where the face sits in the recording (about 0.48 for a seated talking head), or the head jumps between zoomed and unzoomed shots. A 16:9 plan ignores it with a warning. Changing it re-cuts the segments on the next render |
 
 ## Quick start (Ubuntu)
@@ -146,6 +152,19 @@ montażu i b-rollu, testy tych skryptów): `panel/` — osobne repo gita (tu ign
 
 Logi (`render/`): `render.log` (każdy krok, `DONE <film>` / `FAILED <krok> <film>` / `FAILED_FILMS`), `critic_<film>.log`,
 `beat_stats.log` (metryka po renderze), `gfx.log` w katalogu `work` projektu.
+
+**Bramki w `run_v4.sh` i co robić, gdy render stoi** (kolejność: scene_check -> gfx -> film po filmie: build_edl ... edl_guard ->
+film_check -> make_beds -> behind -> assemble). Proces montażu krok po kroku: `team/RUNBOOK.md`.
+
+| `render.log` | Gdzie przyczyna | Co zrobić |
+|---|---|---|
+| `FAILED scene_check` | `gfx.log`: linie `CLASH <scena>: <a> covers <b>` (exit 124 = Chrome zawisł, limit 600 s) | przesunąć element w specu sceny (`node gfx/scene_check.mjs gfx_specs.json <id>` sprawdza jedną). Fałszywy alarm: `SCENE_CHECK=off bash run_v4.sh …` (w logu zostaje `WARN scene_check off`) |
+| `FAILED gfx` | `gfx.log` | błąd specu karty albo Chrome; karta z tym samym kluczem (`<id>.mov.key`) nie renderuje się drugi raz |
+| `FAILED film_check <film>` | `critic_<film>.log`: lista pozycji z `why` | dodać brakującą rzecz do planu albo `"skip": {"<id>": "powód"}` w planie. Stary projekt sprzed listy (przed 2026-11-04): `FILM_CHECK=off bash run_v4.sh …` (`WARN film_check off <film>`); nigdy po to, żeby film wyszedł szybciej |
+
+Cache kart (`gfx/render.mjs`): klucz `<id>.mov.key` = motyw + specyfikacja karty (scena także źródło `gfx/scene_lib.mjs`). Po
+zmianie specu karta renderuje się sama, nie trzeba kasować `.mov`. Projekty sprzed 2026-11-04 nie mają `.key`, więc przy
+pierwszym renderze po tej zmianie wszystkie ich karty renderują się raz od nowa (dłuższy render, ten sam wygląd).
 
 Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projektów): `render_v3.sh`, `render_all.sh`,
 `check_long.sh`, `final_check.sh`. Pomocnicze: `run_whisper.sh` (whisper.cpp bez dzielenia), `spot_check.py`, `verify_cut.py`,
@@ -284,7 +303,22 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
   - `chip` pigułka z ikoną (`icon` z lucide, `text`), `node` duża ikona z podpisem (`icon`, `text`, `sub`, `size`), `you` osoba („Ty”),
     `chat` dymki (`msgs: [{who: "me"|"ai", t}]`, `t` = tekst albo `"~70"`), `stamp` pieczątka (`text`, `rot`), `text` napis
     (`t`, `*gwiazdki*` = kolor akcentu, `size`), `bar` pasek (`label`, `v` 0..1, `d`), `stat` liczba z podpisem (`value`, `label`),
-    `line` linia rysowana od `from` do `to` (`curve`, `d` = czas rysowania, `arrow: false` bez kropki na końcu).
+    `line` linia rysowana od `from` do `to` (`curve`, `d` = czas rysowania, `arrow: false` bez kropki na końcu, `head: "arrow"`
+    = grot zamiast kropki, `packet_at` + `packet_d` = kropka „pakiet” jadąca po linii).
+  - `stat` z `count: {from, to, d, at, pre, suf}`: liczba nabija się od `from` do `to` w `d` s (np. 0 → 92 z `suf: "%"`).
+  - `check` ptaszek: kółko i ptaszek rysują się, iskry rozbiegają się (`size`). `ring` odręczne kółko wokół pudełka
+    `x, y, w, h` (`pad`, `d`). `cursor` kursor jedzie z `from` do `to`, klika w `click_at` (fala w miejscu kliknięcia).
+  - `say` napis kinetyczny: `words: [["słowo", s], …]`, każde słowo wchodzi, gdy pada (czas z transkrypcji, liczony od startu karty);
+    znaczniki na JEDNYM słowie: `*słowo*` akcent szeryfowy, `[słowo]` pigułka w kolorze, `~słowo~` przekreślenie, `!słowo!` czerwone
+    (znak zapytania w środku znacznika: `*przejrzał?*`, nie `*przejrzał*?`), `size`.
+  - `toggle` przełącznik z podpisem `text`, włącza się w `on_at`. `steps` pigułka „`label` N / `total`”: `steps: [[s, N], …]`
+    zmienia liczbę i dopełnia pasek w podanych chwilach.
+- **Wspólne chwile każdego elementu (s od startu karty):** `hl_at` podświetlenie za elementem, `strike_at` przekreślenie i
+  przygaszenie, `pulse_at` (liczba albo lista) puls, `out_at` szybkie rozmycie i zniknięcie, `dim`, `gone` (wyżej).
+- **Tło sceny `bg`:** brak = siatka kropek, `"dots"` to samo jawnie, `"blobs"` = trzy rozmyte plamy w kolorach motywu.
+- **Nowy rodzaj elementu:** wpis w `PIECES` (`gfx/scene_lib.mjs`: funkcja `(e, {esc, icon, at, tn})` → `{inner, style}` albo
+  `{html}`, gdy element rysuje własne pudełko jak `line`), nazwa w `KINDS`, jego klucze w `checkScene`, opis tutaj, test w
+  `gfx/test/scene.test.mjs`. Zmiana pliku renderuje sceny od nowa (cache niżej).
 - **Kamera.** Bez `cam` cały rysunek jest kadrowany tak, żeby wypełnił wolną część ekranu, na lewo od kółka z twarzą. Przystanek
   `{"t", "on": "id" | ["id", …] | "*", "pad", "zmax", "move"}` kadruje te elementy (zmierzone w przeglądarce, po ułożeniu, więc
   nie trzeba zgadywać ich rozmiaru); `{"t", "x", "y", "z"}` = ręcznie (punkt świata w lewym górnym rogu, zoom). Ruch trwa `move` s

@@ -23,3 +23,6 @@ CSS i opóźnieniach, więc istniejące przewijanie klatek (`document.getAnimati
 - `"pip": false` na karcie z `PIP` wyłącza kółko z twarzą pod nią (build_edl.py); bez klucza wszystko jak dotąd.
 - Panel trzyma własną kopię `CARD_WHOOSH`; do czasu zmiany w panelu podgląd w panelu nie da whoosha pod sceną.
 - Brak metryki: ocena po pierwszym longu ze scenami (retencja w YouTube Studio w miejscach scen vs gadającej głowy).
+
+**Koszt cykliczny:** 0 zł (lokalnie: Chrome + ffmpeg na CPU, bez nowych zależności i kont). Czas: scena renderuje się
+jak inne karty (klatka po klatce), zmiana `gfx/scene_lib.mjs` renderuje wszystkie sceny projektu od nowa (klucz cache).

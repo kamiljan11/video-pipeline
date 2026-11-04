@@ -1,6 +1,6 @@
 # Design: zespół montażowy (role, artefakty, bramka kompletności)
 
-Tier: T2 · Data: 2026-11-04 · Autor: Claude (sesja e121fa47) · Status: szkic
+Tier: T2 · Data: 2026-11-04 · Autor: Claude (sesja e121fa47) · Status: wdrożony na gałęzi `feat/film-v2-motion` (ADR-0011)
 
 ## 1. Problem
 Film 2026-11-04 („Coding Higher Mind”) wyszedł płaski. Kamil (4.11): „w ciul pominąłeś”, „najbardziej mi zależy na graficznym
@@ -74,15 +74,18 @@ Metryka sukcesu: ocena Kamila po obejrzeniu + po publikacji retencja YouTube Stu
 | shorty = stała lista w planie | `rg -n "short1\|s1_" run_v4.sh` | 0 (lista filmów z argumentów) |
 
 ## 8. Ryzyka
-- Bramka za ostra -> zatrzymuje render o rzecz zbędną: każda pozycja ma `skip` z powodem; pierwszy tydzień wypisuje, ale
-  nie blokuje pozycji `warn`.
+- Bramka za ostra -> zatrzymuje render o rzecz zbędną: każda pozycja ma `skip` z powodem w planie. Poziomu `warn` nie ma
+  (zmiana wobec szkicu): każda pozycja blokuje od pierwszego dnia, bo luki filmu 2 v1 były właśnie rzeczami „na później”.
 - Render 60 fps i więcej scen = dłuższy render (karty 2x): akceptowane; `--proxy` do podglądu.
 - Sceny z „tekstem z terminala” muszą być prawdziwe (wynik polecenia przepisany), inaczej film kłamie: rola fact-checker.
 - Bezpieczeństwo: brak nowych zależności sieciowych; GSAP lokalny (licencja „no charge” od 30.04.2025), brak pobierania kodu.
 
 ## 9. Niezmienniki
-- Bez nowych kluczy planu wynik identyczny jak dotąd (strażnik zgodności panelu): palety, bramka i upscale są opt-in
-  albo działają tylko w nowych planach (`film_check` nie zmienia renderu, tylko go zatrzymuje).
+- Bez nowych kluczy planu obraz i dźwięk identyczne jak dotąd: palety i upscale są opt-in (`film_check` nie zmienia renderu,
+  tylko go zatrzymuje). Bramka `film_check` jest domyślnie WŁĄCZONA także dla starych planów (zmiana wobec szkicu): projekt
+  sprzed listy kontrolnej (np. film 1, plany z panelu) renderuje się tylko z `FILM_CHECK=off` (w `render.log` zostaje
+  `WARN film_check off <film>`). Decyzja do potwierdzenia przez Kamila przy merge; alternatywa = domyślnie off dla planów bez
+  `story.json`.
 - EDL do ffmpeg tylko przez `edl_guard.py` (ADR-0006).
 
 ## 10. Weryfikacja
@@ -93,8 +96,9 @@ Metryka sukcesu: ocena Kamila po obejrzeniu + po publikacji retencja YouTube Stu
 
 ## 11. Wdrożenie i rollback
 Gałąź `feat/film-v2-motion`, PR do `kamiljan11/video-pipeline`, merge dopiero po obejrzeniu przez Kamila i jego komendzie.
-Rollback = revert PR; plany bez nowych kluczy renderują się jak wcześniej.
+Rollback = revert PR. Stare plany bez revertu: `FILM_CHECK=off` (obraz jak wcześniej; karty bez `.key` renderują się raz od nowa).
 
 ## Status recenzji
 | Kiedy | Kto (dział / rubryka) | Werdykt | Otwarte punkty |
 |---|---|---|---|
+| 2026-11-04 | pg-review T3: code, security, data, ops, product + weryfikator (`~/.cache/pg-review-20261104-192841`) | REQUEST CHANGES (1 blocker, 9 must_fix), poprawki w tej samej gałęzi | domyślne `FILM_CHECK` dla starych planów (Kamil) |

@@ -29,3 +29,16 @@ każda karta jest przypięta do słowa z transkryptu (szukanego po tekście, nie
 - Nic nie jest publikowane automatycznie: `out_v2/` to paczka do obejrzenia; publikacja na LinkedIn tylko przez
   `linkedin.py publish` z kodem zatwierdzenia Kamila (ADR-0009).
 - Metryka: liczba rzeczy, które Kamil wskazuje jako pominięte po obejrzeniu (film 2 v1: 9 punktów; cel v2: 0 z tej listy).
+
+## Gdzie co leży (dla następcy)
+| Co | Gdzie | Dlaczego tam |
+|---|---|---|
+| Bramki i ich progi (z `why`: skąd liczba, cytat Kamila albo rozbiór) | `style/checklist.json`, `film_check.py`, `gfx/scene_check.mjs`, `gfx/thumbs.mjs` | repo: ogólne dla każdego filmu |
+| Role i kolejność | `team/RUNBOOK.md`, `team/roles/*.md` | repo |
+| Generatory planów filmu (`build_plan_v2.py`, `build_shorts_v2.py`, `build_pack_v2.py`, `build_posts_v2.py`) | `render/montaz/<data>/work/` (gitignored) | dane projektu jak `plan_*.json`: przypinają karty do słów TEGO nagrania; nowy film = kopia skryptów poprzedniego i nowa treść |
+| Notatki z researchu (rozbiory, tutoriale, przegląd repo OSS) | `render/ref/research/*.md` (gitignored) | zawierają opisy i cytaty cudzych materiałów; liczby, których używa bramka, są przepisane do `why` w `checklist.json` |
+| Rejestr muzyki (paleta i tonacja każdego projektu) | `render/music_ledger.json` (gitignored) | stan jednej maszyny renderującej (laptop); zapis atomowy (`make_beds.py`), zepsuty plik = `film_check` exit 2 z nazwą, nie cichy przepust. Inna maszyna = pusty rejestr, bramka palety przepuszcza pierwszy film |
+| Posty LinkedIn (`linkedin.py`, ADR-0009) | gałąź `feat/linkedin-carousel` (osobny PR) | luka 0008 -> 0010 w `docs/adr/` do czasu merge tamtego PR |
+
+**Koszt cykliczny:** 0 zł (wszystko lokalnie; brak nowych kont, kluczy i zależności sieciowych). Czas: dłuższy render (sceny,
+wiele shortów) i ok. 30 min pracy sesji na przygotowanie planów przez generatory.

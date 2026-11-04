@@ -28,6 +28,6 @@ Czytać przed każdym montażem shortów. Każdy punkt to błąd, który już ra
 - Rolki dla marki robić pod przypadkowego widza profilu firmy, bez historii o własnych porażkach. TÜV NORD nie pojawia się nigdzie.
 
 ## Technika (żeby nie wracały te same błędy)
-- Po zmianie specu karty usunąć `gfx/<id>.mov*`: klucz cache jest tylko z motywu.
+- Po zmianie specu karty nic nie kasować: klucz cache (`gfx/<id>.mov.key`) to motyw + spec karty (scena: także `gfx/scene_lib.mjs`), karta renderuje się sama (do 2026-11-04 klucz był tylko z motywu i trzeba było usuwać `.mov`).
 - `run_v4.sh` przebudowuje EDL (krytyk `--fix`), więc czasy kart liczyć po ustabilizowaniu EDL.
 - `render.mjs` z względnym katalogiem gfx: obraz zrzutu przez `pathToFileURL(path.resolve(...))` (naprawione 2026-10-31).

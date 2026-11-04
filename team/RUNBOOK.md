@@ -47,6 +47,9 @@ flowchart TD
 
 Uruchomienie renderu: `bash run_v4.sh <work> <out>/_render long <clipy…>` (run_v4 sam woła `film_check` przed renderem), potem
 rozłożenie do `out/long/`, `out/shorts/` i `python3 film_check.py <work> --out <out>`.
+Render stoi (`FAILED scene_check`, `FAILED gfx`, `FAILED film_check <film>` w `render/render.log`): tabela „Bramki w
+`run_v4.sh` i co robić, gdy render stoi” w `README.md` (gdzie przyczyna: `gfx.log`, `critic_<film>.log`; wyłączniki
+`SCENE_CHECK=off` / `FILM_CHECK=off` tylko z powodem, zostawiają `WARN` w logu).
 
 ## Zasady dla każdej roli
 - Liczby z rubryk pochodzą z `render/ref/research/*.md` (rozbiory filmów, tutoriale, research). Inny próg = zmiana w
