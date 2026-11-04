@@ -1,6 +1,6 @@
 # ADR-0008 — Memy w filmach: katalog w repo, obrazy poza nim
 
-Data: 2026-10-31 | Status: przyjęte (2026-10-31, Kamil akceptuje ryzyko praw do obrazów) | Drzwi: dwukierunkowe | Przegląd: 2027-01-31
+Data: 2026-10-31 | Status: przyjęte dla shortów (2026-10-31, Kamil akceptuje ryzyko praw do obrazów); mem w longu: otwarte (niżej) | Drzwi: dwukierunkowe | Przegląd: 2027-01-31
 
 **Kontekst:** Kamil (2026-10-31): „korzystaj z wiekcej ilosci pro mozliwosci edycyjnych (…) lubie szczegolnie jak korzystaja z
 znanych memow”. Rozbiór 7 shortów UFD Tech: 21 wstawek-obrazków (z tego ~12 to memy w ścisłym sensie), ~1 na 8–10 s, 0,5–5,8 s, zawsze pod konkretną frazę, bez dźwięku.
@@ -23,7 +23,8 @@ Uzupełnienie 2026-11-04 (Kamil: „memów nie ma”): karta działa też w 16:9
 `corner` (Kamil w kółku w rogu). Źródło obrazów i zasady (bez dźwięku, krótko, nasz tekst) bez zmian.
 **Otwarte, decyzja Kamila:** akceptacja ryzyka z 2026-10-31 dotyczyła shortów. Mem w longu (kanał główny, monetyzacja) to szersze
 ryzyko roszczenia; checklista wymaga `long.memes >= 3`. Do jego decyzji po obejrzeniu filmu 2 v2 (lokalnie, nic nie wysłane):
-TAK = wpis tutaj ze statusem i datą; NIE = `long.memes` na 0 w `style/checklist.json` i memy z longa wypadają (build_plan_v2).
+TAK = wpis tutaj ze statusem i datą; NIE = w planie longa `"skip": {"long.memes": "<powód>"}` i bez kart `meme` w jego `gfx`
+(skrypt planu filmu w `render/montaz/<data>/work/`), tak samo jak NIE w ADR-0012.
 
 **Ryzyko (zaakceptowane przez Kamila 2026-10-31; regulaminu imgflip nie sprawdzano):** memy z kadrów filmowych mogą dostać roszczenie na YouTube (Content ID łapie głównie klipy z dźwiękiem; statyczny obraz
 rzadziej, ale nie zero). Dlatego: tylko obrazy, bez dźwięku, krótko (2–3,5 s), z naszym tekstem (transformacja, komentarz). Klipy

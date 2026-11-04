@@ -119,8 +119,7 @@ function meme(sp) {
 }
 function memeStamp(sp) {
   const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
-  // meme.toString(): the box and font-size maths are part of the key, like SCENE_LIB for scenes (review r3 code-2)
-  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(meme.toString()).digest('hex');
+  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(MEME_CODE).digest('hex');
 }
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
@@ -130,6 +129,10 @@ function logoStamp(sp) {
 // a scene is drawn by scene_lib.mjs: a change there (new piece look, the 9:16 solo fade) changes the same spec's frames,
 // so its source is part of a scene's key (film 2 shorts, 2026-11-04: the solo fade was not rendered, the spec was the same)
 const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+// a meme is drawn by MEME_BOX, meme(), memeLib() and its CSS in template.html: a change in any of them changes its frames,
+// so they are part of a meme's key like SCENE_LIB for scenes (review r3 code-2, r4 code-1)
+const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(meme.toString()).update(memeLib.toString())
+  .update(fs.readFileSync(new URL('./template.html', import.meta.url))).digest('hex').slice(0, 12);
 const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB } : {}) })).digest('hex');
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;

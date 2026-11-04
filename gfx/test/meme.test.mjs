@@ -61,8 +61,8 @@ test('a 16:9 meme sits left of the face corner, its words on time', { skip: !fs.
 });
 
 test('a long word shrinks to its box instead of running out of it', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
-  // 16:9: picture 1140 px square at x 420..1560, the box = its right half (x 990..1560, y 150..720); one 24-letter word at the
-  // old size (96 px, ~65 px a letter) would be ~1560 px wide and spill left over the picture
+  // 16:9: picture 1140 px square at x 420..1560, the box = its right half (x 990..1560, y 150..720); the 28-letter word at the
+  // old size (96 px, ~65 px a letter) would be ~1830 px wide and spill left over the picture
   const r = render([{ id: 'mlong', type: 'meme', dur: 1.5, meme: 'red', text: ['Najdłuższewyrażeniebezspacji'], at: [0.1] }]);
   assert.equal(r.status, 0, r.stderr);
   const f = execFileSync('ffmpeg', ['-v', 'error', '-ss', '1.0', '-i', path.join(work, 'gfx', 'mlong.mov'), '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 64 << 20 });
@@ -79,6 +79,26 @@ test('an unknown meme or too many words stop the card by name', { skip: !fs.exis
     assert.notEqual(r.status, 0, JSON.stringify(sp));
     assert.match(r.stderr, why);
   }
+});
+
+test('a meme is rendered again when its drawing code changes (MEME_BOX, template.html)', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  const copy = path.join(work, 'gfxcopy');
+  fs.cpSync(GFX, copy, { recursive: true, filter: f => !/\/(test|test_out)(\/|$)/.test(f.slice(GFX.length)) });
+  fs.cpSync(path.join(GFX, '..', 'style'), path.join(work, 'style'), { recursive: true });  // render.mjs reads ../style next to its gfx/
+  const key = () => {
+    const specFile = path.join(work, 'mk.json'); fs.writeFileSync(specFile, JSON.stringify([{ id: 'mk', type: 'meme', canvas: 'v', dur: 0.5, meme: 'red', text: ['T'] }]));
+    const r = spawnSync('node', [path.join(copy, 'render.mjs'), specFile, path.join(work, 'gfx')], { encoding: 'utf8', timeout: 120000, env: { ...process.env, VP_MEMES: lib } });
+    assert.equal(r.status, 0, r.stderr);
+    return fs.readFileSync(path.join(work, 'gfx', 'mk.mov.key'), 'utf8');
+  };
+  const first = key();
+  assert.equal(key(), first, 'the same card got a new key');
+  const src = path.join(copy, 'render.mjs');
+  fs.writeFileSync(src, fs.readFileSync(src, 'utf8').replace('split: { x: 60, w: 960, y: 120, h: 880 }', 'split: { x: 60, w: 960, y: 140, h: 860 }'));
+  const moved = key();
+  assert.notEqual(moved, first, 'a changed MEME_BOX kept the old .mov');
+  fs.appendFileSync(path.join(copy, 'template.html'), '\n<!-- changed -->\n');
+  assert.notEqual(key(), moved, 'a changed template.html kept the old .mov');
 });
 
 test('a re-fetch of the same picture keeps the card; new boxes re-render it', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
