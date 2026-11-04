@@ -10,7 +10,7 @@ from pathlib import Path
 import edges
 import edl_guard
 import themes
-from gfx_types import PIP, SIDE_BOX, SPLIT
+from gfx_types import CORNER, PIP, SIDE_BOX, SPLIT
 
 P = json.loads(Path(sys.argv[1]).read_text())
 W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x in json.loads(Path(P["words"]).read_text())["transcription"]]
@@ -98,7 +98,13 @@ total = sum(s["out"] - s["in"] for s in out)
 specs = {s["id"]: s for s in json.loads(Path(P["gfx_specs"]).read_text())} if P.get("gfx_specs") else {}
 ovs = []
 def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:16 top card (canvas "v") sits above the face
-    sp = specs.get(gid, {}); return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
+    sp = specs.get(gid, {})
+    # a 9:16 "float" in its own screen (layout split/corner): the face sits in a box or circle, a zoom there only jumps
+    if sp.get("canvas") == "v" and sp.get("type") == "float" and sp.get("layout") in ("split", "corner"): return True
+    if sp.get("canvas") == "v" and sp.get("face_corner"): return True  # a full card with the face in the corner circle
+    # a 9:16 "web" card with the face in a box under it: a punch-in there shows the face far too close (Kamil 2026-10-31, c2)
+    if sp.get("canvas") == "v" and sp.get("type") == "web" and sp.get("layout", "split") == "split": return True
+    return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
 if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
     sys.exit("gfx: the plan places graphics, so it needs \"gfx_specs\" (cards file) and \"gfx_dir\" (their .mov folder)")
 for g in P.get("gfx", []):
@@ -112,11 +118,24 @@ for g in P.get("gfx", []):
         sys.exit(f"{g['id']}: a \"web\" card with canvas \"v\" belongs to a vertical film (plan \"vertical\": true)")
     # 9:16 "web" card: "split" (default) = face in a box under the card (assemble.py), "full" = the card alone; no corner PiP
     # a 9:16 "float" may ask for "layout": "split" too (a full-screen illustration: its own background, the face in the box under it)
-    if "layout" in sp and (not vert or sp.get("type") not in ("web", "float") or sp["layout"] not in ("split", "full")
-                           or (sp.get("type") == "float" and sp["layout"] != "split")):
-        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" card, \"split\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
+    # ... or "corner": the card fills the screen and the face sits in a circle in the corner (gfx_types.CORNER, assemble.py)
+    if "layout" in sp and (not vert or sp.get("type") not in ("web", "float") or sp["layout"] not in ("split", "full", "corner")
+                           or (sp.get("type") == "float" and sp["layout"] not in ("split", "corner"))
+                           or (sp.get("type") == "web" and sp["layout"] == "corner")):
+        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" card, \"split\" or \"corner\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
     o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert}
     if vert and ((sp.get("type") == "web" and sp.get("layout", "split") == "split") or (sp.get("type") == "float" and sp.get("layout") == "split")): o["split"] = True
+    if o.get("split") and "face_box" in sp:  # own face box under a short card: [x, y, w, h] inside 1080x1920 (assemble.py)
+        fb = sp["face_box"]
+        if not (isinstance(fb, list) and len(fb) == 4 and all(isinstance(v, int) for v in fb) and fb[0] >= 0 and fb[1] >= 0
+                and fb[2] >= 100 and fb[3] >= 100 and fb[0] + fb[2] <= 1080 and fb[1] + fb[3] <= 1920):
+            sys.exit(f"{g['id']}: face_box = [x, y, w, h] in whole px inside 1080x1920, got {fb!r}")
+        o["face_box"] = fb
+        for k in ("caption_y", "face_anchor", "face_zoom"):
+            if k in sp: o[k] = sp[k]
+    if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
+    if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
+    if vert and sp.get("type") == "float" and sp.get("layout") == "corner": o["corner"] = True
     ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
@@ -287,7 +306,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             sys.exit(f"{o['id']}: pill = true/false, only on a maxim with canvas \"v\", got {sp['pill']!r}")
     quiet = [(o["at"], o["at"] + o["dur"]) for o in ovs if specs.get(o["id"], {}).get("pill") is True]
     PILL_MIN_LEFT = 0.3  # s: a shorter rest of a line after the pill leaves would only flash
-    split_win = [(o["at"], o["at"] + o["dur"]) for o in ovs if o.get("split")]  # under a split "web" card: captions in the gap above the face box
+    split_win = [(o["at"], o["at"] + o["dur"]) for o in ovs if o.get("split") or o.get("corner")]  # under a split "web" card: captions in the gap above the face box
+    cap_pos = [(o["at"], o["at"] + o["dur"], CORNER["caption_y"] if o.get("corner") else o.get("caption_y", SPLIT["caption_y"])) for o in ovs if o.get("split") or o.get("corner")]
     ev = []; i = 0
     CAP_ACC = themes.ass_color(THEME["acc"]) if THEME else "&HC4E22D"  # spoken word in the accent colour
     while i < len(kept):
@@ -301,7 +321,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]] + [q for sw in split_win for q in sw if q > w[0] + 0.05])
             s = max([w[0]] + [q1 for q0, q1 in quiet if q0 - 0.05 <= w[0] < q1])  # 0.05: card "at" is rounded to ms, the word is not
             if s > w[0] and e - s < PILL_MIN_LEFT: continue  # said under the pill: a line still on when it leaves shows from then, no blank gap
-            if any(q0 - 0.05 <= s < q1 for q0, q1 in split_win): txt = f"{{\\an5\\pos(540,{SPLIT['caption_y']})}}" + txt
+            cy = next((y for q0, q1, y in cap_pos if q0 - 0.05 <= s < q1), None)
+            if cy is not None: txt = f"{{\\an5\\pos(540,{cy})}}" + txt
             ev.append(f"Dialogue: 0,{ts(s, '.')[1:-1]},{ts(e, '.')[1:-1]},Cap,,0,0,0,,{txt}")
     if P.get("hook_text"):
         # BorderStyle 3 = opaque box drawn in OutlineColour (libass, like VSFilter); BackColour would only colour a shadow

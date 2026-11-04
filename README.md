@@ -1,5 +1,7 @@
 # video-pipeline
 
+> Shorty 9:16: najpierw `style/ZASADY-KAMILA-SHORTY.md` (uwagi Kamila, błędy już raz zgłoszone).
+
 **One talking-head recording in, an edited long video (16:9) and a set of vertical shorts (9:16) out.**
 A local, scriptable editing pipeline: transcript, edit plan, EDL, face-aware framing, motion cards, music beds and an
 ffmpeg render, with an automatic critic between every step. The browser editor that sits on top of it lives in its own
@@ -210,7 +212,7 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
 - Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny, > 150 s na kartę) = `FAILED webshot <id>: powód` w `gfx.log`
   (render z `run_v4.sh`) albo w wyniku zadania w panelu (podgląd), i film się nie renderuje (`FAILED gfx`). Nieudany zrzut nie
   zostaje w pamięci: po poprawce wystarczy uruchomić ponownie.
-- **Short (9:16): `"canvas": "v"`**, wzorzec z rozbioru `style/REF-shorts-proof-cards.md`. Karta pokazuje stronę powiększoną na cytacie
+- **Short (9:16): `"canvas": "v"`**, wzorzec z rozbioru `style/REF-shorts-proof-cards.md`; uwagi Kamila, których nie wolno powtórzyć: `style/ZASADY-KAMILA-SHORTY.md` (czytać przed montażem shortów). Klucze karty 9:16: `face_box` [x, y, w, h] + `caption_y` + `face_anchor` (boks pod krótką kartą), `face_corner` (kółko z twarzą przy pełnej karcie), `no_fade_out` / `no_fade_in` (karty stykające się bez zanikania), `logo_h` (wysokość logo na karcie końcowej). Karta pokazuje stronę powiększoną na cytacie
   (okno ≥ 40 % szerokości zrzutu, cytat + 5 % z boków; `gfx/webshot_lib.mjs` › `vZoom`), żeby tekst dało się przeczytać na telefonie.
   Ten sam zrzut co w 16:9 (klucz go nie rozróżnia). Bez PiP w rogu. `"layout"`:
   - `"split"` (domyślnie): jasne tło, karta u góry (y 110–992), twarz w boksie pod nią z zaokrąglonymi górnymi rogami

@@ -154,12 +154,37 @@ for k, b in enumerate(BROLL):
 # of its height: the box is wide, so it holds less height than the frame, and aiming at TY alone cut the top of the head
 # off (2026-10-31 short1 demo: fy 0.42, TY 0.48)
 splits = [o for o in edl.get("overlays", []) if o.get("split")] if vertical else []
-(bx, by, bw, bh), R = gfx_types.SPLIT["face_box"], gfx_types.SPLIT["radius"]
+# a card may set its own box ("face_box" [x, y, w, h], "face_anchor" = where the face point sits in the box height,
+# build_edl.py copies them): a short card leaves room, so the box starts right under it and runs off the bottom edge
+R = gfx_types.SPLIT["radius"]
+sgroups = {}
+for o in splits: sgroups.setdefault((tuple(o.get("face_box") or gfx_types.SPLIT["face_box"]), float(o.get("face_anchor", 0.58)), float(o.get("face_zoom", 1.0))), []).append(o)
 if splits:
-    fc.append(f"[{last}]split=2[vsb][splitsrc]"); last = "vsb"
-    ch = round(bh * W / bw / 2) * 2  # source rows that fill the box at its width
-    y0 = int(min(max((fy + TY) / 2 * H - ch * 0.58, 0), H - ch))
-    fc.append(f"[splitsrc]crop={W}:{ch}:0:{y0},scale={bw}:{bh}:flags=lanczos,format=yuva444p[sf]")
+    fc.append(f"[{last}]split={len(sgroups) + 1}[vsb]" + "".join(f"[splitsrc{i}]" for i in range(len(sgroups)))); last = "vsb"
+    for i, ((bx, by, bw, bh), anc, fz) in enumerate(sgroups):
+        if fz >= 1.0:
+            ch = min(round(bh * W / bw / 2) * 2, H)  # source rows that fill the box at its width
+            y0 = int(min(max((fy + TY) / 2 * H - ch * anc, 0), H - ch))
+            fc.append(f"[splitsrc{i}]crop={W}:{ch}:0:{y0},scale={bw}:{bh}:flags=lanczos,format=yuva444p[sf{i}]")
+        else:  # "face_zoom" < 1: the picture smaller in the middle of the box, its blurred copy filling the box (face not too close)
+            iw = int(bw * fz) // 2 * 2; ch = min(round(bh * W / iw / 2) * 2, H); ih = round(ch * iw / W / 2) * 2
+            y0 = int(min(max((fy + TY) / 2 * H - ch * anc, 0), H - ch))
+            fc.append(f"[splitsrc{i}]crop={W}:{ch}:0:{y0},split=2[sa{i}][sb{i}]")
+            fc.append(f"[sb{i}]scale={bw}:-2:flags=bicubic,crop={bw}:{bh}:0:(ih-{bh})*{anc},boxblur=30:2,eq=brightness=-0.06[sbg{i}]")
+            fc.append(f"[sa{i}]scale={iw}:{ih}:flags=lanczos[sin{i}]")
+            fc.append(f"[sbg{i}][sin{i}]overlay={(bw - iw) // 2}:{bh - ih},format=yuva444p[sf{i}]")
+# 9:16 "float" with layout "corner" (build_edl.py): the face in a circle in the corner over a full-screen card; the square is
+# cut around the face the same way as the split box (between fy and TY), a little wider than the head so the circle holds it whole
+corners = [o for o in edl.get("overlays", []) if o.get("corner")] if vertical else []
+CN = gfx_types.CORNER
+HD = 0  # halo size; set below when the plan has corner cards
+if corners:
+    fc.append(f"[{last}]split=2[vcb][cornsrc]"); last = "vcb"
+    cs = int(W * 0.80) // 2 * 2
+    cy0 = int(min(max((fy + TY) / 2 * H - cs * 0.48, 0), H - cs)); cx0 = (W - cs) // 2
+    HD = int(CN["size"] * CN.get("halo", 0)) // 2 * 2  # a blurred copy of the same crop around the circle (Kamil 2026-10-31)
+    fc.append(f"[cornsrc]crop={cs}:{cs}:{cx0}:{cy0},scale={CN['size']}:{CN['size']}:flags=lanczos,format=yuva444p" + (",split=2[cf][chs]" if HD else "[cf]"))
+    if HD: fc.append(f"[chs]scale={HD}:{HD}:flags=bicubic,boxblur=34:3,format=yuva444p[chb]")
 # picture-in-picture: face cam in the corner on top of full-screen slides
 pips = [o for o in edl.get("overlays", []) if o.get("pip")]
 pip_inputs = []
@@ -192,16 +217,38 @@ for b in BROLL:
 # the card fades out over its last 0.35 s (gfx/count_lib.mjs FADE_OUT); the box goes half-way through, when the card is half
 # transparent, so neither a bare box on the full-frame face nor a box over a gone card shows for more than ~5 frames
 SPLIT_OUT = 0.18
-if splits:  # after the cards, so the box sits on the card's background
-    mask = os.path.join(out, "split_mask.png")  # white box, top corners rounded (alpha of the face box)
+for i, (((bx, by, bw, bh), anc, fz), grp) in enumerate(sgroups.items()):  # after the cards, so the box sits on the card's background
+    mask = os.path.join(out, f"split_mask_{bw}x{bh}.png")  # white box, top corners rounded (alpha of the face box)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white:s={bw}x{bh}", "-frames:v", "1", "-vf",
                     f"format=gray,geq=lum='if(lt(Y,{R})*(lt(X,{R})*gt(hypot({R}-X,{R}-Y),{R})+gt(X,{bw - R})*gt(hypot(X-{bw - R},{R}-Y),{R})),0,255)'",
                     mask], check=True)
     i_smask = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", mask]
-    s_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - SPLIT_OUT:.3f})" for o in splits)
-    fc.append(f"[{i_smask}:v]format=gray[sm]")
-    fc.append("[sf][sm]alphamerge[sbox]")
-    fc.append(f"[{last}][sbox]overlay={bx}:{by}:enable={s_en}:shortest=1[vsp]"); last = "vsp"
+    s_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - (0 if o.get('no_fade_out') else SPLIT_OUT):.3f})" for o in grp)
+    fc.append(f"[{i_smask}:v]format=gray[sm{i}]")
+    fc.append(f"[sf{i}][sm{i}]alphamerge[sbox{i}]")
+    fc.append(f"[{last}][sbox{i}]overlay={bx}:{by}:enable={s_en}:shortest=1[vsp{i}]"); last = f"vsp{i}"
+if corners:  # after the cards: a ring in the theme accent, the face circle on it
+    D, RG = CN["size"], CN["ring"]; cmask = os.path.join(out, "corner_mask.png"); cring = os.path.join(out, "corner_ring.png")
+    r = D / 2
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white:s={D}x{D}", "-frames:v", "1", "-vf",
+                    f"format=gray,geq=lum='if(lte(hypot(X-{r - 0.5},Y-{r - 0.5}),{r - 1}),255,0)'", cmask], check=True)
+    Dr = D + 2 * RG; rr = Dr / 2; acc = themes.bar_hex(THEME)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x{acc}:s={Dr}x{Dr}", "-frames:v", "1", "-vf",
+                    f"format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-{rr - 0.5},Y-{rr - 0.5}),{rr - 1}),255,0)'", cring], check=True)
+    i_cm = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", cmask, "-loop", "1", "-i", cring]
+    c_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - (0 if o.get('no_fade_out') else SPLIT_OUT):.3f})" for o in corners)
+    fc.append(f"[{i_cm}:v]format=gray[cm]")
+    fc.append("[cf][cm]alphamerge[cbox]")
+    if HD:  # the halo: blurred picture fading out from the circle's edge to nothing at its own edge
+        hmask = os.path.join(out, "corner_halo.png"); hr = HD / 2
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=white:s={HD}x{HD}", "-frames:v", "1", "-vf",
+                        f"format=gray,geq=lum='clip(255*(1-(hypot(X-{hr},Y-{hr})-{r})/({hr}-{r})),0,255)*0.85'", hmask], check=True)
+        i_hm = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", hmask]
+        fc.append(f"[{i_hm}:v]format=gray[hm]"); fc.append("[chb][hm]alphamerge[chalo]")
+        hx, hy = int(CN["x"] + r - hr), int(CN["y"] + r - hr)
+        fc.append(f"[{last}][chalo]overlay={hx}:{hy}:enable={c_en}:shortest=1[vch]"); last = "vch"
+    fc.append(f"[{last}][{i_cm + 1}:v]overlay={CN['x'] - RG}:{CN['y'] - RG}:enable={c_en}:shortest=1[vcr]")
+    fc.append(f"[vcr][cbox]overlay={CN['x']}:{CN['y']}:enable={c_en}:shortest=1[vcc]"); last = "vcc"
 if edl.get("subs"):
     fc.append(f"[{last}]subtitles='{edl['subs']}':force_style='{edl.get('sub_style','')}'[vs]"); last = "vs"
 audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")

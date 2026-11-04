@@ -14,13 +14,13 @@ const icon = n => n ? fs.readFileSync(`/home/kamil-jan/video-pipeline/node_modul
 // "kw" box; "count" is the same box with counting numbers in its title
 const kwBox = (sp, title, cls = 'kw') => `<div class="${cls} ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${title}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
 // "end" card: optional brand row under the address, "logo" = image file (path relative to the specs file), "logo_sub" = its line
-// (e.g. the company site). A logo that is not there stops the render with its name, never an end card with a broken image.
+// (e.g. the company site), "logo_h" = optional logo height in px (wide lockups need more than the default). A logo that is not there stops the render with its name, never an end card with a broken image.
 const logoFile = sp => path.resolve(path.dirname(specFile), sp.logo);
 const endBrand = sp => {
   if (!sp.logo) return '';
   const f = logoFile(sp);
   if (!fs.existsSync(f)) { console.error(`FAILED gfx ${sp.id}: logo ${f} not found`); process.exit(1); }
-  return `<div class="brand"><img src="${pathToFileURL(f).href.replace(/"/g, '%22')}">${sp.logo_sub ? `<div class="u">${esc(sp.logo_sub)}</div>` : ''}</div>`;
+  return `<div class="brand"><img src="${pathToFileURL(f).href.replace(/"/g, '%22')}"${sp.logo_h ? ` style="height:${+sp.logo_h}px"` : ''}>${sp.logo_sub ? `<div class="u">${esc(sp.logo_sub)}</div>` : ''}</div>`;
 };
 const html = sp => {
   if (sp.type === 'kw') return kwBox(sp, esc(sp.text));
@@ -66,10 +66,10 @@ function web(sp) {
   const addr = m.final_url ? m.final_url.replace(/^https:\/\//, '') : (m.host || '');
   const src = sp.src || `Źródło: ${m.host || m.title}${m.title && m.host ? ` · ${m.title}` : ''}${m.kind === 'pdf' ? ` · str. ${m.page}` : ''}`;
   return `<style>@keyframes ws_${id}{from{transform:translateY(0)}to{transform:translateY(-${mo.target.toFixed(0)}px)}}</style>`
-    + `<div class="web${v ? ` ${layout}` : ''}"><div class="win" style="left:${W.x}px;top:${W.y}px;width:${W.w}px">`
+    + `<div class="web${v ? ` ${layout}` : ''}"${sp.no_fade_in ? ' style="animation:none"' : ''}><div class="win" style="left:${W.x}px;top:${W.y}px;width:${W.w}px">`
     + `<div class="top"><i></i><i></i><i></i><span class="tab">${esc(m.title || m.host)}</span></div>`
     + `<div class="addr"><span class="lock"></span>${esc(addr)}</div>`
-    + `<div class="view" style="height:${W.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${(m.width * z.s).toFixed(1)}px;margin-left:${(-z.x0 * z.s).toFixed(1)}px">${marks}</div></div></div>`
+    + `<div class="view" style="height:${W.view}px"><div class="shot" style="${anim}"><img src="${pathToFileURL(path.resolve(`${base}.png`)).href}" style="width:${(m.width * z.s).toFixed(1)}px;margin-left:${(-z.x0 * z.s).toFixed(1)}px">${marks}</div></div></div>`
     + `<div class="src"${v ? ` style="left:${W.x}px;top:${W.y + CHROME + W.view + 18}px"` : ''}>${esc(src)} · stan na ${day}</div></div>`;
 }
 function logoStamp(sp) {
@@ -121,6 +121,8 @@ async function one(sp) {
   }
   if (sp.type === 'maxim') await page.evaluate(([src, hold, mark]) => { window.__seek = new Function(`return ${src}`)()(hold, mark); },
     [maximSeek.toString(), CARET_HOLD, MARK_DUR]);
+  // "no_fade_out": the card is cut, not faded, at its end (a card followed straight by the next one: a fade would show the face between them)
+  if (sp.no_fade_out) await page.evaluate(() => { window.__noout = true; });
   const dir = `${outDir}/${sp.id}_frames`; fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(sp.dur * FPS);
   for (let f = 0; f < n; f++) {
