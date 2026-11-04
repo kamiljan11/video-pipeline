@@ -354,6 +354,14 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
 - **Brak metryki:** STYL-SHORTOW opiera się na 6 starych shortach Kamila, a ich oglądalność nie dowodzi, że styl działa. Ocena:
   porównać retencję pierwszych 3 s w YouTube Studio między shortami z `hook_text` (2026-10-23) a z pigułką.
 
+## Post na LinkedIn z filmu (`linkedin.py`, karuzela PDF)
+
+Post-dokument na profilu Kamila Jana: tekst + karuzela PDF (slajdy 1080x1350) + pierwszy komentarz z linkiem do filmu, przez
+oficjalne API (ADR-0009). Spec `<dir>/linkedin.json` pisze sesja Claude Code wg `style/LINKEDIN.md`; limity w `style/linkedin.json`.
+`check` -> `render` (`gfx/carousel.mjs`) -> `publish` (dry run) -> `publish --publish`; drugi publish tego samego specu jest blokowany
+(`linkedin.published.json`). Token: `~/.config/linkedin/token.json` (wspólny z zadaniem toRzeszów, 60 dni; skrypt zatrzymuje się
+3 dni przed wygaśnięciem i podaje komendę odnowienia). Testy: `tests/test_linkedin.py`, `gfx/test/carousel.test.mjs`.
+
 ## Gdzie są shorty w longu (`shorts.py`)
 `python3 shorts.py plan_long.json [--n 5] [--min 25] [--max 60] [--json kandydaci.json]` (w katalogu `work`): ranking ciągów
 całych zdań longa trwających min–max s, które nie nachodzą na siebie, z powodem przy każdym wyniku. Plusy: hak w 1. zdaniu

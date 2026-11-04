@@ -1,0 +1,22 @@
+{
+  "_source": "ADR-0009. Limits for linkedin.py check; numbers marked heuristic are rules of thumb, not LinkedIn limits.",
+  "author": "Kamil Jan",
+  "text": {
+    "max_chars": 3000,
+    "min_chars": 600,
+    "hook_max": 150,
+    "fold_max": 210,
+    "hashtags": [3, 5],
+    "comment_max": 1250,
+    "_hook_max": "heuristic: the first line has to stand alone in the feed",
+    "_fold_max": "heuristic: roughly what shows before '...więcej' on desktop; the first two lines must fit",
+    "_comment_max": "LinkedIn comment limit as of 2026-11 (not checked against an official page)",
+    "_min_chars": "heuristic: below this a document post reads as a bare upload"
+  },
+  "carousel": {
+    "slides": [5, 12],
+    "title_max": 70,
+    "body_max": 220,
+    "doc_title_max": 100
+  }
+}
