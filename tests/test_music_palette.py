@@ -62,9 +62,8 @@ class PaletteTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0); self.assertIn("--key", r.stderr)
 
     def test_without_a_palette_the_old_bed_is_unchanged(self):
-        old = self.d / "gen_old.py"
-        old.write_text(subprocess.run(["git", "-C", str(ROOT), "show", "40ffa83:music/gen_music.py"], capture_output=True,
-                                      text=True, check=True).stdout)
+        # the generator before palettes (commit 40ffa83), kept as a file: CI checks out without history
+        old = ROOT / "tests" / "fixtures" / "gen_music_40ffa83.py"
         a, b = self.d / "old.wav", self.d / "new.wav"
         subprocess.run([sys.executable, str(old), str(a), "12", "7"], capture_output=True, check=True)
         subprocess.run([sys.executable, str(GEN), str(b), "12", "7"], capture_output=True, check=True)
