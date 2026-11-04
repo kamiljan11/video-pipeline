@@ -73,20 +73,20 @@ test('render.mjs: theme.json colors the card, a theme change or removal renders 
     return fs.statSync(mov).mtimeMs;
   };
   const plain = render();
-  assert.ok(!fs.existsSync(stamp));
+  assert.match(fs.readFileSync(stamp, 'utf8'), /^[0-9a-f]{40}$/);  // the spec's own hash (render.mjs specStamp)
   assert.ok(share(mov, [0x2d, 0xe2, 0xc4]) > 0.001, 'template accent bar');
   assert.equal(render(), plain);  // nothing changed: reused
 
   write(themeFile, { theme: 'cetus' });
   const themed = render();
   assert.notEqual(themed, plain);
-  assert.match(fs.readFileSync(stamp, 'utf8'), /^\|theme:cetus:[0-9a-f]{16}$/);
+  assert.match(fs.readFileSync(stamp, 'utf8'), /^[0-9a-f]{40}\|theme:cetus:[0-9a-f]{16}$/);
   assert.ok(share(mov, [0x6f, 0xa7, 0xec]) > 0.001, 'cetus accent bar');
   assert.equal(share(mov, [0x2d, 0xe2, 0xc4]), 0);
   assert.equal(render(), themed);  // same theme: reused
 
   fs.rmSync(themeFile);
   assert.notEqual(render(), themed);  // theme removed: back to the template colors
-  assert.ok(!fs.existsSync(stamp));
+  assert.match(fs.readFileSync(stamp, 'utf8'), /^[0-9a-f]{40}$/);
   assert.ok(share(mov, [0x2d, 0xe2, 0xc4]) > 0.001);
 });

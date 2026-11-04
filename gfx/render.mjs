@@ -120,6 +120,8 @@ function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
 }
+// "behind" is left out: behind.py rewrites the .mov from the front card and keeps its own key in the file
+const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined })).digest('hex');
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
   const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
@@ -135,10 +137,12 @@ const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome'
 fs.mkdirSync(outDir, { recursive: true });
 async function one(sp) {
   // a "web" card's .mov belongs to its spec and to one capture (a new capture of the same page included): either changes
-  // -> rendered again. Other types keep the old rule (the panel moves a changed graphic's .mov aside).
+  // -> rendered again. Every other card belongs to its spec: a changed scene, text or timing renders it again (until
+  // 2026-11-04 only the theme was in the key, so a retimed scene kept its old .mov unless someone moved it aside).
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
   // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
-  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : sp.type === 'meme' ? memeStamp(sp) : sp.logo ? logoStamp(sp) : null, stamp = `${out}.key`;
+  const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
+  const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'meme' ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
   const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
   if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
