@@ -1,0 +1,7 @@
+{
+  "_doc": "Who is on screen: name and title for the lower third, site for end cards and descriptions. Kamil 2026-11-04: the title is the Polish form of 'AI Automation & Implementation Engineer'. film_check.py checks the lower third against lower_sub.",
+  "name": "Kamil Jan",
+  "title": "Inżynier automatyzacji i wdrożeń AI",
+  "site": "KamilJan.com",
+  "lower_sub": "Inżynier automatyzacji i wdrożeń AI · KamilJan.com"
+}

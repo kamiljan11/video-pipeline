@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import wave
 from itertools import pairwise
 from pathlib import Path
@@ -220,6 +221,16 @@ if pal is not None and not (isinstance(pal, dict) and isinstance(pal.get("name")
 pal_args = ["--palette", pal["name"], "--key", str(pal.get("key", 0))] if pal else []
 subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_music.py"), os.path.join(od, "music.wav"), f"{total + 1:.2f}",
                 str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else []), *pal_args], check=True)
+if pal:  # the palette this project used: film_check.py keeps the next film from reusing it (Kamil: a new music every film)
+    led_p = Path(__file__).resolve().parent.parent / "render" / "music_ledger.json"
+    try:
+        led = json.loads(led_p.read_text()) if led_p.exists() else {}
+        work = str(Path(edl_p).resolve().parent)
+        led[f"{work}::{edl.get('name', '')}"] = {"work": work, "film": edl.get("name", ""), "name": pal["name"],
+                                                 "key": pal.get("key", 0), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        led_p.parent.mkdir(parents=True, exist_ok=True); led_p.write_text(json.dumps(led, indent=1, ensure_ascii=False))
+    except (OSError, ValueError) as e:  # the ledger only guards the next film; the bed itself is done
+        print(f"make_beds: music ledger {led_p} not updated: {e}", file=sys.stderr)
 edl["music"] = os.path.join(od, "music.wav"); edl["sfx"] = os.path.join(od, "sfx.wav")
 Path(edl_p).write_text(json.dumps(edl, indent=1, ensure_ascii=False))
 print("beds ok", round(total, 1))

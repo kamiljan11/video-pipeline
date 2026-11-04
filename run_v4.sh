@@ -3,7 +3,7 @@
 # per video: build_edl -> face_track -> critic --fix (auto-fixes) -> rebuild -> face_track -> critic -> beds -> render -> critic --video
 WORK=$1; OUT=$2; shift 2
 VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
-cd "$WORK"
+cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # fail-fast for every film (ADR-0002): a failed step never renders a stale or unclamped EDL, the film gets no DONE
 if [ -f gfx_specs.json ] && ! node $VP/gfx/render.mjs gfx_specs.json gfx >> gfx.log 2>&1; then
   # graphics are shared by every film of the project: none renders with missing or stale cards
@@ -24,6 +24,11 @@ for n in "$@"; do
   done
   # the final EDL against edl_guard.py (ADR-0006) before the heavy steps: a refused value fails now, named, not after behind.py
   python3 $VP/edl_guard.py edl_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED edl_guard $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+  # the checklist (style/checklist.json): every feature used or skipped in the plan with a reason; FILM_CHECK=off only for old
+  # projects made before the checklist (logged), never to get a film out faster
+  if [ "${FILM_CHECK:-on}" = off ]; then echo "WARN film_check off $n" >> "$R/render.log"
+  else python3 $VP/film_check.py . "$n" >> "$L" 2>&1 || { echo "FAILED film_check $n ($L)" >> "$R/render.log"; failed="$failed $n"; continue; }
+  fi
   $PY $VP/music/make_beds.py edl_$n.json "$R/beds_$n" >> "$R/render.log" 2>&1 || { echo "FAILED make_beds $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # "behind" cards of THIS film (behind.py --edl): the speaker cut out on its final EDL (the gfx render above ran before the
   # critic's fixes); a card whose window did not change is skipped
@@ -46,7 +51,8 @@ for n in "$@"; do
 done
 # the Kdenlive project only from the long rendered in THIS run (never from a stale edl_long.json)
 if [[ " $* " == *" long "* && " $failed " != *" long "* ]] && [ -f edl_long.json ]; then
-  $PY $VP/to_otio.py edl_long.json "$OUT/95procent_long_do_kdenlive.otio" >> "$R/render.log" 2>&1 \
+  lf=$(python3 -c "import json;print(json.load(open('edl_long.json'))['out_name'])")
+  $PY $VP/to_otio.py edl_long.json "$OUT/${lf%.mp4}_do_kdenlive.otio" >> "$R/render.log" 2>&1 \
     || { echo "FAILED to_otio long" >> "$R/render.log"; failed="$failed long"; }
 fi
 echo ALL_DONE >> "$R/render.log"
