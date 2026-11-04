@@ -39,6 +39,10 @@ SPEC = {
 }
 
 
+def SPEC_ON_DISK(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def spec(**change):
     s = copy.deepcopy(SPEC); s.update(change); return s
 
@@ -127,13 +131,15 @@ class PublishTest(unittest.TestCase):
     def token(self, days, scope="openid,profile,w_member_social"):
         self.tok.write_text(json.dumps({"access_token": "T", "obtained_at": time.time(), "expires_in": days * 86400, "scope": scope}))
 
-    def run_with(self, fake, really=True):
+    def run_with(self, fake, really=True, approve: str | None = "dry run"):
+        """approve="dry run" = the code the dry run printed for the current spec and PDF (what Kamil saw)"""
+        if approve == "dry run": approve = linkedin.approval(SPEC_ON_DISK(self.spec), self.pdf)
         with mock.patch.object(linkedin, "_open", fake), mock.patch("sys.stdout", io.StringIO()):
-            return linkedin.publish(self.spec, really, wait_s=5, step_s=0)
+            return linkedin.publish(self.spec, really, approve, wait_s=5, step_s=0)
 
     def test_a_dry_run_only_asks_who_the_author_is(self):
         fake = Fake(ME)
-        self.assertEqual(self.run_with(fake, really=False), {"dry_run": True})
+        self.assertEqual(self.run_with(fake, really=False), {"dry_run": True, "approve": linkedin.approval(SPEC, self.pdf)})
         self.assertEqual([r.get_method() for r in fake.calls], ["GET"])
         self.assertFalse((self.dir / "linkedin.published.json").exists())
 
@@ -188,14 +194,55 @@ class PublishTest(unittest.TestCase):
         self.assertEqual(json.loads(self.done.read_text())["comment"], 201)
         with mock.patch.object(linkedin, "_open", Fake()), self.assertRaisesRegex(ValueError, "already has"): comment()
 
+    def test_a_comment_that_may_have_gone_through_is_not_sent_again_unchecked(self):
+        for why, answer in {"timeout": TimeoutError("timed out"),
+                            "HTTP 502": urllib.error.HTTPError("u", 502, "x", Message(), io.BytesIO(b"{}"))}.items():
+            with self.subTest(why=why):
+                self.fresh()
+                self.run_with(Fake(ME, INIT, UP, AVAIL, POST, answer))
+                self.assertTrue(json.loads(self.done.read_text())["comment"].startswith("UNKNOWN"))
+                with mock.patch("sys.stdout", io.StringIO()):
+                    with mock.patch.object(linkedin, "_open", Fake()), self.assertRaisesRegex(ValueError, "--checked"):
+                        linkedin.comment(self.spec)
+                    fake = Fake(ME, COMMENT)
+                    with mock.patch.object(linkedin, "_open", fake):
+                        self.assertEqual(linkedin.comment(self.spec, checked=True)["comment"], 201)
+                self.assertEqual(len(fake.calls), 2)
+
+    def test_the_record_is_replaced_whole_or_not_at_all(self):
+        self.done.write_text(json.dumps({"state": "pending"}))
+        with mock.patch.object(linkedin.os, "replace", side_effect=OSError("disk full")), self.assertRaises(OSError):
+            linkedin._save(self.done, {"state": "published", "post": "urn:li:share:42"})
+        self.assertEqual(json.loads(self.done.read_text()), {"state": "pending"})  # the old record, readable
+
+    def test_an_api_error_names_linkedins_request_id(self):
+        hdrs = Message(); hdrs["x-li-uuid"] = "abc123"
+        err = urllib.error.HTTPError("u", 500, "x", hdrs, io.BytesIO(b"{}"))
+        with mock.patch.object(linkedin, "_open", Fake(err)), self.assertRaisesRegex(ValueError, r"HTTP 500.*x-li-uuid=abc123"):
+            linkedin.api("T", "GET", linkedin.API + "/v2/userinfo")
+
     def test_a_failed_comment_keeps_the_record_and_fails_the_exit_code(self):
         def comment(req):  # the post is recorded before the comment is even tried: a crash here must not allow a second post
             self.assertTrue((self.dir / "linkedin.published.json").exists())
             return urllib.error.HTTPError("u", 403, "Forbidden", Message(), io.BytesIO(b'{"message":"no"}'))
+        code = linkedin.approval(SPEC, self.pdf)
         with mock.patch.object(linkedin, "_open", Fake(ME, INIT, UP, AVAIL, POST, comment)), mock.patch("sys.stdout", io.StringIO()):
-            self.assertEqual(linkedin.main(["publish", str(self.spec), "--publish"]), 1)
+            self.assertEqual(linkedin.main(["publish", str(self.spec), "--publish", "--approve", code]), 1)
         saved = json.loads((self.dir / "linkedin.published.json").read_text())
-        self.assertEqual(saved["post"], "urn:li:share:42"); self.assertIn("HTTP 403", saved["comment"])
+        self.assertEqual(saved["post"], "urn:li:share:42"); self.assertTrue(saved["comment"].startswith("FAILED"), saved["comment"])
+        self.assertIn("HTTP 403", saved["comment"])
+
+    def test_publish_needs_the_approval_code_of_exactly_this_text_comment_and_pdf(self):
+        code = linkedin.approval(SPEC, self.pdf)
+        for want, change in {"no code": lambda: None,
+                             "text changed": lambda: self.spec.write_text(json.dumps(spec(text=SPEC["text"] + " Zmiana."))),
+                             "comment changed": lambda: self.spec.write_text(json.dumps(spec(first_comment="Inny link: https://x"))),
+                             "PDF changed": lambda: self.pdf.write_bytes(self.pdf.read_bytes() + b" ")}.items():
+            with self.subTest(want=want):
+                self.fresh(); change(); os.utime(self.spec, (time.time() - 10, time.time() - 10))
+                fake = Fake()
+                with self.assertRaisesRegex(ValueError, "--approve"): self.run_with(fake, approve=None if want == "no code" else code)
+                self.assertEqual(fake.calls, []); self.assertFalse(self.done.exists())
 
     def test_failures_before_the_post_are_named_and_leave_no_record(self):
         err = urllib.error.HTTPError("u", 422, "Unprocessable", Message(), io.BytesIO(b'{"message":"bad commentary"}'))
@@ -230,6 +277,16 @@ class PublishTest(unittest.TestCase):
                 fake = Fake()
                 with self.assertRaisesRegex(ValueError, want): self.run_with(fake, really=False)
                 self.assertEqual(fake.calls, [])
+
+
+class AuthTest(unittest.TestCase):
+    def test_the_token_file_is_owner_only_from_the_start(self):
+        import linkedin_auth
+        out = Path(tempfile.mkdtemp(prefix="li-auth-")) / "sub" / "token.json"; self.addCleanup(shutil.rmtree, out.parent.parent, True)
+        out.parent.mkdir(); out.with_suffix(".part").write_text("old"); os.chmod(out.with_suffix(".part"), 0o644)
+        linkedin_auth.save({"access_token": "T", "expires_in": 1}, out)
+        self.assertEqual(os.stat(out).st_mode & 0o777, 0o600)
+        self.assertEqual(json.loads(out.read_text())["access_token"], "T")
 
 
 if __name__ == "__main__":

@@ -362,19 +362,26 @@ oficjalne API (ADR-0009). Spec `<dir>/linkedin.json` pisze sesja Claude Code wg 
 ```bash
 python3 linkedin.py check   <dir>/linkedin.json
 python3 linkedin.py render  <dir>/linkedin.json             # -> <dir>/linkedin.pdf; obejrzyj
-python3 linkedin.py publish <dir>/linkedin.json             # dry run: token, autor, pełny tekst; nic nie wysyła
-python3 linkedin.py publish <dir>/linkedin.json --publish   # dopiero gdy Kamil zaakceptował tekst i PDF
-python3 linkedin.py comment <dir>/linkedin.json             # tylko gdy post wyszedł, a pierwszy komentarz nie (exit 1)
+python3 linkedin.py publish <dir>/linkedin.json             # dry run: token, autor, pełny tekst, kod akceptacji; nic nie wysyła
+python3 linkedin.py publish <dir>/linkedin.json --publish --approve <kod>   # dopiero gdy Kamil zaakceptował tekst i PDF
+python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wyszedł, a pierwszy komentarz nie (exit 1)
 ```
 
-- **Akceptacja:** tekst pisze model, więc `--publish` idzie dopiero po tym, jak Kamil zobaczył tekst z dry runu i PDF.
+- **Akceptacja:** tekst pisze model, więc `--publish` idzie dopiero po tym, jak Kamil zobaczył tekst z dry runu i PDF. Dry run
+  drukuje kod akceptacji (skrót tekstu, komentarza i PDF); `--publish` bez tego kodu albo po jakiejkolwiek zmianie stoi przed
+  pierwszym wywołaniem API, więc wychodzi dokładnie to, co Kamil widział.
+- **Komentarz:** `FAILED` = LinkedIn go odrzucił (4xx), `comment` ponawia. `UNKNOWN` = timeout albo błąd serwera: komentarz mógł
+  się pojawić; sprawdź pod postem i dopiero wtedy `comment --checked` (inaczej byłby drugi taki sam).
 - **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn. `state: published` = post
   jest (URL w pliku). `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
   Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
 - **Token:** `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni, wspólny z zadaniem toRzeszów). Skrypt staje 3 dni
   przed wygaśnięciem. Odnowienie (Kamil klika „Zezwól” w przeglądarce), sekrety aplikacji z Infisicala (`LINKEDIN_CLIENT_ID`,
   `LINKEDIN_CLIENT_SECRET`):
-  `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 ~/Documents/toRzeszow/skrypty/linkedin_auth.py`
+  `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 linkedin_auth.py`
+  (aplikacja LinkedIn: produkty „Share on LinkedIn” i „Sign In with LinkedIn using OpenID Connect”, redirect
+  `http://127.0.0.1:8789/callback`; opis w nagłówku `linkedin_auth.py`). Błąd API ma w nawiasie identyfikatory żądania
+  LinkedIn (`x-li-…`) do zgłoszenia w ich supporcie.
 - **Wersja API:** `VERSION` w `linkedin.py` (nagłówek `LinkedIn-Version`, LinkedIn wycofuje wersje po ok. roku; błąd HTTP
   wspominający wersję = podbić na aktualną z dokumentacji LinkedIn).
 - Testy: `tests/test_linkedin.py` (fałszywy LinkedIn, bez sieci), `gfx/test/carousel.test.mjs`.

@@ -5,7 +5,7 @@ Data: 2026-11-04 | Status: przyjęte | Drzwi: dwukierunkowe | Przegląd: 2027-02
 **Kontekst:** Kamil (2026-11-04): system obok shortów i longów ma robić posty na LinkedIn; „decyduj to co najpopularniejsze i
 publikuj przez api”. Na profilu kamiljan11 działa już publikacja przez API (toRzeszów, od 16.10.2026): aplikacja LinkedIn
 265006181, produkt Share on LinkedIn, token `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni) z
-`~/Documents/toRzeszow/skrypty/linkedin_auth.py`. Sonda 2026-11-04 na tym tokenie: `POST /rest/{documents,images,videos}?action=initializeUpload`
+`linkedin_auth.py` (kopia w tym repo od 2026-11-04, ten sam plik tokenu co toRzeszów). Sonda 2026-11-04 na tym tokenie: `POST /rest/{documents,images,videos}?action=initializeUpload`
 z autorem `urn:li:person:…` = 200 dla wszystkich trzech (LinkedIn-Version 202609), więc format nie jest ograniczony dostępem.
 
 **Kryteria:** (1) format o najwyższym zaangażowaniu; (2) materiał z tego, co pipeline już ma (nagranie, transkrypcja, motyw);
@@ -29,8 +29,9 @@ odbiorca co kanał; dotychczasowe posty na profilu też są po polsku); zasady p
 dokumentem (6,45–6,9 % vs 7,0 %). Te same slajdy można wysłać jako obrazy (Images API działa na tym tokenie), więc to tani plan B.
 
 **Dlaczego nie A/B:** A ma najmniejsze zaangażowanie w każdym zestawieniu; B dubluje short (9:16 można wrzucić ręcznie już dziś).
-Ordinal (215 tys. postów) stawia multi-image przed PDF; dokument wybrany, bo wygrywa w 3 z 4 zestawień (Socialinsider, Buffer,
-AuthoredUp) i nie wymaga cięcia obrazów. Do sprawdzenia metryką niżej.
+Ordinal stawia multi-image przed PDF, Socialinsider odwrotnie, ale o 0,1–0,55 pp, czyli w granicach szumu: między dokumentem a
+multi-image te dane nie rozstrzygają. Dokument wybrany, bo jeden plik daje i podgląd w feedzie, i pobranie PDF; multi-image zostaje
+planem B i rozstrzyga go metryka niżej.
 Źródła (2026-11-04): socialinsider.io/social-media-benchmarks/linkedin, socialmediatoday.com (raport o postach-dokumentach),
 tryordinal.com/blog/carousel-posts. Liczby to dane stron firmowych i różne metryki: kierunek, nie prognoza dla tego profilu.
 
@@ -49,6 +50,7 @@ profilu i ręcznego skasowania pliku. Pierwszy komentarz jest po poście; jego b
 **Wykonanie / rollback:** nowe pliki (`linkedin.py`, `gfx/carousel*.{mjs,html}`, `style/linkedin.json`, `style/LINKEDIN.md`), nic w
 istniejącym pipeline się nie zmienia. Rollback = revert commita; opublikowany post usuwa się na LinkedIn ręcznie.
 
-**Metryka:** wyświetlenia i reakcje posta-dokumentu po 7 dniach, porównane osobno z (a) medianą ostatnich postów z API i (b) medianą
+**Metryka** (Kamil odczytuje kartę posta po 7 dniach, wynik dopisuje do `linkedin.published.json` jako `stats_7d`; baza (a) ma
+dziś n=2, więc pierwsze 3 posty to zbieranie bazy, nie decyzja): wyświetlenia i reakcje posta-dokumentu po 7 dniach, porównane osobno z (a) medianą ostatnich postów z API i (b) medianą
 ostatnich postów ręcznych (karta „Analytics” posta). Dwie bazy, bo API mogło być słabsze samo w sobie (ryzyko wyżej): gorzej niż (a)
 2 razy z rzędu = format do zmiany (multi-image); lepiej niż (a), ale gorzej niż (b) = sprawdzić publikację ręczną tego samego PDF.

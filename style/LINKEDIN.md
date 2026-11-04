@@ -37,7 +37,7 @@ python3 linkedin.py check   <dir>/linkedin.json
 python3 linkedin.py render  <dir>/linkedin.json      # obejrzyj PDF: pdftoppm -r 40 -png <dir>/linkedin.pdf <dir>/podglad
 python3 linkedin.py publish <dir>/linkedin.json      # dry run: autor, token, tekst
 # STOP: pokaż Kamilowi tekst z dry runu + PDF; --publish dopiero po jego OK (publiczny post w jego imieniu)
-python3 linkedin.py publish <dir>/linkedin.json --publish
-python3 linkedin.py comment <dir>/linkedin.json      # tylko gdy publish skończył się „first comment: FAILED”
+python3 linkedin.py publish <dir>/linkedin.json --publish --approve <kod z dry runu>
+python3 linkedin.py comment <dir>/linkedin.json      # tylko gdy publish skończył się „first comment: FAILED/UNKNOWN”
 ```
 Nieudany publish: komunikat mówi, czy post mógł wyjść (`state: unknown` w `linkedin.published.json`) czy na pewno nie (plik znika).
