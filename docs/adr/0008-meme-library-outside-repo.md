@@ -1,4 +1,4 @@
-# ADR-0008 — Memy w shortach: katalog w repo, obrazy poza nim
+# ADR-0008 — Memy w filmach: katalog w repo, obrazy poza nim
 
 Data: 2026-10-31 | Status: przyjęte (2026-10-31, Kamil akceptuje ryzyko praw do obrazów) | Drzwi: dwukierunkowe | Przegląd: 2027-01-31
 
@@ -20,7 +20,10 @@ Memy to cudze obrazy (kadry z filmów, zdjęcia stockowe), a repo jest publiczne
 **Decyzja:** B. `style/memes.json` = id szablonu imgflip + nasze pola tekstu; `memes.py add <slug>` zapisuje obraz i `<slug>.json`
 (z URL-em źródła) do `render/memes/`. Karta `meme` tylko w 9:16, w układzie `split`/`full` kart `web` (ta sama ścieżka twarzy w boksie).
 Uzupełnienie 2026-11-04 (Kamil: „memów nie ma”): karta działa też w 16:9 (obraz na lewo od PiP z twarzą) i w 9:16 w układzie
-`corner` (Kamil w kółku w rogu); źródło obrazów i zasady ryzyka bez zmian.
+`corner` (Kamil w kółku w rogu). Źródło obrazów i zasady (bez dźwięku, krótko, nasz tekst) bez zmian.
+**Otwarte, decyzja Kamila:** akceptacja ryzyka z 2026-10-31 dotyczyła shortów. Mem w longu (kanał główny, monetyzacja) to szersze
+ryzyko roszczenia; checklista wymaga `long.memes >= 3`. Do jego decyzji po obejrzeniu filmu 2 v2 (lokalnie, nic nie wysłane):
+TAK = wpis tutaj ze statusem i datą; NIE = `long.memes` na 0 w `style/checklist.json` i memy z longa wypadają (build_plan_v2).
 
 **Ryzyko (zaakceptowane przez Kamila 2026-10-31; regulaminu imgflip nie sprawdzano):** memy z kadrów filmowych mogą dostać roszczenie na YouTube (Content ID łapie głównie klipy z dźwiękiem; statyczny obraz
 rzadziej, ale nie zero). Dlatego: tylko obrazy, bez dźwięku, krótko (2–3,5 s), z naszym tekstem (transformacja, komentarz). Klipy

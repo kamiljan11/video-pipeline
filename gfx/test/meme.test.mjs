@@ -60,6 +60,17 @@ test('a 16:9 meme sits left of the face corner, its words on time', { skip: !fs.
   assert.ok(dark(late) > 20, 'the words are not there after their time');
 });
 
+test('a long word shrinks to its box instead of running out of it', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+  // 16:9: picture 1140 px square at x 420..1560, the box = its right half (x 990..1560, y 150..720); one 24-letter word at the
+  // old size (96 px, ~65 px a letter) would be ~1560 px wide and spill left over the picture
+  const r = render([{ id: 'mlong', type: 'meme', dur: 1.5, meme: 'red', text: ['Najdłuższewyrażeniebezspacji'], at: [0.1] }]);
+  assert.equal(r.status, 0, r.stderr);
+  const f = execFileSync('ffmpeg', ['-v', 'error', '-ss', '1.0', '-i', path.join(work, 'gfx', 'mlong.mov'), '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-'], { maxBuffer: 64 << 20 });
+  const dark = (x0, x1) => { let n = 0; for (let x = x0; x < x1; x += 4) for (let y = 160; y < 710; y += 4) { const i = (y * 2560 + x) * 4; if (f[i] < 80 && f[i + 1] < 80 && f[i + 2] < 80) n++; } return n; };
+  assert.ok(dark(1000, 1550) > 20, 'the word is not in its box');
+  assert.equal(dark(430, 980), 0, 'the word runs out of its box over the picture');
+});
+
 test('an unknown meme or too many words stop the card by name', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
   for (const [sp, why] of [[{ meme: 'nope' }, /meme "nope": not in/], [{ meme: 'red', text: ['a', 'b'] }, /1 text box/], [{ meme: '../x' }, /not in/],
                            [{ meme: 'red', canvas: undefined, layout: 'full' }, /no layout in 16:9/], [{ meme: 'red', text: ['a'], at: ['1'] }, /"at" = seconds/],

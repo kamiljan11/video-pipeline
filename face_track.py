@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""face_track.py edl.json  — per-segment face position + zoom safety (head never leaves the frame).
+"""face_track.py edl.json  — per-segment face position + zoom safety (head never leaves the frame; with plan
+"punch_headroom": "face" only brow to chin is kept, ADR-0012).
 Samples 3 frames per segment, detects the face (OpenCV YuNet), stores seg["face"]=[cx,cy] (normalised) and
 seg["head"]=[x0,y0,x1,y1] (face box grown for hair/chin; plan "punch_headroom": "face" = brow only), then clamps every zoom so the head box fits the crop
 with a margin. Writes back into edl.json. Cache: <edl>.faces.json

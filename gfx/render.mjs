@@ -119,7 +119,8 @@ function meme(sp) {
 }
 function memeStamp(sp) {
   const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
-  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
+  // meme.toString(): the box and font-size maths are part of the key, like SCENE_LIB for scenes (review r3 code-2)
+  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(meme.toString()).digest('hex');
 }
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name

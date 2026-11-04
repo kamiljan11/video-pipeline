@@ -17,3 +17,8 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | short / rolka | film 9:16 z fragmentu longa (`plan_<id>.json`, `"vertical": true`); „rolka” = to samo na Instagramie |
 | kandydat (`clips.json`, `posts.json`) | fragment albo post oceniony w rubryce 0-3; `"make": true` = musi być w `out/` |
 | pakiet | `out/youtube/*.md` (tytuły A/B/C, opis, rozdziały, tagi), `out/thumbnails/`, `out/posts/` |
+| mem (`meme`) | karta ze znanym memem (szablon z `style/memes.json`, obraz w `render/memes/`, ADR-0008) i naszym tekstem w jego polach; 9:16: `split` / `full` / `corner`, 16:9: obraz na lewo od PiP |
+| układ `corner` | 9:16: grafika na cały ekran, Kamil w kółku w prawym dolnym rogu (`gfx_types.CORNER`) |
+| PiP | 16:9: twarz w okienku w rogu nad pełnoekranową kartą (`slide`, `web`, `scene`, `meme`; `assemble.py`) |
+| punch-in | szybki najazd kamery na twarz na ważnym słowie (`emph` w planie); pod kartą z twarzą w boksie/kółku/PiP go nie ma |
+| `punch_headroom` | ile nad twarzą zoom musi zostawić: `"hair"` cała głowa, `"face"` czoło-broda (ADR-0012) |
