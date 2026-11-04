@@ -25,6 +25,9 @@ ale bez ryzyka podwójnego posta.
 (dry run) -> `--publish` (Documents API + Posts API + pierwszy komentarz z linkiem do filmu). Tekst po polsku (ten sam
 odbiorca co kanał; dotychczasowe posty na profilu też są po polsku); zasady pisania: `style/LINKEDIN.md`.
 
+**Rozważone, poza tabelą:** multi-image (kilka obrazów w poście): Ordinal stawia je wyżej, Socialinsider prawie równo z
+dokumentem (6,45–6,9 % vs 7,0 %). Te same slajdy można wysłać jako obrazy (Images API działa na tym tokenie), więc to tani plan B.
+
 **Dlaczego nie A/B:** A ma najmniejsze zaangażowanie w każdym zestawieniu; B dubluje short (9:16 można wrzucić ręcznie już dziś).
 Ordinal (215 tys. postów) stawia multi-image przed PDF; dokument wybrany, bo wygrywa w 3 z 4 zestawień (Socialinsider, Buffer,
 AuthoredUp) i nie wymaga cięcia obrazów. Do sprawdzenia metryką niżej.
@@ -35,8 +38,10 @@ tryordinal.com/blog/carousel-posts. Liczby to dane stron firmowych i różne met
 więc to sygnał, nie dowód kary za API). Token wygasa co 60 dni: `linkedin.py` zatrzymuje się 3 dni przed i podaje komendę odnowienia.
 `LinkedIn-Version` jest wycofywana po ok. roku: stała `VERSION` w `linkedin.py`.
 
-**Konsekwencje:** `linkedin.published.json` obok specu blokuje drugą publikację (świadome ponowienie = usunąć plik). Pierwszy
-komentarz jest po poście; jego błąd nie cofa posta (zapis + exit 1). Token i `linkedin_auth.py` dzielimy z zadaniem toRzeszów
+**Konsekwencje:** `linkedin.published.json` obok specu jest zakładany (O_EXCL) przed pierwszym zapisem do LinkedIn i blokuje
+drugą publikację; po niejasnym wyniku wysyłki posta (timeout, 5xx, brak id) zostaje jako `unknown`, a ponowienie wymaga sprawdzenia
+profilu i ręcznego skasowania pliku. Pierwszy komentarz jest po poście; jego błąd nie cofa posta (zapis + exit 1,
+`linkedin.py comment` ponawia tylko komentarz). Publikacja idzie dopiero po akceptacji tekstu i PDF przez Kamila. Token i `linkedin_auth.py` dzielimy z zadaniem toRzeszów
 (jeden token na profil; odnowienie dotyczy obu).
 
 **Koszt cykliczny:** 0 zł (API LinkedIn bez opłat, render lokalnie).
@@ -44,5 +49,6 @@ komentarz jest po poście; jego błąd nie cofa posta (zapis + exit 1). Token i 
 **Wykonanie / rollback:** nowe pliki (`linkedin.py`, `gfx/carousel*.{mjs,html}`, `style/linkedin.json`, `style/LINKEDIN.md`), nic w
 istniejącym pipeline się nie zmienia. Rollback = revert commita; opublikowany post usuwa się na LinkedIn ręcznie.
 
-**Metryka:** wyświetlenia i reakcje posta-dokumentu po 7 dniach vs mediana ostatnich 5 postów profilu (karta „Analytics” posta).
-Gorzej 2 razy z rzędu = wrócić do tej decyzji (multi-image albo ręczna publikacja).
+**Metryka:** wyświetlenia i reakcje posta-dokumentu po 7 dniach, porównane osobno z (a) medianą ostatnich postów z API i (b) medianą
+ostatnich postów ręcznych (karta „Analytics” posta). Dwie bazy, bo API mogło być słabsze samo w sobie (ryzyko wyżej): gorzej niż (a)
+2 razy z rzędu = format do zmiany (multi-image); lepiej niż (a), ale gorzej niż (b) = sprawdzić publikację ręczną tego samego PDF.

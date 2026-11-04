@@ -32,6 +32,8 @@ test('slides: points are numbered, text is escaped, the order cover..end is enfo
                                [[SLIDES[0], { type: 'quote', title: 'x' }, SLIDES[3]], /cover, point or end/],
                                [[{ ...SLIDES[0], photo: 'gone.jpg' }, SLIDES[3]], /photo .* missing/],
                                [[{ ...SLIDES[0], photo: 'x.gif' }, SLIDES[3]], /\.jpg or \.png/],
+                               [[{ ...SLIDES[0], photo: '../elsewhere.png' }, SLIDES[3]], /inside the spec folder/],
+                               [[{ ...SLIDES[0], photo: '/etc/x.png' }, SLIDES[3]], /inside the spec folder/],
                                [[SLIDES[0], { ...SLIDES[1], photo: 'a.jpg' }, SLIDES[3]], /only the cover slide/]]) {
     assert.throws(() => slidesHtml(slides, 'K', work), why);
   }
@@ -53,8 +55,10 @@ test('a carousel renders one 1080x1350 page per slide', { skip: CHROME }, () => 
 test('a cover photo is drawn; a text that does not fit stops by name and leaves no PDF', { skip: CHROME }, () => {
   fs.mkdirSync(path.join(work, 'photo'));
   execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=red:s=200x200', '-frames:v', '1', path.join(work, 'photo', 'face.png')]);
-  const ok = render([{ ...SLIDES[0], photo: 'face.png' }, SLIDES[3]], 'photo');
+  const ok = render([{ ...SLIDES[0], photo: 'face.png', sub: "$& $' $` $$ stays text" }, SLIDES[3]], 'photo');
   assert.equal(ok.r.status, 0, ok.r.stderr);
+  const text = execFileSync('pdftotext', [ok.pdf, '-'], { encoding: 'utf8' });
+  assert.match(text, /\$& \$' \$` \$\$ stays text/);  // String.replace would have spliced the template in here
   const long = render([SLIDES[0], { ...SLIDES[1], body: 'bardzo długi tekst '.repeat(80) }, SLIDES[3]], 'long');
   assert.notEqual(long.r.status, 0);
   assert.match(long.r.stderr, /FAILED carousel .*slide 2: text does not fit/);

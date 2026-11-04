@@ -358,9 +358,26 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
 
 Post-dokument na profilu Kamila Jana: tekst + karuzela PDF (slajdy 1080x1350) + pierwszy komentarz z linkiem do filmu, przez
 oficjalne API (ADR-0009). Spec `<dir>/linkedin.json` pisze sesja Claude Code wg `style/LINKEDIN.md`; limity w `style/linkedin.json`.
-`check` -> `render` (`gfx/carousel.mjs`) -> `publish` (dry run) -> `publish --publish`; drugi publish tego samego specu jest blokowany
-(`linkedin.published.json`). Token: `~/.config/linkedin/token.json` (wspólny z zadaniem toRzeszów, 60 dni; skrypt zatrzymuje się
-3 dni przed wygaśnięciem i podaje komendę odnowienia). Testy: `tests/test_linkedin.py`, `gfx/test/carousel.test.mjs`.
+
+```bash
+python3 linkedin.py check   <dir>/linkedin.json
+python3 linkedin.py render  <dir>/linkedin.json             # -> <dir>/linkedin.pdf; obejrzyj
+python3 linkedin.py publish <dir>/linkedin.json             # dry run: token, autor, pełny tekst; nic nie wysyła
+python3 linkedin.py publish <dir>/linkedin.json --publish   # dopiero gdy Kamil zaakceptował tekst i PDF
+python3 linkedin.py comment <dir>/linkedin.json             # tylko gdy post wyszedł, a pierwszy komentarz nie (exit 1)
+```
+
+- **Akceptacja:** tekst pisze model, więc `--publish` idzie dopiero po tym, jak Kamil zobaczył tekst z dry runu i PDF.
+- **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn. `state: published` = post
+  jest (URL w pliku). `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
+  Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
+- **Token:** `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni, wspólny z zadaniem toRzeszów). Skrypt staje 3 dni
+  przed wygaśnięciem. Odnowienie (Kamil klika „Zezwól” w przeglądarce), sekrety aplikacji z Infisicala (`LINKEDIN_CLIENT_ID`,
+  `LINKEDIN_CLIENT_SECRET`):
+  `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 ~/Documents/toRzeszow/skrypty/linkedin_auth.py`
+- **Wersja API:** `VERSION` w `linkedin.py` (nagłówek `LinkedIn-Version`, LinkedIn wycofuje wersje po ok. roku; błąd HTTP
+  wspominający wersję = podbić na aktualną z dokumentacji LinkedIn).
+- Testy: `tests/test_linkedin.py` (fałszywy LinkedIn, bez sieci), `gfx/test/carousel.test.mjs`.
 
 ## Gdzie są shorty w longu (`shorts.py`)
 `python3 shorts.py plan_long.json [--n 5] [--min 25] [--max 60] [--json kandydaci.json]` (w katalogu `work`): ranking ciągów

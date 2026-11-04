@@ -17,6 +17,8 @@ function checkSlide(sp, i, n, baseDir) {
   if (sp.photo === undefined) return null;
   if (sp.type !== 'cover') throw new Error(`${at}: only the cover slide has a "photo"`);
   const f = path.resolve(baseDir, String(sp.photo));
+  const rel = path.relative(baseDir, f);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) throw new Error(`${at}: photo must be inside the spec folder, got ${JSON.stringify(sp.photo)}`);
   if (!PHOTO.test(f)) throw new Error(`${at}: photo must be .jpg or .png, got ${JSON.stringify(sp.photo)}`);
   if (!fs.existsSync(f)) throw new Error(`${at}: photo ${f} missing`);
   return pathToFileURL(f).href;

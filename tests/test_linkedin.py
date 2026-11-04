@@ -58,6 +58,7 @@ class CheckTest(unittest.TestCase):
             "single words": spec(hashtags=["#AI", "biznes", "x y"]),
             "at least": spec(text=HOOK),
             "first_comment": spec(first_comment="x" * 2000),
+            '"first_comment": required': spec(first_comment=" "),
             '"carousel" must': spec(carousel=None),
             "slides": spec(carousel={"title": "t", "slides": slides[:2]}),
             '"type" must be "end"': spec(carousel={"title": "t", "slides": slides[:4] + [slides[1]]}),
@@ -108,12 +109,18 @@ COMMENT = (201, {}, None)
 class PublishTest(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp(prefix="li-")); self.addCleanup(shutil.rmtree, self.dir, True)
-        self.spec = self.dir / "linkedin.json"; self.spec.write_text(json.dumps(SPEC), encoding="utf-8")
-        self.pdf = self.dir / "linkedin.pdf"; self.pdf.write_bytes(b"%PDF " + b"/Type /Page " * 5 + b"/Type /Pages")
-        now = time.time(); os.utime(self.spec, (now - 10, now - 10))
-        self.tok = self.dir / "token.json"
-        self.token(days=40)
+        self.spec, self.pdf, self.tok = self.dir / "linkedin.json", self.dir / "linkedin.pdf", self.dir / "token.json"
+        self.done = self.dir / "linkedin.published.json"
         p = mock.patch.object(linkedin, "TOKEN", self.tok); p.start(); self.addCleanup(p.stop)
+        self.fresh()
+
+    def fresh(self):
+        """a good spec, its PDF, a 40-day token and no record: every test (and subtest) starts here"""
+        self.spec.write_text(json.dumps(SPEC), encoding="utf-8")
+        self.pdf.write_bytes(b"%PDF " + b"/Type /Page " * 5 + b"/Type /Pages")
+        now = time.time(); os.utime(self.spec, (now - 10, now - 10))
+        self.token(days=40)
+        self.done.unlink(missing_ok=True)
 
     def token(self, days, scope="openid,profile,w_member_social"):
         self.tok.write_text(json.dumps({"access_token": "T", "obtained_at": time.time(), "expires_in": days * 86400, "scope": scope}))
@@ -147,6 +154,38 @@ class PublishTest(unittest.TestCase):
         self.run_with(Fake(ME, INIT, UP, AVAIL, POST, COMMENT))
         with self.assertRaisesRegex(ValueError, "already published"): self.run_with(Fake())
 
+    def test_an_unknown_post_outcome_keeps_the_record_so_a_rerun_cannot_post_twice(self):
+        for want, answer in {"timed out": TimeoutError("timed out"), "no post id": (201, {}, None),
+                             "HTTP 502": urllib.error.HTTPError("u", 502, "x", Message(), io.BytesIO(b"{}"))}.items():
+            with self.subTest(want=want):
+                self.fresh()
+                with self.assertRaisesRegex(ValueError, f"{want}.*may be live"): self.run_with(Fake(ME, INIT, UP, AVAIL, answer))
+                saved = json.loads(self.done.read_text())
+                self.assertEqual((saved["state"], saved["document"]), ("unknown", "urn:li:document:D1"))
+                fake = Fake()
+                with self.assertRaisesRegex(ValueError, "exists"): self.run_with(fake)
+                self.assertEqual(fake.calls, [])
+
+    def test_the_record_is_claimed_before_the_first_write_and_only_once(self):
+        def init(req):  # a second run arriving now finds the claim and stops
+            self.assertEqual(json.loads(self.done.read_text())["state"], "pending")
+            with self.assertRaisesRegex(ValueError, "state pending"): linkedin._claim(self.done)
+            return INIT
+        self.run_with(Fake(ME, init, UP, AVAIL, POST, COMMENT))
+        self.assertEqual(json.loads(self.done.read_text())["state"], "published")
+
+    def test_comment_retries_only_the_comment_of_a_published_post(self):
+        def comment():
+            with mock.patch("sys.stdout", io.StringIO()): return linkedin.comment(self.spec)
+        with mock.patch.object(linkedin, "_open", Fake()), self.assertRaisesRegex(ValueError, "no published post"): comment()
+        self.done.write_text(json.dumps({"state": "published", "post": "urn:li:share:42", "url": "u", "comment": "FAILED x"}))
+        fake = Fake(ME, COMMENT)
+        with mock.patch.object(linkedin, "_open", fake): self.assertEqual(comment()["comment"], 201)
+        self.assertEqual(fake.calls[1].full_url, linkedin.API + "/v2/socialActions/urn%3Ali%3Ashare%3A42/comments")
+        self.assertEqual(json.loads(fake.calls[1].data)["message"]["text"], SPEC["first_comment"])
+        self.assertEqual(json.loads(self.done.read_text())["comment"], 201)
+        with mock.patch.object(linkedin, "_open", Fake()), self.assertRaisesRegex(ValueError, "already has"): comment()
+
     def test_a_failed_comment_keeps_the_record_and_fails_the_exit_code(self):
         def comment(req):  # the post is recorded before the comment is even tried: a crash here must not allow a second post
             self.assertTrue((self.dir / "linkedin.published.json").exists())
@@ -159,10 +198,10 @@ class PublishTest(unittest.TestCase):
     def test_failures_before_the_post_are_named_and_leave_no_record(self):
         err = urllib.error.HTTPError("u", 422, "Unprocessable", Message(), io.BytesIO(b'{"message":"bad commentary"}'))
         cases = {
-            "HTTP 422 .*bad commentary": Fake(ME, INIT, UP, AVAIL, err),
+            "HTTP 422 .*bad commentary": Fake(ME, INIT, UP, AVAIL, err),  # LinkedIn refused the post itself
+            "HTTP 500": Fake(ME, INIT, urllib.error.HTTPError("u", 500, "x", Message(), io.BytesIO(b"{}"))),
             "upload URL outside linkedin.com": Fake(ME, (200, {}, {"value": {"uploadUrl": "https://evil.example/x", "document": "urn:li:document:D1"}})),
             "could not process": Fake(ME, INIT, UP, (200, {}, {"status": "PROCESSING_FAILED"})),
-            "no post id": Fake(ME, INIT, UP, AVAIL, (201, {}, None)),
         }
         for want, fake in cases.items():
             with self.subTest(want=want):
@@ -180,11 +219,12 @@ class PublishTest(unittest.TestCase):
         for want, setup in {
             "expires in": lambda: self.token(days=1),
             "no w_member_social": lambda: self.token(days=40, scope="openid,profile"),
+            "not a token from linkedin_auth.py": lambda: self.tok.write_text('{"access_token": "T"}'),
             "older than the spec": lambda: os.utime(self.pdf, (time.time() - 100, time.time() - 100)),
             "2 pages": lambda: self.pdf.write_bytes(b"/Type /Page /Type /Page"),
         }.items():
             with self.subTest(want=want):
-                self.setUp(); setup()
+                self.fresh(); setup()
                 fake = Fake()
                 with self.assertRaisesRegex(ValueError, want): self.run_with(fake, really=False)
                 self.assertEqual(fake.calls, [])

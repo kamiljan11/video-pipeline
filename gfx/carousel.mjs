@@ -16,7 +16,7 @@ try {
   spec = JSON.parse(fs.readFileSync(specFile, 'utf8'));
   const body = slidesHtml(spec?.carousel?.slides, rules.author, path.dirname(path.resolve(specFile)));
   html = fs.readFileSync(path.join(GFX, 'carousel.html'), 'utf8')
-    .replace('</style>', `${themeCss(loadTheme(specFile))}</style>`).replace('<body></body>', `<body>${body}</body>`);
+    .replace('</style>', () => `${themeCss(loadTheme(specFile))}</style>`).replace('<body></body>', () => `<body>${body}</body>`);  // functions: a "$&" in slide text stays text
 } catch (e) { fail(e.message); }
 
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });

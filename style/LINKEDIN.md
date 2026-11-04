@@ -5,6 +5,8 @@ ten plik mówi, co w nich napisać. Pisze sesja Claude Code z transkrypcji filmu
 
 ## Źródło
 - Tylko to, co Kamil mówi w filmie. Liczba, nazwa, cytat = musi paść w nagraniu albo w materiałach filmu. Zero dopisanych faktów.
+- Bez nazw klientów, firm i osób z nagrania, chyba że Kamil mówi je w filmie publicznie i na to pozwala: post jest publiczny,
+  a tekst piszę ja (model), nie Kamil.
 - Jedna myśl na post: ta, która w filmie ma najmocniejszy dowód (liczba, własna porażka, konkretny przykład).
 
 ## Tekst posta (`text`)
@@ -17,8 +19,8 @@ ten plik mówi, co w nich napisać. Pisze sesja Claude Code z transkrypcji filmu
 - `hashtags`: 3–5 słów bez `#` (np. `["AI", "automatyzacja", "MŚP"]`), skrypt dopisze je na końcu jako prawdziwe hashtagi.
 - Znaki `( ) [ ] # * _ @ < > | { } ~ \` w tekście są OK: skrypt je escapuje (inaczej LinkedIn odrzuci albo zepsuje post).
 
-## Pierwszy komentarz (`first_comment`)
-- Link do filmu na YouTube + jedno zdanie, co tam jest więcej. Do 1250 znaków.
+## Pierwszy komentarz (`first_comment`, wymagany)
+- Link do filmu na YouTube + jedno zdanie, co tam jest więcej. Do 1250 znaków. Tekst posta odsyła do niego, więc bez niego `check` stoi.
 
 ## Karuzela (`carousel`)
 - `title`: nazwa dokumentu widoczna na LinkedIn (≤ 100 znaków), zwykle tytuł filmu.
@@ -34,5 +36,8 @@ ten plik mówi, co w nich napisać. Pisze sesja Claude Code z transkrypcji filmu
 python3 linkedin.py check   <dir>/linkedin.json
 python3 linkedin.py render  <dir>/linkedin.json      # obejrzyj PDF: pdftoppm -r 40 -png <dir>/linkedin.pdf <dir>/podglad
 python3 linkedin.py publish <dir>/linkedin.json      # dry run: autor, token, tekst
+# STOP: pokaż Kamilowi tekst z dry runu + PDF; --publish dopiero po jego OK (publiczny post w jego imieniu)
 python3 linkedin.py publish <dir>/linkedin.json --publish
+python3 linkedin.py comment <dir>/linkedin.json      # tylko gdy publish skończył się „first comment: FAILED”
 ```
+Nieudany publish: komunikat mówi, czy post mógł wyjść (`state: unknown` w `linkedin.published.json`) czy na pewno nie (plik znika).
