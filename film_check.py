@@ -16,6 +16,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import NoReturn
 
 ROOT = Path(__file__).resolve().parent
 CHECKLIST = ROOT / "style" / "checklist.json"
@@ -26,13 +27,19 @@ SKIP_MIN = 10  # a reason shorter than this is not a reason
 CHAP_LEAD, CHAP_LAG = 1.0, 3.0  # a chapter card counts for a part when it comes in this close to the part's first word
 
 
+def bad_input(msg: str) -> NoReturn:
+    """a missing or broken input file: named on stderr, exit 2 (not 1, which means items missing)"""
+    print(f"film_check: {msg}", file=sys.stderr)
+    raise SystemExit(2)
+
+
 def load(p: Path, what: str):
     try:
         return json.loads(p.read_text())
     except FileNotFoundError:
-        raise SystemExit(f"film_check: {what} not found: {p}") from None
+        bad_input(f"{what} not found: {p}")
     except ValueError as e:
-        raise SystemExit(f"film_check: {what} is not JSON ({p}): {e}") from None
+        bad_input(f"{what} is not JSON ({p}): {e}")
 
 
 def word_times(words_file: Path) -> list[float]:
@@ -108,6 +115,10 @@ class Film:
         p = self.work / "story.json"
         if not p.exists(): return []
         story = load(p, "story.json"); wt = word_times(self.work / self.plan["words"]); segs = self.edl["segments"]
+        for pt in story.get("parts", []):
+            sw = pt.get("start_word") if isinstance(pt, dict) else None
+            if not (isinstance(sw, int) and not isinstance(sw, bool) and 0 <= sw < len(wt)):
+                bad_input(f"story.json part {pt.get('id', '?') if isinstance(pt, dict) else pt!r}: start_word = a word index 0..{len(wt) - 1}, got {sw!r}")
         starts = [(pt.get("title", pt.get("id", "?")), src2out(segs, wt[pt["start_word"]])) for pt in story.get("parts", [])]
         return [(t, a, starts[i + 1][1] if i + 1 < len(starts) else self.len) for i, (t, a) in enumerate(starts)]
 
@@ -153,7 +164,7 @@ class Film:
     def music_palette_new(self):
         pal = self.plan.get("music_palette")
         if not isinstance(pal, dict): return False, "no music_palette in the plan: the old bed, the same in every film"
-        led = json.loads(LEDGER.read_text()) if LEDGER.exists() else {}
+        led = load(LEDGER, "music ledger (render/music_ledger.json, written by make_beds.py)") if LEDGER.exists() else {}
         others = [v for v in led.values() if isinstance(v, dict) and v.get("work") != str(self.work.resolve())]
         if not others: return True, ""
         last = max(others, key=lambda v: v.get("at", ""))
@@ -208,9 +219,10 @@ class Out:
 
     def out_thumbnails(self):
         d = self.out / "thumbnails"
-        longs = list(d.glob("long_*.jpg")) + list(d.glob("long_*.png"))
+        # one variant = long_<id>.jpg; thumbs.mjs also writes long_<id>_2560.png, which must not count as a second variant
+        longs = {f.stem.removeprefix("long_") for f in d.glob("long_*.*") if f.suffix in (".jpg", ".png") and not f.stem.endswith("_2560")}
         miss = [c for c in self.made("clips.json") if not list(d.glob(f"{c}_cover.*"))]
-        bad = ([f"{len(longs)} long thumbnails (want >= 2 for an A/B test)"] if len(longs) < 2 else []) + [f"no cover for {c}" for c in miss]
+        bad = ([f"{len(longs)} long thumbnail variants (want >= 2 for an A/B test)"] if len(longs) < 2 else []) + [f"no cover for {c}" for c in miss]
         return not bad, "; ".join(bad)
 
     def out_posts(self):

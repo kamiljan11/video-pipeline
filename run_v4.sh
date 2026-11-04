@@ -5,9 +5,13 @@ WORK=$1; OUT=$2; shift 2
 VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # fail-fast for every film (ADR-0002): a failed step never renders a stale or unclamped EDL, the film gets no DONE
-# scenes laid out in Chrome first: two pieces covering each other on screen (labels run together) stop the run, named
-if [ -f gfx_specs.json ] && grep -q '"type": *"scene"' gfx_specs.json && ! node $VP/gfx/scene_check.mjs gfx_specs.json >> gfx.log 2>&1; then
-  echo "FAILED scene_check (gfx.log: CLASH lines)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
+# scenes laid out in Chrome first: two pieces covering each other on screen (labels run together) stop the run, named.
+# timeout: a hung Chrome must not hold the run without a log line. SCENE_CHECK=off (logged) only for a clash judged false
+if [ -f gfx_specs.json ] && grep -q '"type": *"scene"' gfx_specs.json; then
+  if [ "${SCENE_CHECK:-on}" = off ]; then echo "WARN scene_check off" >> "$R/render.log"
+  elif ! timeout 600 node $VP/gfx/scene_check.mjs gfx_specs.json >> gfx.log 2>&1; then
+    echo "FAILED scene_check (gfx.log: CLASH lines; exit 124 = timeout)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
+  fi
 fi
 if [ -f gfx_specs.json ] && ! node $VP/gfx/render.mjs gfx_specs.json gfx >> gfx.log 2>&1; then
   # graphics are shared by every film of the project: none renders with missing or stale cards

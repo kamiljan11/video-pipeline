@@ -134,6 +134,27 @@ class FilmCheckTest(unittest.TestCase):
         r, rep = self.run_check("--out", str(out))
         self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
 
+    def test_bad_inputs_are_named_with_exit_2(self):  # 1 means "items missing"; a broken file is another thing
+        self.project(*self.full_long(), music_palette={"name": "lofi", "key": 2})
+        (self.d / "story.json").write_text(json.dumps({"parts": [{"id": "p1", "start_word": 0}, {"id": "p9", "start_word": 999}]}))
+        r, _ = self.run_check("long")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("p9", r.stderr); self.assertIn("start_word", r.stderr); self.assertNotIn("Traceback", r.stderr)
+        (self.d / "story.json").write_text(json.dumps({"parts": [{"id": "p1", "start_word": 0}]}))
+        self.ledger.write_text('{"a": ')  # a cut write of make_beds.py
+        r, _ = self.run_check("long")
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("music ledger", r.stderr); self.assertNotIn("Traceback", r.stderr)
+
+    def test_out_thumbnails_one_variant_is_not_ab(self):
+        # long_A.jpg + its 2560 copy is still one variant (thumbs.mjs stopped before B)
+        (self.d / "clips.json").write_text(json.dumps({"items": []}))
+        th = self.d / "out" / "thumbnails"; th.mkdir(parents=True)
+        for f in ("long_A.jpg", "long_A_2560.png"): (th / f).write_text("")
+        _, rep = self.run_check("--out", str(self.d / "out"))
+        self.assertEqual(rep["out.thumbs"]["status"], "FAIL")
+        self.assertIn("1 long thumbnail variants", rep["out.thumbs"]["detail"])
+
 
 if __name__ == "__main__":
     unittest.main()

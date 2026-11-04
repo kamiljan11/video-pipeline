@@ -228,7 +228,9 @@ if pal:  # the palette this project used: film_check.py keeps the next film from
         work = str(Path(edl_p).resolve().parent)
         led[f"{work}::{edl.get('name', '')}"] = {"work": work, "film": edl.get("name", ""), "name": pal["name"],
                                                  "key": pal.get("key", 0), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
-        led_p.parent.mkdir(parents=True, exist_ok=True); led_p.write_text(json.dumps(led, indent=1, ensure_ascii=False))
+        led_p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = led_p.with_name(f"{led_p.name}.{os.getpid()}.tmp")  # whole file or none: a cut write never leaves broken JSON
+        tmp.write_text(json.dumps(led, indent=1, ensure_ascii=False)); os.replace(tmp, led_p)
     except (OSError, ValueError) as e:  # the ledger only guards the next film; the bed itself is done
         print(f"make_beds: music ledger {led_p} not updated: {e}", file=sys.stderr)
 edl["music"] = os.path.join(od, "music.wav"); edl["sfx"] = os.path.join(od, "sfx.wav")
