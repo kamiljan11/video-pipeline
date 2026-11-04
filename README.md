@@ -69,6 +69,7 @@ checks the EDL again before ffmpeg runs. A bad value stops the build with the ke
 | `music_palette` | `{"name": "lofi"\|"drive"\|"cinematic"\|"tech"\|"bright", "key": -6..6}` | another piece of music per film (`gen_music.py --palette --key`); `make_beds.py` writes it to `render/music_ledger.json` and `film_check.py` refuses the palette and key of the last other project. Absent = the old bed |
 | `skip` | `{"<checklist item id>": "why"}` | `film_check.py` lets the item pass and prints the reason in its report; an item without a reason stops the render |
 | `face_target_y` | 0.3..0.6, vertical films only | height of the face centre in a zoomed 9:16 crop (default 0.40). Set it close to where the face sits in the recording (about 0.48 for a seated talking head), or the head jumps between zoomed and unzoomed shots. A 16:9 plan ignores it with a warning. Changing it re-cuts the segments on the next render |
+| `punch_headroom` | `"hair"` (default) \| `"face"` | what a zoom keeps in frame (`face_track.py`): the whole head with its hair, or brow to chin. `"face"` lets a punch-in cut the top of the head; use it when the speaker sits close and the head fills the frame (film 2026-11-04: 0.6 punch-ins a minute with `"hair"`, 2.1 with `"face"`) |
 
 ## Quick start (Ubuntu)
 
