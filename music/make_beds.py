@@ -212,8 +212,14 @@ sfx /= max(1e-9, np.abs(sfx).max()) / 0.8
 d16 = (np.stack([sfx, sfx], 1) * 32767).astype(np.int16)
 with wave.open(os.path.join(od, "sfx.wav"), "wb") as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(d16.tobytes())
+# "music_palette": {"name": "lofi"|"drive"|"cinematic"|"tech"|"bright", "key": -6..6} = another piece of music per film
+# (gen_music.py PALETTES); without it the old bed
+pal = edl.get("music_palette")
+if pal is not None and not (isinstance(pal, dict) and isinstance(pal.get("name"), str) and type(pal.get("key", 0)) is int):
+    sys.exit(f"music_palette: {{\"name\": <palette>, \"key\": <semitones -6..6>}}, got {pal!r}")
+pal_args = ["--palette", pal["name"], "--key", str(pal.get("key", 0))] if pal else []
 subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_music.py"), os.path.join(od, "music.wav"), f"{total + 1:.2f}",
-                str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else [])], check=True)
+                str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else []), *pal_args], check=True)
 edl["music"] = os.path.join(od, "music.wav"); edl["sfx"] = os.path.join(od, "sfx.wav")
 Path(edl_p).write_text(json.dumps(edl, indent=1, ensure_ascii=False))
 print("beds ok", round(total, 1))

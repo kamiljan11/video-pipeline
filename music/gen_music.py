@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""gen_music.py out.wav seconds [seed]
+"""gen_music.py out.wav seconds [seed] [moods JSON] [--palette lofi|drive|cinematic|tech|bright] [--key -6..6]
 Original, self-generated background bed (our own synthesis = nothing for Content ID to match).
 Calm, slightly uplifting: 92 BPM, Am-F-C-G, soft pads, pluck arpeggio, sub bass, light kick + shaker.
 Optional 4th arg: JSON [[t, mood], ...] (tension/story/upbeat/resolve/drop) = the same grid, sections crossfaded by mood."""
@@ -10,12 +10,46 @@ import wave
 import numpy as np
 
 SR = 44100
+# a palette (--palette NAME [--key SEMITONES]) = another piece of music: tempo, key, chords, groove and timbre per film
+# (Kamil 2026-11-04: "co filmik nowa muzyczka"); without --palette the bed is the old one, unchanged
+PALETTES = {
+    "lofi": {"bpm": 78, "prog": [(50, [0, 3, 7, 10, 14]), (55, [0, 4, 10, 14]), (48, [0, 4, 7, 11, 14]), (57, [0, 3, 7, 10])],
+             "pad_fc": 1400, "pad_gain": 0.020, "arp": [0, 2, 4, 2], "arp_div": 2, "arp_skip": 0.45, "arp_parts": ((1, 1.0), (2, 0.5), (3, 0.15)),
+             "arp_decay": 3.5, "kick": [0, 2.5], "snare": [1, 3], "hat_div": 2, "hat_swing": 0.17, "bass": [0, 3, 4, 7], "verb": 0.45},
+    "drive": {"bpm": 112, "prog": [(52, [0, 3, 7, 12]), (48, [0, 4, 7, 12]), (55, [0, 4, 7, 12]), (50, [0, 4, 7, 12])],
+              "pad_fc": 2200, "pad_gain": 0.016, "arp": [0, 1, 2, 3, 2, 1, 3, 1], "arp_div": 4, "arp_skip": 0.1, "arp_parts": ((1, 1.0), (2, 0.3)),
+              "arp_decay": 9, "kick": [0, 1, 2, 3], "snare": [1, 3], "hat_div": 2, "hat_off": True, "bass": [0, 0.5, 1.5, 2, 2.5, 3.5, 4, 4.5, 5.5, 6, 6.5, 7.5],
+              "verb": 0.3},
+    "cinematic": {"bpm": 70, "prog": [(48, [0, 3, 7, 14]), (56, [0, 4, 7, 11]), (51, [0, 4, 7, 14]), (58, [0, 4, 7, 9])],
+                  "pad_fc": 700, "pad_gain": 0.030, "arp": [0, 3, 2, 4], "arp_div": 1, "arp_skip": 0.35, "arp_parts": ((1, 1.0), (2, 0.4), (4, 0.1)),
+                  "arp_decay": 1.6, "kick": [0], "snare": [], "hat_div": 0, "bass": [0, 4], "verb": 0.6},
+    "tech": {"bpm": 120, "prog": [(53, [0, 3, 7, 10]), (49, [0, 4, 7, 11]), (56, [0, 4, 7, 12]), (51, [0, 4, 7, 10])],
+             "pad_fc": 1800, "pad_gain": 0.014, "arp": [0, 2, 3, 2, 0, 3, 2, 1], "arp_div": 4, "arp_skip": 0.2, "arp_parts": ((1, 1.0), (3, 0.2)),
+             "arp_decay": 12, "kick": [0, 1, 2, 3], "snare": [1, 3], "hat_div": 4, "bass": [0, 1, 2, 3, 4, 5, 6, 7], "verb": 0.28},
+    "bright": {"bpm": 100, "prog": [(50, [0, 4, 7, 14]), (57, [0, 4, 7, 12]), (59, [0, 3, 7, 10]), (55, [0, 4, 7, 11])],
+               "pad_fc": 2600, "pad_gain": 0.016, "arp": [0, 2, 1, 3], "arp_div": 2, "arp_skip": 0.15, "arp_parts": ((1, 1.0), (2, 0.45)),
+               "arp_decay": 6, "kick": [0, 2], "snare": [1, 3], "hat_div": 2, "bass": [0, 2, 4, 6], "verb": 0.35},
+}
+argv = list(sys.argv); PAL = None; KEY = 0
+for flag in ("--palette", "--key"):
+    if flag in argv:
+        i = argv.index(flag)
+        if i + 1 >= len(argv): sys.exit(f"{flag} needs a value")
+        val = argv[i + 1]; del argv[i:i + 2]
+        if flag == "--palette":
+            if val not in PALETTES: sys.exit(f"--palette: one of {', '.join(PALETTES)}, got {val!r}")
+            PAL = PALETTES[val]
+        else:
+            try: KEY = int(val)
+            except ValueError: sys.exit(f"--key: whole semitones -6..6, got {val!r}")
+            if not -6 <= KEY <= 6: sys.exit(f"--key: whole semitones -6..6, got {KEY}")
+sys.argv = argv
 out, secs = sys.argv[1], float(sys.argv[2]); rng = np.random.default_rng(int(sys.argv[3]) if len(sys.argv) > 3 else 7)
-BPM = 92; beat = 60 / BPM; bar = 4 * beat
+BPM = PAL["bpm"] if PAL else 92; beat = 60 / BPM; bar = 4 * beat
 N = int(secs * SR) + SR * 6
 L = np.zeros(N); R = np.zeros(N)
 mtof = lambda m: 440 * 2 ** ((m - 69) / 12)
-prog = [(57, [0, 3, 7, 10]), (53, [0, 4, 7, 11]), (48, [0, 4, 7, 14]), (55, [0, 4, 7, 9])]
+prog = [(r + KEY, iv) for r, iv in PAL["prog"]] if PAL else [(57, [0, 3, 7, 10]), (53, [0, 4, 7, 11]), (48, [0, 4, 7, 14]), (55, [0, 4, 7, 9])]
 
 def lp(x, fc):
     X = np.fft.rfft(x); f = np.fft.rfftfreq(len(x), 1 / SR)
@@ -40,8 +74,8 @@ def verb(x, seed):
 MOODS = ("tension", "story", "upbeat", "resolve", "drop")
 XF, XF_OUT, XF_IN = 1.5, 0.3, 0.6  # crossfade; into a "drop" (fast) and back out of it
 MOOD_GAIN = {"tension": 1.14, "story": 2.25, "upbeat": 1.15, "resolve": 1.2}  # measured: every mood renders at RMS ~0.085 (the plain bed: 0.09)
-PROG_T = [(57, [0, 3, 7, 10]), (57, [0, 3, 6, 10]), (53, [0, 3, 7, 10]), (56, [0, 3, 7, 10])]  # minor, dark, over an A pedal
-PROG_R = [(48, [0, 4, 7, 14]), (55, [0, 4, 7, 11]), (53, [0, 4, 7, 14]), (48, [0, 4, 7, 11])]  # C G F C: the lift
+PROG_T = [(57 + KEY, [0, 3, 7, 10]), (57 + KEY, [0, 3, 6, 10]), (53 + KEY, [0, 3, 7, 10]), (56 + KEY, [0, 3, 7, 10])]  # minor, dark, over an A pedal
+PROG_R = [(48 + KEY, [0, 4, 7, 14]), (55 + KEY, [0, 4, 7, 11]), (53 + KEY, [0, 4, 7, 14]), (48 + KEY, [0, 4, 7, 11])]  # C G F C: the lift
 
 def m_pad(root, iv, r, fc, gain, dur, att):
     n = int((dur + 1.5) * SR); tt = np.arange(n) / SR
@@ -79,7 +113,7 @@ def mood_window(mood, w0, w1, seed):
         root, iv = {"tension": PROG_T, "resolve": PROG_R}.get(mood, prog)[ch]
         if mood == "tension":
             for e in range(8):  # pulsing low pedal on A
-                put(tb + e * beat / 2, m_tone(mtof(36), 0.3, 9, 0.11 * (1.0 if e % 2 == 0 else 0.55), ((1, 1.0), (2, 0.3))), 0.5)
+                put(tb + e * beat / 2, m_tone(mtof(36 + KEY), 0.3, 9, 0.11 * (1.0 if e % 2 == 0 else 0.55), ((1, 1.0), (2, 0.3))), 0.5)
             put(tb, m_kick(0.14, 25), 0.5)  # sparse: a heartbeat, one tom, one rim click
             if b % 2: put(tb + 2.5 * beat, m_kick(0.08, 25), 0.5)
             if b % 4 == 3: put(tb + 2 * beat, m_tone(95, 0.35, 9, 0.10, ((1, 1.0), (1.5, 0.2))), 0.4)
@@ -151,8 +185,53 @@ if len(sys.argv) > 4:  # moods: a separate render path; without the 4th argument
     print("music", out, round(secs, 1), "s,", len(mm), "mood sections")
     sys.exit(0)
 
+def palette_bed(p):
+    """the bed of a palette: chord pads, bass, an arpeggio and a groove, all from the palette's numbers"""
+    tb_n = int(secs / bar) + 2
+    for b in range(0, tb_n, 2):
+        root, iv = prog[(b // 2) % 4]; t0 = b * bar; dur = 2 * bar
+        n = int((dur + 1.5) * SR); tt = np.arange(n) / SR
+        env = np.clip(tt / 1.2, 0, 1) * np.clip((dur + 1.5 - tt) / 1.5, 0, 1)
+        pad = np.zeros(n)
+        for i in iv:
+            for d in (-0.07, 0.0, 0.07): pad += saw(mtof(root + 12 + i) * 2 ** (d / 12), n, rng.random())
+        pad = lp(pad, p["pad_fc"]) * env * p["pad_gain"]
+        add(L, t0, pad * 0.9); add(R, t0, pad * 1.1)
+        for q in p["bass"]:
+            nb = int(beat * 1.6 * SR); tq = np.arange(nb) / SR
+            bs = np.sin(2 * np.pi * mtof(root - 12) * tq) * np.exp(-tq * 2.6) * np.clip(tq / 0.01, 0, 1) * 0.10
+            add(L, t0 + q * beat, bs); add(R, t0 + q * beat, bs)
+        div = p["arp_div"]; pat = p["arp"]
+        for e in range(8 * div):
+            if rng.random() < p["arp_skip"]: continue
+            f = mtof(root + 24 + iv[pat[e % len(pat)] % len(iv)])
+            npl = int(0.9 * SR); tq = np.arange(npl) / SR
+            pl = sum(np.sin(2 * np.pi * f * k * tq) * a for k, a in p["arp_parts"]) * np.exp(-tq * p["arp_decay"]) * np.clip(tq / 0.004, 0, 1) * 0.04
+            pan = 0.5 + 0.35 * np.sin(e * 0.9)
+            add(L, t0 + e * beat / div, pl * (1 - pan) * 2); add(R, t0 + e * beat / div, pl * pan * 2)
+    for b in range(4, tb_n):
+        if b % 16 in (14, 15): continue
+        t0 = b * bar
+        for q in p["kick"]:
+            nk = int(0.35 * SR); tk = np.arange(nk) / SR
+            kick = np.sin(2 * np.pi * np.cumsum(45 + 70 * np.exp(-tk * 30)) / SR) * np.exp(-tk * 9) * 0.16
+            add(L, t0 + q * beat, kick); add(R, t0 + q * beat, kick)
+        for q in p["snare"]:
+            ns = int(0.2 * SR); x = rng.standard_normal(ns); x = lp(x, 7000) - lp(x, 1200)
+            sn = x * np.exp(-np.arange(ns) / SR * 22) * 0.07 + np.sin(2 * np.pi * 185 * np.arange(ns) / SR) * np.exp(-np.arange(ns) / SR * 30) * 0.05
+            add(L, t0 + q * beat, sn * 0.95); add(R, t0 + q * beat, sn * 1.05)
+        hd = p["hat_div"]
+        for h in range(4 * hd):
+            pos = h / hd
+            if p.get("hat_off") and h % hd == 0: continue  # off-beat hats only
+            if h % 2 == 1 and hd == 2: pos += p.get("hat_swing", 0.0) / 2  # swing: the off-beat a little late
+            nh = int(0.06 * SR); noise = rng.standard_normal(nh); noise = noise - lp(noise, 6000)
+            sh = noise * np.exp(-np.arange(nh) / SR * 60) * (0.026 if h % hd else 0.016)
+            add(L, t0 + pos * beat, sh * 0.8); add(R, t0 + pos * beat, sh * 1.2)
+
 total_bars = int(secs / bar) + 2
-for b in range(0, total_bars, 2):
+if PAL: palette_bed(PAL)
+for b in (range(0, total_bars, 2) if not PAL else ()):
     root, iv = prog[(b // 2) % 4]
     t0 = b * bar; dur = 2 * bar
     n = int((dur + 1.5) * SR); tt = np.arange(n) / SR
@@ -177,7 +256,7 @@ for b in range(0, total_bars, 2):
         pan = 0.5 + 0.35 * np.sin(e8 * 0.9)
         add(L, t0 + e8 * beat / 2, pl * (1 - pan) * 2); add(R, t0 + e8 * beat / 2, pl * pan * 2)
 
-for b in range(4, total_bars):
+for b in (range(4, total_bars) if not PAL else ()):
     if b % 16 in (14, 15): continue
     for q in range(4):
         tq = b * bar + q * beat
@@ -192,7 +271,8 @@ for b in range(4, total_bars):
             sh = noise * np.exp(-np.arange(nh) / SR * 60) * (0.018 if h == 0 else 0.028)
             add(L, tq + h * beat, sh * 0.8); add(R, tq + h * beat, sh * 1.2)
 
-L = L + 0.35 * verb(L, 1); R = R + 0.35 * verb(R, 2)
+VA = PAL["verb"] if PAL else 0.35
+L = L + VA * verb(L, 1); R = R + VA * verb(R, 2)
 n = int(secs * SR); L, R = L[:n], R[:n]
 fade = int(3 * SR); ramp = np.linspace(0, 1, fade)
 for ch in (L, R):
