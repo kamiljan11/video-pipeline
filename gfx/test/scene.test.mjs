@@ -55,3 +55,35 @@ test('camKeyframes and sceneFit run on their own source (render.mjs evaluates th
   assert.equal(kf([{ t: 0, x: 0, y: 0, z: 1 }], 2), camKeyframes([{ t: 0, x: 0, y: 0, z: 1 }], 2));
   assert.equal(typeof new Function(`return ${sceneFit.toString()}`)(), 'function');
 });
+
+test('motion pieces (check, cursor, ring, say, toggle, steps, counting stat) draw and animate from their own times', () => {
+  const sp = ok([
+    { k: 'say', x: 0, y: 0, words: [['Tabliczka', 0.2], ['~nie~', 0.8], ['[Szlaban]', 1.6], ['*zatrzyma*', 2], ['!stop!', 2.2]], out_at: 5 },
+    { k: 'check', x: 0, y: 300, at: 1, tone: 'ok' },
+    { k: 'cursor', from: [900, 900], to: [300, 300], at: 1, click_at: 2 },
+    { k: 'ring', x: 100, y: 100, w: 200, h: 120, at: 3 },
+    { k: 'toggle', x: 0, y: 700, text: 'Zgoda', on_at: 4 },
+    { k: 'steps', x: 0, y: 800, label: 'Pomysł', total: 3, steps: [[0.3, 1], [2, 2]] },
+    { k: 'stat', x: 600, y: 600, label: 'blizn', count: { to: 100, d: 1, suf: '+' } },
+    { k: 'chip', x: 0, y: 950, text: 'tabliczka', strike_at: 2, pulse_at: [1, 3], hl_at: 1.5 },
+    { k: 'line', from: [0, 0], to: [500, 0], head: 'arrow', packet_at: 1 },
+  ], { bg: 'blobs' });
+  assert.deepEqual(checkScene(sp), []);
+  const h = scene(sp, esc, icon);
+  assert.equal((h.match(/class="w /g) || []).length, 5);  // one span per said word
+  for (const want of [/class="w strk"/, /class="w pill"/, /class="w em"/, /class="w bad"/, /scword \.3s [^ ]+ 1\.97s/, /scblurout \.18s ease-in 5\.00s/,
+    /scburst/, /scpart/, /sccur 0\.70s [^ ]+ 1\.30s/, /scrip \.5s [^ ]+ 2\.00s/, /class="ln" data-bb="76 76 248 168"/, /sctgk \.25s [^ ]+ 4\.00s/,
+    /scfill/, /--w1:66\.7%/, /@keyframes cnt_u[a-z0-9]+\{from\{--cnt:0\}to\{--cnt:100\}\}/, /data-suf="\+"/,
+    /scgrow \.25s [^ ]+ 2\.00s/, /scpulse \.45s [^ ]+ 1\.00s/, /scpulse \.45s [^ ]+ 3\.00s/, /class="ghl"/, /offset-path:path\('M0 0/, /class="blobs"/])
+    assert.match(h, want);
+  assert.doesNotMatch(h, /scpulse[^,"]*both/);  // a pulse never fills: the entrance's end state stays
+});
+
+test('motion pieces: bad times and shapes are named', () => {
+  const bad = checkScene(ok([
+    { k: 'say', x: 0, y: 0, words: [['a', 9]] }, { k: 'cursor', from: [0, 0] }, { k: 'ring', x: 0, y: 0 },
+    { k: 'steps', x: 0, y: 0, total: 0, steps: [] }, { k: 'chip', x: 0, y: 0, strike_at: 7, pulse_at: [1, 99] },
+    { k: 'stat', x: 0, y: 0, count: { from: 0 } }], { bg: 'neon' }));
+  for (const want of ['"words"', '"from" and "to"', '"w" and "h"', '"total"', '"steps"', '"strike_at"', '"pulse_at"', '"count"', '"bg" one of'])
+    assert.ok(bad.some(b => b.includes(want)), `missing: ${want}\n${bad.join('\n')}`);
+});

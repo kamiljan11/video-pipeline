@@ -13,9 +13,16 @@ export const PIP_ZONE = { x: W - 600 - 72 - 60, y: H - 600 - 72 - 20 - 60 };
 // where a framed drawing goes: left of the face circle (PiP on) or the whole frame ("pip": false), with a margin
 export const sceneSafe = sp => (sp.pip === false ? { x: 120, y: 100, w: W - 240, h: H - 200 } : { x: 110, y: 100, w: PIP_ZONE.x - 140, h: H - 200 });
 export const TONES = { acc: 'var(--acc)', ok: '#3ecf8e', bad: '#ff5f57', warn: '#f5b84a', blue: '#6ea8fe', orange: '#ff8a3d', mute: '#8b9096' };
-export const KINDS = ['win', 'file', 'term', 'chip', 'node', 'chat', 'you', 'line', 'stamp', 'text', 'bar', 'stat'];
+export const KINDS = ['win', 'file', 'term', 'chip', 'node', 'chat', 'you', 'line', 'stamp', 'text', 'bar', 'stat', 'check', 'cursor', 'ring', 'say', 'toggle', 'steps'];
+// pieces placed by two points or a box, not by x/y alone
+const FREE = ['line', 'cursor'];
 const ANIMS = { pop: 'scpop .5s cubic-bezier(.2,1.4,.4,1)', up: 'scup .55s cubic-bezier(.2,.9,.2,1)', fade: 'scfade .45s ease-out',
-  left: 'scleft .55s cubic-bezier(.2,.9,.2,1)', right: 'scright .55s cubic-bezier(.2,.9,.2,1)', drop: 'scdrop .6s cubic-bezier(.2,1.3,.4,1)' };
+  left: 'scleft .55s cubic-bezier(.2,.9,.2,1)', right: 'scright .55s cubic-bezier(.2,.9,.2,1)', drop: 'scdrop .6s cubic-bezier(.2,1.3,.4,1)',
+  blur: 'scblur .4s cubic-bezier(.215,.61,.355,1)' };
+// motion budget (render/ref/research/motion.md › 9): word blur-in 0.3 s power3.out, phrase out 0.18 s, cursor move 0.7 s,
+// press 0.09 s, ripple 0.5 s, check ring 0.28 s + tick 0.22 s + burst 0.4 s, highlighter 0.4 s, strike 0.25 s
+const EASE_IN = 'cubic-bezier(.215,.61,.355,1)', EASE_MOVE = 'cubic-bezier(.45,0,.55,1)', EASE_POP = 'cubic-bezier(.34,1.56,.64,1)';
+export const BGS = ['dots', 'blobs'];
 const MOVE = 0.9;      // default seconds a camera move takes, ending at its stop's "t"
 const TYPE_CPS = 28;   // terminal typing speed, characters per second
 const LINE_STEP = 0.09; // terminal output lines come in this far apart
@@ -52,10 +59,24 @@ export function checkScene(sp) {
     if (!e || !KINDS.includes(e.k)) { bad.push(`${n}: "k" must be one of ${KINDS.join(', ')}`); return; }
     for (const key of ['at', 'gone', 'dim'])
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
-    if (e.k === 'line') {
-      const pt = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+    const pt = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+    if (FREE.includes(e.k)) {
       if (!pt(e.from) || !pt(e.to)) bad.push(`${n}: "from" and "to" = [x, y]`);
     } else if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) bad.push(`${n}: "x" and "y" are required`);
+    for (const key of ['click_at', 'on_at', 'out_at', 'strike_at', 'hl_at', 'packet_at'])
+      if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
+    if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
+    if (e.k === 'ring' && !(e.w > 0 && e.h > 0)) bad.push(`${n}: "w" and "h" = the box to circle`);
+    if (e.k === 'say') {
+      if (!Array.isArray(e.words) || !e.words.length || !e.words.every(w => Array.isArray(w) && typeof w[0] === 'string' && typeof w[1] === 'number' && w[1] >= 0 && w[1] < dur))
+        bad.push(`${n}: "words" = [["word", seconds], ...], each said inside the card`);
+    }
+    if (e.k === 'steps') {
+      if (!(Number.isInteger(e.total) && e.total > 0)) bad.push(`${n}: "total" = how many items the list has`);
+      if (!Array.isArray(e.steps) || !e.steps.length || !e.steps.every(s => Array.isArray(s) && s[0] >= 0 && s[0] < dur && Number.isInteger(s[1])))
+        bad.push(`${n}: "steps" = [[seconds, number], ...]`);
+    }
+    if (e.k === 'stat' && e.count !== undefined && !(e.count && Number.isFinite(e.count.to))) bad.push(`${n}: "count" = {"from", "to", "d"} numbers`);
     if (e.k === 'term' && typeof e.cmd !== 'string') bad.push(`${n}: "cmd" = the command, as it was typed`);
     if (e.k === 'term' && e.out !== undefined && !(Array.isArray(e.out) && e.out.every(l => typeof l === 'string'))) bad.push(`${n}: "out" = the real output, a list of lines`);
     if (e.tone !== undefined && !(e.tone in TONES)) bad.push(`${n}: "tone" one of ${Object.keys(TONES).join(', ')}`);
@@ -73,10 +94,11 @@ export function checkScene(sp) {
         if (!ids.has(on)) bad.push(`cam[${i}]: "on" names ${JSON.stringify(on)}, no piece has that "id"`);
     });
   } else if (sp.cam !== undefined && sp.cam !== 'none') bad.push('"cam": a list of stops, "none" or nothing (frame the whole drawing)');
+  if (sp.bg !== undefined && !BGS.includes(sp.bg)) bad.push(`"bg" one of ${BGS.join(', ')}`);
   if (sp.cam === 'none' && sp.pip !== false) {
     // no camera: the frame is the canvas, so a piece reaching into the PiP corner would sit under the face
     (sp.els || []).forEach((e, i) => {
-      if (!e || e.k === 'line' || e.k === 'text' || !Number.isFinite(e.x)) return;
+      if (!e || FREE.includes(e.k) || e.k === 'text' || e.k === 'say' || !Number.isFinite(e.x)) return;
       const w = num(e.w, 0), h = num(e.h, 0);
       if (e.x + w > PIP_ZONE.x && e.y + h > PIP_ZONE.y && w && h) bad.push(`els[${i}] (${e.k}): reaches the face corner (x+w > ${PIP_ZONE.x} and y+h > ${PIP_ZONE.y}); move it or give "pip": false`);
     });
@@ -95,8 +117,13 @@ function row(r, esc, icon, at) {
   return `<div class="row">${hl}${body}${mk}</div>`;
 }
 
+// a short stable id from a piece's spec (keyframes per piece need a unique name; same spec = same name, renders repeat)
+const uid = e => 'u' + Math.abs([...JSON.stringify(e)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)).toString(36);
+const DEF_ANIM = { stamp: 'drop', line: 'fade', check: 'fade', cursor: 'fade', ring: 'fade', say: 'fade', steps: 'blur' };
+
 function piece(e, esc, icon, dur) {
-  const at = num(e.at, 0), anim = ANIMS[e.anim ?? (e.k === 'stamp' ? 'drop' : e.k === 'line' ? 'fade' : 'up')];
+  const at = num(e.at, e.k === 'say' ? Math.max(0, Math.min(...e.words.map(w => w[1])) - 0.05) : 0);
+  const anim = ANIMS[e.anim ?? DEF_ANIM[e.k] ?? 'up'];
   const tn = tone(e.tone);
   let inner = '', cls = e.k, style = `left:${e.x}px;top:${e.y}px;${e.w ? `width:${e.w}px;` : ''}${e.h ? `height:${e.h}px;` : ''}`;
   if (e.k === 'win' || e.k === 'file') {
@@ -132,15 +159,72 @@ function piece(e, esc, icon, dur) {
   } else if (e.k === 'bar') {
     const v = Math.min(Math.max(num(e.v, 1), 0), 1);
     inner = `${e.label ? `<div class="bl">${esc(e.label)}</div>` : ''}<div class="tr"><div class="fl" style="width:${(v * 100).toFixed(1)}%;background:${tn};animation:scgrow ${f2(num(e.d, 1))}s cubic-bezier(.2,.8,.2,1) ${f2(at + 0.3)}s both"></div></div>`;
+  } else if (e.k === 'stat' && e.count) {  // the number counts up to its value while it is said (@property --cnt, seekable)
+    const c = e.count, u = uid(e), d = num(c.d, 1);
+    inner = `<style>@keyframes cnt_${u}{from{--cnt:${Math.round(num(c.from, 0))}}to{--cnt:${Math.round(c.to)}}}</style>`
+      + `<div class="sv cnt" data-pre="${esc(c.pre ?? '')}" data-suf="${esc(c.suf ?? '')}" style="color:${tn};animation:cnt_${u} ${f2(d)}s ${EASE_IN} ${f2(num(c.at, at + 0.2))}s both"></div><div class="sl">${esc(e.label ?? '')}</div>`;
   } else if (e.k === 'stat') {
     inner = `<div class="sv" style="color:${tn}">${esc(e.value ?? '')}</div><div class="sl">${esc(e.label ?? '')}</div>`;
+  } else if (e.k === 'check') {  // ring draws, tick draws, a burst ring and ten sparks fly out (deterministic angles)
+    const sz = num(e.size, 120), r = sz / 2 - 6, c = (2 * Math.PI * r).toFixed(0), tk = (sz * 0.9).toFixed(0);
+    style += `width:${sz}px;height:${sz}px;`;
+    const sparks = Array.from({ length: 10 }, (_, i) => {
+      const a = (i * 36 + 13) * Math.PI / 180, d = sz * (0.62 + 0.09 * (i % 3));
+      return `<i class="pt" style="background:${tn};--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d).toFixed(0)}px;animation:scpart .45s ${EASE_IN} ${f2(at + 0.3)}s both"></i>`;
+    }).join('');
+    inner = `<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}" style="overflow:visible">`
+      + `<circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="${tn}" fill-opacity=".14" stroke="${tn}" stroke-width="7" style="stroke-dasharray:${c};stroke-dashoffset:${c};transform:rotate(-90deg);transform-origin:center;animation:scdraw .28s ${EASE_MOVE} ${f2(at)}s forwards"/>`
+      + `<path d="M${f2(sz * 0.3)} ${f2(sz * 0.52)} L${f2(sz * 0.45)} ${f2(sz * 0.66)} L${f2(sz * 0.72)} ${f2(sz * 0.36)}" fill="none" stroke="${tn}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:${tk};stroke-dashoffset:${tk};animation:scdraw .22s ${EASE_MOVE} ${f2(at + 0.26)}s forwards"/></svg>`
+      + `<i class="bst" style="border-color:${tn};animation:scburst .4s ${EASE_IN} ${f2(at + 0.3)}s both"></i>${sparks}`;
+  } else if (e.k === 'cursor') {  // moves from -> to, arriving at click_at; presses; a ripple where it clicked
+    const [x1, y1] = e.from, [x2, y2] = e.to, ca = num(e.click_at, at + 0.75), mv = Math.min(0.7, Math.max(0.2, ca - at - 0.05));
+    const gone = e.gone !== undefined ? `,scfadeout .3s ease-in ${f2(e.gone)}s forwards` : '';
+    return `<div class="p cursor"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1) + 60} ${Math.abs(y2 - y1) + 60}" style="left:0;top:0">`
+      + `<i class="rip" style="left:${x2}px;top:${y2}px;border-color:${tn};animation:scrip .5s ${EASE_IN} ${f2(ca)}s both"></i>`
+      + `<div class="cur" style="--fx:${x1}px;--fy:${y1}px;--tx:${x2}px;--ty:${y2}px;animation:scfade .2s ${f2(at)}s both,sccur ${f2(mv)}s ${EASE_MOVE} ${f2(ca - mv)}s both${gone}">`
+      + `<svg viewBox="0 0 32 32" style="animation:scpress .18s ease-out ${f2(ca)}s"><path d="M5 3 L5 26 L11 20 L15 29 L19 27 L15 18 L23 18 Z" fill="#fff" stroke="#0c0d0f" stroke-width="2" stroke-linejoin="round"/></svg></div></div>`;
+  } else if (e.k === 'ring') {  // a hand-drawn circle around a box: one turn and a bit, the radius wobbling a few per cent
+    const pad = num(e.pad, 24), cx = e.x + e.w / 2, cy = e.y + e.h / 2, rx = e.w / 2 + pad, ry = e.h / 2 + pad;
+    const pts = Array.from({ length: 57 }, (_, i) => {
+      const a = -2.2 + (i / 50) * 2 * Math.PI, w = 1 + 0.03 * Math.sin(i * 1.7);
+      return `${(cx + Math.cos(a) * rx * w).toFixed(1)} ${(cy + Math.sin(a) * ry * w * (1 + (i / 56) * 0.05)).toFixed(1)}`;
+    });
+    const len = (Math.PI * (rx + ry) * 1.2).toFixed(0), gone = e.gone !== undefined ? `;animation:scfadeout .3s ease-in ${f2(e.gone)}s forwards` : '';
+    return `<svg class="ln"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${e.x - pad} ${e.y - pad} ${e.w + 2 * pad} ${e.h + 2 * pad}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}"><path d="M${pts.join(' L')}" stroke="${tn}" style="stroke-width:7;stroke-dasharray:${len};stroke-dashoffset:${len};animation:scdraw ${f2(num(e.d, 0.6))}s ${EASE_MOVE} ${f2(at)}s forwards"/></svg>`;
+  } else if (e.k === 'say') {  // a kinetic line: each word blurs in when it is said; *em* serif accent, [pill], ~strike~, !red!
+    style += `font-size:${num(e.size, 84)}px;${e.w ? '' : 'white-space:nowrap;'}`;
+    inner = e.words.map(([w, t]) => {
+      const m = /^([*[~!])(.+)([*\]~!])$/.exec(w), cls = m ? { '*': 'em', '[': 'pill', '~': 'strk', '!': 'bad' }[m[1]] : '', txt = m ? m[2] : w;
+      const extra = cls === 'pill' ? `<i class="hlp" style="background:${tn};animation:scgrow .4s ${EASE_IN} ${f2(t + 0.15)}s both"></i>`
+        : cls === 'strk' ? `<i class="sk2" style="animation:scgrow .25s ${EASE_MOVE} ${f2(t + 0.35)}s both"></i>` : '';
+      return `<span class="w ${cls}" style="animation:scword .3s ${EASE_IN} ${f2(Math.max(0, t - 0.03))}s both">${extra}<span>${esc(txt)}</span></span>`;
+    }).join(' ');
+  } else if (e.k === 'toggle') {  // a switch flips on at on_at: knob slides with a little overshoot, the track takes the colour
+    const on = num(e.on_at, at + 0.8);
+    inner = `<span class="tg"><i class="tgb" style="--on:${tn};animation:sctgbg .2s ${EASE_MOVE} ${f2(on)}s both"></i><i class="tgk" style="animation:sctgk .25s ${EASE_POP} ${f2(on)}s both"></i></span>${e.text ? `<span class="tgl">${esc(e.text)}</span>` : ''}`;
+  } else if (e.k === 'steps') {  // a progress pill "label N / total": the number changes and the bar grows at each step
+    const st = e.steps;
+    const nums = st.map(([t, n], i) => `<b class="sn" style="animation:scfade .15s ${f2(t)}s both${i + 1 < st.length ? `,scfadeout .12s ${f2(st[i + 1][0])}s forwards` : ''}">${n}</b>`).join('');
+    const fills = st.map(([t, n], i) => `<i class="sf" style="background:${tn};--w0:${(((st[i - 1]?.[1]) ?? 0) / e.total * 100).toFixed(1)}%;--w1:${(n / e.total * 100).toFixed(1)}%;animation:scfill .35s ${EASE_IN} ${f2(t)}s both"></i>`).join('');
+    inner = `<span class="stl">${esc(e.label ?? '')}</span><span class="sbox">${nums}</span><span class="stot">/ ${e.total}</span><span class="str">${fills}</span>`;
   } else if (e.k === 'line') {
     const [x1, y1] = e.from, [x2, y2] = e.to, len = Math.hypot(x2 - x1, y2 - y1) * 1.3 + 40;
     const c = num(e.curve, 0.35), mx = x1 + (x2 - x1) * c, d = `M${x1} ${y1} C${mx} ${y1},${x2 - (x2 - x1) * c} ${y2},${x2} ${y2}`;
-    const head = e.arrow === false ? '' : `<circle cx="${x2}" cy="${y2}" r="9" fill="${tn}" style="animation:scfade .2s ${f2(at + num(e.d, 0.7))}s both"/>`;
-    return `<svg class="ln"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1)} ${Math.abs(y2 - y1)}" viewBox="0 0 ${W} ${H}" style="overflow:visible"><path d="${d}" stroke="${tn}" style="stroke-dasharray:${len.toFixed(0)};stroke-dashoffset:${len.toFixed(0)};animation:scdraw ${f2(num(e.d, 0.7))}s cubic-bezier(.4,0,.2,1) ${f2(at)}s forwards"/>${head}</svg>`;
+    let dx = (x2 - x1) * c, dy = 0;  // the curve ends level with its last control point; a straight vertical line has no such tangent
+    if (Math.abs(dx) < 1) { dx = x2 - x1; dy = y2 - y1; }
+    const ang = (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1), hat = f2(at + num(e.d, 0.7) - 0.05);
+    const head = e.arrow === false ? '' : e.head === 'arrow'
+      ? `<g transform="translate(${x2} ${y2}) rotate(${ang})"><path d="M4 0 L-30 -17 L-22 0 L-30 17 Z" fill="${tn}" style="transform-box:fill-box;transform-origin:right center;animation:scpop .14s ${EASE_POP} ${hat}s both"/></g>`
+      : `<circle cx="${x2}" cy="${y2}" r="9" fill="${tn}" style="animation:scfade .2s ${f2(at + num(e.d, 0.7))}s both"/>`;
+    const pk = e.packet_at !== undefined ? `<i class="pk" style="background:${tn};color:${tn};offset-path:path('${d}');animation:scpath ${f2(num(e.packet_d, 0.8))}s ${EASE_MOVE} ${f2(e.packet_at)}s both"></i>` : '';
+    return `<svg class="ln"${e.id ? ` data-id="${esc(e.id)}"` : ''} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1)} ${Math.abs(y2 - y1)}" viewBox="0 0 ${W} ${H}" style="overflow:visible"><path d="${d}" stroke="${tn}" style="stroke-dasharray:${len.toFixed(0)};stroke-dashoffset:${len.toFixed(0)};animation:scdraw ${f2(num(e.d, 0.7))}s cubic-bezier(.4,0,.2,1) ${f2(at)}s forwards"/>${head}</svg>${pk}`;
   }
+  if (e.hl_at !== undefined) inner = `<i class="ghl" style="background:${tn};animation:scgrow .4s ${EASE_IN} ${f2(e.hl_at)}s both"></i><span class="ght">${inner}</span>`;
+  if (e.strike_at !== undefined) inner += `<i class="gstrk" style="animation:scgrow .25s ${EASE_MOVE} ${f2(e.strike_at)}s both"></i>`;
   const outs = [`${anim} ${f2(at)}s both`];
+  for (const t of [].concat(e.pulse_at ?? [])) outs.push(`scpulse .45s ${EASE_POP} ${f2(t)}s`);  // no fill: the entrance's end state stays
+  if (e.strike_at !== undefined) outs.push(`scdimh .25s ease-out ${f2(e.strike_at + 0.1)}s forwards`);
+  if (e.out_at !== undefined) outs.push(`scblurout .18s ease-in ${f2(e.out_at)}s forwards`);
   if (e.dim !== undefined) outs.push(`scdim .4s ease-out ${f2(e.dim)}s forwards`);
   if (e.gone !== undefined) outs.push(`scgone .35s ease-in ${f2(e.gone)}s forwards`);
   return `<div class="p ${cls}"${e.id ? ` data-id="${esc(e.id)}"` : ''} style="${style}"><div class="pi" style="animation:${outs.join(',')}">${inner}</div></div>`;
@@ -152,7 +236,8 @@ export function scene(sp, esc, icon) {
   const safeIcon = n => { try { return icon(n); } catch { throw new Error(`"${sp.id}": no icon "${n}" in lucide-static`); } };
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
   const world = sp.els.map(e => piece(e, esc, safeIcon, sp.dur)).join('');
-  return `${SCENE_CSS}<div class="scene"><div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"` : ''}>${world}</div></div>`;
+  const bg = sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
+  return `${SCENE_CSS}<div class="scene">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"` : ''}>${world}</div></div>`;
 }
 
 // in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
@@ -190,7 +275,42 @@ const SCENE_CSS = `<style>
 .scene{position:absolute;inset:0;overflow:hidden;background:#0c0d0f;background-image:radial-gradient(rgba(255,255,255,.055) 2px,transparent 2.5px);background-size:56px 56px;animation:scfade .35s both}
 .scene .world{position:absolute;left:0;top:0;width:${W}px;height:${H}px;transform-origin:0 0}
 .scene .p{position:absolute}
-.scene .pi{width:100%;height:100%}
+.scene .pi{position:relative;width:100%;height:100%}
+.scene .blobs i{position:absolute;width:1200px;height:1200px;border-radius:50%;filter:blur(110px);opacity:.30}
+.scene .blobs .b1{left:-300px;top:-420px;background:var(--acc);animation:scb1 17s ease-in-out infinite alternate}
+.scene .blobs .b2{left:1500px;top:200px;background:#6ea8fe;animation:scb2 21s ease-in-out infinite alternate}
+.scene .blobs .b3{left:500px;top:820px;background:#a78bfa;opacity:.22;animation:scb3 15s ease-in-out infinite alternate}
+.scene .ghl{position:absolute;left:-14px;right:-14px;top:10%;bottom:4%;border-radius:14px;opacity:.32;transform-origin:left;transform:rotate(-1deg)}
+.scene .ght{position:relative}
+.scene .gstrk{position:absolute;left:-8px;right:-8px;top:50%;height:9px;margin-top:-4px;border-radius:5px;background:#ff5f57;transform-origin:left}
+.scene .check .pi{overflow:visible}
+.scene .check .bst{position:absolute;inset:0;border:5px solid;border-radius:50%}
+.scene .check .pt{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%}
+.scene .cursor{width:0;height:0}
+.scene .cur{position:absolute;left:0;top:0;width:76px;height:76px}
+.scene .cur svg{width:76px;height:76px;transform-origin:16% 10%;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+.scene .rip{position:absolute;width:90px;height:90px;margin:-45px 0 0 -45px;border:6px solid;border-radius:50%}
+.scene .say .pi{font-weight:800;line-height:1.15;letter-spacing:-1px;color:#f1f2f4}
+.scene .say .w{position:relative;display:inline-block}
+.scene .say .w>span{position:relative}
+.scene .say .w.em>span{font-family:Georgia,'DejaVu Serif',serif;font-style:italic;font-weight:700;color:var(--acc)}
+.scene .say .w.bad>span{color:#ff5f57}
+.scene .say .w.strk>span{opacity:.6}
+.scene .say .hlp{position:absolute;left:-10px;right:-10px;top:12%;bottom:4%;border-radius:12px;opacity:.38;transform-origin:left;transform:rotate(-1deg)}
+.scene .say .sk2{position:absolute;left:-4px;right:-4px;top:52%;height:9px;border-radius:5px;background:#ff5f57;transform-origin:left}
+.scene .toggle .pi{display:inline-flex;align-items:center;gap:26px;width:auto;height:auto;color:#eef0f2;font-weight:700;font-size:46px;white-space:nowrap}
+.scene .tg{position:relative;width:132px;height:72px;flex:none}
+.scene .tgb{position:absolute;inset:0;border-radius:36px;background:#3a3e45}
+.scene .tgk{position:absolute;left:8px;top:8px;width:56px;height:56px;border-radius:50%;background:#fff;box-shadow:0 4px 10px rgba(0,0,0,.4)}
+.scene .steps .pi{display:inline-flex;align-items:center;gap:16px;width:auto;height:auto;padding:18px 36px 24px;background:#16181c;border:2px solid #2a2d33;border-radius:999px;color:#eef0f2;font-weight:700;font-size:44px;white-space:nowrap;overflow:hidden}
+.scene .sbox{position:relative;display:inline-block;width:1.6em;height:1.2em}
+.scene .sn{position:absolute;right:0;top:0;color:var(--acc)}
+.scene .stot{color:#8b9096}
+.scene .str{position:absolute;left:0;right:0;bottom:0;height:8px;background:#23262b}
+.scene .sf{position:absolute;left:0;top:0;bottom:0}
+.scene .pk{position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;box-shadow:0 0 26px currentColor}
+.scene .sv.cnt{counter-reset:cnt var(--cnt)}
+.scene .sv.cnt::after{content:attr(data-pre) counter(cnt) attr(data-suf)}
 .scene .win .pi,.scene .file .pi,.scene .term .pi{background:#16181c;border:2px solid #2a2d33;border-radius:22px;box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:hidden}
 .scene .tb{display:flex;align-items:center;gap:14px;height:80px;padding:0 28px;border-bottom:2px solid #24272c;color:#c9ccd1;font-weight:600;font-size:36px}
 .scene .tb i{width:18px;height:18px;border-radius:50%;background:#ff5f57}.scene .tb i:nth-child(2){background:#febc2e}.scene .tb i:nth-child(3){background:#28c840;margin-right:14px}
@@ -250,4 +370,23 @@ const SCENE_CSS = `<style>
 @keyframes scgrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes sctype{from{width:0}to{width:calc(var(--n) * 1ch)}}
 @keyframes scdraw{to{stroke-dashoffset:0}}
+@property --cnt{syntax:'<integer>';inherits:false;initial-value:0}
+@keyframes scblur{from{opacity:0;filter:blur(12px);transform:translateX(24px)}to{opacity:1;filter:none;transform:none}}
+@keyframes scword{from{opacity:0;filter:blur(12px);transform:translateX(24px)}to{opacity:1;filter:none;transform:none}}
+@keyframes scblurout{to{opacity:0;filter:blur(8px);transform:translateY(-8px)}}
+@keyframes scfadeout{to{opacity:0}}
+@keyframes scdimh{to{opacity:.55}}
+@keyframes scpulse{0%{transform:none}40%{transform:scale(1.09)}100%{transform:none}}
+@keyframes scpart{from{opacity:1;transform:none}to{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.4)}}
+@keyframes scburst{from{opacity:.6;transform:scale(.6)}to{opacity:0;transform:scale(1.6)}}
+@keyframes sccur{from{transform:translate(var(--fx),var(--fy))}to{transform:translate(var(--tx),var(--ty))}}
+@keyframes scpress{0%{transform:none}50%{transform:scale(.86)}100%{transform:none}}
+@keyframes scrip{from{opacity:.6;transform:scale(0)}to{opacity:0;transform:scale(2.4)}}
+@keyframes sctgbg{to{background:var(--on)}}
+@keyframes sctgk{to{transform:translateX(60px)}}
+@keyframes scfill{from{width:var(--w0)}to{width:var(--w1)}}
+@keyframes scpath{0%{offset-distance:0%;opacity:0}8%{opacity:1}88%{opacity:1}100%{offset-distance:100%;opacity:0}}
+@keyframes scb1{to{transform:translate(160px,120px)}}
+@keyframes scb2{to{transform:translate(-180px,-100px)}}
+@keyframes scb3{to{transform:translate(120px,-140px)}}
 </style>`;
