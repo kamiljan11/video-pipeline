@@ -88,6 +88,17 @@ bash run_v4.sh <project>/work <project>/out long short1
 A project directory holds the recording, `words.json` (transcript), `plan_<film>.json` and `gfx_specs.json`; renders
 and caches go to `render/` (ignored by git). Recordings, transcripts and renders are never committed.
 
+A full render (a long with ~100 cards) peaks at tens of GB. Run it in its own memory-capped unit, so a blow-up kills
+the render and not the desktop session or the terminal it was started from:
+
+```bash
+systemd-run --user --unit=vp-render --collect -p MemoryMax=60G -p MemorySwapMax=0 --setenv=PATH="$PATH" \
+  bash run_v4.sh <project>/work <project>/out long
+```
+
+`assemble.py` writes the exact stage-2 ffmpeg command to `<out>/assemble.args.json`, so a killed render can be rerun
+and measured by hand (`/usr/bin/time -v ffmpeg ...`). Why the card inputs carry `CARD_IN`: comment in `assemble.py`.
+
 ## Install with Claude Code
 
 The pipeline is a Linux tool (developed on Ubuntu 26.04). Nobody has installed it on another machine yet, so expect a
