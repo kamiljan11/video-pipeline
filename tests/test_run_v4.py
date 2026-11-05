@@ -91,6 +91,33 @@ class RunV4GateTest(unittest.TestCase):
         self.assertIn("FAILED scene_check rc=124 (timeout 1 s", render)
         self.assertNotIn("render.mjs", calls)
 
+    def test_missing_out_folder_stops_before_any_step(self):
+        self.out.rmdir()
+        render, calls = self.run_v4(rc=2)
+        self.assertIn(f"FAILED out: no writable folder {self.out}", render)
+        self.assertIn("FAILED_FILMS x", render)
+        self.assertEqual(calls, [])
+
+    def run_from(self, cwd: Path, out: str, rc: int) -> str:
+        r = subprocess.run(["bash", str(self.vp / "run_v4.sh"), str(self.work), out, "x"], cwd=cwd, check=False, timeout=60,
+                           env={**os.environ, "RUNV4_LOG": str(self.tmp / "calls.log")}, capture_output=True, text=True)
+        self.assertEqual(r.returncode, rc, r.stderr)
+        return (self.vp / "render" / "render.log").read_text()
+
+    def test_a_relative_out_counts_from_the_work_folder(self):
+        """the 2026-11-05 incident: OUT relative to the caller's folder is not there after the cd into WORK"""
+        render = self.run_from(self.tmp, "out", rc=2)  # tmp/out exists, but work/out does not
+        self.assertIn("FAILED out: no writable folder out seen from", render)
+        self.assertIn("a relative OUT counts from the work folder", render)
+        self.assertIn("DONE x", self.run_from(self.tmp, "../out", rc=0))  # relative to WORK: found
+
+    def test_read_only_out_folder_stops_too(self):
+        self.out.chmod(0o555)
+        self.addCleanup(self.out.chmod, 0o755)
+        render, calls = self.run_v4(rc=2)
+        self.assertIn("FAILED out: no writable folder", render)
+        self.assertEqual(calls, [])
+
     def test_failed_film_check_renders_nothing(self):
         render, calls = self.run_v4(rc=1, FAIL_film_check="1")
         self.assertIn("FAILED film_check x", render)

@@ -4,6 +4,10 @@
 WORK=$1; OUT=$2; shift 2
 VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
+# the films are moved to OUT at the very end: a relative OUT counts from WORK (after the cd), so check it before 20 min of
+# render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
+{ [ -d "$OUT" ] && [ -w "$OUT" ]; } || { echo "FAILED out: no writable folder $OUT seen from $WORK (a relative OUT counts from the work folder)" | tee -a "$R/render.log" >&2
+  echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 2; }
 # fail-fast for every film (ADR-0002): a failed step never renders a stale or unclamped EDL, the film gets no DONE
 # scenes laid out in Chrome first: two pieces covering each other on screen (labels run together) stop the run, named.
 # timeout: a hung Chrome must not hold the run without a log line. SCENE_CHECK=off (logged) only for a clash judged false
