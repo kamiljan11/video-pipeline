@@ -319,5 +319,17 @@ class FilmCheckTest(unittest.TestCase):
         with self.assertRaises(TypeError): film_check.judge(Obj(), {"id": "x.y", "metric": "metric", "op": "true"})
 
 
+    def test_a_short_ends_on_its_last_word(self):
+        sys.path.insert(0, str(ROOT))
+        import film_check
+        f = film_check.Film.__new__(film_check.Film)
+        f.specs, f.ovs, f.edl = {"e": {"type": "end"}}, [], {"tail": 0}
+        self.assertTrue(f.ends_on_the_last_word()[0])
+        f.edl = {"tail": 3}
+        self.assertFalse(f.ends_on_the_last_word()[0])  # a 3 s end screen
+        f.edl, f.ovs = {"tail": 0}, [{"id": "e", "at": 40.0, "dur": 3.5}]
+        self.assertFalse(f.ends_on_the_last_word()[0])  # an end card
+
+
 if __name__ == "__main__":
     unittest.main()

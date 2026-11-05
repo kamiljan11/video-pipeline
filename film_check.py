@@ -274,6 +274,12 @@ class Film:
     def music_moods(self): return len(self.plan.get("music_moods") or [])
     def sfx_style_v2(self): return self.plan.get("sfx_style") == "v2"
     def has_end_card(self): return any(self.typ(o) == "end" for o in self.ovs)
+
+    def ends_on_the_last_word(self, tail_max=0.6):
+        """a short stops right after its last word and loops: no end card, no end screen (REF-shorts-top T8: 30/30 top shorts
+        end 0.23 s after the last word, none shows an end board)"""
+        tail = float(self.edl.get("tail", 0) or 0)
+        return (tail <= tail_max and not self.has_end_card()), f"tail {tail:.1f} s, end card {self.has_end_card()}"
     def hook_text(self):  # the hook line from the plan (ASS) or a card on screen from the first half second
         return bool(str(self.plan.get("hook_text", "")).strip()) or any(o["at"] <= 0.5 for o in self.ovs)
     def first_overlay_at(self): return 0.0 if self.hook_text() else round(min((o["at"] for o in self.ovs), default=self.len), 2)
