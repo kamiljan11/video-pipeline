@@ -37,6 +37,7 @@ def _style() -> tuple[int, float, str, float]:
 # SIDE_MAX_ELS: a scene of this many pieces or fewer is drawn beside him (layout "side"); SHIFT_MAX: a card with no room after
 # it may start this much earlier; SPEAKER_BACK: between two separate screens he is back this long, or the two become one block
 SIDE_MAX_ELS, SHIFT_MAX, RECAP, SPEAKER_BACK = _style()
+TIED = ("line", "cursor", "ring")  # scene_lib.mjs TIED: pieces placed against another piece, not stackable in a column
 SHIFTABLE = ("kw", "count", "sticker", "float")  # cards whose inner timing is only a top-level "at" list (or none)
 # RECAP: id prefix of a recap map (plan builders name them m1_mapa, m2_…), dropped when it has no room to be read
 
@@ -60,7 +61,8 @@ def goes_beside(sp: dict) -> bool:
     if sp.get("canvas") == "v": return False
     if sp["type"] == "meme": return has_sticker(str(sp.get("meme")))  # no crops: the meme stays a whole picture
     return (sp["type"] == "scene" and len(sp.get("els") or []) <= SIDE_MAX_ELS and sp.get("pip") is not False
-            and sp.get("cam") != "none")  # scene_lib.checkScene refuses layout "side" with cam "none"
+            and sp.get("cam") != "none"  # scene_lib.checkScene refuses layout "side" with cam "none"
+            and not any(e.get("k") in TIED for e in sp.get("els") or []))  # stacked into a column beside him (scene_lib col)
 
 
 def screen_pass(cards: list[tuple[float, dict]], drop: dict[str, str] | None = None, log=print):

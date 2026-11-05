@@ -24,3 +24,10 @@ test('on-screen window: first moment (at, said words, messages) to gone or the e
   assert.deepEqual(window_({ msgs: [{ at: 3 }], gone: 5 }, 8), [3, 5]);
   assert.deepEqual(window_({}, 8), [0, 8]);
 });
+
+test('two chips with words overlapping a little still clash (Kamil 2026-11-05: "nałożyły się na siebie elementy")', () => {
+  // s06_ksiazka: "drugi sprawdza" ran 40 px under "trzeci pilnuje wdrożenia", 7 % of the smaller box, under the share rule
+  const s = sp([{ k: 'chip', id: 'b', text: 'drugi sprawdza', at: 0 }, { k: 'chip', id: 'c', text: 'trzeci pilnuje wdrożenia', at: 0 }]);
+  const out = clashes(s, [{ i: 0, x: 580, y: 780, w: 540, h: 102 }, { i: 1, x: 1080, y: 780, w: 760, h: 102 }]);
+  assert.equal(out.length, 1); assert.match(out[0], /b \(chip "drugi sprawdza"\) covers c/);
+});

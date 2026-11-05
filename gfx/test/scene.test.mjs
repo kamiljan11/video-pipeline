@@ -130,9 +130,19 @@ test('a 16:9 side scene sits on a board right of the speaker, see-through elsewh
   const safe = sceneSafe(sp);
   assert.ok(safe.x >= 1600 && safe.x + safe.w <= 2560 && safe.y + safe.h <= 1440, JSON.stringify(safe));  // right of the head (x <= 0.61 W)
   const h = scene(sp, esc, icon);
-  assert.match(h, /class="scene side"/);
+  assert.match(h, /class="scene side col"/);
   assert.match(h, /class="board" style="left:1640px/);
   assert.doesNotMatch(h, /class="blobs"/);
   for (const [more, want] of [[{ layout: 'split' }, '"layout" = "side"'], [{ layout: 'side', cam: 'none' }, '"cam": "none" has no place']])
     assert.ok(checkScene(ok([{ k: 'chip', x: 0, y: 0, text: 'x' }], more)).some(b => b.includes(want)), want);
+});
+
+test('beside the speaker the pieces stack in one column in reading order; a scene with a line keeps its drawing', () => {
+  // Kamil 2026-11-05: a wide row shrunk into the side field cannot be read on a phone: "większe i pionowo narysowane"
+  const row = ok(['a', 'b', 'c', 'd'].map((t, i) => ({ k: 'chip', id: t, x: 120 + 400 * i, y: 500, text: `Zadanie ${i + 1}` })), { layout: 'side' });
+  const h = scene({ ...row, els: [...row.els].reverse() }, esc, icon);
+  assert.match(h, /class="scene side col"/);
+  assert.ok(h.indexOf('Zadanie 1') < h.indexOf('Zadanie 4'));  // left to right becomes top to bottom
+  const tied = scene({ ...row, els: [...row.els, { k: 'line', from: [10, 10], to: [400, 300], at: 1 }] }, esc, icon);
+  assert.match(tied, /class="scene side"/);
 });

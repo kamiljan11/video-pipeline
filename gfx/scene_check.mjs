@@ -9,6 +9,8 @@ import { esc, icon } from './html_lib.mjs';
 
 // pieces meant to sit on others: a stamp lands on a card, a check or ring marks it, a cursor points at it, a line joins them
 export const OVERLAY_KINDS = new Set(['stamp', 'check', 'ring', 'cursor', 'line']);
+const TEXT_KINDS = new Set(['chip', 'text', 'say', 'stat', 'steps', 'toggle', 'node', 'you']);  // pieces that carry words
+const TOUCH = 8;  // px: borders that touch or graze are fine (a sliver, test)
 
 // seconds a piece is on screen: from its first moment to "gone" (or the end of the card)
 export function window_(e, dur) {
@@ -30,7 +32,10 @@ export function clashes(sp, rects, share = 0.12) {
     const ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
     if (ix <= 0 || iy <= 0) continue;
     const small = Math.min(A.w * A.h, B.w * B.h);
-    if (small > 0 && (ix * iy) / small > share) out.push(`${sp.id}: ${name(A.i)} covers ${name(B.i)} (${Math.round(ix)}x${Math.round(iy)} px)`);
+    // two pieces with words: any overlap cuts a word (Kamil 2026-11-05: "nałożyły się na siebie elementy", a chip 5 % over
+    // the next one, under the share rule)
+    const words = TEXT_KINDS.has(ea.k) && TEXT_KINDS.has(eb.k) && ix > TOUCH && iy > TOUCH;
+    if (words || (small > 0 && (ix * iy) / small > share)) out.push(`${sp.id}: ${name(A.i)} covers ${name(B.i)} (${Math.round(ix)}x${Math.round(iy)} px)`);
   }
   return out;
 }

@@ -20,6 +20,9 @@ export const sceneSafe = sp => (sp.canvas === 'v' ? { x: 60, y: 130, w: 960, h: 
   : sp.layout === 'side' ? { x: SIDE.x + 40, y: SIDE.y + 40, w: SIDE.w - 80, h: SIDE.h - 80 }
   : sp.pip === false ? { x: 120, y: 100, w: W - 240, h: H - 200 } : { x: 110, y: 100, w: PIP_ZONE.x - 140, h: H - 200 });
 export const TONES = { acc: 'var(--acc)', ok: '#3ecf8e', bad: '#ff5f57', warn: '#f5b84a', blue: '#6ea8fe', orange: '#ff8a3d', mute: '#8b9096' };
+// pieces tied to another piece's place (a line between two, a cursor path, a ring around a box): a scene with one stays laid
+// out as drawn, so it cannot be stacked into the column beside the speaker (screen_grammar keeps it full screen)
+export const TIED = ['line', 'cursor', 'ring'];
 export const KINDS = ['win', 'file', 'term', 'chip', 'node', 'chat', 'you', 'line', 'stamp', 'text', 'bar', 'stat', 'check', 'cursor', 'ring', 'say', 'toggle', 'steps'];
 // pieces placed by two points or a box, not by x/y alone
 const FREE = ['line', 'cursor'];
@@ -295,11 +298,16 @@ export function scene(sp, esc, icon) {
   if (bad.length) throw new Error(`"${sp.id}": scene: ${bad.join('; ')}`);
   const safeIcon = n => { try { return icon(n); } catch { throw new Error(`"${sp.id}": no icon "${n}" in lucide-static`); } };
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
-  const world = sp.els.map(e => piece(e, esc, safeIcon)).join('');
   const side = sp.layout === 'side' && sp.canvas !== 'v';
+  // beside the speaker the pieces stack in one column in reading order (top to bottom, then left to right), so the
+  // camera fits a tall narrow block into the tall narrow board and the text stays big (Kamil 2026-11-05: on a phone held
+  // sideways a wide drawing shrunk into the side field cannot be read; "większe i pionowo narysowane")
+  const col = side && sp.els.every(e => !TIED.includes(e.k));
+  const els = col ? [...sp.els].sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0)) : sp.els;
+  const world = els.map(e => piece(e, esc, safeIcon)).join('');
   const bg = side ? `<div class="board" style="left:${SIDE.x}px;top:${SIDE.y}px;width:${SIDE.w}px;height:${SIDE.h}px"></div>`
     : sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
-  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
+  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}${col ? ' col' : ''}">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
 }
 
 // in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
@@ -346,6 +354,8 @@ export function sceneFit(safe, kfSrc, soloSrc) {
 const SCENE_CSS = `<style>
 .scene{position:absolute;inset:0;overflow:hidden;background:#0c0d0f;background-image:radial-gradient(rgba(255,255,255,.055) 2px,transparent 2.5px);background-size:56px 56px;animation:scfade .35s both}
 .scene.side{background:none}
+.scene.col .world{display:flex;flex-direction:column;align-items:flex-start;gap:48px;padding:60px}
+.scene.col .p{position:relative;left:auto!important;top:auto!important;flex:none}
 .scene.side .board{position:absolute;border-radius:48px;background:rgba(12,13,15,.72);box-shadow:0 30px 90px rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.08);animation:scboard .5s cubic-bezier(.2,1.3,.4,1) both}
 @keyframes scboard{from{opacity:0;transform:translateX(80px) scale(.92)}to{opacity:1;transform:none}}
 .scene .world{position:absolute;left:0;top:0;width:${W}px;height:${H}px;transform-origin:0 0}

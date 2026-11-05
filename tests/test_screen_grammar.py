@@ -42,6 +42,9 @@ class ScreenPassTest(unittest.TestCase):
         self.assertEqual(out["m2"]["type"], "meme")
         out, _, _ = self.run_pass([(0.0, scene("s4", 3, 8, cam="none"))])
         self.assertNotIn("layout", out["s4"])  # scene_lib refuses layout "side" with cam "none"
+        tied = {"id": "s5", "type": "scene", "dur": 8, "els": [{"k": "chip", "text": "a"}, {"k": "line", "from": [0, 0], "to": [9, 9]}]}
+        out, _, _ = self.run_pass([(0.0, tied)])
+        self.assertNotIn("layout", out["s5"])  # a line ties two pieces: it cannot stack into the column beside him
 
     def test_a_card_is_held_to_its_reading_time_and_starts_earlier_when_it_must(self):
         kw = {"id": "k1", "type": "kw", "dur": 2.0, "text": "jedno dwa trzy cztery pięć sześć"}  # needs 1.2 x 4 + 0.35 x 2 = 5.5
