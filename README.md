@@ -215,6 +215,12 @@ na innej maszynie uruchamiaj `ruff check . && pyright` ręcznie.
 od 2026-10-24 (ADR-0007). Nagrania, transkrypcje, plany i rendery NIE idą do gita (`.gitignore`): kopii poza laptopem nie mają.
 **Dysk:** od 2026-10-24 `~/video-pipeline` i `~/Videos` to symlinki do `~/Dane/...` (dysk Dane, LUKS, montowany przy starcie z
 `/etc/crypttab`); ścieżki w skryptach i planach się nie zmieniły. Panel kluczuje swoje katalogi po ścieżce rozwiązanej (`render/panel/*/<klucz>`).
+**Po filmie (Kamil 2026-11-05):** gotowy film żyje w chmurze, więc stary projekt (`render/montaz/<data>`, `render/<film>`, karty,
+cięcia) na laptopie nie zostaje: usuwamy go, gdy Kamil potwierdzi, że film jest w chmurze. Film w toku sprzątamy w całości po
+akceptacji, nigdy po kawałku: spis kart w EDL to nie wszystkie używane pliki (`behind.py` czyta `<id>.front.mov`, którego żaden EDL
+nie wymienia). Jeden film zostawia ok. 50-60 GB pamięci podręcznej, a Dane ma 196 GB: przed dużym renderem `df -h ~/Dane`.
+**Miniatury A/B:** każdy film dostaje co najmniej 2 warianty miniatury longa i okładkę każdego shorta; pilnuje tego
+`film_check.py --out` (punkt `out.thumbs` w `style/checklist.json`).
 
 Testy skryptów: `cd panel && .venv/bin/python -m unittest discover -s tests` (strażnik zgodności: bez nowych kluczy planu
 wynik identyczny jak `panel/tests/pipeline_baseline/*.py.orig`). Lint: `ruff check .`, `pyright` (pre-commit).
