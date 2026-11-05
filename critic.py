@@ -26,7 +26,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import edges
-from gfx_types import SIDE_BOX
+from gfx_types import SIDE_BOX, beside
 
 args = sys.argv[1:]; plan_p = args[0]; FIX = "--fix" in args
 video = args[args.index("--video") + 1] if "--video" in args else None
@@ -74,7 +74,8 @@ acc = 0.0
 for s in segs:
     d = s["out"] - s["in"]; z = s["zoom"]
     for o in ov:
-        if specs.get(o["id"], {}).get("type") not in SIDE_BOX or specs.get(o["id"], {}).get("canvas") == "v": continue
+        sp = specs.get(o["id"], {})
+        if sp.get("type") not in SIDE_BOX or sp.get("canvas") == "v" or beside(sp): continue  # beside the head: zoom allowed
         a0, a1 = max(acc, o["at"]), min(acc + d, o["at"] + o["dur"])  # overlap window in output time
         if a1 <= a0: continue
         if isinstance(z, dict):  # zoom value only during the overlap: a before t0, rising to b after

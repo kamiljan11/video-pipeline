@@ -13,6 +13,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+import gfx_types  # next to this script: HEADROOM, shared with assemble.py's picture-in-picture window
+
 edl_p = sys.argv[1]; E = json.loads(Path(edl_p).read_text())
 src = E["sources"]["A"]; vertical = E.get("vertical", False)
 cache_p = os.path.join(os.path.dirname(os.path.abspath(edl_p)), "faces_cache.json")
@@ -62,7 +64,7 @@ def track_segment(s, step=0.2):
 M = 0.04  # margin around the head inside the crop (fraction of crop)
 # room above the detected face box, in face heights: the hair (default) or the brow only (plan "punch_headroom": "face",
 # a punch-in may then cut the top of the head; for a speaker sitting close to the camera)
-HAIR = {"hair": 0.45, "face": 0.12}[E.get("punch_headroom", "hair")]
+HAIR = gfx_types.HEADROOM[E.get("punch_headroom", "hair")]
 
 
 def fits(z, fx, fy, TY, head):

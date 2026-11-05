@@ -1,6 +1,7 @@
 {
- "_doc": "Meme templates for the \"meme\" card, 9:16 and 16:9 (gfx/render.mjs). imgflip = template id in https://api.imgflip.com/get_memes; boxes = where the spec's \"text\" goes, [x, y, w, h] as fractions of the picture + \"dark\" (black on a light area) or \"light\" (white with an outline). Fetch: python3 memes.py add <slug> (picture -> render/memes/, out of the public repo).",
+ "_doc": "Meme templates for the \"meme\" card, 9:16 and 16:9 (gfx/render.mjs). imgflip = template id in https://api.imgflip.com/get_memes; boxes = where the spec's \"text\" goes, [x, y, w, h] as fractions of the picture + \"dark\" (black on a light area) or \"light\" (white with an outline). sticker = the character crops [x, y, w, h] of the picture for the 16:9 \"sticker\" card beside the speaker, one per beat (Kamil 2026-11-05). Fetch: python3 memes.py add <slug> (picture -> render/memes/, out of the public repo).",
  "drake": {
+  "sticker": [[0.0, 0.0, 0.5, 0.5], [0.0, 0.5, 0.5, 0.5]],
   "imgflip": "181913649",
   "boxes": [
    [0.5, 0.0, 0.5, 0.5, "dark"],
@@ -9,6 +10,7 @@
   "use": "odrzucam X (góra) / wybieram Y (dół)"
  },
  "woman_yelling_at_cat": {
+  "sticker": [[0.0, 0.21, 0.5, 0.79], [0.5, 0.21, 0.5, 0.79]],
   "imgflip": "188390779",
   "boxes": [
    [0.0, 0.0, 0.5, 0.25, "dark"],
@@ -33,6 +35,7 @@
   "use": "odkrycie „to zawsze było X?” (lewo) / „zawsze było” (prawo)"
  },
  "change_my_mind": {
+  "sticker": [[0.28, 0.05, 0.62, 0.95]],
   "imgflip": "129242436",
   "boxes": [
    [0.42, 0.57, 0.48, 0.19, "dark"]
@@ -40,6 +43,7 @@
   "use": "mocna teza na tabliczce, której bronisz"
  },
  "distracted_boyfriend": {
+  "sticker": [[0.0, 0.05, 1.0, 0.95]],
   "imgflip": "112126428",
   "boxes": [
    [0.1, 0.62, 0.32, 0.18, "light"],
@@ -49,6 +53,7 @@
   "use": "nowa błyszcząca rzecz (lewo) / ja (środek) / to, co powinienem robić (prawo)"
  },
  "expanding_brain": {
+  "sticker": [[0.5, 0.0, 0.5, 0.25], [0.5, 0.25, 0.5, 0.25], [0.5, 0.5, 0.5, 0.25], [0.5, 0.75, 0.5, 0.25]],
   "imgflip": "93895088",
   "boxes": [
    [0.0, 0.0, 0.49, 0.25, "dark"],
@@ -59,6 +64,7 @@
   "use": "cztery poziomy, każdy „mądrzejszy” (zwykle ironicznie)"
  },
  "hide_the_pain_harold": {
+  "sticker": [[0.05, 0.0, 0.9, 0.5], [0.05, 0.5, 0.9, 0.5]],
   "imgflip": "27813981",
   "boxes": [
    [0.0, 0.33, 1.0, 0.16, "light"],
@@ -76,6 +82,7 @@
   "use": "rozsądna droga (prosto) / zjazd w złą stronę (prawo) / ja, skręcający gwałtownie"
  },
  "monkey_puppet": {
+  "sticker": [[0.0, 0.36, 0.5, 0.63], [0.5, 0.36, 0.5, 0.63]],
   "imgflip": "148909805",
   "boxes": [
    [0.02, 0.02, 0.96, 0.26, "dark"]
@@ -92,6 +99,7 @@
   "use": "panika / ulga / jeszcze większa panika"
  },
  "roll_safe": {
+  "sticker": [[0.03, 0.0, 0.6, 1.0]],
   "imgflip": "89370399",
   "boxes": [
    [0.0, 0.0, 1.0, 0.2, "light"],
@@ -100,6 +108,7 @@
   "use": "„sprytny” skrót myślowy, który nie działa"
  },
  "scooby_mask": {
+  "sticker": [[0.0, 0.0, 1.0, 0.5], [0.0, 0.5, 1.0, 0.5]],
   "imgflip": "145139900",
   "boxes": [
    [0.0, 0.02, 0.55, 0.13, "light"],
@@ -108,6 +117,7 @@
   "use": "jak to wygląda (maska) / czym jest naprawdę (bez maski)"
  },
  "spiderman_pointing": {
+  "sticker": [[0.0, 0.0, 1.0, 1.0]],
   "imgflip": "110133729",
   "boxes": [
    [0.0, 0.0, 0.5, 0.24, "light"],
@@ -116,6 +126,7 @@
   "use": "dwie rzeczy, które oskarżają się nawzajem, a są tym samym"
  },
  "surprised_pikachu": {
+  "sticker": [[0.1, 0.42, 0.8, 0.58]],
   "imgflip": "155067746",
   "boxes": [
    [0.02, 0.02, 0.96, 0.17, "dark"],
@@ -124,6 +135,7 @@
   "use": "zrobiłem oczywisty błąd (góra) / i jestem zaskoczony skutkiem (niżej)"
  },
  "this_is_fine": {
+  "sticker": [[0.5, 0.0, 0.5, 1.0]],
   "imgflip": "55311130",
   "boxes": [
    [0.0, 0.0, 0.5, 0.22, "light"]
@@ -140,6 +152,7 @@
   "use": "dwa wyjścia, żadne łatwe (przyciski) / ja się pocę (dół)"
  },
  "waiting_skeleton": {
+  "sticker": [[0.08, 0.0, 0.84, 0.85]],
   "imgflip": "4087833",
   "boxes": [
    [0.0, 0.0, 1.0, 0.2, "light"],
@@ -148,6 +161,7 @@
   "use": "czekanie na coś, co nie przyjdzie"
  },
  "x_everywhere": {
+  "sticker": [[0.0, 0.0, 1.0, 1.0]],
   "imgflip": "91538330",
   "boxes": [
    [0.0, 0.0, 1.0, 0.18, "light"],

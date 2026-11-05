@@ -49,6 +49,12 @@ class GreyMatter(FakeMatter):
         return np.full(rgb.shape[:2], float(rgb.mean()) / 255, np.float32)
 
 
+class NoPerson(FakeMatter):
+    def __call__(self, rgb):
+        super().__call__(rgb)
+        return np.zeros(rgb.shape[:2], np.float32)
+
+
 class Crash(FakeMatter):
     def __call__(self, rgb):
         if len(FakeMatter.seen) == 12:
@@ -103,6 +109,25 @@ class BehindTest(unittest.TestCase):
         self.assertGreaterEqual(int(a[:, :, W // 2 :].min()), 254)  # elsewhere: the card as rendered
         self.assertTrue(self.front.exists())
         self.assertEqual(list((self.d / "gfx").glob("*.part*")), [])
+
+    def test_the_share_the_speaker_covers_is_written_next_to_the_card(self):
+        self.assertIn("covers 50% of the card", self.run_once())  # FakeMatter: the left half is the person
+        cover = json.loads((self.d / "gfx" / "b.cover.json").read_text())
+        self.assertAlmostEqual(cover["covered"], 0.5, delta=0.01)
+        self.assertIn("up to date", self.run_once())  # nothing redone: the measure of this cut-out stays
+        self.assertTrue((self.d / "gfx" / "b.cover.json").exists())
+
+    def test_a_lost_measure_cuts_out_again(self):
+        self.run_once()
+        (self.d / "gfx" / "b.cover.json").unlink()  # e.g. a run killed between the measure and the card
+        self.assertIn("covers 50% of the card", self.run_once())
+        cover = self.d / "gfx" / "b.cover.json"
+        cover.write_text(json.dumps({"covered": 0.0, "key": "an older cut-out"}))  # a measure of another cut-out
+        self.assertIn("covers 50% of the card", self.run_once())
+        self.assertAlmostEqual(json.loads(cover.read_text())["covered"], 0.5, delta=0.01)
+
+    def test_a_card_beside_the_speaker_covers_nothing(self):
+        self.assertIn("covers 0% of the card", self.run_once(matter=NoPerson))
 
     def test_each_card_frame_is_matched_with_the_film_frame_under_it(self):
         self.run_once()

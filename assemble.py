@@ -128,6 +128,82 @@ Path(lst).write_text("".join(f"file '{os.path.abspath(p)}'\n" for p in files))
 rough = os.path.join(out, "rough.mkv")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", rough], check=True)
 
+# 16:9 picture-in-picture (cards in gfx_types.PIP): the face cam window is cut from the recording itself, one square per
+# piece around that piece's head (gfx_types.pip_window), not from the zoomed picture. The old crop sat on the film-wide face
+# point of the zoomed frame, so a punch-in or a head off the middle went into the window as on the full screen (Kamil
+# 2026-11-05). A piece with no window on screen gets a black square of the same length: pip.mkv runs frame for frame with rough.mkv.
+# Only with "head_track": true (plan key, build_edl.py copies it): an EDL without it renders as before, the crop of the
+# picture at the film face point (video-pipeline-panel tests/test_pipeline_compat.py, panel CLAUDE.md)
+HT = edl.get("head_track") is True
+pips = [o for o in edl.get("overlays", []) if o.get("pip")]
+PIP_INPUTS = 3 if HT else 2  # stage 2 inputs after the cards when the film has a window: mask, frame (+ pip.mkv); b-roll numbers count on it
+PS = edl.get("pip_size", 600)
+# 9:16 corner circle (layout "corner", build_edl.py): cut from the recording around the head the same way, head and shoulders
+# (Kamil 2026-11-05: the old crop of the zoomed vertical picture was "ultra zoomed twarz, nie jest to profesjonalnie")
+corners = [o for o in edl.get("overlays", []) if o.get("corner")] if vertical else []
+CN = gfx_types.CORNER
+HAIR = gfx_types.HEADROOM[edl.get("punch_headroom", "hair")]  # the room face_track.py left above the face box
+
+
+def seg_len(s):
+    d = s["out"] - s["in"]
+    return max(1, round(d * 30)) / 30 if EXACT else d
+
+
+starts = [0.0]
+for sg in edl["segments"][:-1]: starts.append(starts[-1] + seg_len(sg))
+
+
+def head_track(name, wins, size, fill):
+    """<out>/<name>.mkv, frame for frame with rough.mkv: a size x size square cut from the recording around each piece's
+    head (gfx_types.pip_window) where a window in `wins` is on screen, black elsewhere. Pieces are cached in <out>/<name>segs/"""
+    seg_dir = os.path.join(out, f"{name}segs"); os.makedirs(seg_dir, exist_ok=True)
+    gone = sorted(p for p in edl["sources"].values() if not os.path.exists(p))
+    if gone and not PROXY: sys.exit(f"assemble: {name} is cut from the recording, missing: {', '.join(gone)}")
+    if gone:  # a panel preview of a film whose recording went to the cloud: the square from rough.mkv at the film face point
+        print(f"assemble: {name} preview from rough.mkv (recording missing: {', '.join(gone)}), framing not checked", file=sys.stderr)
+
+    def cut(i):
+        s, t0 = edl["segments"][i], starts[i]; d = seg_len(s)
+        n = max(1, round(d * 30)); frames = ["-frames:v", str(n)] if EXACT else ["-t", f"{d:.3f}"]
+        if not any(a < t0 + d and b > t0 for a, b in wins):
+            dst = os.path.join(seg_dir, f"{i:04d}_{d:.3f}_{size}_black{'_x' if EXACT else ''}.mkv")
+            src = ["-f", "lavfi", "-i", f"color=c=black:s={size}x{size}:r=30"]; vf = "setsar=1"
+        elif gone:
+            side = int(min(W, H) * 0.8) // 2 * 2  # 9:16 too: the width bounds it
+            x = int(min(max(fx * W - side / 2, 0), W - side)); y = int(min(max(fy * H - side * 0.42, 0), H - side))
+            stamp = int(os.path.getmtime(rough))  # a new rough.mkv (other zoom or framing at the same t0) is a new piece
+            dst = os.path.join(seg_dir, f"{i:04d}_{t0:.3f}_{d:.3f}_rough{stamp}-{x}-{y}-{side}_{size}{'_x' if EXACT else ''}.mkv")
+            src = ["-ss", f"{t0:.3f}", "-i", rough]
+            vf = ("setpts=PTS-STARTPTS," if EXACT else "") + f"crop={side}:{side}:{x}:{y},scale={size}:{size}:flags=lanczos,setsar=1,fps=30"
+        else:
+            if s.get("head"): x, y, side = gfx_types.pip_window(s["head"], SW, SH, HAIR, fill)
+            else:  # no face found in this piece: the film-wide face point, as before (said, so a wall in the window has a reason)
+                print(f"assemble: piece {i} ({s['in']:.1f}-{s['out']:.1f} s) has no head box, {name} on the film face point", file=sys.stderr)
+                # the window of the old crop (fill 0.62 of the frame height for a PiP), scaled to this window's fill
+                side = int(min(SH, SW, SH * 0.62 / fill * 0.62)) // 2 * 2
+                x = int(min(max(fx * SW - side / 2, 0), SW - side)); y = int(min(max(fy * SH - side * 0.42, 0), SH - side))
+            dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{x}-{y}-{side}_{size}{'_x' if EXACT else ''}.mkv")
+            src = ["-ss", f"{s['in']:.3f}", "-i", edl["sources"][s["src"]]]
+            vf = ("setpts=PTS-STARTPTS," if EXACT else "") + f"crop={side}:{side}:{x}:{y},scale={size}:{size}:flags=lanczos,setsar=1,fps=30"
+        if not os.path.exists(dst):
+            subprocess.run(["ffmpeg", "-v", "error", "-y", *src, "-vf", vf, *frames, "-an", "-c:v", "libx264", *SEG_ENC,
+                            "-pix_fmt", "yuv420p", dst + ".part.mkv"], check=True)
+            os.replace(dst + ".part.mkv", dst)
+        return dst
+
+    with ThreadPoolExecutor(6) as ex:
+        files = list(ex.map(cut, range(len(edl["segments"]))))
+    lst = os.path.join(out, f"{name}_concat.txt")
+    Path(lst).write_text("".join(f"file '{os.path.abspath(p)}'\n" for p in files))
+    track = os.path.join(out, f"{name}.mkv")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", track], check=True)
+    return track
+
+
+pip_track = head_track("pip", [(o["at"] + 0.25, o["at"] + o["dur"] - 0.3) for o in pips], PS, 0.62) if pips and HT else None
+corner_track = head_track("corner", [(o["at"], o["at"] + o["dur"]) for o in corners], CN["size"], CN["fill"]) if corners and HT else None
+
 # stage 2
 inputs = ["-i", rough]; fc = []
 grade = edl.get("grade", "eq=contrast=1.04:saturation=1.07:gamma=0.98,unsharp=5:5:0.35")
@@ -146,7 +222,7 @@ if edl.get("progress") == "fill":  # overlay evaluates x on every frame
 # stock b-roll (build_edl "broll"): full-frame cutaway under graphics and captions, picture only (the voice goes on);
 # its inputs come after the graphics and the pip images, so their input numbers stay as they were
 BROLL = edl.get("broll", [])
-i_broll = 1 + len(edl.get("overlays", [])) + (2 if any(o.get("pip") for o in edl.get("overlays", [])) else 0)
+i_broll = 1 + len(edl.get("overlays", [])) + (PIP_INPUTS if pips else 0)
 for k, b in enumerate(BROLL):
     # cut in the filter, not with input -ss/-itsoffset: a seek lets pre-roll frames through (a frozen frame before "at")
     ss = b.get("ss", 0.0)
@@ -180,26 +256,22 @@ if splits:
             fc.append(f"[sbg{i}][sin{i}]overlay={(bw - iw) // 2}:{bh - ih},format=yuva444p[sf{i}]")
 # 9:16 "float" with layout "corner" (build_edl.py): the face in a circle in the corner over a full-screen card; the square is
 # cut around the face the same way as the split box (between fy and TY), a little wider than the head so the circle holds it whole
-corners = [o for o in edl.get("overlays", []) if o.get("corner")] if vertical else []
-CN = gfx_types.CORNER
-HD = 0  # halo size; set below when the plan has corner cards
-if corners:
+HD = int(CN["size"] * CN.get("halo", 0)) // 2 * 2 if corners else 0  # a blurred copy of the circle's picture around it (Kamil 2026-10-31)
+if corners and not HT:  # an old EDL: the square from the picture before the cards
     fc.append(f"[{last}]split=2[vcb][cornsrc]"); last = "vcb"
     cs = int(W * 0.80) // 2 * 2
     cy0 = int(min(max((fy + TY) / 2 * H - cs * 0.48, 0), H - cs)); cx0 = (W - cs) // 2
-    HD = int(CN["size"] * CN.get("halo", 0)) // 2 * 2  # a blurred copy of the same crop around the circle (Kamil 2026-10-31)
     fc.append(f"[cornsrc]crop={cs}:{cs}:{cx0}:{cy0},scale={CN['size']}:{CN['size']}:flags=lanczos,format=yuva444p" + (",split=2[cf][chs]" if HD else "[cf]"))
     if HD: fc.append(f"[chs]scale={HD}:{HD}:flags=bicubic,boxblur=34:3,format=yuva444p[chb]")
 # picture-in-picture: face cam in the corner on top of full-screen slides
-pips = [o for o in edl.get("overlays", []) if o.get("pip")]
-pip_inputs = []
-PS, pip_x, pip_y, pip_en = 0, 0, 0, "0"  # set below when the film has picture-in-picture overlays
-if pips:
+pip_x, pip_y, pip_en = 0, 0, "0"  # set below when the film has picture-in-picture overlays (pips, PS, pip_track: stage 1)
+if pips and not HT:  # an old EDL: the window from the picture before the cards
     fc.append(f"[{last}]split=2[vbase][pipsrc]"); last = "vbase"
-    PS = edl.get("pip_size", 600); M = 72
-    cx, cy = fx * SW, fy * SH; cs = int(SH * 0.62) // 2 * 2
-    px0 = int(min(max(cx - cs / 2, 0), SW - cs)); py0 = int(min(max(cy - cs * 0.42, 0), SH - cs))
+    cs = int(SH * 0.62) // 2 * 2
+    px0 = int(min(max(fx * SW - cs / 2, 0), SW - cs)); py0 = int(min(max(fy * SH - cs * 0.42, 0), SH - cs))
     fc.append(f"[pipsrc]crop={cs}:{cs}:{px0}:{py0},scale={PS}:{PS}:flags=lanczos,format=yuva444p[pf]")
+if pips:
+    M = 72
     pip_en = "+".join(f"between(t{E},{o['at'] + 0.25:.3f}{E},{o['at'] + o['dur'] - 0.3:.3f})" for o in pips)
     pip_x, pip_y = W - PS - M, H - PS - M - 20
 for k, o in enumerate(edl.get("overlays", [])):
@@ -208,14 +280,16 @@ for k, o in enumerate(edl.get("overlays", [])):
     fc.append(f"[{k+1}:v]{sc}format=yuva444p10le[g{k}]")
     fc.append(f"[{last}][g{k}]overlay=eof_action=pass:format=auto[v{k+1}]"); last = f"v{k+1}"
 if pips:
-    nimg = len(inputs) // 2 if False else None
     frame = themes.pip_frame(THEME)
     inputs += ["-loop", "1", "-i", "/home/kamil-jan/video-pipeline/gfx/pip_mask.png", "-loop", "1", "-i", frame]
-    i_mask = 1 + len(edl.get("overlays", [])); i_frame = i_mask + 1
+    i_mask = 1 + len(edl.get("overlays", [])); i_frame = i_mask + 1; i_pip = i_frame + 1
+    if HT:
+        inputs += ["-i", pip_track]
+        fc.append(f"[{i_pip}:v]{grade},format=yuva444p[pf]")  # the same grade as the full picture
     fc.append(f"[{i_mask}:v]format=gray,scale={PS}:{PS}[pm]")
     fc.append("[pf][pm]alphamerge[pip]")
     fc.append(f"[{last}][{i_frame}:v]overlay={pip_x - 40}:{pip_y - 40}:enable={pip_en}:shortest=1[vpf]")
-    fc.append(f"[vpf][pip]overlay={pip_x}:{pip_y}:enable={pip_en}:shortest=1[vpp]"); last = "vpp"
+    fc.append(f"[vpf][pip]overlay={pip_x}:{pip_y}:enable={pip_en}:" + ("eof_action=pass" if HT else "shortest=1") + "[vpp]"); last = "vpp"
 for b in BROLL:
     # a downloaded file: only the MP4 demuxer and local reads (an HLS playlist named .mp4 could open other files/URLs)
     inputs += ["-protocol_whitelist", "file", "-f", "mov", "-t", f"{b.get('ss', 0.0) + b['dur']:.3f}", "-i", b["file"]]
@@ -241,6 +315,10 @@ if corners:  # after the cards: a ring in the theme accent, the face circle on i
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x{acc}:s={Dr}x{Dr}", "-frames:v", "1", "-vf",
                     f"format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-{rr - 0.5},Y-{rr - 0.5}),{rr - 1}),255,0)'", cring], check=True)
     i_cm = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", cmask, "-loop", "1", "-i", cring]
+    if HT:
+        inputs += ["-i", corner_track]
+        fc.append(f"[{i_cm + 2}:v]{grade},format=yuva444p" + (",split=2[cf][chs]" if HD else "[cf]"))  # the same grade as the full picture
+        if HD: fc.append(f"[chs]scale={HD}:{HD}:flags=bicubic,boxblur=34:3,format=yuva444p[chb]")
     c_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - (0 if o.get('no_fade_out') else SPLIT_OUT):.3f})" for o in corners)
     fc.append(f"[{i_cm}:v]format=gray[cm]")
     fc.append("[cf][cm]alphamerge[cbox]")

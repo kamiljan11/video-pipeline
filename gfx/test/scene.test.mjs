@@ -123,3 +123,16 @@ test('only a 9:16 scene asks for solo', () => {
   assert.match(scene({ id: 'v', type: 'scene', dur: 3, els, canvas: 'v', layout: 'corner' }, String, () => '<svg></svg>'), /data-solo="1"/);
   assert.doesNotMatch(scene({ id: 'h', type: 'scene', dur: 3, els }, String, () => '<svg></svg>'), /data-solo/);
 });
+
+test('a 16:9 side scene sits on a board right of the speaker, see-through elsewhere (Kamil 2026-11-05)', () => {
+  const sp = ok([{ k: 'chip', id: 'c', x: 0, y: 0, text: 'exit 2' }], { layout: 'side' });
+  assert.deepEqual(checkScene(sp), []);
+  const safe = sceneSafe(sp);
+  assert.ok(safe.x >= 1600 && safe.x + safe.w <= 2560 && safe.y + safe.h <= 1440, JSON.stringify(safe));  // right of the head (x <= 0.61 W)
+  const h = scene(sp, esc, icon);
+  assert.match(h, /class="scene side"/);
+  assert.match(h, /class="board" style="left:1640px/);
+  assert.doesNotMatch(h, /class="blobs"/);
+  for (const [more, want] of [[{ layout: 'split' }, '"layout" = "side"'], [{ layout: 'side', cam: 'none' }, '"cam": "none" has no place']])
+    assert.ok(checkScene(ok([{ k: 'chip', x: 0, y: 0, text: 'x' }], more)).some(b => b.includes(want)), want);
+});

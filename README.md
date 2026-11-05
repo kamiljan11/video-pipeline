@@ -46,6 +46,8 @@ flowchart LR
 | Checklist gate | `film_check.py`, `style/checklist.json` | every feature a long, a short and the out folder must have (chapters, explainer scenes, lower third, new music, A/B thumbnails, posts...); an item is met or skipped with a reason in the plan, else the film does not render ([ADR-0011](docs/adr/0011-editorial-team.md)) |
 | Scene collisions | `gfx/scene_check.mjs` | pieces of an explainer scene that cover each other, found in Chrome before any frame is rendered |
 | Thumbnails | `gfx/thumbs.mjs` | YouTube A/B/C thumbnails for the long and a cover per short from `thumbs.json`; stops when a word does not fit |
+| LinkedIn post graphic | `gfx/post_gfx.mjs`, `post_check.py` | a 1080x1350 graphic that carries the post's idea alone (list, bars, split, table or quote from `grafika.json`); OCR finds its words, WCAG contrast, and the text keeps 60-130 words, <= 3 hashtags, no closing question ([REF-posts-top](style/REF-posts-top.md)) |
+| Screen grammar | `screen_grammar.py` | memes with `sticker` crops (`style/memes.json`) go beside the speaker as stickers, simple scenes in the free field (`layout: "side"`), cards held to their reading time, close separate screens joined ([REF-long-negacz](style/REF-long-negacz.md)) |
 | Editorial team | `team/RUNBOOK.md`, `team/roles/` | the 12 steps of an edit, one role card each (mission, input, output file, when done) |
 
 The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
@@ -78,7 +80,7 @@ The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author'
 CI does, or replace it (`grep -rl /home/kamil-jan`). Chrome is expected at `/usr/bin/google-chrome`. Linux only.
 
 ```bash
-sudo apt install ffmpeg poppler-utils python3.12-venv   # ffmpeg 8 or newer (24.04 apt has 6.1); + Node 24, Google Chrome
+sudo apt install ffmpeg poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol   # ffmpeg 8+ (24.04 apt has 6.1); tesseract: post_check OCR; + Node 24, Google Chrome
 npm ci
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # whisper.cpp + model, YuNet face model, optional matting model: see "Postawienie od zera" below
@@ -166,7 +168,7 @@ Logi (`render/`): `render.log` (każdy krok, `DONE <film>` / `FAILED <krok> <fil
 `beat_stats.log` (metryka po renderze), `gfx.log` w katalogu `work` projektu.
 
 **Bramki w `run_v4.sh` i co robić, gdy render stoi** (kolejność: scene_check -> gfx -> film po filmie: build_edl ... edl_guard ->
-film_check -> make_beds -> behind -> assemble). Proces montażu krok po kroku: `team/RUNBOOK.md`.
+film_check -> make_beds -> behind -> film_check --phase behind -> assemble). Proces montażu krok po kroku: `team/RUNBOOK.md`.
 
 | `render.log` | Gdzie przyczyna | Co zrobić |
 |---|---|---|
@@ -175,6 +177,7 @@ film_check -> make_beds -> behind -> assemble). Proces montażu krok po kroku: `
 | `film_check: music ledger … ` (exit 2) | `render/music_ledger.json` (lokalny, poza gitem, pisze go `make_beds.py`) zepsuty | poprawić JSON ręcznie albo usunąć plik (traci się tylko pamięć palet poprzednich filmów; inna maszyna zaczyna z pustym) |
 | `FAILED out` (exit 2, przed jakimkolwiek krokiem) | folder wyników nie istnieje albo nie ma prawa zapisu; względny OUT liczy się od folderu `work` (skrypt robi `cd` do niego) | podać ścieżkę bezwzględną albo `../out` względem `work` |
 | `FAILED gfx` | `gfx.log` | błąd specu karty albo Chrome; karta z tym samym kluczem (`<id>.mov.key`) nie renderuje się drugi raz |
+| `FAILED film_check behind <film>` | `critic_<film>.log`: `long.behind_readable` z listą `hidden: <karta> <procent>` (`gfx/<id>.cover.json`) | karta za postacią jest zasłonięta w ponad 15%: przesunąć ją nad linię głowy albo zmniejszyć w planie i puścić ponownie. Miara zginęła (karta bez `cover.json`): `behind.py` zrobi ją sam przy następnym uruchomieniu. Świadomie zasłonięta: `"skip": {"long.behind_readable": "<powód>"}` |
 | `FAILED film_check <film>` | `critic_<film>.log`: lista pozycji z `why` | dodać brakującą rzecz do planu albo `"skip": {"<id>": "powód"}` w planie. Stary projekt sprzed listy (przed 2026-11-04): `FILM_CHECK=off bash run_v4.sh …` (`WARN film_check off <film>`); nigdy po to, żeby film wyszedł szybciej |
 
 Cache kart (`gfx/render.mjs`): klucz `<id>.mov.key` = motyw + specyfikacja karty (scena także źródło `gfx/scene_lib.mjs`). Po

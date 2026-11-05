@@ -21,6 +21,20 @@ def words(n: int, step: float = 1.0) -> dict:
                               for i in range(n)]}
 
 
+
+POST_LINES = ["Każdy błąd zostawia bliznę", "Nowe sprawdzenie w systemie", "Ten sam błąd nie przejdzie drugi raz",
+              "Jak nowy punkt w procedurze pilota"]
+
+
+def post_graphic(d: Path) -> None:
+    """a readable post graphic and its words (what gfx/post_gfx.mjs writes), for post_check.py"""
+    font = "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"
+    draw = ",".join(f"drawtext=fontfile={font}:text='{ln}':fontsize=56:fontcolor=0xECF0F6:x=80:y={120 + 140 * k}" for k, ln in enumerate(POST_LINES))
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x0A1430:s=1080x1350", "-frames:v", "1", "-vf", draw,
+                    str(d / "grafika.png")], check=True)
+    (d / "grafika.txt").write_text(" ".join(POST_LINES) + "\n")
+
+
 class FilmCheckTest(unittest.TestCase):
     """a 10-minute long with three parts (words 0, 200, 400 = 0 s, 200 s, 400 s; no cuts, so source time = film time)"""
 
@@ -52,13 +66,13 @@ class FilmCheckTest(unittest.TestCase):
         for k, at in enumerate((0.5, 200.5, 400.5)):
             ovs.append({"id": f"c{k}", "at": at, "dur": 3}); specs.append({"id": f"c{k}", "type": "chap"})
         for k in range(6):  # an animated explanation every 100 s
-            ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 8}); specs.append({"id": f"s{k}", "type": "scene"})
+            ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 12}); specs.append({"id": f"s{k}", "type": "scene"})
         for k, at in enumerate(range(20, 600, 12)):
             ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw"})
         for k, at in enumerate((2, 5)):
-            ovs.append({"id": f"b{k}", "at": at, "dur": 2}); specs.append({"id": f"b{k}", "type": "float", "behind": {"edl": "edl_long.json"}})
+            ovs.append({"id": f"b{k}", "at": at, "dur": 2.5}); specs.append({"id": f"b{k}", "type": "float", "behind": {"edl": "edl_long.json"}})
         for k, at in enumerate((150, 350, 550)):
-            ovs.append({"id": f"m{k}", "at": at, "dur": 3}); specs.append({"id": f"m{k}", "type": "meme", "meme": "drake"})
+            ovs.append({"id": f"m{k}", "at": at, "dur": 3}); specs.append({"id": f"m{k}", "type": "sticker", "meme": "drake"})  # beside him, not a screen
         ovs.append({"id": "low", "at": 6, "dur": 4}); specs.append({"id": "low", "type": "lower", "text": "Kamil Jan", "sub": BRAND})
         ovs.append({"id": "end", "at": 590, "dur": 8}); specs.append({"id": "end", "type": "end"})
         segs = [{"src": "A", "in": i * 3.0, "out": i * 3.0 + 3.0, "zoom": {"a": 1.0, "b": 1.2, "t0": 0.5, "t1": 0.8}} for i in range(200)]
@@ -82,6 +96,81 @@ class FilmCheckTest(unittest.TestCase):
                      music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
         r, rep = self.run_check("long")
         self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
+
+    def test_face_windows_must_be_cut_around_the_head(self):  # Kamil 5.11: PiP "scentruj", corner "nie ultra zoomed twarz"
+        ovs, specs, segs = self.full_long()
+        self.project([*ovs, {"id": "w1", "at": 300, "dur": 6, "pip": True}], specs, segs)
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.head_track"]["status"], "FAIL")
+        edl = json.loads((self.d / "edl_long.json").read_text())
+        (self.d / "edl_long.json").write_text(json.dumps({**edl, "head_track": True}))
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.head_track"]["status"], "OK")
+
+    def test_text_behind_the_head_must_stay_readable(self):
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segs, music_palette={"name": "lofi", "key": 0})
+        _, rep = self.run_check("long")
+        self.assertNotIn("long.behind_readable", rep)  # phase "behind": not in the check before the render
+        (self.d / "gfx").mkdir()
+        (self.d / "gfx" / "b0.cover.json").write_text(json.dumps({"covered": 0.08}))
+        r, rep = self.run_check("long", "--phase", "behind")
+        self.assertEqual(rep["long.behind_readable"]["status"], "FAIL")  # b1 has no measure: counted as hidden
+        self.assertIn("b1 100%", rep["long.behind_readable"]["detail"])
+        self.assertEqual(r.returncode, 1)
+        (self.d / "gfx" / "b1.cover.json").write_text(json.dumps({"covered": 0.31}))
+        _, rep = self.run_check("long", "--phase", "behind")
+        self.assertEqual(rep["long.behind_readable"]["status"], "FAIL")
+        self.assertIn("b1 31%", rep["long.behind_readable"]["detail"])
+        (self.d / "gfx" / "b1.cover.json").write_text(json.dumps({"covered": 0.12}))
+        r, rep = self.run_check("long", "--phase", "behind")
+        self.assertEqual(rep["long.behind_readable"]["status"], "OK")
+        self.assertEqual(list(rep), ["long.behind_readable"])  # only the items of that phase
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("b0 8%", rep["long.behind_readable"]["detail"])
+        r, _ = self.run_check("long", "--phase", "behnd")  # a typo is refused, not an empty pass
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("known: behind", r.stderr)
+
+    def test_a_drawing_behind_the_head_is_not_held_to_the_text_limit(self):  # Kamil 5.11: "narysuj szlaban" za mną
+        ovs, specs, segs = self.full_long()
+        b = next(sp for sp in specs if "behind" in sp)
+        specs.append({**b, "id": "d1", "behind": {**b["behind"], "drawing": True}})
+        ovs.append({**next(o for o in ovs if o["id"] == b["id"]), "id": "d1"})
+        self.project(ovs, specs, segs, music_palette={"name": "lofi", "key": 0})
+        (self.d / "gfx").mkdir()
+        for sp in specs:
+            if "behind" in sp: (self.d / "gfx" / f"{sp['id']}.cover.json").write_text(json.dumps({"covered": 0.05}))
+        (self.d / "gfx" / "d1.cover.json").write_text(json.dumps({"covered": 0.6}))  # the barrier's arm passes behind the head
+        r, rep = self.run_check("long", "--phase", "behind")
+        self.assertEqual(r.returncode, 0, rep["long.behind_readable"]["detail"])
+        self.assertNotIn("d1", rep["long.behind_readable"]["detail"])
+
+    def test_separate_screens_and_reading_time_are_measured(self):  # Kamil 5.11: "zbyt często osobny ekran", "nie zdąży się przeczytać"
+        sys.path.insert(0, str(ROOT))
+        import film_check
+        specs = {"a": {"type": "scene", "els": [{"k": "node", "text": "AI pisze kod"}] * 5}, "b": {"type": "slide"},
+                 "c": {"type": "kw", "text": "jedno dwa trzy cztery"},
+                 "f": {"type": "float", "html": '<style>.x{a:b}</style><div><span>W</span><span>Y</span><b>Z</b></div><p>dwa słowa</p>'}}
+        edl = {"overlays": [{"id": "a", "at": 0, "dur": 3}, {"id": "b", "at": 3.02, "dur": 4}, {"id": "c", "at": 8, "dur": 1},
+                            {"id": "b", "at": 7.5, "dur": 2}, {"id": "f", "at": 20, "dur": 3}]}
+        self.assertEqual(film_check.full_spans(edl, specs), [(0, 7.02), (7.5, 9.5)])  # back to back = one screen; kw and float are not
+        self.assertEqual(film_check.read_words(specs["f"]), 3)  # css out, a word drawn letter by letter is one word
+        self.assertEqual(film_check.read_words(specs["a"]), 15)  # "node" is a piece kind, not text
+        ovs, sp, segs = self.full_long()
+        self.project(ovs, sp, segs)
+        f = film_check.Film(self.d, "long")
+        share, detail = f.full_screen_share()
+        self.assertAlmostEqual(share, (6 * 12 + 3 * 3 + 8) / 600, places=2)  # scenes, chapters, end card; stickers are beside him
+        self.assertIn("separate screens", detail)
+        f.ovs.append({"id": "kx", "at": 1, "dur": 1.0}); f.specs["kx"] = {"type": "kw", "text": "jedno dwa trzy cztery pięć sześć"}
+        f.ovs.append({"id": "s9", "at": 30, "dur": 3.0}); f.specs["s9"] = {"type": "scene", "els": []}
+        n, detail = f.cards_shorter_than_reading()
+        self.assertIn("kx 1.0 s < 5.5 s", detail)  # 4 words x 1.2 s + 2 more x 0.35 s
+        self.assertIn("s9 3.0 s < 6.0 s", detail)  # a scene: 6 s at least, whatever its words
+        self.assertNotIn("k1 ", detail)  # "kw" cards of the fixture: no words, 4 s >= 2.5 s
+        self.assertEqual(n, 2)
+        self.assertEqual(f.screen_switches_per_min()[0], round(len(film_check.full_spans(f.edl, f.specs)) / 10, 2))
 
     def test_a_long_without_memes_is_named(self):  # Kamil 4.11: "miały być też memy, memów nie ma"
         ovs, specs, segs = self.full_long()
@@ -152,11 +241,16 @@ class FilmCheckTest(unittest.TestCase):
         self.assertIn("s1", rep["out.shorts_all"]["detail"])
         for p, body in {"long/film.mp4": "", "shorts/s1.mp4": "", "thumbnails/long_A.jpg": "", "thumbnails/long_B.jpg": "",
                         "thumbnails/s1_cover.jpg": "", "posts/p1/post.md": "x", "posts/p1/slide.png": "",
+                        "posts/p1/linkedin.json": json.dumps({"text": " ".join(["słowo"] * 80) + "\nRepo w komentarzu.", "hashtags": ["AI"]}),
                         "youtube/shorts/s1.md": "## Tytuł\n## Opis\n",
                         "youtube/long.md": "## Tytuły\n| A | t |\n| B | t |\n| C | t |\n## Opis\nx\n## Rozdziały\n0:00 a\n1:00 b\n2:00 c\n## Tagi\nx\n"}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
         r, rep = self.run_check("--out", str(out))
-        self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
+        self.assertIn("no grafika.png", rep["out.posts"]["detail"])  # a picture alone is not enough: the graphic that says it (post_check)
+        post_graphic(out / "posts/p1")
+        r, rep = self.run_check("--out", str(out))
+        bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k != "out.posts" or shutil.which("tesseract"))}
+        self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts reads the graphic by OCR (tesseract: local and CI)
 
     def test_bad_inputs_are_named_with_exit_2(self):  # 1 means "items missing"; a broken file is another thing
         self.project(*self.full_long(), music_palette={"name": "lofi", "key": 2})
@@ -183,6 +277,46 @@ class FilmCheckTest(unittest.TestCase):
         _, rep = self.run_check("--out", str(self.d / "out"))
         self.assertEqual(rep["out.thumbs"]["status"], "FAIL")
         self.assertIn("1 long thumbnail variants", rep["out.thumbs"]["detail"])
+
+
+    def test_checklist_args_that_do_not_fit_the_metric_name_the_item(self):
+        sys.path.insert(0, str(ROOT))
+        import film_check  # review 2026-11-05: a typo in "args" gave a bare TypeError traceback
+
+        class Obj:
+            def __init__(self): self.plan = {}
+            def metric(self, scene_min=3.0): return True
+        item = {"id": "short.reading", "metric": "metric", "op": "true"}
+        self.assertEqual(film_check.judge(Obj(), item)[0], "OK")
+        for args in ({"scene_mni": 2}, [1]):
+            with self.assertRaises(SystemExit) as e: film_check.judge(Obj(), {**item, "args": args})
+            self.assertIn("short.reading", str(e.exception))
+
+
+    def test_separate_screen_metrics_measure_switches_blocks_and_the_gap_between(self):
+        # review 2026-11-05 r2: long.screen_switches, long.screen_block and long.speaker_back had no test of their values
+        sys.path.insert(0, str(ROOT))
+        import film_check
+        f = film_check.Film.__new__(film_check.Film)
+        f.specs = {"a": {"type": "web"}, "b": {"type": "web"}, "c": {"type": "web"}, "k": {"type": "kw"}}
+        f.edl = {"overlays": [{"id": "a", "at": 10.0, "dur": 8.0}, {"id": "b", "at": 18.02, "dur": 4.0},  # back to back: one block
+                              {"id": "c", "at": 24.0, "dur": 6.0}, {"id": "k", "at": 40.0, "dur": 3.0}]}  # a kw is not a separate screen
+        f.len = 120.0
+        self.assertEqual(film_check.full_spans(f.edl, f.specs), [(10.0, 22.02), (24.0, 30.0)])
+        self.assertEqual(f.screen_switches_per_min()[0], 1.0)  # 2 screens in 2 min
+        self.assertEqual(f.screen_block_median()[0], 12.0)  # blocks 6 and 12 s: the upper middle
+        self.assertEqual(f.full_screen_min_gap()[0], 2.0)  # 22.02 -> 24.0: under long.speaker_back (3 s)
+        f.edl = {"overlays": [{"id": "k", "at": 1.0, "dur": 2.0}]}
+        self.assertEqual((f.screen_block_median()[0], f.full_screen_min_gap()[0]), (999.0, 999.0))  # none: nothing to fail
+
+    def test_a_type_error_inside_a_metric_is_not_blamed_on_args(self):
+        sys.path.insert(0, str(ROOT))
+        import film_check
+
+        class Obj:
+            def __init__(self): self.plan = {}
+            def metric(self): raise TypeError("a bug inside the metric")
+        with self.assertRaises(TypeError): film_check.judge(Obj(), {"id": "x.y", "metric": "metric", "op": "true"})
 
 
 if __name__ == "__main__":

@@ -101,6 +101,8 @@ def problems(edl) -> list[str]:
             if k in edl and not num(edl[k])]  # present means set (as framing_ok): null would reach ffmpeg as "None"
     if edl.get("progress", False) not in (True, False, "fill"):  # a typo ("Fill") would silently give the old full-width bar
         out.append("progress: true, false or \"fill\" (a bar that fills with the film time)")
+    if not isinstance(edl.get("head_track", False), bool):  # 1 or "yes" would silently give the old window cut from the zoomed picture
+        out.append("head_track: true or false (PiP window and corner circle cut from the recording around the head)")
     if "music_duck" in edl and not duck_ok(edl["music_duck"]):
         out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
     if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:

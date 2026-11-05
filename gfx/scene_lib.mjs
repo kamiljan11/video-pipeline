@@ -13,7 +13,11 @@ export const PIP_ZONE = { x: W - 600 - 72 - 60, y: H - 600 - 72 - 20 - 60 };
 // where a framed drawing goes: left of the face circle (PiP on) or the whole frame ("pip": false), with a margin
 // 9:16 (canvas "v", a short): the part above the face box (layout split: gfx_types.SPLIT, box from y 1240, captions at 1150) or
 // above the captions over the corner circle (layout corner); 130 px kept free at the top (the Shorts shelf crops covers there)
+// 16:9 layout "side" (Kamil 2026-11-05: "zagospodarować dookoła mnie przestrzeń… rzeczy latające dookoła mnie"): the drawing
+// on a see-through board in the free field right of the speaker (head x 0.29-0.61 in film 2), he stays full frame, no PiP
+export const SIDE = { x: 1640, y: 150, w: 820, h: 1000 };
 export const sceneSafe = sp => (sp.canvas === 'v' ? { x: 60, y: 130, w: 960, h: sp.layout === 'corner' ? 1010 : 930 }
+  : sp.layout === 'side' ? { x: SIDE.x + 40, y: SIDE.y + 40, w: SIDE.w - 80, h: SIDE.h - 80 }
   : sp.pip === false ? { x: 120, y: 100, w: W - 240, h: H - 200 } : { x: 110, y: 100, w: PIP_ZONE.x - 140, h: H - 200 });
 export const TONES = { acc: 'var(--acc)', ok: '#3ecf8e', bad: '#ff5f57', warn: '#f5b84a', blue: '#6ea8fe', orange: '#ff8a3d', mute: '#8b9096' };
 export const KINDS = ['win', 'file', 'term', 'chip', 'node', 'chat', 'you', 'line', 'stamp', 'text', 'bar', 'stat', 'check', 'cursor', 'ring', 'say', 'toggle', 'steps'];
@@ -128,6 +132,8 @@ export function checkScene(sp) {
   if (sp.bg !== undefined && !BGS.includes(sp.bg)) bad.push(`"bg" one of ${BGS.join(', ')}`);
   if (sp.canvas === 'v' && sp.cam === 'none') bad.push('canvas "v": the camera frames the drawing above the face box, "cam": "none" has no place there');
   if (sp.canvas === 'v' && !['split', 'corner'].includes(sp.layout)) bad.push('canvas "v": "layout" = "split" or "corner"');
+  if (sp.canvas !== 'v' && sp.layout !== undefined && sp.layout !== 'side') bad.push('16:9: "layout" = "side" (beside the speaker) or none (full screen)');
+  if (sp.layout === 'side' && sp.cam === 'none') bad.push('layout "side": the camera fits the drawing into the field beside the speaker, "cam": "none" has no place there');
   if (sp.cam === 'none' && sp.pip !== false && sp.canvas !== 'v') {
     // no camera: the frame is the canvas, so a piece reaching into the PiP corner would sit under the face
     (sp.els || []).forEach((e, i) => {
@@ -290,8 +296,10 @@ export function scene(sp, esc, icon) {
   const safeIcon = n => { try { return icon(n); } catch { throw new Error(`"${sp.id}": no icon "${n}" in lucide-static`); } };
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
   const world = sp.els.map(e => piece(e, esc, safeIcon)).join('');
-  const bg = sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
-  return `${SCENE_CSS}<div class="scene">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
+  const side = sp.layout === 'side' && sp.canvas !== 'v';
+  const bg = side ? `<div class="board" style="left:${SIDE.x}px;top:${SIDE.y}px;width:${SIDE.w}px;height:${SIDE.h}px"></div>`
+    : sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
+  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
 }
 
 // in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
@@ -337,6 +345,9 @@ export function sceneFit(safe, kfSrc, soloSrc) {
 // not need reading, colour only where the eye should go (accent, ok, bad); Montserrat for UI, a monospace for the terminal
 const SCENE_CSS = `<style>
 .scene{position:absolute;inset:0;overflow:hidden;background:#0c0d0f;background-image:radial-gradient(rgba(255,255,255,.055) 2px,transparent 2.5px);background-size:56px 56px;animation:scfade .35s both}
+.scene.side{background:none}
+.scene.side .board{position:absolute;border-radius:48px;background:rgba(12,13,15,.72);box-shadow:0 30px 90px rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.08);animation:scboard .5s cubic-bezier(.2,1.3,.4,1) both}
+@keyframes scboard{from{opacity:0;transform:translateX(80px) scale(.92)}to{opacity:1;transform:none}}
 .scene .world{position:absolute;left:0;top:0;width:${W}px;height:${H}px;transform-origin:0 0}
 .scene .p{position:absolute}
 .scene .pi{position:relative;width:100%;height:100%}

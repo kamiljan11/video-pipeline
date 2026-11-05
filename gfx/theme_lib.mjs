@@ -17,7 +17,13 @@ function readObject(f, raw = fs.readFileSync(f, 'utf8')) {
 export function loadTheme(specFile, dir = THEMES) {
   const f = path.join(path.dirname(specFile), 'theme.json');
   if (!fs.existsSync(f)) return null;
-  const { theme } = readObject(f);
+  return readTheme(readObject(f).theme, dir, f);
+}
+
+// style/themes/<name>.json, name and every css token checked (a token goes into a <style>, a name into a path);
+// gfx/post_gfx.mjs reads its theme the same way. -> {name, css, key}
+export function readTheme(theme, dir = THEMES, where = 'theme') {
+  const f = where;
   if (typeof theme !== 'string' || !NAME.test(theme)) throw new Error(`${f}: "theme" must be a name like "cetus", got ${JSON.stringify(theme)}`);
   const src = path.join(dir, `${theme}.json`);
   if (!fs.existsSync(src)) throw new Error(`${f}: no theme "${theme}" (style/themes/${theme}.json)`);

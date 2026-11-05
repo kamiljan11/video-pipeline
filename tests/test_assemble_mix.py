@@ -147,6 +147,14 @@ class AssembleMixTest(unittest.TestCase):
             with self.subTest(bad=bad):
                 self.assertTrue(any("progress" in p for p in edl_guard.problems({**base, "progress": bad})))
 
+    def test_guard_head_track_values(self):  # 1 or "yes" would silently give the old window from the zoomed picture
+        base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
+        for ok in (True, False):
+            self.assertEqual(edl_guard.problems({**base, "head_track": ok}), [], ok)
+        for bad in (1, "yes", None):
+            with self.subTest(bad=bad):
+                self.assertTrue(any("head_track" in p for p in edl_guard.problems({**base, "head_track": bad})))
+
 
 if __name__ == "__main__":
     unittest.main()

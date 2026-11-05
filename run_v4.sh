@@ -50,6 +50,10 @@ for n in "$@"; do
   # critic's fixes); a card whose window did not change is skipped
   if [ -f gfx_specs.json ] && grep -q '"behind"' gfx_specs.json; then
     timeout 3600 $VP/matte/.venv/bin/python $VP/behind.py gfx_specs.json gfx --edl "edl_$n.json" >> "$R/render.log" 2>&1 || { echo "FAILED behind $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+    # what the cut-out hides (behind.py <id>.cover.json): text or a drawing behind the head must stay readable
+    if [ "${FILM_CHECK:-on}" != off ]; then
+      python3 $VP/film_check.py . "$n" --phase behind >> "$L" 2>&1 || { echo "FAILED film_check behind $n ($L)" >> "$R/render.log"; failed="$failed $n"; continue; }
+    fi
   fi
   f=$(python3 -c "import json;print(json.load(open('edl_$n.json'))['out_name'])")
   # out_name comes from the plan (Syncthing): a bare file name only, never a path out of OUTDIR

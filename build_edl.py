@@ -10,7 +10,7 @@ from pathlib import Path
 import edges
 import edl_guard
 import themes
-from gfx_types import CORNER, PIP, SIDE_BOX, SPLIT
+from gfx_types import CORNER, SIDE_BOX, SPLIT, beside, has_pip
 
 # keys of the face box under a 9:16 card (assemble.py): caption line y in px, face point in the box height, picture scale
 # (< 1 = smaller picture on its blurred copy; 0 divides by zero in assemble.py, film 2 review 2026-11-04)
@@ -109,7 +109,7 @@ def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:
     # a 9:16 "web" card with the face in a box under it: a punch-in there shows the face far too close (Kamil 2026-10-31, c2)
     if sp.get("canvas") == "v" and sp.get("type") == "web" and sp.get("layout", "split") == "split": return True
     if sp.get("canvas") == "v" and sp.get("type") == "meme" and sp.get("layout", "split") in ("split", "corner"): return True
-    return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
+    return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v" and not beside(sp)  # beside the head: zoom allowed
 if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
     sys.exit("gfx: the plan places graphics, so it needs \"gfx_specs\" (cards file) and \"gfx_dir\" (their .mov folder)")
 for g in P.get("gfx", []):
@@ -129,11 +129,11 @@ for g in P.get("gfx", []):
     # a 9:16 "scene" (gfx/scene_lib.mjs, the long's animated explainer drawn for a short) must say which: split or corner
     if vert and sp.get("type") == "scene" and sp.get("layout") not in ("split", "corner"):
         sys.exit(f"{g['id']}: a 9:16 \"scene\" needs layout \"split\" (face box under it) or \"corner\" (face circle), got {sp.get('layout')!r}")
-    if "layout" in sp and (not vert or sp.get("type") not in ("web", "meme", "float", "scene") or sp["layout"] not in ("split", "full", "corner")
+    if "layout" in sp and not (not vert and sp.get("type") == "scene" and sp["layout"] == "side") and (not vert or sp.get("type") not in ("web", "meme", "float", "scene") or sp["layout"] not in ("split", "full", "corner")
                            or (sp.get("type") in ("float", "scene") and sp["layout"] not in ("split", "corner"))
                            or (sp.get("type") == "web" and sp["layout"] == "corner")):
-        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" card, \"split\", \"full\" or \"corner\" on a \"meme\", \"split\" or \"corner\" on a \"float\" or \"scene\" (canvas \"v\"), got {sp['layout']!r}")
-    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert and sp.get("pip") is not False}
+        sys.exit(f"{g['id']}: layout = \"side\" on a 16:9 \"scene\", \"split\" or \"full\" on a \"web\" card, \"split\", \"full\" or \"corner\" on a \"meme\", \"split\" or \"corner\" on a \"float\" or \"scene\" (canvas \"v\"), got {sp['layout']!r}")
+    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": has_pip(sp)}
     if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") in ("float", "scene") and sp.get("layout") == "split")): o["split"] = True
     if o.get("split") and "face_box" in sp:  # own face box under a short card: [x, y, w, h] inside 1080x1920 (assemble.py)
         fb = sp["face_box"]
@@ -218,7 +218,7 @@ if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _t
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py
+       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME

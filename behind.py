@@ -49,7 +49,7 @@ WARM = 1.0  # seconds of film fed to the model before the card: its recurrent st
 MAX_DUR = 20.0  # seconds; a card is held one frame at a time, this bounds the run, not the memory
 STALE_PART = 2 * 3600  # seconds; a temp file this old is from a killed run (run_v4.sh's timeout is 3600 s)
 MARK = "behind:"
-VERSION = 2  # in the key: a change of how the cut-out is made redoes every card
+VERSION = 3  # in the key: a change of how the cut-out is made redoes every card (3: <id>.cover.json written)
 SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # specs come over Syncthing: a card id / EDL name never leaves gfx_dir / work
 SAFE_EDL = re.compile(r"[A-Za-z0-9_-]+\.json")
 MAX_PIXELS = 3840 * 2160
@@ -254,22 +254,31 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
         raise BehindError(f"{cid}: ratio {ratio!r} must be a number in (0, 1]")
     key = hashlib.sha256(json.dumps([VERSION, window_key(edl, o["at"], n), sha(front), ratio, MODEL_SHA,
                                      hashlib.sha256(framing_src().encode()).hexdigest()], sort_keys=True).encode()).hexdigest()
-    if mark == MARK + key:
+    cover = gfx / f"{cid}.cover.json"
+    if mark == MARK + key and cover_key(cover) == key:  # the card AND its measure belong to this cut-out
         return f"{cid}: up to date"
     # card frame k is on screen at at + k/30 -> film frame ceil((at + k/30) * 30) (overlay shows the last card frame <= t)
     c0 = math.ceil(o["at"] * FPS - 1e-6); first = max(0, math.floor((o["at"] - WARM) * FPS))
     matter = (matter_for or Matter)(ratio)
     tmp = temp_in(gfx, cid)
     try:
-        _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter)
+        covered = _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter)
+        # how much of the card the speaker hides, for film_check (Kamil 2026-11-05: "WYZNANIE" with the head over the
+        # middle letters could not be read). Written before the card with the card's key: a run killed in between leaves
+        # a measure the old card does not match, so the next run cuts out again (the "up to date" test needs both)
+        part = cover.with_suffix(".part")
+        part.write_text(json.dumps({"covered": round(covered, 3), "key": key}))
+        part.replace(cover)
         tmp.replace(mov)
     finally:
         tmp.unlink(missing_ok=True)  # a failed run leaves the card as it was (the .mov is only ever replaced whole)
-    return f"{cid}: speaker cut out of {n} frames"
+    return f"{cid}: speaker cut out of {n} frames, covers {covered:.0%} of the card"
 
 
 def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int, int], frames: Iterator[np.ndarray],
-            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray]) -> None:
+            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray]) -> float:
+    """writes the cut-out card to tmp; returns the share of the card the speaker covers, the worst frame among those
+    where the card is fully in (at least half of its largest opacity: the fade in and out do not count)"""
     w, h = size
     with subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(front), "-f", "rawvideo", "-pix_fmt", "rgba", "-"], stdout=subprocess.PIPE) as dec, \
          subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}", "-framerate", str(FPS),
@@ -280,11 +289,19 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
         fsz = w * h * 4
         done, person = 0, None
 
+        shares: list[tuple[float, float]] = []  # (card opacity, share of it under the speaker) per frame
+
         def put(p):
             b = src.read(fsz)
             if len(b) != fsz:
                 raise BehindError(f"{cid}: {front.name} has fewer frames than its {n}")
-            sink.write(cut_out(np.frombuffer(b, np.uint8).reshape(h, w, 4), p).tobytes())
+            rgba = np.frombuffer(b, np.uint8).reshape(h, w, 4)
+            if p is not None:
+                a = rgba[..., 3].astype(np.float32)
+                tot = float(a.sum())
+                if tot > 0:
+                    shares.append((tot, float((a * p).sum()) / tot))
+            sink.write(cut_out(rgba, p).tobytes())
 
         for i, rgb in enumerate(frames):
             person = matter(rgb)
@@ -295,6 +312,17 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
         sink.close()
         if enc.wait(timeout=600) or dec.wait(timeout=60):
             raise BehindError(f"{cid}: ffmpeg could not write the card (rc {enc.returncode}/{dec.returncode})")
+    full = max((t for t, _ in shares), default=0.0)
+    return max((c for t, c in shares if t >= 0.5 * full), default=0.0)
+
+
+def cover_key(cover: Path) -> str | None:
+    """the cut-out key stored with a card's measure (<id>.cover.json); None when there is no readable measure"""
+    try:
+        k = json.loads(cover.read_text()).get("key")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return k if isinstance(k, str) else None
 
 
 def temp_in(gfx: Path, cid: str) -> Path:

@@ -1,0 +1,106 @@
+"""Screen grammar of a 16:9 long: how often the film leaves the speaker for a separate screen and how long a card stays.
+
+A plan builder (render/montaz/<film>/work/build_plan_*.py) calls screen_pass() on its cards before it writes gfx_specs.json.
+The rules come from Kamil's corrections of film 2 (2026-11-05: "zbyt często przenosimy się na osobny ekran", "nie zdąży się
+przeczytać", "memy wycinać i wklejać dookoła mnie", "rzeczy latające dookoła mnie") and from the Negacz teardown
+(style/REF-long-negacz.md L1, L3, L4). film_check.py measures the result: long.screen_switches, long.screen_block,
+long.speaker_back, long.screen_share, long.reading.
+
+  python3 -m unittest tests.test_screen_grammar
+"""
+from __future__ import annotations
+
+import copy
+import itertools
+import json
+import os
+from functools import cache
+from pathlib import Path
+
+from film_check import UNTIMED, reading_need
+from gfx_types import beside, is_full
+
+HERE = Path(__file__).resolve().parent
+_STYLE = json.loads((HERE / "style" / "screen_grammar.json").read_text())  # thresholds are data (README: style = data, not code)
+SIDE_MAX_ELS = _STYLE["side_max_els"]  # a scene of this many pieces or fewer is drawn beside him (layout "side")
+SHIFT_MAX = _STYLE["shift_max"]  # a card with no room after it may start this much earlier, into a free stretch before it
+# between two separate screens he is back this long at least, or the two become one block: the gate's own value
+SPEAKER_BACK = next(float(i["value"]) for i in json.loads((HERE / "style" / "checklist.json").read_text())["items"] if i["id"] == "long.speaker_back")
+SHIFTABLE = ("kw", "count", "sticker", "float")  # cards whose inner timing is only a top-level "at" list (or none)
+RECAP = _STYLE["recap_prefix"]  # id prefix of a recap map (plan builders name them m1_mapa, m2_…): dropped when it has no room to be read
+
+
+@cache
+def has_sticker(slug: str) -> bool:
+    """the template has "sticker" crops (style/memes.json, or the picture's own json in the meme library, as gfx/render.mjs
+    memeLib reads them): without them a "sticker" card stops the render (review 2026-11-05: 5 of 19 templates have none)"""
+    lib = Path(os.environ.get("VP_MEMES", HERE / "render" / "memes"))
+    for f in (HERE / "style" / "memes.json", lib / f"{slug}.json"):
+        try: d = json.loads(f.read_text())
+        except (OSError, ValueError): continue
+        crops = (d.get(slug) if f.name == "memes.json" else d) or {}
+        if isinstance(crops, dict) and crops.get("sticker"): return True
+    return False
+
+
+def goes_beside(sp: dict) -> bool:
+    """screen_pass puts it in the free field right of the head (gfx_types.beside): a 16:9 meme with sticker crops or a
+    simple scene"""
+    if sp.get("canvas") == "v": return False
+    if sp["type"] == "meme": return has_sticker(str(sp.get("meme")))  # no crops: the meme stays a whole picture
+    return (sp["type"] == "scene" and len(sp.get("els") or []) <= SIDE_MAX_ELS and sp.get("pip") is not False
+            and sp.get("cam") != "none")  # scene_lib.checkScene refuses layout "side" with cam "none"
+
+
+def screen_pass(cards: list[tuple[float, dict]], drop: dict[str, str] | None = None, log=print):
+    """cards = [(film start s, spec)], the plan's cards one at a time. Returns (specs, shift) with copies of the specs:
+    - memes with sticker crops (has_sticker) become stickers and simple scenes go beside him (layout "side"): he stays full frame;
+    - every card is held to its reading time (film_check.reading_need): longer where the next card leaves room; else a
+      SHIFTABLE card starts up to SHIFT_MAX s earlier, taking the time from the card before when that one has more
+      than its own reading time; shift = {id: seconds earlier (negative)} for the plan's "lead";
+    - a recap map (id "m…", a scene) that still cannot get its reading time is dropped, and so is every id in drop;
+    - two separate screens closer than SPEAKER_BACK with nothing between them join into one block."""
+    t0 = {sp["id"]: t for t, sp in cards}
+    drop = drop or {}
+    for i, why in drop.items(): log(f"screen_pass: {i} left out ({why})")
+    out = [copy.deepcopy(sp) for _, sp in sorted(cards, key=lambda c: c[0]) if sp["id"] not in drop]
+    for sp in out:
+        if goes_beside(sp) and sp["type"] == "meme": sp["type"] = "sticker"
+        elif goes_beside(sp): sp["layout"] = "side"; sp.pop("bg", None)
+    shift: dict[str, float] = {}
+
+    def blocks(sp, other):  # a lower third sits bottom left: it does not stop a card beside him (right) from running on
+        return not (other["type"] == "lower" and beside(sp))
+
+    def room_after(k):
+        nxt = [t0[q["id"]] for q in out[k + 1:] if blocks(out[k], q)]
+        return (min(nxt) - t0[out[k]["id"]] - 0.05) if nxt else 99.0
+
+    keep: list[dict] = []
+
+    def room_before(sp):
+        prev = [t0[q["id"]] + q["dur"] for q in keep if blocks(sp, q)]
+        return t0[sp["id"]] - (max(prev) + 0.05) if prev else t0[sp["id"]]
+
+    for k, sp in enumerate(out):
+        need = reading_need(sp)
+        if sp["dur"] < need and sp["type"] not in UNTIMED:
+            sp["dur"] = round(min(need, max(sp["dur"], room_after(k))), 2)
+            d = min(need - sp["dur"], SHIFT_MAX)
+            if sp["type"] in SHIFTABLE and d > room_before(sp) and keep and blocks(sp, keep[-1]):
+                prev = keep[-1]  # take it from the card before when that one has more than its own reading time
+                cut = min(d - max(room_before(sp), 0.0), prev["dur"] - reading_need(prev))
+                if cut > 0: prev["dur"] = round(prev["dur"] - cut, 2)
+            d = min(d, room_before(sp))
+            if d > 0.05 and sp["type"] in SHIFTABLE:
+                t0[sp["id"]] -= d; sp["dur"] = round(sp["dur"] + d, 2); shift[sp["id"]] = round(-d, 3)
+                if isinstance(sp.get("at"), list): sp["at"] = [round(x + d, 2) for x in sp["at"]]  # words stay on their speech
+        if sp["id"].startswith(RECAP) and sp["type"] == "scene" and sp["dur"] < need - 1e-6:
+            log(f"screen_pass: {sp['id']} dropped (recap map, {sp['dur']:.1f} s of room < {need:.1f} s to read)"); continue
+        keep.append(sp)
+    full = [sp for sp in keep if is_full(sp)]
+    for p, q in itertools.pairwise(full):
+        gap = t0[q["id"]] - t0[p["id"]] - p["dur"]
+        between = [sp for sp in keep if t0[p["id"]] < t0[sp["id"]] < t0[q["id"]]]
+        if 0 < gap < SPEAKER_BACK and not between: p["dur"] = round(t0[q["id"]] - t0[p["id"]], 2)
+    return keep, shift

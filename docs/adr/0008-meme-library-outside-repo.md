@@ -30,6 +30,13 @@ TAK = wpis tutaj ze statusem i datą; NIE = w planie longa `"skip": {"long.memes
 rzadziej, ale nie zero). Dlatego: tylko obrazy, bez dźwięku, krótko (2–3,5 s), z naszym tekstem (transformacja, komentarz). Klipy
 wideo (np. reakcje z filmów) świadomie poza zakresem; wrócić, jeśli Kamil zaakceptuje ryzyko roszczeń.
 
+**Uzupełnienie 2026-11-05, gify zwierząt (Kamil: „moje OK daje ci”):** dozwolone krótkie gify kotów i innych zwierząt jako
+naklejka obok mówiącego: do 2 s, bez dźwięku, bez napisu. Nie wolno brać wycinków z telewizji ani filmów: tam jest realne ryzyko
+roszczeń. Najpierw Pexels/Pixabay (licencja do użytku komercyjnego, klucz Pexels już jest), dopiero potem gif amatorski. Każdy gif
+ma zapisane źródło, żeby przy roszczeniu dało się podmienić jeden klip i zrenderować film od nowa. Ryzyko, które Kamil przyjął:
+popularne filmiki zwierząt bywają w Content ID agencji licencyjnych (np. Jukin Media). Skutek to roszczenie (przychód albo blokada
+w części krajów), a nie ban kanału. Narzędzie do gifów: do zbudowania (runda poprawek filmu 2).
+
 **Konsekwencje:** szablon spoza top 100 imgflip nie da się pobrać `memes.py` (nazwany błąd); wtedy obraz można położyć ręcznie
 w `render/memes/` z własnym `<slug>.json` (ten sam format).
 

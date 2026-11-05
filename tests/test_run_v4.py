@@ -16,6 +16,8 @@ log = os.environ["RUNV4_LOG"]
 open(log, "a").write(name + "\\n")
 if os.environ.get("FAIL_" + name.split(".")[0]):
     sys.exit(1)
+if os.environ.get("FAIL_phase") and "--phase" in sys.argv:  # film_check's "behind" phase only
+    sys.exit(1)
 if name == "assemble.py":
     os.makedirs(sys.argv[2], exist_ok=True)
     open(os.path.join(sys.argv[2], "film.mp4"), "w").write("x")
@@ -118,6 +120,21 @@ class RunV4GateTest(unittest.TestCase):
         self.assertIn("FAILED out: no writable folder", render)
         self.assertEqual(calls, [])
 
+    def test_cards_behind_the_speaker_are_checked_after_the_cut_out(self):
+        (self.work / "gfx_specs.json").write_text(json.dumps([{"id": "b", "type": "float", "behind": {"edl": "edl_x.json"}}]))
+        render, calls = self.run_v4()
+        i = calls.index("behind.py")
+        self.assertEqual(calls[i + 1], "film_check.py")  # the "behind" phase, before assemble.py
+        self.assertLess(i + 1, calls.index("assemble.py"))
+        self.assertIn("DONE x", render)
+
+    def test_a_hidden_card_behind_the_speaker_renders_nothing(self):
+        (self.work / "gfx_specs.json").write_text(json.dumps([{"id": "b", "type": "float", "behind": {"edl": "edl_x.json"}}]))
+        render, calls = self.run_v4(rc=1, FAIL_phase="1")
+        self.assertIn("FAILED film_check behind x", render)
+        self.assertIn("behind.py", calls)
+        self.assertNotIn("assemble.py", calls)
+
     def test_failed_film_check_renders_nothing(self):
         render, calls = self.run_v4(rc=1, FAIL_film_check="1")
         self.assertIn("FAILED film_check x", render)
@@ -127,6 +144,14 @@ class RunV4GateTest(unittest.TestCase):
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")
         self.assertIn("WARN film_check off x", render)
+        self.assertNotIn("film_check.py", calls)
+        self.assertIn("DONE x", render)
+
+    def test_film_check_off_skips_the_behind_phase_too(self):
+        # review 2026-11-05 ops-1: the behind cut-out runs, its check (film_check --phase behind) does not
+        (self.work / "gfx_specs.json").write_text(json.dumps([{"id": "b", "type": "behind", "dur": 3, "text": "x"}]))
+        render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")
+        self.assertIn("behind.py", calls)
         self.assertNotIn("film_check.py", calls)
         self.assertIn("DONE x", render)
 

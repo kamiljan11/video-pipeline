@@ -34,6 +34,7 @@ const html = sp => {
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
   if (sp.type === 'meme') return meme(sp);
+  if (sp.type === 'sticker') return sticker(sp);
   if (sp.type === 'maxim') return maxim(sp);
   if (sp.type === 'scene') return scene(sp, esc, icon);  // explainer canvas, face in the PiP circle (gfx/scene_lib.mjs, README › Scena)
   if (sp.type === 'float') return `<div class="float">${sp.html}</div>`;  // illustration beside the speaker: the spec's own pieces (template.html › float)
@@ -82,6 +83,8 @@ const MEMES = process.env.VP_MEMES ?? path.resolve(path.dirname(new URL(import.m
 // 9:16 split ends above the captions (gfx_types.SPLIT); 16:9 "long" keeps the bottom-right corner free for the face PiP
 // 9:16 corner: above the captions and the face circle (the free field of a corner scene, scene_lib sceneSafe)
 const MEME_BOX = { split: { x: 60, w: 960, y: 120, h: 880 }, full: { x: 60, w: 960, y: 260, h: 1240 }, corner: { x: 60, w: 960, y: 130, h: 1010 }, long: { x: 140, w: 1700, y: 150, h: 1140 } };
+// 16:9 "sticker": the free field beside the speaker (his head sits at x 0.29-0.61 of the frame in film 2), px of the 2560x1440 card
+const STICKER_BOX = { right: { x: 1620, y: 150, w: 820, h: 960 }, left: { x: 90, y: 150, w: 620, h: 960 } };
 const CATALOGUE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'style', 'memes.json');
 // the picture's own json (name, size, file) + the text boxes of the catalogue in the repo (a fixed box works without a new
 // fetch; a picture placed by hand keeps the boxes of its own json); every field checked, so a bad one stops the card by name
@@ -91,6 +94,7 @@ const memeLib = sp => {
   let m; try { m = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { throw bad(`${f}: ${e.message}`); }
   const cat = JSON.parse(fs.readFileSync(CATALOGUE, 'utf8'))[sp.meme];
   if (cat?.boxes) m.boxes = cat.boxes;
+  if (cat?.sticker) m.sticker = cat.sticker;  // part of the card key too (memeStamp shows m)
   const box = b => Array.isArray(b) && b.length === 5 && b.slice(0, 4).every(x => typeof x === 'number' && x >= 0 && x <= 1) && ['dark', 'light'].includes(b[4]);
   if (!(m.width > 0 && m.height > 0) || !Array.isArray(m.boxes) || !m.boxes.every(box)) throw bad(`${f}: needs width, height and boxes [x, y, w, h, "dark"|"light"]`);
   if (typeof m.img !== 'string' || !/^[a-z0-9_]+\.(jpg|png)$/.test(m.img) || !fs.existsSync(`${MEMES}/${m.img}`)) throw bad(`picture ${JSON.stringify(m.img)} missing in ${MEMES}`);
@@ -117,6 +121,31 @@ function meme(sp) {
     + `<img src="${pathToFileURL(`${MEMES}/${m.img}`).href}" style="animation:mmzoom ${sp.dur}s linear both">${boxes}</div>`
     + `<div class="src" style="left:${left}px;top:${top + h + 14}px">${esc(sp.src ?? `mem: ${m.name}`)}</div></div>`;
 }
+// "sticker" (16:9; Kamil 2026-11-05: "memy możemy śmiało wycinać np same twarze postacie… i wklejać do około mnie, nie trzeba
+// osobnych ekranów"): the meme's character cut out of the template (style/memes.json "sticker": crops [x, y, w, h] of the
+// picture, one per beat) beside the speaker, who stays full frame. Beat i comes in at "at"[i] with "text"[i] in a chip under
+// it (optional: "kotki" need no words), pops in, sways, and gives way to the next beat
+function sticker(sp) {
+  const m = memeLib(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [], crops = m.sticker;
+  const bad = why => new Error(`"${sp.id}": sticker ${JSON.stringify(sp.meme)}: ${why}`);
+  if (!B) throw bad(`"side" = "right" or "left", got ${JSON.stringify(sp.side)}`);
+  if (sp.canvas === 'v') throw bad('a sticker is 16:9 (STICKER_BOX is beside the speaker on the 2560x1440 card); in 9:16 use a "meme"');
+  const crop = c => Array.isArray(c) && c.length === 4 && c.every(x => typeof x === 'number' && x >= 0 && x <= 1) && c[0] + c[2] <= 1.0001 && c[1] + c[3] <= 1.0001 && c[2] > 0 && c[3] > 0;
+  if (!Array.isArray(crops) || !crops.length || !crops.every(crop)) throw bad('style/memes.json needs "sticker": [[x, y, w, h], …] (fractions of the picture)');
+  if (!Array.isArray(texts) || !texts.every(t => typeof t === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
+  const n = Math.max(1, texts.length), ats = sp.at ?? [];
+  if (!(Array.isArray(ats) && ats.every(t => typeof t === 'number' && t >= 0 && t < sp.dur))) throw bad(`"at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
+  const chipH = texts.length ? 200 : 0;
+  return '<div class="float">' + Array.from({ length: n }, (_, i) => {
+    const [cx, cy, cw, ch] = crops[Math.min(i, crops.length - 1)], pw = cw * m.width, ph = ch * m.height;
+    const s = Math.min(B.w / pw, (B.h - chipH) / ph), w = Math.round(pw * s), h = Math.round(ph * s);
+    const t0 = ats[i] ?? 0.15 + (sp.dur / n) * i, t1 = i < n - 1 ? (ats[i + 1] ?? 0.15 + (sp.dur / n) * (i + 1)) - 0.05 : sp.dur - 0.35;
+    const say = texts[i] ? `<div class="say" style="animation-delay:${(t0 + 0.25).toFixed(2)}s">${esc(texts[i])}</div>` : '';
+    return `<div class="stk" style="left:${Math.round(B.x + (B.w - w) / 2)}px;top:${B.y}px;width:${w}px;animation:stkin .5s cubic-bezier(.2,1.5,.4,1) ${t0.toFixed(2)}s both,stkout .25s ease-in ${t1.toFixed(2)}s forwards">`
+      + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${t0.toFixed(2)}s infinite alternate"><div class="pic" style="width:${w}px;height:${h}px">`
+      + `<img src="${pathToFileURL(`${MEMES}/${m.img}`).href}" style="width:${(m.width * s).toFixed(1)}px;margin-left:${(-cx * m.width * s).toFixed(1)}px;margin-top:${(-cy * m.height * s).toFixed(1)}px"></div></div>${say}</div>`;
+  }).join('') + '</div>';
+}
 function memeStamp(sp) {
   const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(MEME_CODE).digest('hex');
@@ -131,7 +160,7 @@ function logoStamp(sp) {
 const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
 // a meme is drawn by MEME_BOX, meme(), memeLib() and its CSS in template.html: a change in any of them changes its frames,
 // so they are part of a meme's key like SCENE_LIB for scenes (review r3 code-2, r4 code-1)
-const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(meme.toString()).update(memeLib.toString())
+const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(JSON.stringify(STICKER_BOX)).update(meme.toString()).update(sticker.toString()).update(memeLib.toString())
   .update(fs.readFileSync(new URL('./template.html', import.meta.url))).digest('hex').slice(0, 12);
 const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB } : {}) })).digest('hex');
 function webStamp(sp) {
@@ -154,7 +183,7 @@ async function one(sp) {
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
   // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
   const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
-  const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'meme' ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
+  const base = sp.type === 'web' ? webStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
   const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
   if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9

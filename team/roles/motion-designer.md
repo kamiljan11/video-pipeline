@@ -16,6 +16,9 @@
 - `lower` z `style/brand.json` (`lower_sub`), w pierwszych 15 s.
 - Metafory z życia > diagramy (szlaban vs znak, checklist pilota, redaktor książki). Liczby z fact-checkera.
 - Karta nie zasłania twarzy w trybie pełnym; pip/split dla scen na pełny ekran.
+- Gramatyka ekranu (`screen_grammar.screen_pass`, builder planu woła przed zapisem `gfx_specs.json`): mem z wycinkami
+  `sticker` w `style/memes.json` -> naklejka obok twarzy; scena <= 5 elementów -> `layout: "side"`; karta trzyma czas
+  czytania; dwa osobne ekrany bliżej niż 3 s -> jeden blok (Kamil 2026-11-05: „zbyt często przenosimy się na osobny ekran”).
 
 **Gotowe gdy:** `film_check` long.chapters, long.explainers, long.explainer_count, long.graphics, long.behind, long.lower OK;
 klatka kontrolna każdej sceny obejrzana (`gfx/` png) przed renderem.

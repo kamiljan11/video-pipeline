@@ -12,11 +12,16 @@ Outputs (story.json, clips.json, posts.json) come from the editorial team, team/
 """
 from __future__ import annotations
 
+import inspect
+import itertools
 import json
 import re
 import sys
 from pathlib import Path
 from typing import NoReturn
+
+import gfx_types  # next to this script: which card types are a separate screen
+import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 
 ROOT = Path(__file__).resolve().parent
 CHECKLIST = ROOT / "style" / "checklist.json"
@@ -82,6 +87,43 @@ def zoom_steps(edl: dict) -> list[float]:
         prev = level if not isinstance(z, dict) else z.get("b", level)
         acc += s["out"] - s["in"]
     return out
+
+
+NOT_READ = {"id", "type", "icon", "tone", "k", "bg", "anim", "file", "owner", "layout", "cam", "img", "src", "sfx", "font", "mark",
+            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side"}  # not read text
+
+
+def read_words(spec) -> int:
+    """words a viewer reads on a card: every string in the spec except the NOT_READ keys; html loses its tags first"""
+    if isinstance(spec, str):  # html: no css, inline tags joined (a word drawn letter by letter is one word), others split
+        t = re.sub(r"<style.*?</style>", " ", spec, flags=re.DOTALL)
+        t = re.sub(r"</?(span|b|i|em|strong)\b[^>]*>", "", t)
+        return len(re.sub(r"<[^>]*>|&[a-z]+;", " ", t).split())
+    if isinstance(spec, list): return sum(read_words(v) for v in spec)
+    if isinstance(spec, dict): return sum(read_words(v) for k, v in spec.items() if k not in NOT_READ)
+    return 0
+
+
+def reading_need(sp: dict, per_word=1.2, head_words=4, per_more=0.35, minimum=2.5, scene_min=6.0) -> float:
+    """seconds a card needs on screen: a text card max(minimum, per_word x its first head_words words + per_more x the
+    rest: Negacz's 1.5 s a word holds for his 3-word cards, a long line is read at about 3 words a second); a picture card
+    (scene drawn piece by piece, web shot, slide: narrated, looked at rather than read) scene_min. Reference: Negacz text
+    cards 1.5 s a word (n 92), drawn scenes 23 s median (n 101), style/REF-long-negacz.md L3, L4. The plan builder uses it too"""
+    if sp.get("type") in ("scene", "web", "slide"): return scene_min
+    n = read_words(sp)
+    return max(minimum, per_word * min(n, head_words) + per_more * max(n - head_words, 0))
+
+UNTIMED = ("lower", "end", "chap")  # cards held to their own length, not to a reading time (screen_grammar uses the same)
+
+
+def full_spans(edl: dict, specs: dict) -> list[tuple[float, float]]:
+    """time on a separate screen (gfx_types.is_full: the speaker is gone or sits in the corner), overlaps merged"""
+    spans: list[list[float]] = []
+    for a, b in sorted((o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", [])
+                       if gfx_types.is_full(specs.get(o["id"], {}))):
+        if spans and a <= spans[-1][1] + 0.05: spans[-1][1] = max(spans[-1][1], b)  # back to back = one screen (frame rounding)
+        else: spans.append([a, b])
+    return [(a, b) for a, b in spans]
 
 
 def max_gap(edl: dict, end: float) -> float:
@@ -154,7 +196,61 @@ class Film:
 
     def punches_per_min(self): return round(len(punches(self.edl)) / max(self.len / 60, 1e-9), 2)
     def behind_cards(self): return sum(1 for o in self.ovs if "behind" in self.specs.get(o["id"], {}))
-    def meme_cards(self): return sum(self.typ(o) == "meme" for o in self.ovs)
+
+    def behind_cover_max(self):
+        """the worst share of a "behind" text card the speaker hides (behind.py writes <id>.cover.json next to the card);
+        "behind": {"drawing": true} (a drawn object, Kamil 2026-11-05 "narysuj szlaban") is not text and is left out;
+        a card with no measure counts as fully hidden (phase "behind": run_v4.sh checks it right after behind.py)"""
+        gfx = Path(self.plan.get("gfx_dir") or "gfx")
+        gfx = gfx if gfx.is_absolute() else self.work / gfx
+        got = []
+        for o in self.ovs:
+            bh = self.specs.get(o["id"], {}).get("behind")
+            if not isinstance(bh, dict) or bh.get("drawing"): continue  # a drawing may hide behind him (depth); the limit is for text
+            try: c = float(json.loads((gfx / f"{o['id']}.cover.json").read_text())["covered"])
+            except (OSError, ValueError, KeyError, TypeError): c = 1.0
+            got.append((c, o["id"]))
+        got.sort(reverse=True)  # worst first; the limit is the checklist's value, not repeated here
+        return (round(got[0][0], 3) if got else 0.0), ("hidden: " + ", ".join(f"{i} {c:.0%}" for c, i in got)) if got else ""
+    def meme_cards(self): return sum(self.typ(o) in ("meme", "sticker") for o in self.ovs)
+    # a separate screen too often "rozprasza" (Kamil 2026-11-05, v2 long: 62 full-screen cards, every 21 s, 63 % of the time)
+    def full_screen_share(self):
+        sp = full_spans(self.edl, self.specs)
+        return round(sum(b - a for a, b in sp) / max(self.len, 1e-9), 3), f"{len(sp)} separate screens, {sum(b - a for a, b in sp):.0f} s of {self.len:.0f} s"
+
+    def full_screen_min_gap(self):
+        sp = full_spans(self.edl, self.specs)
+        gaps = sorted((b2 - a1, a1) for (_, a1), (b2, _) in itertools.pairwise(sp))  # (gap, where it starts)
+        if not gaps: return 999.0, ""
+        return round(gaps[0][0], 1), "shortest: " + ", ".join(f"{g:.1f} s at {t:.0f} s" for g, t in gaps[:5])
+
+    def cards_shorter_than_reading(self, skip_types=UNTIMED, **rates):
+        """cards on screen for less than their reading time (reading_need; Kamil 2026-11-05: "nie zdąży się przeczytać")"""
+        short = []
+        for o in self.ovs:
+            sp = self.specs.get(o["id"], {})
+            if sp.get("type") in skip_types: continue
+            need = reading_need(sp, **rates)
+            if o["dur"] < need - 1e-6: short.append((need - o["dur"], o["id"], o["dur"], need))
+        short.sort(reverse=True)
+        return len(short), ", ".join(f"{i} {d:.1f} s < {n:.1f} s" for _, i, d, n in short[:6])
+
+    # Negacz (REF-long-negacz.md L1): as much time under scenes as ours (65 %), but 1.3 switches a minute, a scene block
+    # 16 s median, the speaker back for 7 s median (3 s p25); ours v2: 2.9 a minute
+    def face_windows_head_tracked(self):
+        """the PiP windows and corner circles of this film are cut from the recording around the head (assemble.py
+        head_track); an EDL without the key keeps the old crop of the zoomed picture for old films"""
+        n = sum(1 for o in self.edl.get("overlays", []) if o.get("pip") or o.get("corner"))
+        return (self.edl.get("head_track") is True or n == 0), f"{n} face windows, head_track {self.edl.get('head_track', False)}"
+
+    def screen_switches_per_min(self):
+        sp = full_spans(self.edl, self.specs)
+        return round(len(sp) / max(self.len / 60, 1e-9), 2), f"{len(sp)} separate screens in {self.len / 60:.1f} min"
+
+    def screen_block_median(self):
+        d = sorted(b - a for a, b in full_spans(self.edl, self.specs))
+        return (round(d[len(d) // 2], 1), f"blocks {d[0]:.1f}-{d[-1]:.1f} s") if d else (999.0, "")
+
 
     def lower_matches_brand(self):
         want = load(BRAND, "style/brand.json")["lower_sub"]
@@ -236,7 +332,7 @@ class Out:
         for pid in want:
             d = self.out / "posts" / pid
             if not (d / "post.md").exists(): bad.append(f"{pid}: no post.md")
-            if not [f for f in d.glob("*") if f.suffix in (".png", ".jpg", ".pdf")]: bad.append(f"{pid}: no graphic (png/jpg/pdf)")
+            bad += [f"{pid}: {p}" for p in post_check.problems(d)]  # the graphic alone (OCR, contrast) and the text habits
         return not bad, "; ".join(bad)
 
 
@@ -245,7 +341,12 @@ def judge(obj, item: dict) -> tuple[str, str]:
     if isinstance(skip, str) and len(skip.strip()) >= SKIP_MIN: return "SKIP", skip.strip()
     fn = getattr(obj, item["metric"], None)
     if fn is None: raise SystemExit(f"film_check: style/checklist.json {item['id']}: unknown metric {item['metric']!r}")
-    v = fn(); detail = ""
+    args = item.get("args", {})  # "args": the metric's own parameters, data like the value
+    if not isinstance(args, dict): raise SystemExit(f"film_check: style/checklist.json {item['id']}: \"args\" = an object, got {args!r}")
+    try: inspect.signature(fn).bind(**args)  # only the binding: a TypeError inside the metric stays a real traceback
+    except TypeError as e: raise SystemExit(f"film_check: style/checklist.json {item['id']}: \"args\" {args!r} do not fit {item['metric']}: {e}") from e
+    v = fn(**args)
+    detail = ""
     if isinstance(v, tuple): v, detail = v
     op, want = item["op"], item.get("value")
     if op == "true" or want == "all": ok = bool(v)
@@ -260,8 +361,18 @@ def judge(obj, item: dict) -> tuple[str, str]:
 def main(argv: list[str]) -> int:
     args = [a for a in argv if a != "--json"]; as_json = "--json" in argv
     if len(args) < 2: print(__doc__, file=sys.stderr); return 2
+    phase = None
+    if "--phase" in args:  # items with a "phase" run only when asked (run_v4.sh: "behind" right after behind.py)
+        i = args.index("--phase")
+        if i + 1 >= len(args): print("film_check: --phase needs a name", file=sys.stderr); return 2
+        phase = args[i + 1]; del args[i:i + 2]
     work = Path(args[0])
-    items = load(CHECKLIST, "style/checklist.json")["items"]
+    every = load(CHECKLIST, "style/checklist.json")["items"]
+    items = [x for x in every if x.get("phase") == phase]
+    if phase is not None and not items:  # a typo must not pass a gate with nothing checked
+        known = sorted({x["phase"] for x in every if x.get("phase")})
+        print(f"film_check: no items with phase {phase!r} in style/checklist.json (known: {', '.join(known) or 'none'})", file=sys.stderr)
+        return 2
     if "--out" in args:
         i = args.index("--out")
         if i + 1 >= len(args): print("film_check: --out needs a folder", file=sys.stderr); return 2
