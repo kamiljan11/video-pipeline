@@ -67,6 +67,20 @@ class ScreenPassTest(unittest.TestCase):
         out, _, _ = self.run_pass([(0.0, scene("s1", 3, 3.0)), (4.0, {"id": "low", "type": "lower", "dur": 5, "text": "Kamil"})])
         self.assertAlmostEqual(out["s1"]["dur"], 6.0)  # beside him, right; the lower third sits bottom left
 
+    def test_a_stamp_on_a_card_keeps_the_scene_full_screen(self):
+        stamped = {"id": "s6", "type": "scene", "dur": 8, "els": [{"k": "term", "out": ["git push"]}, {"k": "stamp", "text": "STOP"}]}
+        out, _, _ = self.run_pass([(0.0, stamped)])
+        self.assertNotEqual(out["s6"].get("layout"), "side")  # a column would lift the stamp off the card it judges
+
+    def test_tied_kinds_match_the_scene_library(self):
+        import re
+
+        import screen_grammar
+        js = (Path(__file__).resolve().parent.parent / "gfx" / "scene_lib.mjs").read_text()
+        m = re.search(r"export const TIED = \[([^\]]*)\]", js)
+        assert m is not None, "TIED not found in scene_lib.mjs"
+        self.assertEqual(tuple(re.findall(r"'(\w+)'", m.group(1))), screen_grammar.TIED)
+
 
 if __name__ == "__main__":
     unittest.main()

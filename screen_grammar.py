@@ -37,7 +37,7 @@ def _style() -> tuple[int, float, str, float]:
 # SIDE_MAX_ELS: a scene of this many pieces or fewer is drawn beside him (layout "side"); SHIFT_MAX: a card with no room after
 # it may start this much earlier; SPEAKER_BACK: between two separate screens he is back this long, or the two become one block
 SIDE_MAX_ELS, SHIFT_MAX, RECAP, SPEAKER_BACK = _style()
-TIED = ("line", "cursor", "ring")  # scene_lib.mjs TIED: pieces placed against another piece, not stackable in a column
+TIED = ("line", "cursor", "ring", "stamp", "check")  # scene_lib.mjs TIED: pieces placed on another piece, not stackable in a column
 SHIFTABLE = ("kw", "count", "sticker", "float")  # cards whose inner timing is only a top-level "at" list (or none)
 # RECAP: id prefix of a recap map (plan builders name them m1_mapa, m2_…), dropped when it has no room to be read
 

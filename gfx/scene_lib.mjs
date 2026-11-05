@@ -22,7 +22,7 @@ export const sceneSafe = sp => (sp.canvas === 'v' ? { x: 60, y: 130, w: 960, h: 
 export const TONES = { acc: 'var(--acc)', ok: '#3ecf8e', bad: '#ff5f57', warn: '#f5b84a', blue: '#6ea8fe', orange: '#ff8a3d', mute: '#8b9096' };
 // pieces tied to another piece's place (a line between two, a cursor path, a ring around a box): a scene with one stays laid
 // out as drawn, so it cannot be stacked into the column beside the speaker (screen_grammar keeps it full screen)
-export const TIED = ['line', 'cursor', 'ring'];
+export const TIED = ['line', 'cursor', 'ring', 'stamp', 'check'];  // pieces placed on another piece (screen_grammar.py TIED, tests/test_screen_grammar.py checks both match)
 export const KINDS = ['win', 'file', 'term', 'chip', 'node', 'chat', 'you', 'line', 'stamp', 'text', 'bar', 'stat', 'check', 'cursor', 'ring', 'say', 'toggle', 'steps'];
 // pieces placed by two points or a box, not by x/y alone
 const FREE = ['line', 'cursor'];
