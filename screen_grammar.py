@@ -21,13 +21,24 @@ from film_check import UNTIMED, reading_need
 from gfx_types import beside, is_full
 
 HERE = Path(__file__).resolve().parent
-_STYLE = json.loads((HERE / "style" / "screen_grammar.json").read_text())  # thresholds are data (README: style = data, not code)
-SIDE_MAX_ELS = _STYLE["side_max_els"]  # a scene of this many pieces or fewer is drawn beside him (layout "side")
-SHIFT_MAX = _STYLE["shift_max"]  # a card with no room after it may start this much earlier, into a free stretch before it
-# between two separate screens he is back this long at least, or the two become one block: the gate's own value
-SPEAKER_BACK = next(float(i["value"]) for i in json.loads((HERE / "style" / "checklist.json").read_text())["items"] if i["id"] == "long.speaker_back")
+
+
+def _style() -> tuple[int, float, str, float]:
+    """thresholds are data (README: style = data, not code): style/screen_grammar.json + the gate's long.speaker_back"""
+    st = json.loads((HERE / "style" / "screen_grammar.json").read_text())
+    side, shift, recap = st.get("side_max_els"), st.get("shift_max"), st.get("recap_prefix")
+    if not (isinstance(side, int) and side > 0 and isinstance(shift, (int, float)) and shift >= 0 and isinstance(recap, str) and recap):
+        raise SystemExit('style/screen_grammar.json: "side_max_els" a whole number > 0, "shift_max" seconds >= 0, "recap_prefix" an id prefix')
+    back = [i.get("value") for i in json.loads((HERE / "style" / "checklist.json").read_text())["items"] if i.get("id") == "long.speaker_back"]
+    if len(back) != 1 or not isinstance(back[0], (int, float)): raise SystemExit("style/checklist.json: one long.speaker_back with a number value")
+    return side, float(shift), recap, float(back[0])
+
+
+# SIDE_MAX_ELS: a scene of this many pieces or fewer is drawn beside him (layout "side"); SHIFT_MAX: a card with no room after
+# it may start this much earlier; SPEAKER_BACK: between two separate screens he is back this long, or the two become one block
+SIDE_MAX_ELS, SHIFT_MAX, RECAP, SPEAKER_BACK = _style()
 SHIFTABLE = ("kw", "count", "sticker", "float")  # cards whose inner timing is only a top-level "at" list (or none)
-RECAP = _STYLE["recap_prefix"]  # id prefix of a recap map (plan builders name them m1_mapa, m2_…): dropped when it has no room to be read
+# RECAP: id prefix of a recap map (plan builders name them m1_mapa, m2_…), dropped when it has no room to be read
 
 
 @cache

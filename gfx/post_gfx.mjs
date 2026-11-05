@@ -40,6 +40,11 @@ export function checkPostGfx(g) {
   for (const k of ['items', 'cols', 'rows', 'head']) if (g[k] !== undefined && !Array.isArray(g[k])) return [`"${k}" = a list`];
   if ((g.items ?? []).some(x => !obj(x)) || (g.cols ?? []).some(x => !obj(x))) return ['every entry of "items" / "cols" = an object'];
   if ((g.rows ?? []).some(r => !Array.isArray(r))) return ['every row of "rows" = a list of cells'];
+  const text = x => x === undefined || typeof x === 'string';  // every drawn field a string (a value a number): no object reaches the page
+  if ((g.items ?? []).some(it => ![it.h, it.t, it.label].every(text) || !(it.value === undefined || typeof it.value === 'number'))
+    || (g.cols ?? []).some(c => !text(c.head) || !(c.lines === undefined || (Array.isArray(c.lines) && c.lines.every(text))))
+    || (g.rows ?? []).some(r => !r.every(text)) || (g.head ?? []).some(x => !text(x)) || ![g.kicker, g.title, g.quote, g.note, g.unit].every(text))
+    return ['every text field a string, "value" a number, "lines" a list of strings'];
   const bad = [];
   if (!TYPES.includes(g.type)) bad.push(`"type" = one of ${TYPES.join(', ')}`);
   const tw = typeof g.title === 'string' ? g.title.trim().split(/\s+/).length : 0;

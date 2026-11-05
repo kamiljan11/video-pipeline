@@ -402,9 +402,12 @@ zostaje jak było (kolory z `gfx/template.html`, bit w bit).
   Pojęcia pipeline'u i panelu (motyw, krawędź ujęcia, złota myśl…): `panel/docs/GLOSSARY.md`.
 
 ## Ekran końcowy shorta (`end` + `canvas: "v"`)
+**Domyślnie short NIE ma planszy końcowej:** kończy się na ostatnim słowie (bramka `short.end`: brak karty `end`, `tail` <= 0,6 s;
+30/30 top shortów kończy się 0,23 s po słowie, `style/REF-shorts-top.md` T8, decyzja: `docs/adr/0014-shorts-follow-top-retention.md`).
+Plansza zostaje jako opcja dla wyjątku (np. promo klienta, które musi pokazać adres) i wtedy plan ma `"skip": {"short.end": "<powód>"}`.
 Po ostatnim zdaniu shorta 3 s planszy „gdzie pełny odcinek” + pigułka „Subskrybuj @kamiljan11” (kolory z motywu, whoosh z
 `make_beds.py`). Plan shorta: `"tail": 3` i w `gfx` `{"id": "v_end", "word": "END"}` (start = koniec mowy); bez `tail` short
-kończy się na ostatnim słowie jak dotąd (test: `panel/tests/test_pipeline_compat.py`). Tekst w `gfx_specs.json`:
+kończy się na ostatnim słowie (test: `panel/tests/test_pipeline_compat.py`). Tekst w `gfx_specs.json`:
 ```json
 {"id": "v_end", "type": "end", "canvas": "v", "text": "Pełny odcinek na kanale", "sub": "Subskrybuj @kamiljan11", "dur": 3}
 ```

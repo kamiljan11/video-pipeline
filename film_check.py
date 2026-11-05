@@ -275,7 +275,7 @@ class Film:
     def sfx_style_v2(self): return self.plan.get("sfx_style") == "v2"
     def has_end_card(self): return any(self.typ(o) == "end" for o in self.ovs)
 
-    def ends_on_the_last_word(self, tail_max=0.6):
+    def ends_on_the_last_word(self, tail_max: float):  # tail_max: style/checklist.json short.end args
         """a short stops right after its last word and loops: no end card, no end screen (REF-shorts-top T8: 30/30 top shorts
         end 0.23 s after the last word, none shows an end board)"""
         tail = float(self.edl.get("tail", 0) or 0)

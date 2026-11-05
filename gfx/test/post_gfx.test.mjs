@@ -27,7 +27,8 @@ test('a bad spec names every problem: type, title length, entries, too few words
 
 test('a malformed grafika.json is a named problem, not a TypeError', () => {
   for (const g of [null, [], { type: 'list', title: 'a b', items: [null, { h: 'x' }] }, { type: 'table', title: 'a b', head: 5, rows: [] },
-    { type: 'table', title: 'a b', head: ['a', 'b'], rows: [null, ['x', 'y']] }])
+    { type: 'table', title: 'a b', head: ['a', 'b'], rows: [null, ['x', 'y']] }, { type: 'list', title: 'a b', items: [{ h: 'x' }, { h: 'y' }], cols: [{ lines: 5 }] },
+    { type: 'bars', title: 'a b', items: [{ label: 'x', value: { toString: null } }, { label: 'y', value: 1 }] }])
     assert.ok(checkPostGfx(g).length > 0, JSON.stringify(g));
 });
 

@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import post_check as P  # after the path insert: the scripts are not a package
@@ -47,6 +48,13 @@ class TextTest(unittest.TestCase):
                 (d / "linkedin.json").write_text(body)
                 self.assertTrue(any(want in b for b in P.problems(d)), (body, P.problems(d)))
 
+    def test_an_ocr_that_hangs_is_a_named_problem(self):
+        with tempfile.TemporaryDirectory() as t, mock.patch.object(P.shutil, "which", return_value="/usr/bin/tesseract"), \
+                mock.patch.object(P, "ocr", side_effect=subprocess.TimeoutExpired("tesseract", 120)):
+            d = Path(t)
+            for f in ("grafika.png", "grafika.txt"): (d / f).write_text("x")
+            self.assertTrue(any("OCR failed" in b for b in P.graphic_problems(d)), P.graphic_problems(d))
+
     def test_a_graphic_older_than_its_spec_is_named(self):
         with tempfile.TemporaryDirectory() as t:
             d = Path(t)
@@ -56,7 +64,8 @@ class TextTest(unittest.TestCase):
             self.assertIn("newer than grafika.png", P.graphic_problems(d)[0])
 
 
-@unittest.skipUnless(shutil.which("tesseract") and Path(FONT).exists(), "tesseract and DejaVu (CI installs both: .github/workflows/quality.yml)")
+# CI installs both (.github/workflows/quality.yml): there a missing one fails the run instead of skipping the OCR tests
+@unittest.skipUnless((shutil.which("tesseract") and Path(FONT).exists()) or os.environ.get("CI"), "tesseract and DejaVu (local machine without them)")
 class GraphicTest(unittest.TestCase):
     def test_readable_text_passes_and_dark_on_dark_fails(self):
         with tempfile.TemporaryDirectory() as t:

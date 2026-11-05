@@ -28,3 +28,4 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | grafika posta | `grafika.png` posta LinkedIn (`gfx/post_gfx.mjs`): sama niesie przekaz, bez tekstu posta; `post_check.py` sprawdza OCR-em, czy widać jej słowa, i kontrast WCAG |
 | punch-in | szybki najazd kamery na twarz na ważnym słowie (`emph` w planie); pod kartą z twarzą w boksie/kółku/PiP go nie ma |
 | `punch_headroom` | ile nad twarzą zoom musi zostawić: `"hair"` cała głowa, `"face"` czoło-broda (ADR-0012) |
+| ogon (`tail`) | sekundy obrazu po ostatnim słowie (plan/EDL `tail`, ffmpeg tpad/apad); w shorcie <= 0,6 s i bez karty `end` (bramka `short.end`, ADR-0014) |
