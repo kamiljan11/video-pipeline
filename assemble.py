@@ -31,6 +31,11 @@ SEG_ENC = ["-preset", "ultrafast", "-crf", "26"] if PROXY else ["-preset", "very
 # (measured on the 2026-10-22 long: 137 sound gaps = 2.3 s in rough.mkv)
 EXACT = bool(edl.get("seg_exact"))
 OUT_ENC = ["-preset", "ultrafast", "-crf", "30"] if PROXY else ["-preset", "medium", "-crf", "18"]
+# every card is its own ffmpeg input (2560x1440 ProRes 4444 with alpha): with the defaults each one keeps a frame per decoder
+# thread (one per core) and a deep input queue, which grew past 60 GB on the 21-min long and got the session killed
+# (2026-11-04). Two threads and a 4-frame queue: the first 300 s of that long (31 cards) peak 10.2 GB in 2:38, against
+# over 30 GB with the defaults (killed) and 10.1 GB in 4:59 with one thread.
+CARD_IN = ["-threads", "2", "-thread_queue_size", "4"]
 seg_dir = os.path.join(out, "segs"); os.makedirs(seg_dir, exist_ok=True)
 W, H = edl.get("w", 2560), edl.get("h", 1440); fx, fy = edl.get("face", [0.5, 0.45])
 vertical = edl.get("vertical", False)
@@ -198,7 +203,7 @@ if pips:
     pip_en = "+".join(f"between(t{E},{o['at'] + 0.25:.3f}{E},{o['at'] + o['dur'] - 0.3:.3f})" for o in pips)
     pip_x, pip_y = W - PS - M, H - PS - M - 20
 for k, o in enumerate(edl.get("overlays", [])):
-    inputs += ["-itsoffset", f"{o['at']:.3f}", "-i", o["file"]]
+    inputs += [*CARD_IN, "-itsoffset", f"{o['at']:.3f}", "-i", o["file"]]
     sc = f"scale={W}:{H}," if vertical else ""
     fc.append(f"[{k+1}:v]{sc}format=yuva444p10le[g{k}]")
     fc.append(f"[{last}][g{k}]overlay=eof_action=pass:format=auto[v{k+1}]"); last = f"v{k+1}"
@@ -268,7 +273,10 @@ else:
 if PROXY:
     fc.append(f"[{last}]scale={'360:640' if vertical else '640:360'}:flags=bilinear[vpx]"); last = "vpx"
 final = os.path.join(out, edl.get("out_name", "final.mp4"))
-subprocess.run(["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(fc), "-map", f"[{last}]", "-map", "[a]",
-                "-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k", "-ac", "2",
-                "-movflags", "+faststart", final], check=True)
+args = ["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(fc), "-map", f"[{last}]", "-map", "[a]",
+        "-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k", "-ac", "2",
+        "-movflags", "+faststart", final]
+# the exact stage-2 command next to the film: a render killed for memory or time can be rerun and measured by hand
+Path(out, "assemble.args.json").write_text(json.dumps(args, ensure_ascii=False, indent=0))
+subprocess.run(args, check=True)
 print("OK", final)

@@ -100,6 +100,23 @@ class AssembleMixTest(unittest.TestCase):
         names = [p.name for p in (self.render().parent / "segs").glob("*.mkv")]
         self.assertEqual(names, ["0000_0.000_2.000_1.0__x.mkv"])
 
+    def test_cards_are_read_with_few_threads_and_a_short_queue(self):
+        """every card input carries CARD_IN (the defaults buffered a frame per core per card: 66 GB on a 21-min long)"""
+        card = self.tmp / "card.mov"
+        if not card.exists():
+            ffmpeg("-f", "lavfi", "-i", f"color=c=red@0.5:s={W}x{H}:r=30:d=0.6,format=yuva444p10le", "-c:v", "prores_ks",
+                   "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(card))
+        v = self.render(overlays=[{"at": 0.2, "dur": 0.6, "file": str(card)}, {"at": 1.0, "dur": 0.6, "file": str(card)}])
+        args = json.loads((v.parent / "assemble.args.json").read_text())
+        cards = [i for i, a in enumerate(args) if a == "-i" and args[i + 1] == str(card)]
+        self.assertEqual(len(cards), 2)
+        for i in cards:
+            self.assertEqual(args[i - 6:i - 2], ["-threads", "2", "-thread_queue_size", "4"], args[i - 6:i + 2])
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", "0.5", "-i", str(v), "-frames:v", "1", "-vf",
+                              f"format=rgb24,crop=1:1:{W // 2}:{H // 2}", "-f", "rawvideo", "-"],
+                             capture_output=True, check=True).stdout
+        self.assertGreater(raw[0], 60, list(raw))  # the half-transparent red card is in the picture
+
     def test_guard_refuses_bad_music_duck(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
         for bad in ({"threshold": 0}, {"threshold": 0.0001}, {"threshold": 2}, {"ratio": 0.5}, {"ratio": 30}, {"ratio": "6"}, {"knee": 2},
