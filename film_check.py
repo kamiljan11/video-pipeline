@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import article_check  # the kamiljan.com blog article made from the film
+import count_check  # the count he says is the count on the card
 import gfx_types  # next to this script: which card types are a separate screen
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 
@@ -249,6 +250,14 @@ class Film:
         lead = self.edl.get("gfx_lead")
         ok = not self.ovs or (isinstance(lead, (int, float)) and not isinstance(lead, bool) and -0.5 <= lead <= -0.1)
         return ok, f"gfx_lead {lead!r} (want -0.5 to -0.1 s), {len(self.ovs)} cards"
+
+    def counts_match(self):
+        """the count he says while a card comes in is the count on the card (count_check.py)"""
+        # imported here: viewer_pack pulls OpenCV, which the other items do not need
+        from viewer_pack import film_words
+        words = load(self.work / self.plan["words"], "words json")["transcription"]
+        bad = count_check.problems(self.ovs, self.specs, film_words(words, self.edl["segments"]))
+        return not bad, "; ".join(bad[:6]) or f"{len(self.ovs)} cards"
 
     def screen_switches_per_min(self):
         sp = full_spans(self.edl, self.specs)
