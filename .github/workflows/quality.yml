@@ -43,6 +43,8 @@ jobs:
         run: npm test
       - name: Python tests (no models, no recordings needed)
         run: .venv/bin/python -m unittest discover -s tests -v
+      - name: "Text-behind tests (matte/, fake matting, no model needed)"
+        run: .venv/bin/python -m unittest matte/test_behind.py -v
   secrets:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

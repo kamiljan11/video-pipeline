@@ -3,7 +3,8 @@
 
 A hook FAILS on any of:
   1. greeting      starts with a hello ("Cześć", "Hej", "Dzień dobry"),
-  2. title         a listicle opener instead of a hook ("5 porad", "3 sposoby"): a title, not a reason to stay,
+  2. title         a listicle opener with nothing at stake ("5 porad", "3 sposoby"): a title, not a reason to stay
+                   ("3 błędy kosztowały mnie 40 tys." has a stake and passes),
   3. filler        throat clearing before the first interesting word ("Dzisiaj", "W tym filmie", "Chciałbym"),
   4. vague         a vague promise ("sekret", "coś", "patent") with no number, acronym, quote or name to anchor it,
                    or hype adjectives piled up (2 or more),
@@ -32,9 +33,19 @@ def lists(path: Path = STYLE / "hook_lint.json") -> dict:
     return json.loads(path.read_text())
 
 
+def _match(e: str, w: str) -> bool:
+    """"stem*" = w starts with stem, "word" = w is that word"""
+    return w.startswith(e[:-1]) if e.endswith("*") else w == e
+
+
 def _has(words: list[str], low: str, entries: list[str]) -> list[str]:
-    """entries found: a stem at the start of a word, or a phrase (with a space) anywhere"""
-    return [e for e in entries if (e in low if " " in e else any(w.startswith(e) for w in words))]
+    """entries found: a phrase (with a space) anywhere, else a word or "stem*" among the words"""
+    return [e for e in entries if (re.search(rf"(?<!\w){re.escape(e)}(?!\w)", low) if " " in e else any(_match(e, w) for w in words))]
+
+
+def _starts(low: str, entries: list[str]) -> list[str]:
+    """entries the hook starts with, as whole words ("elo" is not "Elon", "zaraz" is not "Zarazki")"""
+    return [e for e in entries if re.match(rf"{re.escape(e)}(?!\w)", low)]
 
 
 def anchored(hook: str) -> bool:
@@ -52,9 +63,10 @@ def problems(hook: str, on_screen: bool | None = None, wl: dict | None = None) -
     no_text = ["no text: the hook is not on screen from the first frame (plan hook_text)"] if on_screen is False else []
     if not words: return ["empty hook", *no_text]
     if len(words) > wl["max_words"]: bad.append(f"{len(words)} words (max {wl['max_words']})")
-    if g := [e for e in wl["greeting"] if low.startswith(e)]: bad.append(f"greeting: starts with {g[0]!r}")
-    if re.match(r"\d+\s", low) and _has(words[1:2], low, wl["listicle"]): bad.append(f"title, not a hook: {' '.join(words[:2])!r} is a list opener")
-    if f := [e for e in wl["filler_start"] if low.startswith(e)]: bad.append(f"filler: starts with {f[0]!r}, start at the first interesting word")
+    if g := _starts(low, wl["greeting"]): bad.append(f"greeting: starts with {g[0]!r}")
+    stake = any(c.isdigit() for c in hook) and len(_has(words, low, wl["stake"])) > 0
+    if re.match(r"\d+\s", low) and _has(words[1:2], " ".join(words[1:2]), wl["listicle"]) and not stake: bad.append(f"title, not a hook: {' '.join(words[:2])!r} is a list opener")
+    if f := _starts(low, wl["filler_start"]): bad.append(f"filler: starts with {f[0]!r}, start at the first interesting word")
     if (v := _has(words, low, wl["vague"])) and not anchored(hook): bad.append(f"vague: {v[0]!r} with no number, acronym, quote or name")
     if len(h := _has(words, low, wl["hype"])) >= 2: bad.append(f"vague: hype adjectives {h}")
     if not any(c.isdigit() for c in hook) and not _has(words, low, wl["stake"]): bad.append("no stake: nothing to gain or lose (a number or a stake word)")

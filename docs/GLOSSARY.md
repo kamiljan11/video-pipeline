@@ -32,3 +32,8 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | `gfx_lead` | o ile sekund grafika wchodzi przed swoim słowem (klucz planu, -0,5..-0,1 s; ADR-0015) |
 | głos (`style/voice.md`) | jak Kamil pisze, z jego tekstów; lista `## Zakazane` blokuje posty i artykuły |
 | artykuł | wpis na blog kamiljan.com z filmu (`out/blog/<slug>/article.json`, `article_check.py`); wchodzi PR-em `publish_post.py`, merge = Kamil |
+| hook | pierwsze słowa shorta, na ekranie od 0 s (`hook_text` planu); z `clips.json` `hook` |
+| zabójcy hooka | 6 błędów, które `hook_check.py` odrzuca: powitanie, tytuł-lista, rozbieg, mglista obietnica, brak stawki, brak tekstu w 1. klatce (ADR-0016) |
+| bank hooków | `style/hook_bank.json`: sprawdzone hooki (`own-*`) i mechanizmy (`mech-*`); `result` = wyświetlenia / mediana kanału, null do pomiaru |
+| `hook_from` | id wiersza banku, od którego wyszedł hook shorta (`clips.json`) |
+| wariant hooka | jeden z >= 3 hooków kandydata w `clips.json` `hooks`; wybrany = `hook` |

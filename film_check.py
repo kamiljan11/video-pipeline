@@ -368,7 +368,10 @@ class Out:
         p = self.work / "clips.json"
         items = [c for c in load(p, "clips.json").get("items", []) if c.get("make")] if p.exists() else []
         if not items: return False, "clips.json has no clip with \"make\": true"
-        ids, wl = set(hook_check.bank()), hook_check.lists()
+        try:
+            ids, wl = set(hook_check.bank()), hook_check.lists()
+        except (OSError, ValueError, KeyError, TypeError) as e:  # a hand-edited style file with a typo: name it
+            return False, f"style/hook_bank.json or style/hook_lint.json cannot be read: {e!r}"
         bad = [b for c in items for b in hook_check.clip_problems(c, ids, wl)]
         return not bad, "; ".join(bad[:8]) or f"{len(items)} shorts"
 

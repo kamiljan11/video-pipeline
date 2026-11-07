@@ -1,5 +1,5 @@
 {
- "_doc": "Proven hooks (Skool CCC So2/So9: hook bank). type = shorts.py HOOKS; result = views vs the channel median once measured (YouTube Studio), null until then; own rows come from films, mech rows are mechanisms with [slots]. clips.json \"hook_from\" names the row a short's hook started from. Add winners from each weekly review with result and why.",
+ "_doc": "Proven hooks (Skool CCC So2/So9: hook bank). type = shorts.py HOOKS; result = the short's views / the channel's median views of the last 28 days, read in YouTube Studio and written by hand in the weekly review (Kamil or the social role; ADR-0016), null until then; own rows come from films, mech rows are mechanisms with [slots]. clips.json \"hook_from\" names the row a short's hook started from. Add winners from each weekly review with result and why.",
  "hooks": [
   {
    "id": "own-2026-11-04-s01_gotowe",

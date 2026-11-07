@@ -33,6 +33,13 @@ class KillerTest(unittest.TestCase):
         self.assertTrue(any(b.startswith("no text") for b in H.problems(GOOD[0], on_screen=False)))
         self.assertEqual(H.problems("   "), ["empty hook"])
 
+    def test_words_that_only_start_like_a_killer_pass(self):  # review 2026-11-07: prefixes without a word boundary
+        for hook in ("Elon Musk traci miliony przez błąd", "Youtube nie płaci za to nic", "Zarazki nie wiedzą o AI",
+                     "Witamina D a twój kod nie działa", "3 błędy kosztowały mnie 40 tys."):
+            with self.subTest(hook):
+                self.assertEqual(H.problems(hook), [])
+        self.assertTrue(any(b.startswith("no stake") for b in H.problems("Niebieski system dla agenta")))  # "nie" is a word, not a stem
+
     def test_a_vague_word_with_an_anchor_is_not_vague(self):  # "trik" next to a number or an acronym says something concrete
         self.assertFalse(any(b.startswith("vague") for b in H.problems("Jeden trik w CLAUDE.md zamiast 40 zasad")))
 
