@@ -125,6 +125,17 @@ class BuildEdlSplitTest(unittest.TestCase):
                 self.assertIn("gfx_lead", r.stderr)
         self.assertEqual(self.build({"canvas": "v"}, gfx_lead=-0.12).returncode, 0)
 
+    def test_master_key_reaches_the_edl_and_bad_values_are_named(self):  # plan "master": master_audio.py from assemble.py
+        self.assertEqual(self.build({"canvas": "v"}, master={"lufs": -14, "tp": -1.5}).returncode, 0)
+        self.assertEqual(json.loads((self.d / "edl.json").read_text())["master"], {"lufs": -14, "tp": -1.5})
+        self.assertEqual(self.build({"canvas": "v"}).returncode, 0)
+        self.assertNotIn("master", json.loads((self.d / "edl.json").read_text()))  # absent: assemble.py as before
+        for bad in ({"lufs": 0}, {"tp": 1}, {"lufs": "x"}, {"loud": -14}, "yes", {"tp": True}):
+            with self.subTest(master=bad):
+                r = self.build({"canvas": "v"}, master=bad)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("master", r.stderr)
+
     def test_face_corner_and_no_fade_out_flags(self):
         o = self.overlay({"canvas": "v", "layout": "full", "face_corner": True, "no_fade_out": True})
         self.assertTrue(o["corner"]); self.assertTrue(o["no_fade_out"]); self.assertNotIn("split", o)
