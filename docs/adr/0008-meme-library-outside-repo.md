@@ -37,6 +37,16 @@ ma zapisane źródło, żeby przy roszczeniu dało się podmienić jeden klip i 
 popularne filmiki zwierząt bywają w Content ID agencji licencyjnych (np. Jukin Media). Skutek to roszczenie (przychód albo blokada
 w części krajów), a nie ban kanału. Narzędzie do gifów: do zbudowania (runda poprawek filmu 2).
 
+**Uzupełnienie 2026-11-07, gify od zera (Kamil: „możesz tworzyć gify od zera, dodaj to do logiki”):** domyślne źródło
+animowanej naklejki to nasz własny rysunek: `gfx/toons/<nazwa>.svg` (wektor + same keyframes CSS), karta `sticker` z polem
+`"toon"` zamiast `"meme"` (`gfx/render.mjs` toonSticker). Zero licencji i zero dopasowania w Content ID, styl spójny z
+planowanymi scenami rysowanymi (`docs/designs/2026-11-05-visual-upgrade.md`), koszt 0 zł. Plik toona to tylko rysunek i CSS:
+skrypt, obsługa zdarzeń, foreignObject i link na zewnątrz = nazwany błąd. Rozważone: (a) klip z fal.ai (obraz -> wideo, ok.
+0,015-0,07 USD/s wg porównań z 2026-11, ceny niezweryfikowane na fal.ai) + wycięcie tła, dla realistycznych memów, płatne,
+do decyzji Kamila; (b) Wan-Alpha (wideo z kanałem alfa, otwarte wagi 14B) za ciężkie na laptop; (c) Lottie pisane przez
+model (diffusionstudio/lottie) to nowa zależność, a SVG + CSS w Chrome już mamy. Kolejność: toon, potem Pexels/Pixabay, potem gif
+amatorski z zapisanym źródłem.
+
 **Konsekwencje:** szablon spoza top 100 imgflip nie da się pobrać `memes.py` (nazwany błąd); wtedy obraz można położyć ręcznie
 w `render/memes/` z własnym `<slug>.json` (ten sam format).
 

@@ -125,7 +125,35 @@ function meme(sp) {
 // osobnych ekranów"): the meme's character cut out of the template (style/memes.json "sticker": crops [x, y, w, h] of the
 // picture, one per beat) beside the speaker, who stays full frame. Beat i comes in at "at"[i] with "text"[i] in a chip under
 // it (optional: "kotki" need no words), pops in, sways, and gives way to the next beat
+// "toon": our own animated drawing (gfx/toons/<name>.svg, CSS keyframes only, so every frame is seeked by time) in place of a
+// meme picture: no licence and no Content ID match (Kamil 2026-11-07: "możesz tworzyć gify od zera"). Same beats and chips as a
+// sticker; the drawing has no white frame, its own outline makes it a die-cut sticker
+const TOONS = process.env.VP_TOONS ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), 'toons');
+function toonSvg(sp) {
+  const f = `${TOONS}/${sp.toon}.svg`, bad = why => new Error(`"${sp.id}": toon ${JSON.stringify(sp.toon)}: ${why}`);
+  if (typeof sp.toon !== 'string' || !/^[a-z0-9_]+$/.test(sp.toon) || !fs.existsSync(f)) throw bad(`not in ${TOONS}`);
+  const svg = fs.readFileSync(f, 'utf8'), vb = svg.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+  if (!vb) throw bad('the <svg> needs viewBox="0 0 W H"');
+  if (/<script|<foreignObject|\bon[a-z]+\s*=|(?:href|src)\s*=\s*"(?!#)/i.test(svg)) throw bad('a toon is drawing and CSS only: no script, event handler, foreignObject or outside link');
+  return { svg, width: +vb[1], height: +vb[2] };
+}
+function toonSticker(sp) {
+  const t = toonSvg(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [];
+  const bad = why => new Error(`"${sp.id}": toon ${JSON.stringify(sp.toon)}: ${why}`);
+  if (!B) throw bad(`"side" = "right" or "left", got ${JSON.stringify(sp.side)}`);
+  if (sp.canvas === 'v') throw bad('a toon sticker is 16:9 (STICKER_BOX); in 9:16 use a scene');
+  if (!Array.isArray(texts) || !texts.every(x => typeof x === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
+  const at = sp.at?.[0] ?? 0.15;
+  if (!(typeof at === 'number' && at >= 0 && at < sp.dur)) throw bad(`"at" = seconds from the card's start, 0..dur, got ${JSON.stringify(sp.at)}`);
+  const chipH = texts.length ? 200 : 0, s = Math.min(B.w / t.width, (B.h - chipH) / t.height), w = Math.round(t.width * s);
+  const say = texts.length ? `<div class="say" style="animation-delay:${(at + 0.25).toFixed(2)}s">${texts.map(esc).join('<br>')}</div>` : '';
+  return `<div class="float"><div class="stk toon" style="left:${Math.round(B.x + (B.w - w) / 2)}px;top:${B.y}px;width:${w}px;`
+    + `animation:stkin .5s cubic-bezier(.2,1.5,.4,1) ${at.toFixed(2)}s both,stkout .25s ease-in ${(sp.dur - 0.35).toFixed(2)}s forwards">`
+    + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${at.toFixed(2)}s infinite alternate">`
+    + t.svg.replace('<svg ', `<svg style="width:${w}px;height:auto" `) + `</div>${say}</div></div>`;
+}
 function sticker(sp) {
+  if (sp.toon !== undefined) return toonSticker(sp);
   const m = memeLib(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [], crops = m.sticker;
   const bad = why => new Error(`"${sp.id}": sticker ${JSON.stringify(sp.meme)}: ${why}`);
   if (!B) throw bad(`"side" = "right" or "left", got ${JSON.stringify(sp.side)}`);
@@ -150,6 +178,9 @@ function memeStamp(sp) {
   const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(MEME_CODE).digest('hex');
 }
+// a toon's frames change with its drawing and the code that places it
+const toonStamp = sp => crypto.createHash('sha1').update(JSON.stringify(sp)).update(toonSvg(sp).svg).update(MEME_CODE)
+  .update(toonSticker.toString()).update(toonSvg.toString()).digest('hex');
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
@@ -183,7 +214,7 @@ async function one(sp) {
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
   // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
   const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
-  const base = sp.type === 'web' ? webStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
+  const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'sticker' && sp.toon !== undefined ? toonStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
   const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
   if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9

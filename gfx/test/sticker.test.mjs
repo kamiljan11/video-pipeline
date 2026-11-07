@@ -44,3 +44,41 @@ test('a sticker without crops or with a wrong side stops by name', () => {
   r = render([{ id: 's4', type: 'sticker', dur: 2, meme: 'rg', canvas: 'v' }]);
   assert.notEqual(r.status, 0); assert.match(r.stderr, /s4.*a sticker is 16:9/s);
 });
+
+// "toon": our own animated drawing (gfx/toons) instead of a meme picture; CSS keyframes are seeked frame by frame
+const toons = path.join(work, 'toons'); fs.mkdirSync(toons);
+fs.writeFileSync(path.join(toons, 'slide.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><style>'
+  + '.m{animation:sl 2s linear both}@keyframes sl{from{transform:translateX(0)}to{transform:translateX(200px)}}</style>'
+  + '<rect class="m" x="0" y="0" width="200" height="400" fill="#f00"/></svg>');
+fs.writeFileSync(path.join(toons, 'evil.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script></svg>');
+fs.writeFileSync(path.join(toons, 'link.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><image href="https://x.y/a.png"/></svg>');
+const renderToon = specs => {
+  const specFile = path.join(work, `${specs[0].id}.json`); fs.writeFileSync(specFile, JSON.stringify(specs));
+  return spawnSync('node', [path.join(GFX, 'render.mjs'), specFile, path.join(work, 'gfx')], { encoding: 'utf8', timeout: 120000, env: { ...process.env, VP_TOONS: toons } });
+};
+
+test('a toon sits beside the speaker and moves frame by frame', CHROME, () => {
+  const r = renderToon([{ id: 't1', type: 'sticker', toon: 'slide', dur: 3, at: [0] }]);
+  assert.equal(r.status, 0, r.stderr);
+  const mov = path.join(work, 'gfx', 't1.mov'), early = frameAt(mov, 0.6), late = frameAt(mov, 2.2);
+  const x = 1620 + 615, y = 150 + 400;  // right part of the 820 px box: the red bar reaches it only after sliding
+  assert.ok(early(x, y)[3] < 40, `the bar is already on the right at 0.6 s: ${early(x, y)}`);
+  assert.ok(late(x, y)[0] > 180 && late(x, y)[3] > 200, `the bar did not slide right by 2.2 s: ${late(x, y)}`);
+  for (const px of [900, 1150, 1450]) assert.equal(late(px, 500)[3], 0, `the speaker's middle is covered at x ${px}`);
+});
+
+test('a toon with a script, an outside link or no file stops by name', () => {
+  for (const [id, toon, msg] of [['t2', 'evil', /t2.*drawing and CSS only/s], ['t3', 'link', /t3.*drawing and CSS only/s], ['t4', 'nope', /t4.*toon "nope": not in/s]]) {
+    const r = renderToon([{ id, type: 'sticker', toon, dur: 2 }]);
+    assert.notEqual(r.status, 0); assert.match(r.stderr, msg);
+  }
+});
+
+test('the toons in the repo pass the drawing-only check', CHROME, () => {
+  for (const f of fs.readdirSync(path.join(GFX, 'toons')).filter(n => n.endsWith('.svg'))) {
+    const id = `repo_${f.slice(0, -4)}`, specFile = path.join(work, `${id}.json`);
+    fs.writeFileSync(specFile, JSON.stringify([{ id, type: 'sticker', toon: f.slice(0, -4), dur: 1 }]));
+    const r = spawnSync('node', [path.join(GFX, 'render.mjs'), specFile, path.join(work, 'gfx')], { encoding: 'utf8', timeout: 120000 });
+    assert.equal(r.status, 0, `${f}: ${r.stderr}`);
+  }
+});

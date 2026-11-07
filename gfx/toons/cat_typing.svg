@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 760" width="800" height="760">
+  <!-- our own drawing (no licence): a cat typing fast, code flying off the keyboard. CSS keyframes only, so render.mjs
+       seeks every frame by time (document.getAnimations); keyframe names start with the toon name (one page, many toons) -->
+  <style>
+    .ct-o { stroke: #fff; stroke-width: 10; stroke-linejoin: round; paint-order: stroke }
+    .ct-armL { transform-origin: 300px 480px; animation: ct-tapL .3s ease-in-out infinite }
+    .ct-armR { transform-origin: 500px 480px; animation: ct-tapR .3s ease-in-out infinite }
+    @keyframes ct-tapL { 0%, 100% { transform: rotate(0) } 50% { transform: rotate(9deg) translateY(-14px) } }
+    @keyframes ct-tapR { 0%, 100% { transform: rotate(-9deg) translateY(-14px) } 50% { transform: rotate(0) } }
+    .ct-keyL { animation: ct-flash .3s steps(1) infinite }
+    .ct-keyR { animation: ct-flash .3s steps(1) -.15s infinite }
+    @keyframes ct-flash { 0% { fill: var(--acc, #2fd4b0) } 50% { fill: #2b2f37 } }
+    .ct-head { transform-origin: 400px 480px; animation: ct-bob .6s ease-in-out infinite alternate }
+    @keyframes ct-bob { from { transform: rotate(-2deg) } to { transform: rotate(2deg) translateY(4px) } }
+    .ct-eye { transform-box: fill-box; transform-origin: center; animation: ct-blink 3.4s infinite }
+    @keyframes ct-blink { 0%, 90%, 100% { transform: scaleY(1) } 94% { transform: scaleY(.1) } }
+    .ct-tail { transform-origin: 600px 600px; animation: ct-swish 1.1s ease-in-out infinite alternate }
+    @keyframes ct-swish { from { transform: rotate(-10deg) } to { transform: rotate(14deg) } }
+    .ct-code { font: 800 60px 'DejaVu Sans Mono', monospace; fill: var(--acc, #2fd4b0); stroke: #1d2026; stroke-width: 9px; paint-order: stroke; opacity: 0; animation: ct-fly 1.2s ease-out infinite }
+    @keyframes ct-fly { 0% { opacity: 0; transform: translateY(0) } 20% { opacity: 1 } 100% { opacity: 0; transform: translateY(-190px) } }
+  </style>
+  <g class="ct-tail"><path d="M600 600 C 700 590 730 470 680 400" fill="none" stroke="#fff" stroke-width="58" stroke-linecap="round"/><path d="M600 600 C 700 590 730 470 680 400" fill="none" stroke="#f0953e" stroke-width="44" stroke-linecap="round"/></g>
+  <ellipse class="ct-o" cx="400" cy="590" rx="235" ry="165" fill="#f0953e"/>
+  <g class="ct-head">
+    <polygon class="ct-o" points="245,250 262,82 360,190" fill="#f0953e"/>
+    <polygon class="ct-o" points="555,250 538,82 440,190" fill="#f0953e"/>
+    <polygon points="268,215 276,130 330,190" fill="#f7b8c0"/>
+    <polygon points="532,215 524,130 470,190" fill="#f7b8c0"/>
+    <ellipse class="ct-o" cx="400" cy="330" rx="190" ry="160" fill="#f0953e"/>
+    <path d="M370 190 q8 30 0 56 M400 182 q8 34 0 64 M430 190 q8 30 0 56" stroke="#c96f22" stroke-width="12" fill="none" stroke-linecap="round"/>
+    <g class="ct-eye"><ellipse cx="330" cy="320" rx="38" ry="42" fill="#fff"/><circle cx="334" cy="338" r="24" fill="#1d2026"/><circle cx="342" cy="328" r="8" fill="#fff"/></g>
+    <g class="ct-eye"><ellipse cx="470" cy="320" rx="38" ry="42" fill="#fff"/><circle cx="466" cy="338" r="24" fill="#1d2026"/><circle cx="474" cy="328" r="8" fill="#fff"/></g>
+    <path d="M386 384 h28 l-14 16 z" fill="#e97a8c"/>
+    <path d="M380 404 q10 16 20 0 q10 16 20 0" stroke="#1d2026" stroke-width="7" fill="none" stroke-linecap="round"/>
+    <path d="M300 392 L195 372 M300 410 L198 418 M500 392 L605 372 M500 410 L602 418" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <rect x="120" y="600" width="560" height="130" rx="22" fill="#1d2026" stroke="#3a3e47" stroke-width="6"/>
+  <g fill="#2b2f37">
+    <rect x="148" y="620" width="40" height="26" rx="6"/><rect x="198" y="620" width="40" height="26" rx="6"/><rect x="248" y="620" width="40" height="26" rx="6"/>
+    <rect x="298" y="620" width="40" height="26" rx="6" class="ct-keyL"/><rect x="348" y="620" width="40" height="26" rx="6"/><rect x="398" y="620" width="40" height="26" rx="6"/>
+    <rect x="448" y="620" width="40" height="26" rx="6"/><rect x="498" y="620" width="40" height="26" rx="6" class="ct-keyR"/><rect x="548" y="620" width="40" height="26" rx="6"/>
+    <rect x="598" y="620" width="54" height="26" rx="6"/>
+    <rect x="148" y="656" width="60" height="26" rx="6"/><rect x="218" y="656" width="40" height="26" rx="6"/><rect x="268" y="656" width="40" height="26" rx="6"/>
+    <rect x="318" y="656" width="40" height="26" rx="6"/><rect x="368" y="656" width="40" height="26" rx="6"/><rect x="418" y="656" width="40" height="26" rx="6"/>
+    <rect x="468" y="656" width="40" height="26" rx="6"/><rect x="518" y="656" width="40" height="26" rx="6"/><rect x="568" y="656" width="84" height="26" rx="6"/>
+    <rect x="248" y="692" width="304" height="22" rx="6"/>
+  </g>
+  <g class="ct-armL"><path d="M300 480 L318 600" stroke="#fff" stroke-width="80" stroke-linecap="round" fill="none"/><path d="M300 480 L318 600" stroke="#f0953e" stroke-width="66" stroke-linecap="round" fill="none"/><ellipse class="ct-o" cx="318" cy="612" rx="50" ry="30" fill="#f6a95c"/></g>
+  <g class="ct-armR"><path d="M500 480 L518 600" stroke="#fff" stroke-width="80" stroke-linecap="round" fill="none"/><path d="M500 480 L518 600" stroke="#f0953e" stroke-width="66" stroke-linecap="round" fill="none"/><ellipse class="ct-o" cx="518" cy="612" rx="50" ry="30" fill="#f6a95c"/></g>
+  <text class="ct-code" x="96" y="600">{ }</text>
+  <text class="ct-code" x="640" y="590" style="animation-delay:-.4s">&lt;/&gt;</text>
+  <text class="ct-code" x="170" y="560" style="animation-delay:-.8s">;</text>
+  <text class="ct-code" x="560" y="480" style="animation-delay:-.2s">if</text>
+  <text class="ct-code" x="60" y="520" style="animation-delay:-.6s">01</text>
+</svg>
