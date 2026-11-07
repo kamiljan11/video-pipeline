@@ -91,13 +91,30 @@ class ArticleCheckTest(unittest.TestCase):
         bad = " | ".join(A.problems(self.d))
         self.assertIn("steps (pl): the lead promises 4 steps, the text has 5", bad)
         self.assertIn("steps (en): the lead promises 5 steps, the text has 3", bad)
-        self.assertIn("sections (en): at least 5 h2, got 4", bad)
+        self.assertIn("sections (en): at least 5 h2 (a how-to: one per step), got 4", bad)
 
     def test_a_lead_without_a_step_promise_does_not_count_steps(self):  # 3.3: only a promise is checked
         a = article(self.d)
         a["body"]["pl"]["lead"] = f"Bramka zatrzymuje agenta w 20 minut. [Film]({YT})"
         save(self.d, a)
         self.assertEqual(A.problems(self.d), [])
+
+    def test_an_article_that_is_not_a_how_to_needs_1200_words_and_3_sections(self):  # review 2026-11-07: product-4
+        a = article(self.d)
+        a["body"]["pl"]["lead"] = f"Bramka zatrzymuje agenta w 20 minut. [Film]({YT})"
+        a["body"]["en"]["lead"] = f"A gate stops the agent in 20 minutes. [Film]({YT})"
+        for lang in ("pl", "en"):
+            h2 = [x["id"] for x in a["body"][lang]["blocks"] if x["t"] == "h2"]
+            a["body"][lang]["blocks"] = [x for x in a["body"][lang]["blocks"] if not (x["t"] == "h2" and x["id"] in h2[:2])]
+        save(self.d, a)
+        self.assertFalse([p for p in A.problems(self.d) if p.startswith("sections")], A.problems(self.d))
+        self.assertTrue(A.is_howto({"lead": "Pokażę to w 5 krokach."}))
+        self.assertEqual(A.said_numbers(self._words(" trzech jednym")), {"3", "1"})
+
+    def _words(self, text: str) -> Path:
+        w = self.d / "w.json"
+        w.write_text(json.dumps({"transcription": [{"text": t} for t in text.split()]}))
+        return w
 
     def test_picture_density_warns_but_never_fails(self):  # 3.4
         a = article(self.d)

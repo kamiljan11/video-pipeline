@@ -12,7 +12,7 @@
 - **Lead (<= 80 słów, z cyfrą):** obietnica + liczba części ("w 5 krokach") + 1 linia wiarygodności z pomiaru + link do filmu
   (`[obejrzyj na YouTube](<url>)`). Nie kopiuje hooka filmu. Film linkowany w leadzie albo w akapicie przed pierwszym H2 (FAIL).
 - **Tytuł:** cyfra albo wynik; liczba z tytułu musi paść w filmie (`said_numbers`), ta sama liczba w opisie.
-- H2 = część story; minimum 5 H2. How-to: H2 "Krok N: czasownik obiekt"; gdy lead obiecuje N kroków, sekcji "Krok N" ma być
+- H2 = część story; minimum 3 H2 (poradnik krokowy: 5). How-to: H2 "Krok N: czasownik obiekt"; gdy lead obiecuje N kroków, sekcji "Krok N" ma być
   dokładnie N. Obrazy (klatki z `stills.py`, grafiki postów): >= 1 na 2 H2 (ostrzeżenie WARN).
 - **Zakończenie (FAIL):** po ostatnim H2 lista podsumowania (blok `list`), akapit z linkiem do filmu, a ostatni blok to akapit
   z jednym pytaniem do czytelnika, kończący się `?` (reguła Kamila: posty i artykuły kończą się pytaniem).
@@ -24,8 +24,8 @@
 - Format = typ `Post` strony (comfy-container `src/data/posts.ts`): bloki `p`, `h2` (unikalne `id`), `list`, `code`, `img`
   (plik w folderze artykułu, alt > 20 znaków). Okładka: miniatura longa A albo grafika posta.
 
-**Sprawdzenie:** `python3 article_check.py out/blog/<slug> --words work/<film>.json` (zasady testów strony + >= 1500 słów PL,
->= 5 H2, lead, link do filmu na górze, zakończenie, źródła, liczby, liczba z tytułu w filmie; WARN gęstość obrazów).
+**Sprawdzenie:** `python3 article_check.py out/blog/<slug> --words work/<film>.json` (zasady testów strony + >= 1200 słów PL i >= 3 H2,
+poradnik z obietnicą N kroków: >= 1500 słów i N sekcji "Krok N", lead, link do filmu na górze, zakończenie, źródła, liczby, liczba z tytułu w filmie; WARN gęstość obrazów).
 
 **Publikacja (dopiero po filmie na YouTube i po obejrzeniu przez Kamila):**
 `python3 ~/infisical/infisical_bridge.py run --secrets GITHUB_Token -- python3 publish_post.py out/blog/<slug> --confirm`

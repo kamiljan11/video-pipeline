@@ -381,6 +381,7 @@ class FilmCheckTest(unittest.TestCase):
         (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA"}, {"id": "B", "big": "SZLABAN"}]}))
         thumb(out / "thumbnails/long_A.jpg", "BLIZNA"); thumb(out / "thumbnails/long_B.jpg", "SZLABAN")
         r, rep = self.run_check("--out", str(out))
+        self.assertIn("numbers in the posts cannot be checked", rep["out.posts"]["detail"])  # no words of the long: never a silent skip
         self.assertIn("no grafika.png", rep["out.posts"]["detail"])  # a picture alone is not enough: the graphic that says it (post_check)
         post_graphic(out / "posts/p1")
         self.assertIn("no out/blog", rep["out.article"]["detail"])
@@ -497,3 +498,17 @@ class FilmCheckTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class JudgeLevelTest(unittest.TestCase):
+    def test_a_warn_level_item_prints_warn_and_never_fails(self):  # review 2026-11-07: product-2 (face_full n=1)
+        import film_check as F
+
+        class Obj:
+            def __init__(self): self.plan: dict = {}
+            def face_full(self): return 0.58, "750 s bare"
+        item = {"id": "long.face_full", "metric": "face_full", "op": "<=", "value": 0.35, "why": ""}
+        self.assertEqual(F.judge(Obj(), item)[0], "FAIL")
+        st, detail = F.judge(Obj(), {**item, "level": "warn"})
+        self.assertEqual(st, "WARN"); self.assertIn("0.58 <= 0.35", detail)
+

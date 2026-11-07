@@ -26,6 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import count_check
 import hook_check  # killers 1-4 and the list nouns, one source with the shorts (style/hook_lint.json)
 
 RECALL = 0.85  # [PROP] share of the drawn words OCR must find; measured 1.00 on all 9 film 2 graphics (2026-11-05); dark-on-dark text falls far below (tests)
@@ -39,8 +40,7 @@ WORD = re.compile(r"[\w%]+")
 HOOK_CHARS = 140  # REF-posts-top: the feed shows about this much before "see more"
 HOOK_KILLERS = ("greeting", "title", "filler", "vague")  # hook_check.problems messages 1-4; "no stake" and the word cap are the short's rules
 NUM = re.compile(r"\d+(?:[.,]\d+)?")
-COUNT_WORDS = {"jeden": 1, "jedna": 1, "dwa": 2, "dwie": 2, "trzy": 3, "cztery": 4, "pięć": 5, "sześć": 6, "siedem": 7, "osiem": 8,
-               "dziewięć": 9, "dziesięć": 10, "jedenaście": 11, "dwanaście": 12}
+COUNT_WORDS = {**count_check.WORD_N, "jeden": 1, "jedna": 1, "jedno": 1}  # every case ("trzech rzeczy"), one map with count_check
 
 
 def words(text: str) -> list[str]:
@@ -165,7 +165,6 @@ def text_problems(text: str, hashtags: list[str], banned: list[str] | None = Non
     if len(hashtags) > MAX_TAGS: out.append(f"{len(hashtags)} hashtags, at most {MAX_TAGS}")
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     if not lines: return [*out, 'no "text" in linkedin.json']
-    out += hook_problems(text)
     last = lines[-1]
     if not last.endswith("?"): out.append(f"the post must end on a question for the comments, got {last!r} (resource goes in the line before)")
     n = len(text.split())
@@ -189,12 +188,18 @@ def drawn_text(d: Path) -> str:
 
 
 def article_said(words_file: Path | None) -> set[str] | None:
-    """digits the film says (article_check.said_numbers) plus numbers it spells out ("trzy"), which whisper often leaves as words"""
+    """numbers the film says, digits and spelled out (article_check.said_numbers: one rule for posts and the article)"""
     import article_check  # late: article_check imports banned_phrases from here
-    said = article_check.said_numbers(words_file)
-    if said is None or words_file is None: return said
-    spoken = [w.lower() for w in WORD.findall(" ".join(str(x.get("text", "")) for x in json.loads(words_file.read_text(encoding="utf-8"))["transcription"]))]
-    return said | {str(COUNT_WORDS[w]) for w in spoken if w in COUNT_WORDS}
+    return article_check.said_numbers(words_file)
+
+
+def warnings(d: Path) -> list[str]:
+    """PLAN 4.1 line-1 rules as warnings: the study's text rules are observe until our own posts confirm them (review
+    2026-11-07, SYNTH-linkedin.md); the numbers stay blocking"""
+    try: s = json.loads((d / "linkedin.json").read_text())
+    except (OSError, ValueError): return []
+    text = s.get("text") if isinstance(s, dict) else None
+    return hook_problems(text) if isinstance(text, str) else []
 
 
 def problems(d: Path, words_file: Path | None = None) -> list[str]:
@@ -228,6 +233,7 @@ def main(argv: list[str]) -> int:
     for a in argv:
         for p in problems(Path(a), words):
             print(f"{a}: {p}"); bad += 1
+        for w in warnings(Path(a)): print(f"{a}: WARN {w}")
     return 1 if bad else 0
 
 

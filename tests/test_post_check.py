@@ -41,7 +41,9 @@ class TextTest(unittest.TestCase):
 
 
     def test_line_1_is_a_hook_not_a_greeting_filler_long_or_a_question(self):  # PLAN 4.1
-        def bad(first): return [b for b in P.text_problems(TEXT.replace(TEXT.splitlines()[0], first, 1), []) if b.startswith("line 1")]
+        def bad(first): return P.hook_problems(TEXT.replace(TEXT.splitlines()[0], first, 1))
+        self.assertEqual([b for b in P.text_problems(TEXT.replace(TEXT.splitlines()[0], "Cześć, dziś pokażę coś o AI.", 1), []) if b.startswith("line 1")], [],
+                         "line 1 rules are warnings (review 2026-11-07), never in problems()")
         self.assertEqual(bad("92% zmian wchodziło bez przeglądu, dziś 18%."), [])
         for first, want in (("Cześć, dziś pokażę coś o AI.", "greeting"), ("Dzisiaj opowiem o szlabanie.", "filler"),
                             ("5 rzeczy o AI w kodzie.", "title"), ("Jak ufać AI, które kłamie?", "question mark"),
@@ -56,6 +58,16 @@ class TextTest(unittest.TestCase):
         self.assertTrue("text" in bad[0] and "2026" in bad[0] and "92" not in bad[0].split(": ")[1], bad)
         self.assertTrue("graphic" in bad[1] and "40" in bad[1], bad)
         self.assertEqual(P.number_problems("2026", "40", None), [])  # no words file: skipped, never a failure
+
+    def test_inflected_number_words_count_as_said_and_line_1_is_only_a_warning(self):  # review 2026-11-07: data-1, product-1
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "linkedin.json").write_text(json.dumps({"text": "Cześć, dziś o AI.\n" + TEXT.split("\n", 1)[1].replace("słowo", "3 i 5", 1), "hashtags": []}))
+            w = d / "w.json"
+            w.write_text(json.dumps({"transcription": [{"text": " trzech"}, {"text": " pięciu"}]}))
+            self.assertFalse([p for p in P.problems(d, w) if "numbers" in p or p.startswith("line 1")], P.problems(d, w))
+            self.assertTrue(any("greeting" in x for x in P.warnings(d)), P.warnings(d))
+        self.assertEqual(P.hook_count("Trzech rzeczy nie robię."), 3)
 
     def test_problems_reads_the_words_file_and_spelled_numbers(self):
         with tempfile.TemporaryDirectory() as t:

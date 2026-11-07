@@ -27,10 +27,12 @@ import sys
 from pathlib import Path
 
 # style/voice.md "## Zakazane": one reader for posts and articles
+from count_check import WORD_N
 from post_check import banned_phrases
 
-MIN_WORDS = 1500    # Kamil 2026-11-07: "raczej szczegółowy"; a 20 min film says ~2500 words, the article goes deeper per part (how-to: 1500)
-MIN_H2 = 5          # one section per step of a how-to
+MIN_WORDS = 1200    # Kamil 2026-11-07: "raczej szczegółowy"; a 20 min film says ~2500 words, the article goes deeper per part
+MIN_H2 = 3
+HOWTO_WORDS, HOWTO_H2 = 1500, 5  # a how-to (the lead promises N steps): creator study 5/5 > 1300 words, one h2 per step (PLAN 3.3, 3.8)
 MAX_LEAD = 80       # lead = promise + number of parts + one measured credibility line
 IMG_PER_H2 = 0.5    # warn below one picture per two sections
 EN_RATIO = 0.6      # the English body may be tighter, not a summary
@@ -52,14 +54,19 @@ def block_text(b: dict) -> str:
     return " ".join(b.get("items", [])) if b.get("t") == "list" else str(b.get("text", b.get("code", b.get("caption", ""))))
 
 
+ONE_N = {w: 1 for w in ("jeden", "jedna", "jedno", "jednego", "jednej", "jednym", "jedną")}
+
+
 def said_numbers(words_file: Path | None) -> set[str] | None:
-    """digits the film says (whisper writes most numbers as digits); None = no transcript given, the check is skipped"""
+    """numbers the film says: digits (whisper writes most numbers as digits) and Polish number words in any case (count_check
+    WORD_N 2-12, ONE_N for 1); None = no transcript given, the check is skipped"""
     if not words_file: return None
     try:  # whisper.cpp json, as film_check.word_times reads it
         text = " ".join(str(w.get("text", "")) for w in json.loads(words_file.read_text(encoding="utf-8"))["transcription"])
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
         raise ValueError(f"{words_file}: not a whisper.cpp words json with \"transcription\" ({e!r})") from e
-    return {n.replace(",", ".") for n in NUM.findall(text)}
+    spelled = {str(ONE_N.get(w) or WORD_N[w]) for w in re.findall(r"\w+", text.lower()) if w in WORD_N or w in ONE_N}
+    return {n.replace(",", ".") for n in NUM.findall(text)} | spelled  # "trzech", "pięciu": whisper often leaves counts as words
 
 
 def inside(folder: Path, src: object) -> bool:
@@ -82,11 +89,12 @@ def meta_problems(a: dict, folder: Path) -> list[str]:
     return out
 
 
-def block_problems(blocks: list, folder: Path, tag: str) -> list[str]:
+def block_problems(blocks: list, folder: Path, tag: str, howto: bool = False) -> list[str]:
     out: list[str] = []
     if len(blocks) < MIN_BLOCKS: out.append(f"blocks {tag}: at least {MIN_BLOCKS}, got {len(blocks)}")
     ids = [x.get("id") for x in blocks if x.get("t") == "h2"]
-    if len(ids) < MIN_H2: out.append(f"sections {tag}: at least {MIN_H2} h2, got {len(ids)}")
+    want = HOWTO_H2 if howto else MIN_H2
+    if len(ids) < want: out.append(f"sections {tag}: at least {want} h2{' (a how-to: one per step)' if howto else ''}, got {len(ids)}")
     if len(set(ids)) != len(ids): out.append(f"heading ids {tag}: not unique {ids}")
     for i, x in enumerate(blocks):
         need = KINDS.get(x.get("t"))
@@ -132,6 +140,11 @@ def structure_problems(b: dict, tag: str, yt: str | None) -> list[str]:
     return out
 
 
+def is_howto(b: object) -> bool:
+    """a how-to = the lead promises N steps ("w 5 krokach"): stricter length and sections"""
+    return isinstance(b, dict) and bool(STEPS.search(str(b.get("lead", ""))))
+
+
 def same_film(url: str, yt: str) -> bool:
     return url.split("&")[0] == yt.split("&")[0]
 
@@ -148,7 +161,7 @@ def body_problems(b: dict, lang: str, folder: Path, yt: str | None, srcs: list[s
     if len(str(b.get("title", ""))) <= 10: out.append(f"title {tag}: more than 10 chars")
     if not DESC[0] <= len(str(b.get("description", ""))) <= DESC[1]: out.append(f"description {tag}: {DESC[0]}-{DESC[1]} chars, got {len(str(b.get('description', '')))}")
     blocks = b.get("blocks", [])
-    out += block_problems(blocks, folder, tag)
+    out += block_problems(blocks, folder, tag, is_howto(b))
     whole = json.dumps(b, ensure_ascii=False)
     if DASH.search(whole): out.append(f"{tag}: an em or en dash (the site's test fails on it)")
     hype = HYPE.search(whole)
@@ -189,7 +202,8 @@ def problems(folder: Path, words_file: Path | None = None) -> list[str]:
             out += loose_numbers(b.get("blocks", []), said, srcs)
             title_loose = sorted({n for n in NUM.findall(str(b.get("title", ""))) if n.replace(",", ".") not in said})
             if title_loose: out.append(f"title (pl): numbers not said in the film: {', '.join(title_loose)} in {str(b.get('title', ''))!r}")
-    if words.get("pl", 0) < MIN_WORDS: out.append(f"(pl) {words.get('pl', 0)} words, want at least {MIN_WORDS} (detailed: each part of the film deeper)")
+    want = HOWTO_WORDS if is_howto((a.get("body") or {}).get("pl")) else MIN_WORDS
+    if words.get("pl", 0) < want: out.append(f"(pl) {words.get('pl', 0)} words, want at least {want} (detailed: each part of the film deeper)")
     if "en" in words and words["en"] < EN_RATIO * words.get("pl", 0): out.append(f"(en) {words['en']} words, want at least {EN_RATIO:.0%} of the Polish {words.get('pl', 0)}")
     return out
 

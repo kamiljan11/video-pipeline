@@ -115,7 +115,13 @@ def hit(text: str, entries: list[str]) -> bool:
 
 def warnings(md: str, lint: dict | None = None) -> list[str]:
     """soft title advice (PLAN 2.7, 2.9): promise marker, "Mój" without a result, number + news, min length, series/brand tag"""
-    lint = lint or lint_lists()
+    try:  # a hand-edited lint file with a typo or a missing list: name it, never a traceback (warnings keep the exit code)
+        return _warnings(md, lint or lint_lists())
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        return [f"style/title_lint.json cannot be read, title warnings skipped: {e!r}"]
+
+
+def _warnings(md: str, lint: dict) -> list[str]:
     out: list[str] = []
     for r in titles(md):
         v, t = r["variant"], r["title"]
@@ -154,7 +160,7 @@ def main(argv: list[str]) -> int:
     opening = opening_words(Path(argv[1])) if len(argv) == 2 else None
     bad = problems(Path(argv[0]).read_text(), opening)
     print("\n".join(bad) or "OK title_check")
-    print("\n".join(f"WARN {w}" for w in warnings(Path(argv[0]).read_text())))
+    for w in warnings(Path(argv[0]).read_text()): print(f"WARN {w}")
     return 1 if bad else 0
 
 

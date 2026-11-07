@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -115,3 +116,10 @@ class TitleWarnTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TitleLintFileTest(unittest.TestCase):
+    def test_a_broken_lint_file_is_one_warning_not_a_traceback(self):  # review 2026-11-07: ops-3
+        with mock.patch.object(T, "lint_lists", side_effect=ValueError("bad json")):
+            got = T.warnings("## Tytuły\n| A | Jakiś tytuł o AI | x |\n")
+        self.assertTrue(len(got) == 1 and "cannot be read" in got[0], got)

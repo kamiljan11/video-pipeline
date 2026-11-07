@@ -132,11 +132,15 @@ def full_spans(edl: dict, specs: dict) -> list[tuple[float, float]]:
     return [(a, b) for a, b in spans]
 
 
+def cover_spans(edl: dict) -> list[tuple[float, float]]:
+    """(start, end) of everything the EDL puts over the face: overlays and b-roll"""
+    spans = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", [])]
+    return spans + [(b["at"], b["at"] + b.get("dur", 0)) for b in edl.get("broll", []) if "at" in b]
+
+
 def max_gap(edl: dict, end: float) -> float:
     """longest stretch of the film with no card on screen, no punch-in, no b-roll and no framing jump"""
-    spans = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", [])]
-    spans += [(b["at"], b["at"] + b.get("dur", 0)) for b in edl.get("broll", []) if "at" in b]
-    spans += [(t, t) for t in punches(edl) + zoom_steps(edl)]
+    spans = cover_spans(edl) + [(t, t) for t in punches(edl) + zoom_steps(edl)]
     gap, t = 0.0, 0.0
     for a, b in sorted(spans):
         gap = max(gap, a - t); t = max(t, b)
@@ -227,15 +231,14 @@ class Film:
     # the bare face: nothing of the EDL on top of it (course author study CCC, n=1: 18-26 % of a lesson is the bare face)
     def face_full(self):
         """share of the long where no overlay (card, float, sticker, scene, lower, chap, end) and no b-roll is on screen"""
-        spans = [(o["at"], o["at"] + o["dur"]) for o in self.ovs]
-        spans += [(b["at"], b["at"] + b.get("dur", 0)) for b in self.edl.get("broll", []) if "at" in b]
         covered, end = 0.0, 0.0
-        for a, b in sorted(spans):
+        for a, b in sorted(cover_spans(self.edl)):
             a, b = max(a, end, 0.0), min(b, self.len)  # union, clipped to the film
             if b > a: covered += b - a
             end = max(end, b)
         bare = max(self.len - covered, 0.0)
-        return round(bare / max(self.len, 1e-9), 3), f"{bare:.0f} s of {self.len:.0f} s with nothing on the face"
+        return round(bare / max(self.len, 1e-9), 3), (f"{bare:.0f} s of {self.len:.0f} s with nothing on the face; more cards beside the "
+                                                      "face (float, kw, sticker) lower it")
 
     def full_screen_min_gap(self):
         sp = full_spans(self.edl, self.specs)
@@ -352,6 +355,7 @@ class Film:
 class Out:
     def __init__(self, work: Path, out: Path):
         self.work, self.out = work, out
+        self.warns: list[tuple[str, str]] = []  # (item id, advice): the item's "warnings", printed as WARN, never a failure
         self.story = load(work / "story.json", "story.json") if (work / "story.json").exists() else {}
         self.plan = {"skip": self.story.get("skip", {})}
 
@@ -388,6 +392,7 @@ class Out:
         if not p.exists(): return False, "no out/youtube/long.md"
         plan = self.work / "plan_long.json"
         bad = title_check.problems(p.read_text(), title_check.opening_words(plan) if plan.exists() else None)
+        self.warns += [("out.titles", w) for w in title_check.warnings(p.read_text())]
         return not bad, "; ".join(bad[:8])
 
     def out_hooks(self):
@@ -419,7 +424,8 @@ class Out:
         md = self.out / "youtube" / "long.md"
         titles = [r["title"] for r in title_check.titles(md.read_text())] if md.exists() else []
         try:
-            bad = thumb_check.problems(load(spec, "thumbs.json"), self.out, titles)
+            bad, warns = thumb_check.check(load(spec, "thumbs.json"), self.out, titles)
+            self.warns += [("out.thumbs_read", w) for w in warns]
         except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
             return False, f"thumb_check failed: {e}"
         return not bad, "; ".join(bad[:8])
@@ -433,12 +439,13 @@ class Out:
     def out_posts(self):
         want = self.made("posts.json")
         if not want: return False, "posts.json has no post with \"make\": true (social role)"
-        wf = self.long_words()  # numbers in a post must be said in the film (PLAN 4.2); without words post_check notes the skip
-        bad = []
+        wf = self.long_words()  # numbers in a post must be said in the film (PLAN 4.2), blocking: no words file = FAIL, as out.article
+        bad = [] if wf else ['numbers in the posts cannot be checked: plan_long.json names no "words" file that exists']
         for pid in want:
             d = self.out / "posts" / pid
             if not (d / "post.md").exists(): bad.append(f"{pid}: no post.md")
-            bad += [f"{pid}: {p}" for p in post_check.problems(d, wf)]  # the graphic alone (OCR, contrast) and the text habits
+            bad += [f"{pid}: {p}" for p in post_check.problems(d, wf)]
+            self.warns += [("out.posts", f"{pid}: {w}") for w in post_check.warnings(d)]  # the graphic alone (OCR, contrast) and the text habits
         return not bad, "; ".join(bad)
 
     def out_article(self):
@@ -449,6 +456,7 @@ class Out:
         wf = self.long_words()
         if wf is None: return False, 'numbers in the article cannot be checked: plan_long.json names no "words" file that exists'
         bad = [f"{a.parent.name}: {p}" for a in arts for p in article_check.problems(a.parent, wf)]
+        self.warns += [("out.article", f"{a.parent.name}: {w}") for a in arts for w in article_check.warnings(a.parent)]
         return not bad, "; ".join(bad[:8])
 
 
@@ -471,6 +479,7 @@ def judge(obj, item: dict) -> tuple[str, str]:
     elif op == "==": ok = v == want
     else: raise SystemExit(f"film_check: {item['id']}: op {op!r}")
     shown = detail or (f"{v} {op} {want}" if op not in ("true",) and want != "all" else "")
+    if not ok and item.get("level") == "warn": return "WARN", f"{v} {op} {want}: {shown}"  # observe: advice until the evidence holds
     return ("OK" if ok else "FAIL"), shown
 
 
@@ -499,14 +508,17 @@ def main(argv: list[str]) -> int:
     for name, obj in targets:
         fmt = obj.fmt if isinstance(obj, Film) else "out"
         for it in (x for x in items if x["fmt"] == fmt):
+            seen = len(getattr(obj, "warns", []))
             st, detail = judge(obj, it)
             failed += st == "FAIL"
-            report.append({"film": name, "id": it["id"], "status": st, "detail": detail, "why": it["why"]})
+            report.append({"film": name, "id": it["id"], "status": st, "detail": detail, "why": it["why"],
+                           "warnings": [w for _, w in getattr(obj, "warns", [])[seen:]]})  # the checker's own advice for this item
     if as_json:
         print(json.dumps(report, ensure_ascii=False, indent=1))
     else:
         for r in report:
             print(f"{r['status']:4} {r['film']:<22} {r['id']:<22} {r['detail']}" + (f"\n       why: {r['why']}" if r["status"] == "FAIL" else ""))
+            for w in r["warnings"]: print(f"WARN {r['film']:<22} {r['id']:<22} {w}")
         print(f"film_check: {failed} missing" if failed else "film_check: all items met or skipped with a reason")
     return 1 if failed else 0
 
