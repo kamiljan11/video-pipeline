@@ -42,6 +42,7 @@ flowchart LR
 | B-roll | `broll.py`, `stock.py` | free Pexels clips where the speech names a concrete thing; credits for the description |
 | Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |
 | Render | `assemble.py`, `run_v4.sh` | segment cache, grading, captions for shorts, final mix; `--proxy` for 360p previews |
+| Render audit | `render_audit.py` | the finished film against its EDL: flashes < 0.5 s, picture changes the EDL does not explain (card fades allowed), a word doubled by a cut, cards < 1.5 s, a non-full card hiding the face (YuNet); rc 1 with each item and time -> `<film>.audit.json` |
 | Viewer review | `viewer_pack.py`, `review/viewer.md` | frame sheets + what is said + what is on screen, for an agent acting as a first-time viewer |
 | Checklist gate | `film_check.py`, `style/checklist.json` | every feature a long, a short and the out folder must have (chapters, explainer scenes, lower third, new music, A/B thumbnails, posts...); an item is met or skipped with a reason in the plan, else the film does not render ([ADR-0011](docs/adr/0011-editorial-team.md)) |
 | Scene collisions | `gfx/scene_check.mjs` | pieces of an explainer scene that cover each other, found in Chrome before any frame is rendered |
