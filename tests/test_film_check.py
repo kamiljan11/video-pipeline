@@ -118,7 +118,7 @@ class FilmCheckTest(unittest.TestCase):
             ovs.append({"id": f"c{k}", "at": at, "dur": 3}); specs.append({"id": f"c{k}", "type": "chap"})
         for k in range(6):  # an animated explanation every 100 s
             ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 12}); specs.append({"id": f"s{k}", "type": "scene"})
-        for k, at in enumerate(range(20, 600, 12)):
+        for k, at in enumerate(range(20, 600, 6)):  # cards beside him cover most of the film: face_full <= 0.35
             ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw"})
         for k, at in enumerate((2, 5)):
             ovs.append({"id": f"b{k}", "at": at, "dur": 2.5}); specs.append({"id": f"b{k}", "type": "float", "behind": {"edl": "edl_long.json"}})
@@ -247,6 +247,19 @@ class FilmCheckTest(unittest.TestCase):
         self.assertNotIn("k1 ", detail)  # "kw" cards of the fixture: no words, 4 s >= 2.5 s
         self.assertEqual(n, 2)
         self.assertEqual(f.screen_switches_per_min()[0], round(len(film_check.full_spans(f.edl, f.specs)) / 10, 2))
+
+    def test_face_full_counts_only_the_bare_face(self):  # PLAN 1.1: nothing of the EDL on the face (course author study, n=1)
+        sys.path.insert(0, str(ROOT))
+        import film_check
+        ovs = [{"id": "a", "at": 0, "dur": 100}, {"id": "b", "at": 50, "dur": 100}, {"id": "k", "at": 580, "dur": 50}]  # overlap, past the end
+        self.project(ovs, [{"id": "a", "type": "scene"}, {"id": "b", "type": "kw"}, {"id": "k", "type": "sticker"}])
+        f = film_check.Film(self.d, "long")
+        f.edl["broll"] = [{"at": 200, "dur": 100}, {"at": 250, "dur": 100}, {"dur": 5}]  # overlapping b-roll; one without "at" is ignored
+        share, detail = f.face_full()
+        self.assertEqual(share, round((600 - 150 - 150 - 20) / 600, 3))  # 0-150 cards, 200-350 b-roll, 580-600 sticker
+        self.assertIn("280 s of 600 s", detail)
+        f.edl["overlays"] = []; f.ovs = []; f.edl["broll"] = []
+        self.assertEqual(f.face_full()[0], 1.0)
 
     def test_a_long_without_memes_is_named(self):  # Kamil 4.11: "miały być też memy, memów nie ma"
         ovs, specs, segs = self.full_long()

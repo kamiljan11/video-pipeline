@@ -15,6 +15,7 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | paleta (muzyki) | `music_palette {name, key}`: inny utwór na każdy film; rejestr w `render/music_ledger.json` |
 | behind | karta za postacią: tekst między tłem a mówiącym (`behind.py`, ADR-0005) |
 | cover | część karty `behind` zasłonięta przez mówiącego (0–1, `gfx/<id>.cover.json`); `film_check` przepuszcza najwyżej 0,15 |
+| face_full | udział czasu longa, w którym na twarzy nie ma niczego z EDL (karta, float, sticker, scena, lower, chap, end, b-roll); `film_check` long.face_full <= 0,35 (autor kursu CCC, n=1, do rewizji po szerszym badaniu); liczy każdy overlay, więc jest niższy niż pomiar detektorem twarzy na renderze (twarz widać też w PiP, obok kart kw i stickerów) |
 | faza (`phase`) | punkt `style/checklist.json` sprawdzany osobnym wywołaniem `film_check.py --phase <nazwa>` (`behind`: po `behind.py`) |
 | short / rolka | film 9:16 z fragmentu longa (`plan_<id>.json`, `"vertical": true`); „rolka” = to samo na Instagramie |
 | kandydat (`clips.json`, `posts.json`) | fragment albo post oceniony w rubryce 0-3; `"make": true` = musi być w `out/` |

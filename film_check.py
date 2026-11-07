@@ -224,6 +224,19 @@ class Film:
         sp = full_spans(self.edl, self.specs)
         return round(sum(b - a for a, b in sp) / max(self.len, 1e-9), 3), f"{len(sp)} separate screens, {sum(b - a for a, b in sp):.0f} s of {self.len:.0f} s"
 
+    # the bare face: nothing of the EDL on top of it (course author study CCC, n=1: 18-26 % of a lesson is the bare face)
+    def face_full(self):
+        """share of the long where no overlay (card, float, sticker, scene, lower, chap, end) and no b-roll is on screen"""
+        spans = [(o["at"], o["at"] + o["dur"]) for o in self.ovs]
+        spans += [(b["at"], b["at"] + b.get("dur", 0)) for b in self.edl.get("broll", []) if "at" in b]
+        covered, end = 0.0, 0.0
+        for a, b in sorted(spans):
+            a, b = max(a, end, 0.0), min(b, self.len)  # union, clipped to the film
+            if b > a: covered += b - a
+            end = max(end, b)
+        bare = max(self.len - covered, 0.0)
+        return round(bare / max(self.len, 1e-9), 3), f"{bare:.0f} s of {self.len:.0f} s with nothing on the face"
+
     def full_screen_min_gap(self):
         sp = full_spans(self.edl, self.specs)
         gaps = sorted((b2 - a1, a1) for (_, a1), (b2, _) in itertools.pairwise(sp))  # (gap, where it starts)

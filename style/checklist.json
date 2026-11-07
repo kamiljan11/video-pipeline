@@ -33,6 +33,8 @@
      "why": "Between two separate screens the speaker is back for 3 s at least (Negacz return 7 s median, 3 s p25, n 349); v2 had 0.1 s flashes of the face"},
     {"id": "long.screen_share", "fmt": "long", "metric": "full_screen_share", "op": "<=", "value": 0.5,
      "why": "Kamil 5.11: 'nie wszystko pokazywać na ekranie takim, że jestem w prawym dolnym rogu… zagospodarować przestrzeń dookoła mnie' (v2 68 %). Negacz has 65 %, Kamil's rule wins: the rest goes beside him (sticker, float, kw)"},
+    {"id": "long.face_full", "fmt": "long", "metric": "face_full", "op": "<=", "value": 0.35,
+     "why": "Share of the long with the bare face: no card, float, sticker, scene, lower third or b-roll from the EDL. Value from the course author study (Skool CCC, n=1: 18-26 % of a lesson); to be revised after the wider creator study (creator-study/PLAN.md 1.1, 0.4). Reconciles screen_share <= 0.5: the missing >= 15 pp goes into cards beside him (float, kw, sticker), not into full screens"},
     {"id": "long.reading", "fmt": "long", "metric": "cards_shorter_than_reading", "op": "==", "value": 0,
      "why": "Kamil 5.11: 'czasami są one zbyt krótko i nie zdąży się przeczytać' (v2: 36 cards, the maps 1.4-3.2 s). Text: 1.2 s a word for the first 4 words, 0.35 s each after, 2.5 s min (Negacz 1.5 s a word, 3-word cards, n 92); a scene, web or slide 6 s min (Negacz drawn scenes 23 s median, n 101)"},
     {"id": "long.counts", "fmt": "long", "metric": "counts_match", "op": "true",
