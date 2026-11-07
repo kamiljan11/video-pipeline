@@ -301,9 +301,14 @@ class Film:
         import stills  # only here: it pulls OpenCV
         acc = stills.gfx_dir(self.work / f"plan_{self.name}.json", self.edl) / "stills" / "accepted.json"
         ids = sorted({o["id"] for o in self.ovs if o.get("id") in self.specs})
+        if not ids: return True, "no cards"
         if not acc.exists(): return False, f"no stills sheet yet: python3 stills.py plan_{self.name}.json, Kamil looks, stills.py accept"
-        miss = [i for i in ids if i not in load(acc, "gfx/stills/accepted.json")]
-        return not miss, (f"{len(miss)} of {len(ids)} cards without an accepted still: {', '.join(miss[:6])}" if miss else f"{len(ids)} cards")
+        ok = load(acc, "gfx/stills/accepted.json")
+        # a still drawn after the acceptance with another key = the card changed since Kamil saw it (the render key itself is
+        # JS: a card changed with no new still is stopped by render.mjs, by name)
+        newer = lambda i: (k := acc.parent / f"{i}.key").exists() and k.read_text() != ok[i]
+        miss = [i for i in ids if i not in ok or newer(i)]
+        return not miss, (f"{len(miss)} of {len(ids)} cards without an accepted still of their current version: {', '.join(miss[:6])}" if miss else f"{len(ids)} cards")
 
     def ends_on_the_last_word(self, tail_max: float):  # tail_max: style/checklist.json short.end args
         """a short stops right after its last word and loops: no end card, no end screen (REF-shorts-top T8: 30/30 top shorts

@@ -25,10 +25,15 @@ test('stills: a PNG, the render key and the moment per card, no .mov; only the i
   assert.ok(!fs.existsSync(path.join(sd, 'c.png')), 'a card not asked for got a still');
 });
 
-test('gate: with accepted.json a card renders only with its accepted key; a change needs a new accept; STILLS=off overrides', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+test('gate: a card in scope.json renders only with its accepted key; a change needs a new accept; STILLS=off overrides', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
   const card = sc('g', { dur: 0.4, els: [{ k: 'text', x: 100, y: 100, t: 'raz', at: 0 }] });
   assert.equal(run([card], ['--stills']).status, 0);
   fs.writeFileSync(path.join(sd, 'accepted.json'), '{}');
+  assert.equal(run([card]).status, 0, 'no scope.json yet: nothing gated');
+  fs.rmSync(path.join(out, 'g.mov')); fs.rmSync(path.join(out, 'g.mov.key'));
+  fs.writeFileSync(path.join(sd, 'scope.json'), JSON.stringify(['g']));
+  const other = sc('o', { dur: 0.4, els: [{ k: 'text', x: 100, y: 100, t: 'x', at: 0 }] });
+  assert.equal(run([other]).status, 0, 'a card of a film without a sheet (not in scope) was gated');
   let r = run([card]);
   assert.equal(r.status, 1); assert.match(r.stderr, /FAILED gfx g: no accepted still/);
   fs.writeFileSync(path.join(sd, 'accepted.json'), JSON.stringify({ g: fs.readFileSync(path.join(sd, 'g.key'), 'utf8') }));
@@ -36,6 +41,12 @@ test('gate: with accepted.json a card renders only with its accepted key; a chan
   assert.ok(fs.existsSync(path.join(out, 'g.mov')));
   const changed = { ...card, els: [{ ...card.els[0], t: 'dwa' }] };
   assert.equal(run([changed]).status, 1, 'a card changed after acceptance rendered');
+  fs.writeFileSync(path.join(sd, 'scope.json'), JSON.stringify(['g', 'h']));
+  const h = sc('h', { dur: 0.4, els: [{ k: 'text', x: 100, y: 100, t: 'h', at: 0 }] });
+  r = run([changed, h]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /FAILED gfx g:/); assert.match(r.stderr, /FAILED gfx h:/);  // every refused card named before any render
+  assert.ok(!fs.existsSync(path.join(out, 'h.mov')), 'a card rendered although another was refused');
   r = run([changed], [], { STILLS: 'off' });
   assert.equal(r.status, 0, r.stderr); assert.match(r.stderr, /WARN stills gate off/);
 });

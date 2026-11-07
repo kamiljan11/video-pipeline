@@ -237,6 +237,24 @@ class ConfirmTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0, r.stderr)
         self.assertIn("pre-push hook would run with the token", r.stderr)
 
+    def test_a_site_reference_transaction_hook_stops_before_the_push(self):  # git push runs it locally too
+        self.site()
+        hooks = self.repo / "site-hooks"; hooks.mkdir()
+        (hooks / "reference-transaction").write_text("#!/bin/sh\nexit 0\n"); (hooks / "reference-transaction").chmod(0o755)
+        git("config", "core.hooksPath", str(hooks), cwd=self.repo)
+        r = self.publish()
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("reference-transaction", r.stderr)
+        self.assertEqual(git("branch", "--list", "blog/*", cwd=self.bare), "")
+
+    def test_our_own_quality_hooks_folder_is_trusted(self):  # the only exception: core.hooksPath = publish_post.PG_HOOKS
+        self.site()
+        home = Path(self.t.name) / "home"; hooks = home / ".claude" / "git-hooks"; hooks.mkdir(parents=True)
+        (hooks / "pre-push").write_text("#!/bin/sh\nexit 0\n"); (hooks / "pre-push").chmod(0o755)
+        git("config", "core.hooksPath", str(hooks), cwd=self.repo)
+        r = self.publish(env_more={"HOME": str(home)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+
     def test_a_hung_gh_ends_with_a_message(self):
         self.site()
         r = self.publish(gh_sleep=10, timeout=4)

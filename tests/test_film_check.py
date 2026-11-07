@@ -333,6 +333,24 @@ class FilmCheckTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("cannot be read", detail)
 
+    def test_stills_item_names_a_missing_sheet_and_a_card_without_acceptance(self):  # film_check long.stills (ADR-0018)
+        import film_check
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segments=segs)
+        f = film_check.Film(self.d, "long")
+        self.assertTrue(f.stills_accepted()[0])
+        self.accept_stills([o["id"] for o in ovs[1:]])
+        ok, detail = f.stills_accepted()
+        self.assertFalse(ok); self.assertIn(ovs[0]["id"], detail)
+        self.accept_stills([o["id"] for o in ovs])
+        (self.d / "gfx" / "stills" / f"{ovs[2]['id']}.key").write_text("newer")  # a still drawn after the acceptance
+        ok, detail = f.stills_accepted()
+        self.assertFalse(ok); self.assertIn(ovs[2]["id"], detail)
+        (self.d / "gfx" / "stills" / "accepted.json").unlink()
+        self.assertIn("no stills sheet yet", f.stills_accepted()[1])
+        f.ovs = []
+        self.assertEqual(f.stills_accepted(), (True, "no cards"))  # nothing to look at: never a check that cannot pass
+
     def test_out_folder(self):
         (self.d / "clips.json").write_text(json.dumps({"items": [{"id": "s1", "make": True, "hook": HOOKS[0], "hooks": HOOKS, "hook_from": "mech-contrarian"},
                                                               {"id": "s9", "make": False}]}))

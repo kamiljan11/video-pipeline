@@ -1,8 +1,10 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
 // node render.mjs specs.json outdir --stills [id ...]  -> outdir/stills/<id>.png + <id>.key: one frame per card at its still
 // time (stillTime), drawn by the same page as the .mov; stills.py lays them on film frames for review (Skool CCC Taski #9).
-// Stills gate: once outdir/stills/accepted.json exists (stills.py made the film's first sheet), a card is rendered only when
-// its key there is the key it renders with (accepted after the last change). STILLS=off renders anyway (WARN in the log).
+// Stills gate: a card of a film that has a stills sheet (its id in outdir/stills/scope.json, written by stills.py) renders only
+// when its key in accepted.json is the key it renders with (accepted after the last change). Cards of films without a sheet
+// (gfx/ is shared by the long and the shorts) and cards no EDL uses are not gated here: film_check long/short.stills asks for
+// every card of a film. STILLS=off renders anyway (WARN in the log).
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
@@ -15,7 +17,9 @@ const [specFile, outDir, mode, ...only] = process.argv.slice(2);
 const STILLS = mode === '--stills';
 const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(sp => !STILLS || !only.length || only.includes(sp.id));
 const ACCEPTED = `${outDir}/stills/accepted.json`;
-const accepted = !STILLS && fs.existsSync(ACCEPTED) ? JSON.parse(fs.readFileSync(ACCEPTED, 'utf8')) : null;
+const SCOPE = `${outDir}/stills/scope.json`;
+const accepted = !STILLS && fs.existsSync(SCOPE) ? (fs.existsSync(ACCEPTED) ? JSON.parse(fs.readFileSync(ACCEPTED, 'utf8')) : {}) : null;
+const inReview = new Set(accepted ? JSON.parse(fs.readFileSync(SCOPE, 'utf8')) : []);
 if (accepted && process.env.STILLS === 'off') console.error('WARN stills gate off (STILLS=off): cards render without an accepted still');
 // the moment a still shows: "still" in the spec, else when every piece of a scene is in (+0.6 s), else 60 % into the card
 const stillTime = sp => {
@@ -206,14 +210,14 @@ function logoStamp(sp) {
 // "behind" is left out: behind.py rewrites the .mov from the front card and keeps its own key in the file
 // a scene is drawn by scene_lib.mjs: a change there (new piece look, the 9:16 solo fade) changes the same spec's frames,
 // so its source is part of a scene's key (film 2 shorts, 2026-11-04: the solo fade was not rendered, the spec was the same)
-// motion_tokens.mjs too: a "tokens" card takes its timings from there
-const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url)))
-  .update(fs.readFileSync(new URL('./motion_tokens.mjs', import.meta.url))).digest('hex').slice(0, 12);
+const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+// motion_tokens.mjs only in the key of a "motion": "tokens" card: a token edit does not re-render (or un-accept) legacy cards
+const TOKENS = crypto.createHash('sha1').update(fs.readFileSync(new URL('./motion_tokens.mjs', import.meta.url))).digest('hex').slice(0, 12);
 // a meme is drawn by MEME_BOX, meme(), memeLib() and its CSS in template.html: a change in any of them changes its frames,
 // so they are part of a meme's key like SCENE_LIB for scenes (review r3 code-2, r4 code-1)
 const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(JSON.stringify(STICKER_BOX)).update(meme.toString()).update(sticker.toString()).update(memeLib.toString())
   .update(fs.readFileSync(new URL('./template.html', import.meta.url))).digest('hex').slice(0, 12);
-const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB } : {}) })).digest('hex');
+const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB, ...(sp.motion === 'tokens' ? { _tok: TOKENS } : {}) } : {}) })).digest('hex');
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
   const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
@@ -227,20 +231,28 @@ if (specs.some(s => s.type === 'web')) {
 }
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
 fs.mkdirSync(outDir, { recursive: true });
+function keyFor(sp) {
+  const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'sticker' && sp.toon !== undefined ? toonStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
+  return THEME ? `${base ?? ''}|${THEME.key}` : base;
+}
+const fresh = (sp, key) => {  // its .mov exists and was made from this key
+  const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
+  return fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp));
+};
+// stills gate before any page opens: every card that would render without its accepted still is named, nothing is half done
+if (accepted && process.env.STILLS !== 'off') {
+  const refused = specs.filter(sp => inReview.has(sp.id)).filter(sp => { const k = keyFor(sp); return !fresh(sp, k) && accepted[sp.id] !== (k ?? ''); });
+  for (const sp of refused) console.error(`FAILED gfx ${sp.id}: no accepted still for this version of the card (python3 stills.py <plan.json> --only ${sp.id}, then stills.py accept <plan.json> ${sp.id})`);
+  if (refused.length) { await browser.close(); process.exit(1); }
+}
 async function one(sp) {
   // a "web" card's .mov belongs to its spec and to one capture (a new capture of the same page included): either changes
   // -> rendered again. Every other card belongs to its spec: a changed scene, text or timing renders it again (until
   // 2026-11-04 only the theme was in the key, so a retimed scene kept its old .mov unless someone moved it aside).
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
   // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
-  const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
-  const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'sticker' && sp.toon !== undefined ? toonStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
-  const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
-  if (!STILLS && fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
-  if (accepted && process.env.STILLS !== 'off' && accepted[sp.id] !== (key ?? '')) {
-    console.error(`FAILED gfx ${sp.id}: no accepted still for this version of the card (python3 stills.py <plan.json>, then stills.py accept <plan.json> ${sp.id})`);
-    process.exit(1);
-  }
+  const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`, key = keyFor(sp);
+  if (!STILLS && fresh(sp, key)) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';
   const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });

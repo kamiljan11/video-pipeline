@@ -9,8 +9,10 @@ A still = gfx/render.mjs --stills (the same page as the .mov, at the moment ever
 laid over the source frame at that moment of the film (EDL overlay "at" + still time, mapped through the segments; the
 source frame as shot, without the EDL zoom), the words heard while the card is up underneath. Shorts (canvas "v") get the
 source centre-cropped to 9:16 around the EDL face x.
-accept copies each card's render key into <gfx>/stills/accepted.json; from the first sheet on, render.mjs renders only cards
-whose key there matches (a card changed after acceptance needs a new still and a new accept). STILLS=off overrides.
+accept copies each card's render key into <gfx>/stills/accepted.json. A sheet adds its cards to <gfx>/stills/scope.json; render.mjs
+renders a card in scope only when its accepted key matches (a card changed after acceptance needs a new still and accept).
+gfx/ is shared by the long and the shorts, so cards of a film without a sheet are not gated there; film_check long/short.stills
+asks for every card of the film. STILLS=off overrides.
 """
 from __future__ import annotations
 
@@ -30,7 +32,8 @@ ROOT = Path(__file__).resolve().parent
 CELL = (960, 540)        # still size on the sheet (16:9); a 9:16 still is 304x540 centred in the cell
 CAPTION = 110            # px under each still for the id and the sentence
 COLS = 2
-TIMEOUT = 600
+TIMEOUT = 600       # render.mjs --stills for the whole film
+FRAME_TIMEOUT = 60  # one source frame
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 
@@ -55,8 +58,10 @@ def said(words: list[tuple[float, str]], a: float, b: float) -> str:
 
 def frame(src: str, t: float, size: tuple[int, int], face_x: float) -> np.ndarray:
     """the source frame at t, scaled to cover size (w, h) and cropped around face_x (0..1) when the aspect differs"""
-    raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", src, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"],
-                         capture_output=True, check=True, timeout=TIMEOUT).stdout
+    r = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.3f}", "-i", src, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "-"],
+                       capture_output=True, check=False, timeout=FRAME_TIMEOUT)
+    if r.returncode: raise RuntimeError(f"ffmpeg frame at {t:.2f} s of {src}: {r.stderr.decode(errors='replace').strip()[-300:]}")
+    raw = r.stdout
     im = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
     if im is None: raise RuntimeError(f"no frame at {t:.2f} s in {src}")
     w, h = size
@@ -121,14 +126,20 @@ def make(plan_path: Path, only: list[str] | None = None) -> dict:
         at = source_at(edl, o["at"] + t)
         base = frame(*at, size, face_x) if at else np.zeros((size[1], size[0], 3), np.uint8)
         img, sentence = over(base, sd / f"{o['id']}.png"), said(heard, o["at"], o["at"] + o.get("dur", sp.get("dur", 0)))
+        if not at:  # past the end of the segments: say so on the still, never a silent black frame (review 2026-11-07)
+            cv2.putText(img, "NO SOURCE FRAME (past the film end)", (12, 40), FONT, 0.9, (0, 0, 255), 2, cv2.LINE_AA)
+            sentence = f"[no source frame] {sentence}"
         cv2.imwrite(str(sd / f"{o['id']}_still.jpg"), img, [cv2.IMWRITE_JPEG_QUALITY, 88])
         return o["id"], cell(img, f"{o['id']}  {viewer_pack.stamp(o['at'])}", sentence), sentence
 
     with ThreadPoolExecutor(6) as ex: done = list(ex.map(one, shown))
     cv2.imwrite(str(sd / "sheet.jpg"), sheet([c for _, c, _ in done]), [cv2.IMWRITE_JPEG_QUALITY, 82])
     (sd / "sheet.md").write_text("".join(f"- `{cid}` {s or '(nothing said)'}\n" for cid, _, s in done))
-    acc = sd / "accepted.json"
-    if not acc.exists(): acc.write_text("{}\n")  # from now on render.mjs asks for an accepted still per card
+    acc, scope = sd / "accepted.json", sd / "scope.json"
+    if not acc.exists(): acc.write_text("{}\n")
+    # from now on render.mjs asks for an accepted still for these cards (the union over every film that made a sheet)
+    old = set(json.loads(scope.read_text())) if scope.exists() else set()
+    scope.write_text(json.dumps(sorted(old | set(ids))) + "\n")
     return {"cards": len(done), "sheet": str(sd / "sheet.jpg"), "seconds": round(time.monotonic() - t0, 1)}
 
 

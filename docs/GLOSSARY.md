@@ -39,3 +39,6 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | wariant hooka | jeden z >= 3 hooków kandydata w `clips.json` `hooks`; wybrany = `hook` |
 | still (stopklatka karty) | jedna klatka karty graficznej, gdy wszystko już weszło (`still` w specu albo ostatnie wejście + 0,6 s), na prawdziwej klatce filmu, ze zdaniem mówionym pod nią (`stills.py`) |
 | akceptacja stilla | klucz renderu karty w `gfx/stills/accepted.json` (`stills.py accept`); od pierwszego arkusza bez niej `render.mjs` nie robi `.mov` (ADR-0018) |
+| tokeny ruchu | czasy ruchu kart w klatkach przy 30 fps, 4 krzywe (land, pop, shift, leave), 5 staggerów; `gfx/motion_tokens.mjs` (ADR-0017) |
+| `"motion": "tokens"` | klucz karty sceny: czasy z tokenów; bez klucza = `legacy`, czasy sprzed tokenów (gotowe filmy bez zmian) |
+| stagger | odstęp wejścia kolejnych elementów grupy (wiersze, linie terminala, wiadomości), w klatkach; max 12 |

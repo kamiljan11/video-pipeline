@@ -26,6 +26,7 @@ from article_check import problems
 REPO = Path.home() / "src" / "comfy-container"
 GH_REPO = "kamiljan11/comfy-container"
 BASE = "main"
+PUSH_HOOKS = ("pre-push", "reference-transaction")  # hooks git runs locally during a push
 PG_HOOKS = Path.home() / ".claude" / "git-hooks"  # our quality hooks (core.hooksPath of our repos): the only trusted pre-push
 POSTS = "src/data/posts.ts"
 ANCHOR = "export const POSTS: Post[] = ["
@@ -135,8 +136,11 @@ def main(argv: list[str]) -> int:
         hooks = Path(run("git", "rev-parse", "--path-format=absolute", "--git-path", "hooks", cwd=wt).strip())
         # only our own quality hooks are trusted (the git-hooks folder of PG), nothing else under it: a temp dir there passed
         # as trusted (test failed when TMPDIR sat in that folder)
-        if (hooks / "pre-push").exists() and hooks.resolve() != PG_HOOKS.resolve():
-            sys.exit(f"{hooks}/pre-push: the site's own pre-push hook would run with the token in its environment; read it, then push by hand")
+        # the hooks git runs on our side of a push, not only pre-push (security review 2026-11-07: reference-transaction);
+        # the site's pre-commit ran before the token entered any environment, so it may stay
+        live = [h for h in PUSH_HOOKS if (hooks / h).is_file() and os.access(hooks / h, os.X_OK)]
+        if live and hooks.resolve() != PG_HOOKS.resolve():
+            sys.exit(f"{hooks}: the site's own {', '.join(live)} (pre-push hook would run with the token in its environment); read it, then push by hand")
         pushing = True
         run("git", "push", "-q", remote, f"{branch}:{branch}", cwd=wt, env=auth_env(token), token=token)
     except BaseException:

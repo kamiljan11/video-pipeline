@@ -51,6 +51,24 @@ class PictureTest(unittest.TestCase):
         self.assertEqual(S.sheet([c, c, c]).shape, (2 * c.shape[0], 2 * c.shape[1], 3))
         self.assertEqual(S.wrap("a b c", 3), ["a b", "c"])
 
+    def test_a_card_past_the_film_end_says_so_on_its_still(self):
+        work = self.d / "w"; gfx = work / "gfx"; sd = gfx / "stills"; sd.mkdir(parents=True)
+        cv2.imwrite(str(sd / "k.png"), np.zeros((1440, 2560, 4), np.uint8)); (sd / "k.t").write_text("1.0"); (sd / "k.key").write_text("x")
+        (work / "edl.json").write_text(json.dumps({"segments": [{"src": "A", "in": 0, "out": 2}], "sources": {"A": "a.mp4"},
+                                                   "overlays": [{"file": str(gfx / "k.mov"), "id": "k", "at": 5, "dur": 2}]}))
+        (work / "w.json").write_text(json.dumps({"transcription": []}))
+        (work / "specs.json").write_text(json.dumps([{"id": "k", "type": "kw", "dur": 2}]))
+        plan = work / "plan.json"; plan.write_text(json.dumps({"edl_out": "edl.json", "words": "w.json", "gfx_specs": "specs.json"}))
+        real = S.subprocess.run
+        S.subprocess.run = lambda *a, **k: None  # render.mjs --stills: the PNG is already there
+        try:
+            S.make(plan)
+        finally:
+            S.subprocess.run = real
+        self.assertIn("[no source frame]", (sd / "sheet.md").read_text())
+        self.assertEqual(json.loads((sd / "scope.json").read_text()), ["k"])
+        self.assertEqual(json.loads((sd / "accepted.json").read_text()), {})
+
     def test_accept_copies_the_render_keys_and_names_a_card_without_a_still(self):
         work = self.d / "work"; sd = work / "gfx" / "stills"; sd.mkdir(parents=True)
         (sd / "s1.key").write_text("k1"); (sd / "s2.key").write_text("k2")

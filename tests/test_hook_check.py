@@ -42,7 +42,7 @@ class KillerTest(unittest.TestCase):
         self.assertTrue(any(b.startswith("no stake") for b in H.problems("Strach przed systemem dla agenta")))  # "strach" is not "straci*"
 
     def test_inflected_stake_words_count(self):  # review 2026-11-07: "psuj*" missed "psuło", "traci*" missed "tracą"
-        for hook in ("Psuło mi się wszystko w AI", "Tracą na tym wszyscy w AI", "Tracą wszystko", "Nikomu tego nie pokazałem", "Stracisz wszystko w AI"):
+        for hook in ("Psuło mi się wszystko w AI", "Tracą na tym wszyscy w AI", "Tracą wszystko", "Nikomu tego nie pokazałem", "Stracisz wszystko w AI", "Stracona kasa na AI"):
             with self.subTest(hook):
                 self.assertFalse(any(b.startswith("no stake") for b in H.problems(hook)), H.problems(hook))
 
