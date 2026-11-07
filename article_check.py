@@ -12,7 +12,10 @@ Rules: the site's (both languages complete, description 50-300 chars, > 5 blocks
 pictures on disk, no em/en dash, no hype words) plus ours: detailed (MIN_WORDS Polish words, MIN_H2 sections, English at
 least EN_RATIO of the Polish length), the film linked in both languages once it has a URL, at least one outside source
 linked in the body, every number in the Polish text said in the film or sitting in a block with a source link, and no
-phrase from style/voice.md "## Zakazane".
+phrase from style/voice.md "## Zakazane". Structure (PLAN 3.1-3.8, creator-study 2026-11-07): the film linked in the lead or
+before the first h2, a lead of at most MAX_LEAD words with a digit, at least MIN_H2 sections ("Krok N" sections equal the N
+the lead promises), the ending = a recap list + the film link + a last paragraph ending with "?", a number in the Polish title
+said in the film. Soft rule (printed as WARN, never a failure, see warnings()): at least one picture per two sections.
 
   python3 article_check.py out/blog/<slug> [--words <film words json>]   prints the problems, rc 1 when there are any
 """
@@ -26,8 +29,10 @@ from pathlib import Path
 # style/voice.md "## Zakazane": one reader for posts and articles
 from post_check import banned_phrases
 
-MIN_WORDS = 1200    # Kamil 2026-11-07: "raczej szczegółowy"; a 20 min film says ~2500 words, the article goes deeper per part
-MIN_H2 = 3
+MIN_WORDS = 1500    # Kamil 2026-11-07: "raczej szczegółowy"; a 20 min film says ~2500 words, the article goes deeper per part (how-to: 1500)
+MIN_H2 = 5          # one section per step of a how-to
+MAX_LEAD = 80       # lead = promise + number of parts + one measured credibility line
+IMG_PER_H2 = 0.5    # warn below one picture per two sections
 EN_RATIO = 0.6      # the English body may be tighter, not a summary
 DESC = (50, 300)    # posts.test.ts
 MIN_BLOCKS = 6      # posts.test.ts: more than 5
@@ -38,6 +43,8 @@ SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LINK = re.compile(r"\[[^\]]+\]\((https://[^)\s]+)\)")
 YT = re.compile(r"^https://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)[A-Za-z0-9_-]{11}(?:[&?][A-Za-z0-9_=&.-]*)?$")
 NUM = re.compile(r"\d+(?:[.,]\d+)?")
+STEPS = re.compile(r"\b(\d+)\s+(?:krok(?:i|ach|ów|ami|iem)?|steps?)\b", re.IGNORECASE)  # "w 4 krokach", "4 kroki", "in 4 steps"
+STEP_H2 = re.compile(r"^\s*(?:krok|step)\s+\d+\b", re.IGNORECASE)
 KINDS = {"p": ("text",), "h2": ("id", "text"), "list": ("items",), "code": ("code",), "img": ("src", "alt", "caption", "width", "height")}
 
 
@@ -102,6 +109,39 @@ def loose_numbers(blocks: list, said: set[str], srcs: list[str]) -> list[str]:
     return out
 
 
+def structure_problems(b: dict, tag: str, yt: str | None) -> list[str]:
+    """PLAN 3.1 film link up front, 3.2 lead, 3.3 promised steps, 3.5 ending"""
+    out: list[str] = []
+    blocks = b.get("blocks", [])
+    lead = str(b.get("lead", ""))
+    h2s = [i for i, x in enumerate(blocks) if x.get("t") == "h2"]
+    head = lead + " " + " ".join(block_text(x) for x in blocks[: h2s[0] if h2s else len(blocks)])
+    if yt and not any(same_film(u, yt) for u in LINK.findall(head)): out.append(f"{tag}: the film {yt} is not linked in the lead or before the first h2 (the reader meets it at once)")
+    n_lead = len(lead.split())
+    if n_lead > MAX_LEAD: out.append(f"lead {tag}: {n_lead} words, at most {MAX_LEAD} (promise, number of parts, one measured line)")
+    if not re.search(r"\d", lead): out.append(f"lead {tag}: no digit (the promise carries a number: parts, minutes or a measured result)")
+    promised = STEPS.search(lead)
+    if promised:
+        want, got = int(promised.group(1)), sum(1 for x in blocks if x.get("t") == "h2" and STEP_H2.match(str(x.get("text", ""))))
+        if got != want: out.append(f"steps {tag}: the lead promises {want} steps, the text has {got} \"Krok N\" sections")
+    tail = blocks[h2s[-1] + 1:] if h2s else blocks
+    last = blocks[-1] if blocks else {}
+    if last.get("t") != "p" or not block_text(last).rstrip().endswith("?"): out.append(f"ending {tag}: the last block must be a paragraph ending with '?' (the one question to the reader)")
+    if not any(x.get("t") == "list" for x in tail[:-1]): out.append(f"ending {tag}: no recap list before the closing question (after the last h2)")
+    if yt and not any(same_film(u, yt) for x in tail for u in LINK.findall(block_text(x))): out.append(f"ending {tag}: the film {yt} is not linked in the ending")
+    return out
+
+
+def same_film(url: str, yt: str) -> bool:
+    return url.split("&")[0] == yt.split("&")[0]
+
+
+def image_density(blocks: list, tag: str) -> list[str]:
+    h2 = sum(1 for x in blocks if x.get("t") == "h2")
+    img = sum(1 for x in blocks if x.get("t") == "img")
+    return [f"pictures {tag}: {img} for {h2} sections, want at least one per two (stills, post graphics)"] if img < IMG_PER_H2 * h2 else []
+
+
 def body_problems(b: dict, lang: str, folder: Path, yt: str | None, srcs: list[str]) -> tuple[list[str], str]:
     tag = f"({lang})"
     out: list[str] = []
@@ -115,7 +155,8 @@ def body_problems(b: dict, lang: str, folder: Path, yt: str | None, srcs: list[s
     if hype: out.append(f"{tag}: hype word {hype.group(0)!r} (the site's test fails on it)")
     text = " ".join(block_text(x) for x in blocks) + " " + str(b.get("lead", ""))
     links = LINK.findall(text)
-    if yt and not any(u.split("&")[0] == yt.split("&")[0] for u in links): out.append(f"{tag}: the film {yt} is not linked in the text")
+    if yt and not any(same_film(u, yt) for u in links): out.append(f"{tag}: the film {yt} is not linked in the text")
+    out += structure_problems(b, tag, yt)
     if not any(u in srcs for u in links): out.append(f"{tag}: no source from \"sources\" is linked in the text")
     return out, text
 
@@ -144,10 +185,22 @@ def problems(folder: Path, words_file: Path | None = None) -> list[str]:
         seen = f"{b.get('title', '')} {b.get('description', '')} {text}".lower()  # title and description go to the page head too
         hits = [p for p in banned_phrases() if p and p in seen]
         if hits: out.append(f"(pl): phrases Kamil never writes (style/voice.md): {', '.join(map(repr, hits))}")
-        if said is not None: out += loose_numbers(b.get("blocks", []), said, srcs)
+        if said is not None:
+            out += loose_numbers(b.get("blocks", []), said, srcs)
+            title_loose = sorted({n for n in NUM.findall(str(b.get("title", ""))) if n.replace(",", ".") not in said})
+            if title_loose: out.append(f"title (pl): numbers not said in the film: {', '.join(title_loose)} in {str(b.get('title', ''))!r}")
     if words.get("pl", 0) < MIN_WORDS: out.append(f"(pl) {words.get('pl', 0)} words, want at least {MIN_WORDS} (detailed: each part of the film deeper)")
     if "en" in words and words["en"] < EN_RATIO * words.get("pl", 0): out.append(f"(en) {words['en']} words, want at least {EN_RATIO:.0%} of the Polish {words.get('pl', 0)}")
     return out
+
+
+def warnings(folder: Path) -> list[str]:
+    """soft rules: never fail the article (publish_post and film_check read problems() only)"""
+    try:
+        body = json.loads((folder / "article.json").read_text(encoding="utf-8")).get("body") or {}
+    except (OSError, json.JSONDecodeError):
+        return []
+    return [w for lang in ("pl", "en") if isinstance(body.get(lang), dict) for w in image_density(body[lang].get("blocks", []), f"({lang})")]
 
 
 def main(argv: list[str]) -> int:
@@ -157,6 +210,7 @@ def main(argv: list[str]) -> int:
     bad = 0
     for d in dirs:
         for p in problems(d, words): print(f"{d.name}: {p}"); bad += 1
+        for w in warnings(d): print(f"{d.name}: WARN {w}")
     if not bad: print("article OK")
     return 1 if bad else 0
 

@@ -18,22 +18,36 @@ PARA = " ".join(["słowo"] * 60)
 
 
 def article(d: Path, **over) -> dict:
-    """a complete article folder: cover + one picture, 1300 Polish words, the film and a source linked in both languages"""
+    """a complete article folder: cover + one picture, 1700 Polish words, the film and a source linked in both languages, a 5 step how-to"""
     for f in ("cover.png", "schemat.png"):
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=navy:s=64x36", "-frames:v", "1", str(d / f)], check=True)
     def body(lang: str, n: int) -> dict:
-        blocks = [{"t": "h2", "id": f"czesc-{k}", "text": f"Część {k}"} for k in range(3)]
-        blocks += [{"t": "p", "text": PARA} for _ in range(n)]
-        blocks += [{"t": "p", "text": f"Cały film: [obejrzyj na YouTube]({YT}). Dane: [raport]({SRC}) mówi 95 procent."},
-                   {"t": "img", "src": "schemat.png", "alt": "Schemat bramki, która zatrzymuje agenta", "caption": "Bramka", "width": 64, "height": 36}]
+        blocks: list[dict] = []
+        for k in range(1, 6):  # five "Krok N" sections, a picture under every other one, n paragraphs spread over them
+            blocks += [{"t": "h2", "id": f"krok-{k}", "text": f"Krok {k}: zrób część {k}"}] + [{"t": "p", "text": PARA} for _ in range(n // 5 + 1)]
+            if k % 2: blocks.append({"t": "img", "src": "schemat.png", "alt": "Schemat bramki, która zatrzymuje agenta", "caption": "Bramka", "width": 64, "height": 36})
+        blocks += [{"t": "h2", "id": "podsumowanie", "text": "Podsumowanie"},
+                   {"t": "list", "items": ["Bramka zatrzymuje agenta", "Test czerwony blokuje koniec", "Raport pokazuje powód"]},
+                   {"t": "p", "text": f"Cały film: [obejrzyj na YouTube]({YT}). Dane: [raport]({SRC}) mówi 95 procent."},
+                   {"t": "p", "text": "Którą bramkę postawisz pierwszą u siebie?"}]
+        lead = f"W 5 krokach stawiam bramkę, która zatrzymuje agenta, a 95 procent złych zmian staje przed testem. [Obejrzyj film na YouTube]({YT})."
         return {"title": f"Tytuł artykułu {lang} o bramkach", "description": "Opis artykułu, który ma ponad pięćdziesiąt znaków, ale mniej niż trzysta.",
-                "lead": "Krótki wstęp.", "blocks": blocks}
+                "lead": lead, "blocks": blocks}
     a = {"slug": "bramki-dla-agenta", "date": "2026-11-07", "youtube": YT,
          "cover": {"src": "cover.png", "width": 64, "height": 36, "alt": {"pl": "Okładka: bramka i agent na tle kodu", "en": "Cover: a gate and an agent over code"}},
-         "sources": [{"label": "raport", "url": SRC}], "body": {"pl": body("pl", 22), "en": body("en", 18)}}
+         "sources": [{"label": "raport", "url": SRC}], "body": {"pl": body("pl", 28), "en": body("en", 20)}}
     a.update(over)
     (d / "article.json").write_text(json.dumps(a, ensure_ascii=False))
     return a
+
+
+def pick(a: dict, lang: str, t: str, n: int = 0) -> dict:
+    """the n-th block of type t in the article body"""
+    return [x for x in a["body"][lang]["blocks"] if x["t"] == t][n]
+
+
+def save(d: Path, a: dict) -> None:
+    (d / "article.json").write_text(json.dumps(a, ensure_ascii=False))
 
 
 class ArticleCheckTest(unittest.TestCase):
@@ -47,12 +61,99 @@ class ArticleCheckTest(unittest.TestCase):
         article(self.d)
         self.assertEqual(A.problems(self.d), [])
 
+    # PLAN 3.1-3.8 (creator-study 2026-11-07)
+    def test_film_link_must_come_before_the_first_h2(self):  # 3.1
+        a = article(self.d)
+        a["body"]["pl"]["lead"] = "W 5 krokach stawiam bramkę, a 95 procent złych zmian staje przed testem."
+        save(self.d, a)
+        bad = " | ".join(A.problems(self.d))
+        self.assertIn("not linked in the lead or before the first h2", bad)
+        self.assertNotIn("(en): the film", bad)
+        a["body"]["pl"]["blocks"].insert(0, {"t": "p", "text": f"Film: [obejrzyj]({YT})."})  # a paragraph before the first h2 counts too
+        save(self.d, a)
+        self.assertEqual(A.problems(self.d), [])
+
+    def test_lead_is_short_and_carries_a_digit(self):  # 3.2
+        a = article(self.d)
+        a["body"]["pl"]["lead"] = f"Krótki wstęp bez liczby, [film]({YT})"
+        a["body"]["en"]["lead"] = "In 5 steps " + " ".join(["word"] * 80) + f" [film]({YT})"
+        save(self.d, a)
+        bad = A.problems(self.d)
+        self.assertIn("lead (pl): no digit (the promise carries a number: parts, minutes or a measured result)", bad)
+        self.assertTrue(any(p.startswith("lead (en): 8") and "at most 80" in p for p in bad), bad)
+
+    def test_a_how_to_needs_five_sections_and_the_promised_step_count(self):  # 3.3
+        a = article(self.d)
+        a["body"]["pl"]["lead"] = a["body"]["pl"]["lead"].replace("5 krokach", "4 krokach")
+        a["body"]["en"]["lead"] = a["body"]["en"]["lead"].replace("5 krokach", "5 steps")
+        a["body"]["en"]["blocks"] = [x for x in a["body"]["en"]["blocks"] if not (x["t"] == "h2" and x["id"] in ("krok-2", "krok-3"))]
+        save(self.d, a)
+        bad = " | ".join(A.problems(self.d))
+        self.assertIn("steps (pl): the lead promises 4 steps, the text has 5", bad)
+        self.assertIn("steps (en): the lead promises 5 steps, the text has 3", bad)
+        self.assertIn("sections (en): at least 5 h2, got 4", bad)
+
+    def test_a_lead_without_a_step_promise_does_not_count_steps(self):  # 3.3: only a promise is checked
+        a = article(self.d)
+        a["body"]["pl"]["lead"] = f"Bramka zatrzymuje agenta w 20 minut. [Film]({YT})"
+        save(self.d, a)
+        self.assertEqual(A.problems(self.d), [])
+
+    def test_picture_density_warns_but_never_fails(self):  # 3.4
+        a = article(self.d)
+        a["body"]["pl"]["blocks"] = [x for x in a["body"]["pl"]["blocks"] if x["t"] != "img"]
+        save(self.d, a)
+        self.assertEqual(A.problems(self.d), [])
+        w = A.warnings(self.d)
+        self.assertEqual(len(w), 1, w)
+        self.assertIn("pictures (pl): 0 for 6 sections", w[0])
+        article(self.d)
+        self.assertEqual(A.warnings(self.d), [])
+        r = subprocess.run([sys.executable, str(ROOT / "article_check.py"), str(self.d)], capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_ending_is_a_recap_list_the_film_link_and_a_closing_question(self):  # 3.5
+        a = article(self.d)
+        a["body"]["pl"]["blocks"][-1]["text"] = "To wszystko."  # no question
+        a["body"]["en"]["blocks"] = [x for x in a["body"]["en"]["blocks"] if x["t"] != "list"]  # no recap
+        save(self.d, a)
+        bad = " | ".join(A.problems(self.d))
+        self.assertIn("ending (pl): the last block must be a paragraph ending with '?'", bad)
+        self.assertIn("ending (en): no recap list", bad)
+        a = article(self.d)
+        next(b for b in a["body"]["pl"]["blocks"] if YT in b.get("text", "") and b["t"] == "p")["text"] = f"Dane: [raport]({SRC}) mówi 95 procent."  # the film is linked up front, not in the ending
+        save(self.d, a)
+        bad = " | ".join(A.problems(self.d))
+        self.assertIn("ending (pl): the film", bad)
+        self.assertNotIn("recap", bad)
+
+    def test_a_number_in_the_title_must_be_said_in_the_film(self):  # 3.7
+        a = article(self.d)
+        a["body"]["pl"]["title"] = "Bramka agenta w 12 minut i 5 kroków"
+        save(self.d, a)
+        words = self.d / "w.json"
+        words.write_text(json.dumps({"transcription": [{"text": " 5"}, {"text": " kroków"}, {"text": " 95"}]}))
+        bad = A.problems(self.d, words)
+        self.assertEqual(len(bad), 1, bad)
+        self.assertIn("title (pl): numbers not said in the film: 12", bad[0])
+        words.write_text(json.dumps({"transcription": [{"text": " 12"}, {"text": " 5"}, {"text": " 95"}]}))
+        self.assertEqual(A.problems(self.d, words), [])
+        self.assertEqual(A.problems(self.d), [])  # no transcript given: skipped
+
+    def test_one_thousand_two_hundred_words_is_no_longer_enough(self):  # 3.8
+        a = article(self.d)
+        a["body"]["pl"]["blocks"] = [x for i, x in enumerate(a["body"]["pl"]["blocks"]) if not (x["t"] == "p" and len(x["text"]) > 300 and i % 3 == 0)]
+        save(self.d, a)
+        words = len(" ".join(A.block_text(x) for x in a["body"]["pl"]["blocks"]).split())
+        self.assertTrue(1200 <= words < 1500, words)
+        self.assertIn("words, want at least 1500", " | ".join(A.problems(self.d)))
+
     def test_the_sites_own_rules_are_named(self):
         a = article(self.d)
         a["body"]["pl"]["description"] = "za krótki"
-        a["body"]["pl"]["blocks"][0]["text"] = "To jest rewolucyjne — serio"
-        a["body"]["pl"]["blocks"][1]["id"] = "czesc-0"
-        a["body"]["en"]["blocks"][-1]["alt"] = "krótki"
+        a["body"]["pl"]["blocks"][1]["text"] = "To jest rewolucyjne — serio"
+        pick(a, "pl", "h2", 1)["id"] = "krok-1"
+        pick(a, "en", "img")["alt"] = "krótki"
         (self.d / "article.json").write_text(json.dumps(a, ensure_ascii=False))
         bad = " | ".join(A.problems(self.d))
         for want in ("description (pl)", "em or en dash", "hype word", "heading ids (pl)", "alt more than 20"):
@@ -62,9 +163,10 @@ class ArticleCheckTest(unittest.TestCase):
         a = article(self.d, sources=[])
         a["body"]["pl"]["blocks"] = a["body"]["pl"]["blocks"][:4] + a["body"]["pl"]["blocks"][-1:]
         a["body"]["en"]["blocks"][-2]["text"] = "no links here"
+        a["body"]["en"]["lead"] = "In 5 steps the gate stops the agent."
         (self.d / "article.json").write_text(json.dumps(a, ensure_ascii=False))
         bad = " | ".join(A.problems(self.d))
-        for want in ('"sources"', "(pl) ", "words, want at least 1200", "(en): the film", "is not linked"):
+        for want in ('"sources"', "(pl) ", "words, want at least 1500", "(en): the film", "is not linked"):
             self.assertIn(want, bad)
 
     def test_numbers_must_be_said_in_the_film_or_carry_a_source(self):
@@ -94,7 +196,7 @@ class ArticleCheckTest(unittest.TestCase):
         a = article(self.d / "a")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=8x8", "-frames:v", "1", str(outside)], check=True)
         a["cover"]["src"] = "../outside.png"
-        a["body"]["pl"]["blocks"][-1]["src"] = str(outside)
+        pick(a, "pl", "img")["src"] = str(outside)
         (self.d / "a" / "article.json").write_text(json.dumps(a, ensure_ascii=False))
         bad = " | ".join(A.problems(self.d / "a"))
         self.assertIn("cover '../outside.png'", bad)
