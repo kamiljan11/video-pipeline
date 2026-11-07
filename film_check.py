@@ -295,6 +295,16 @@ class Film:
     def sfx_style_v2(self): return self.plan.get("sfx_style") == "v2"
     def has_end_card(self): return any(self.typ(o) == "end" for o in self.ovs)
 
+    def stills_accepted(self):
+        """every card of the film has a still Kamil accepted (stills.py, ADR-0018): without this item a film that never made
+        a stills sheet would render with no look at its cards; render.mjs checks that the accepted version is the one rendered"""
+        import stills  # only here: it pulls OpenCV
+        acc = stills.gfx_dir(self.work / f"plan_{self.name}.json", self.edl) / "stills" / "accepted.json"
+        ids = sorted({o["id"] for o in self.ovs if o.get("id") in self.specs})
+        if not acc.exists(): return False, f"no stills sheet yet: python3 stills.py plan_{self.name}.json, Kamil looks, stills.py accept"
+        miss = [i for i in ids if i not in load(acc, "gfx/stills/accepted.json")]
+        return not miss, (f"{len(miss)} of {len(ids)} cards without an accepted still: {', '.join(miss[:6])}" if miss else f"{len(ids)} cards")
+
     def ends_on_the_last_word(self, tail_max: float):  # tail_max: style/checklist.json short.end args
         """a short stops right after its last word and loops: no end card, no end screen (REF-shorts-top T8: 30/30 top shorts
         end 0.23 s after the last word, none shows an end board)"""

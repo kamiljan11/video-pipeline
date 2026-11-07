@@ -98,6 +98,11 @@ class FilmCheckTest(unittest.TestCase):
         (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": overlays, "gfx_lead": -0.12}))  # build_edl copies plan gfx_lead
         (self.d / "specs.json").write_text(json.dumps(specs))
         (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_long.json", "gfx_specs": "specs.json", **plan}))
+        self.accept_stills([o["id"] for o in overlays])
+
+    def accept_stills(self, ids):  # Kamil accepted a still of every card (stills.py accept, film_check long/short.stills)
+        sd = self.d / "gfx" / "stills"; sd.mkdir(parents=True, exist_ok=True)
+        (sd / "accepted.json").write_text(json.dumps({i: "key" for i in ids}))
 
     def run_check(self, *args):
         env_code = (f"import sys, film_check; film_check.LEDGER = __import__('pathlib').Path({str(self.ledger)!r}); "
@@ -183,7 +188,7 @@ class FilmCheckTest(unittest.TestCase):
         self.project(ovs, specs, segs, music_palette={"name": "lofi", "key": 0})
         _, rep = self.run_check("long")
         self.assertNotIn("long.behind_readable", rep)  # phase "behind": not in the check before the render
-        (self.d / "gfx").mkdir()
+        (self.d / "gfx").mkdir(exist_ok=True)
         (self.d / "gfx" / "b0.cover.json").write_text(json.dumps({"covered": 0.08}))
         r, rep = self.run_check("long", "--phase", "behind")
         self.assertEqual(rep["long.behind_readable"]["status"], "FAIL")  # b1 has no measure: counted as hidden
@@ -209,7 +214,7 @@ class FilmCheckTest(unittest.TestCase):
         specs.append({**b, "id": "d1", "behind": {**b["behind"], "drawing": True}})
         ovs.append({**next(o for o in ovs if o["id"] == b["id"]), "id": "d1"})
         self.project(ovs, specs, segs, music_palette={"name": "lofi", "key": 0})
-        (self.d / "gfx").mkdir()
+        (self.d / "gfx").mkdir(exist_ok=True)
         for sp in specs:
             if "behind" in sp: (self.d / "gfx" / f"{sp['id']}.cover.json").write_text(json.dumps({"covered": 0.05}))
         (self.d / "gfx" / "d1.cover.json").write_text(json.dumps({"covered": 0.6}))  # the barrier's arm passes behind the head

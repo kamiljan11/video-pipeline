@@ -26,6 +26,7 @@ from article_check import problems
 REPO = Path.home() / "src" / "comfy-container"
 GH_REPO = "kamiljan11/comfy-container"
 BASE = "main"
+PG_HOOKS = Path.home() / ".claude" / "git-hooks"  # our quality hooks (core.hooksPath of our repos): the only trusted pre-push
 POSTS = "src/data/posts.ts"
 ANCHOR = "export const POSTS: Post[] = ["
 SITEMAP = "public/sitemap.xml"
@@ -132,7 +133,9 @@ def main(argv: list[str]) -> int:
         run("git", "add", "-A", cwd=wt)
         run("git", "commit", "-q", "-m", f"feat(blog): {slug}\n\nArticle made from the film {a['youtube']} by video-pipeline (article_check passed).", cwd=wt)
         hooks = Path(run("git", "rev-parse", "--path-format=absolute", "--git-path", "hooks", cwd=wt).strip())
-        if (hooks / "pre-push").exists() and not hooks.is_relative_to(Path.home() / ".claude"):
+        # only our own quality hooks are trusted (the git-hooks folder of PG), nothing else under it: a temp dir there passed
+        # as trusted (test failed when TMPDIR sat in that folder)
+        if (hooks / "pre-push").exists() and hooks.resolve() != PG_HOOKS.resolve():
             sys.exit(f"{hooks}/pre-push: the site's own pre-push hook would run with the token in its environment; read it, then push by hand")
         pushing = True
         run("git", "push", "-q", remote, f"{branch}:{branch}", cwd=wt, env=auth_env(token), token=token)
