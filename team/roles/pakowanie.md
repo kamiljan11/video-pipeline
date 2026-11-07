@@ -6,7 +6,8 @@
 
 **YouTube long** `out/youtube/long.md`:
 - `## Tytuły`: tabela `| wariant | kąt | tytuł | znaki | źródło |` A/B/C (do Test & Compare), <= 60 znaków, różne kąty:
-  wynik / ciekawość / problem. Start = tytuł z niszy, który już działa (kolumna `źródło`: kanał + tytuł), potem nasz kąt.
+  wynik / ciekawość / problem. WARN (`style/title_lint.json`, nie blokuje): < 35 znaków, brak markera obietnicy (cyfra + wynik / jak, od zera,
+  krok po kroku, w N minut / adresat / ból), „Mój/Moje” bez wyniku, liczba + newsy, prefiks serii („Tutorial:”), tag marki po `|`. Start = tytuł z niszy, który już działa (kolumna `źródło`: kanał + tytuł), potem nasz kąt.
 - `## Fraza kluczowa`: jedna linia, co widz wpisuje w wyszukiwarkę; jej słowo w 3 pierwszych słowach każdego tytułu.
 - Obietnica tytułu pada w pierwszych 30 s longa (>= 2 jego słowa treści słychać w otwarciu); nie pada -> zmień tytuł albo otwarcie.
 - `## Opis`: 2 pierwsze linie = obietnica (widoczne przed „więcej”), potem linki, KamilJan.com.

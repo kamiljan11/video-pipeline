@@ -1,0 +1,15 @@
+{
+ "_doc": "title_check.py WARN word lists (creator-study PLAN 2.7 + 2.9; SYNTH-thumbs-titles W8, W10, W11, W13). Data, not code: add a word when a weak title slips through. \"word\" = that whole word, \"stem*\" = any word starting with it, an entry with a space = that phrase anywhere. Lower case. Warnings never change the exit code.",
+ "min_len": 35,
+ "marker_min_len": 35,
+ "result": ["%", "x", "razy", "zmian*", "godzin*", "godz", "minut*", "min", "dni", "dzień", "tygod*", "zł", "pln", "tys", "błęd*", "bug*", "testów", "testy", "klient*", "wyświetl*", "subskr*", "proc*", "linii", "plików"],
+ "delivery": ["jak", "od zera", "krok po kroku", "poradnik", "wyjaśnion*", "prosto", "dla początkując*", "bez kodowania", "przepis"],
+ "delivery_regex": ["\\bw \\d+ (min|minut\\w*|godz\\w*|dni|h)\\b"],
+ "audience": ["firm*", "właściciel*", "właściciel", "freelancer*", "programist*", "początkując*", "przedsiębiorc*", "agencj*", "twórc*", "dla ludzi", "dla firm", "dla programistów", "solopreneur*", "specjalist*", "zespoł*", "zespół"],
+ "pain": ["nie działa", "nie działają", "nie działało", "nie wierzy", "błęd*", "problem*", "wstyd*", "przestań", "dlaczego", "czemu", "pułapk*", "koszmar*", "chaos", "bałagan", "tracisz", "traci", "marnuj*", "nie rób", "katastrof*", "porażk*", "boję", "nie umiem"],
+ "mine": ["mój", "moja", "moje", "moją", "mojego", "mojej", "moim", "moich", "moi"],
+ "news": ["nowości", "nowość", "aktualizacj*", "premier*", "update*", "news*", "wiadomości", "tydzień w ai", "właśnie wyszł*", "wydali", "ogłosił*"],
+ "series_prefix": ["tutorial", "nowości", "poradnik", "odcinek", "vlog", "część", "news", "ai news", "seria", "kurs", "lekcja"],
+ "series_prefix_regex": ["^\\s*(#|odc\\.?|ep\\.?|część)\\s*\\d+"],
+ "brand_separators": ["|"]
+}

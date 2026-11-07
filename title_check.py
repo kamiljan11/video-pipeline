@@ -9,6 +9,13 @@ Every title row:
     fewer) are heard there, else the viewer clicked for something the opening does not give and leaves.
 Words match on a shared start of STEM letters (Polish endings: "wstydziłem" / "wstydziłam", "działa" / "działać").
 
+Soft WARN lines (style/title_lint.json, creator-study PLAN 2.7, 2.9; never in the exit code, never in problems()):
+  - shorter than min_len characters,
+  - a long title with no promise marker (digit + result, delivery word, audience, pain),
+  - "Mój/Moje/Moja" without a result (a digit with a result word or %),
+  - a number next to a news word (news titles lose to evergreen ones),
+  - a series prefix ("Tutorial:") or a brand tag after "|".
+
 film_check.py runs it as out.titles (Out.out_titles); alone:
   python3 title_check.py <long.md> [<plan_long.json>]   (with the plan the opening is read from its words and EDL)
 """
@@ -27,6 +34,9 @@ STEM = 5
 STOP = {"mój", "moja", "moje", "mnie", "nie", "nic", "się", "jak", "czy", "ale", "albo", "oraz", "dla", "bez", "pod", "nad",
         "przez", "jest", "są", "to", "ten", "ta", "tak", "już", "dziś", "teraz", "mam", "masz", "mu", "go", "jej", "ich",
         "na", "do", "od", "po", "za", "ze", "że", "co", "kto", "gdy", "który", "która", "które", "a", "i", "w", "z", "o", "u"}
+
+
+LINT_FILE = Path(__file__).resolve().parent / "style" / "title_lint.json"
 
 
 def words(text: str) -> list[str]:
@@ -50,7 +60,7 @@ def section(md: str, head: str) -> str:
 
 def titles(md: str) -> list[dict]:
     """rows of the `## Tytuły` table by its header (wariant, tytuł, źródło); a table without a header = the 2nd cell is the title"""
-    rows = [[c.strip() for c in ln.strip().strip("|").split("|")] for ln in section(md, "Tytuły").splitlines() if ln.strip().startswith("|")]
+    rows = [[c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", ln.strip().strip("|"))] for ln in section(md, "Tytuły").splitlines() if ln.strip().startswith("|")]
     rows = [r for r in rows if not all(set(c) <= set("-: ") for c in r)]
     head = [c.lower() for c in rows[0]] if rows and rows[0][0].lower() == "wariant" else []
     col = lambda name, d: head.index(name) if name in head else d
@@ -87,6 +97,48 @@ def problems(md: str, opening: list[str] | None) -> list[str]:
     return bad
 
 
+def lint_lists(path: Path = LINT_FILE) -> dict:
+    return json.loads(path.read_text())
+
+
+def hit(text: str, entries: list[str]) -> bool:
+    """an entry matches as a whole word, a "stem*" prefix of a word, or (with a space or a symbol) a phrase anywhere"""
+    low, ws = text.lower(), words(text)
+    for e in entries:
+        if e.endswith("*"):
+            if any(w.startswith(e[:-1]) for w in ws): return True
+        elif " " in e or not e.replace("%", "").isalnum():
+            if re.search(rf"(?<!\w){re.escape(e)}(?!\w)" if e[0].isalnum() and e[-1].isalnum() else re.escape(e), low): return True
+        elif e in ws: return True
+    return False
+
+
+def warnings(md: str, lint: dict | None = None) -> list[str]:
+    """soft title advice (PLAN 2.7, 2.9): promise marker, "Mój" without a result, number + news, min length, series/brand tag"""
+    lint = lint or lint_lists()
+    out: list[str] = []
+    for r in titles(md):
+        v, t = r["variant"], r["title"]
+        if not t: continue
+        number = any(c.isdigit() for c in t)
+        result = number and hit(t, lint["result"])
+        if len(t) < lint["min_len"]: out.append(f"{v}: {len(t)} characters (soft min {lint['min_len']}: short abstract titles lose)")
+        marker = result or hit(t, lint["delivery"]) or hit(t, lint["audience"]) or hit(t, lint["pain"]) \
+            or any(re.search(x, t.lower()) for x in lint["delivery_regex"])
+        if len(t) >= lint["marker_min_len"] and not marker:
+            out.append(f"{v}: no promise marker (digit + result, delivery word like 'jak' / 'od zera' / 'w N minut', audience, or pain)")
+        if hit(t, lint["mine"]) and not result:
+            out.append(f"{v}: 'Mój/Moje/Moja' without a result (a digit with its result): the viewer has no reason to care yet")
+        if number and hit(t, lint["news"]):
+            out.append(f"{v}: a number next to a news word (news titles lose to evergreen ones)")
+        head = t.split(":", 1)[0].strip().lower() if ":" in t else ""
+        if (head and head in lint["series_prefix"]) or any(re.search(x, t.lower()) for x in lint["series_prefix_regex"]):
+            out.append(f"{v}: series prefix {t.split(':', 1)[0].strip()!r} (spend those characters on the promise)")
+        if any(sep in t for sep in lint["brand_separators"]):
+            out.append(f"{v}: brand tag after '|' (the channel name is already under the title)")
+    return out
+
+
 def opening_words(plan_path: Path) -> list[str] | None:
     """what is heard in the long's first OPENING s: plan "words" through the EDL ("edl_out") segments"""
     work, plan = plan_path.parent, json.loads(plan_path.read_text())
@@ -102,6 +154,7 @@ def main(argv: list[str]) -> int:
     opening = opening_words(Path(argv[1])) if len(argv) == 2 else None
     bad = problems(Path(argv[0]).read_text(), opening)
     print("\n".join(bad) or "OK title_check")
+    print("\n".join(f"WARN {w}" for w in warnings(Path(argv[0]).read_text())))
     return 1 if bad else 0
 
 

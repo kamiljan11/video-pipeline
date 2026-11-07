@@ -66,5 +66,52 @@ class TitleTest(unittest.TestCase):
             self.assertEqual(T.main([]), 2)
 
 
+def warn(title: str) -> list[str]:
+    return T.warnings(f"## Tytuły\n\n| wariant | kąt | tytuł | znaki | źródło |\n|---|---|---|---|---|\n| A | x | {title} | 0 | s |\n")
+
+
+class TitleWarnTest(unittest.TestCase):
+    def test_good_titles_get_no_warning(self):
+        for t in ["Jak pisać kod z AI krok po kroku, bez wstydu", "92% zmian bez przeglądu. Dziś 18%, jak to zrobiłem",
+                  "Claude Code dla firm: wdrożenie w 20 minut", "Dlaczego AI mówi „gotowe”, a nic nie działa",
+                  "Mój system na AI skrócił przegląd kodu o 74%"]:
+            self.assertEqual(warn(t), [], t)
+
+    def test_no_promise_marker_warns_only_for_a_long_title(self):
+        self.assertTrue(any("no promise marker" in w for w in warn("Moje przemyślenia o świecie sztucznej inteligencji")))
+        self.assertTrue(any("no promise marker" in w for w in warn("Ciekawy eksperyment z agentami i kodem w repo")))
+        self.assertFalse(any("no promise marker" in w for w in warn("Szybki start")))  # short: only the length warns
+
+    def test_film_2_titles_starting_with_moj_system_warn(self):
+        w = warn("Mój system na AI do pisania i przeglądu kodu")
+        self.assertTrue(any("Mój/Moje/Moja" in x for x in w), w)
+        w = warn("AI mówi „gotowe”, a nic nie działa. Mój system mu nie wierzy")
+        self.assertTrue(any("Mój/Moje/Moja" in x for x in w), w)
+        self.assertFalse(any("Mój/Moje/Moja" in x for x in warn("92% zmian bez przeglądu. Dziś 18%. Mój system na AI")))
+
+    def test_number_with_news_warns(self):
+        self.assertTrue(any("news word" in w for w in warn("14 nowości w Claude Code, jak ich używać od zera")))
+        self.assertTrue(any("news word" in w for w in warn("5 aktualizacji AI, które zmieniły kod w tym tygodniu")))
+
+    def test_soft_minimum_length(self):
+        w = warn("Jak pisać kod z AI")
+        self.assertTrue(any("soft min 35" in x for x in w), w)
+        self.assertEqual(warn("Jak pisać kod z AI krok po kroku w 20 minut"), [])
+
+    def test_series_prefix_and_brand_tag(self):
+        self.assertTrue(any("series prefix" in w for w in warn("Tutorial: jak pisać kod z AI krok po kroku")))
+        self.assertTrue(any("series prefix" in w for w in warn("Nowości: Claude Code dla firm i programistów")))
+        self.assertTrue(any("brand tag" in w for w in warn("Jak pisać kod z AI krok po kroku \\| Kamil Jan")))
+
+    def test_warnings_never_change_the_exit_code(self):
+        with tempfile.TemporaryDirectory() as t:
+            md = Path(t) / "md"
+            md.write_text("## Tytuły\n\n| wariant | tytuł | źródło |\n|---|---|---|\n| A | Tutorial: kod z AI | kanał X |\n\n## Fraza kluczowa\nkod z AI\n")
+            r = subprocess.run([sys.executable, str(ROOT / "title_check.py"), str(md)], capture_output=True, text=True, check=False, cwd=ROOT)
+            self.assertIn("WARN A:", r.stdout)
+            self.assertEqual(r.returncode, 1)  # only the "no opening" problem, not the WARN lines
+            self.assertNotIn("series prefix", "\n".join(T.problems(md.read_text(), [])))
+
+
 if __name__ == "__main__":
     unittest.main()
