@@ -23,6 +23,7 @@ from typing import NoReturn
 
 import article_check  # the kamiljan.com blog article made from the film
 import count_check  # the count he says is the count on the card
+import desc_check  # the YouTube descriptions (round 2 Y0-Y5, S2-S3)
 import gfx_types  # next to this script: which card types are a separate screen
 import hook_check  # the 6 hook killers
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
@@ -374,17 +375,23 @@ class Out:
         return not miss, f"not rendered: {', '.join(miss)}" if miss else ""
 
     def out_youtube_meta(self):
+        """long.md has its A/B/C titles; every description passes desc_check.py (chapters inside the long's description,
+        a link to the long in every short, hashtag limits, no template leftovers; its WARN lines go to the report)"""
         p = self.out / "youtube" / "long.md"
         if not p.exists(): return False, "no out/youtube/long.md"
         t = p.read_text()
-        need = [h for h in ("## Tytuły", "## Opis", "## Rozdziały", "## Tagi") if h not in t]
+        need = [h for h in ("## Tytuły", "## Opis") if h not in t]
         titles = len(re.findall(r"^\| *[ABC] *\|", t, re.MULTILINE))
-        chap = re.findall(r"^(\d+:\d\d) ", t, re.MULTILINE)
-        bad = need + ([f"{titles} titles (want A, B, C rows)"] if titles < 3 else []) \
-            + (["chapters must start at 0:00 and have at least 3 rows"] if len(chap) < 3 or chap[0] != "0:00" else [])
-        miss = [c for c in self.made("clips.json") if not (self.out / "youtube" / "shorts" / f"{c}.md").exists()]
-        bad += [f"no out/youtube/shorts/{c}.md" for c in miss]
-        return not bad, "; ".join(bad)
+        bad = need + ([f"{titles} titles (want A, B, C rows)"] if titles < 3 else [])
+        edl = self.work / "edl_long.json"
+        try:
+            film_s = body_len(load(edl, "edl_long.json")) if edl.exists() else None
+            b, w = desc_check.check(self.out, film_s, self.made("clips.json"))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+            return False, f"desc_check failed: {e}"
+        self.warns += [("out.youtube", x) for x in w]
+        bad += b
+        return not bad, "; ".join(bad[:8])
 
     def out_titles(self):
         """the A/B/C titles (title_check.py): length, the phrase in the first words, a source, the promise said in the first 30 s"""
@@ -422,9 +429,10 @@ class Out:
         spec = self.work / "thumbs.json"
         if not spec.exists(): return False, "no thumbs.json next to the plans (thumbs.mjs input)"
         md = self.out / "youtube" / "long.md"
-        titles = [r["title"] for r in title_check.titles(md.read_text())] if md.exists() else []
+        text = md.read_text() if md.exists() else ""
+        titles = [r["title"] for r in title_check.titles(text)]
         try:
-            bad, warns = thumb_check.check(load(spec, "thumbs.json"), self.out, titles)
+            bad, warns = thumb_check.check(load(spec, "thumbs.json"), self.out, titles, title_check.phrase(text))
             self.warns += [("out.thumbs_read", w) for w in warns]
         except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
             return False, f"thumb_check failed: {e}"
@@ -446,7 +454,21 @@ class Out:
             if not (d / "post.md").exists(): bad.append(f"{pid}: no post.md")
             bad += [f"{pid}: {p}" for p in post_check.problems(d, wf)]
             self.warns += [("out.posts", f"{pid}: {w}") for w in post_check.warnings(d)]  # the graphic alone (OCR, contrast) and the text habits
+        bad += self.publish_days(want)
         return not bad, "; ".join(bad)
+
+    def publish_days(self, want: list[str]) -> list[str]:
+        """round 2 LI6 (PLAN 4.5): one post a day, so each made post has its own "publish_day" (day after the long's
+        premiere, 0 = that day) in posts.json; a missing day is a WARN, two posts on one day fail"""
+        items = {i.get("id"): i for i in load(self.work / "posts.json", "posts.json").get("items", []) if isinstance(i, dict)}
+        days: dict[int, list[str]] = {}
+        bad = []
+        for pid in want:
+            day = items.get(pid, {}).get("publish_day")
+            if day is None: self.warns.append(("out.posts", f"{pid}: no publish_day in posts.json (one post a day, the film spread over >= 5 days)"))
+            elif isinstance(day, bool) or not isinstance(day, int) or day < 0: bad.append(f"{pid}: publish_day {day!r} is not a whole number of days >= 0")
+            else: days.setdefault(day, []).append(pid)
+        return bad + [f"publish_day {d}: {', '.join(p)} (one post a day)" for d, p in days.items() if len(p) > 1]
 
     def out_article(self):
         """the blog article for kamiljan.com (team/roles/artykul.md): out/blog/<slug>/article.json passes article_check, numbers

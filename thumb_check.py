@@ -9,9 +9,15 @@ thumbs.mjs checks what the browser measures (fit, the timestamp corner, the cove
   - the words of a thumbnail (big + sub + tag) share less than SHARE_MAX with every title: they complete the title, they
     do not repeat it (any title can show next to any thumbnail in the test),
   - at most WORDS_FAIL content words in big + sub + tag (WARN above WORDS_WARN; creator study W1, 9 of 9: 2-5 words),
-  - WARN: a face under FACE_MIN of the frame height (creator study W5: big or none, a small one loses),
+  - words of the long's `## Fraza kluczowa` are left out of that share: the tool name may sit on both (round 2 TH1:
+    "Claude Code: 18%" over a title with "Claude Code" was a false FAIL),
+  - WARN: a face under FACE_MIN of the frame height (creator study W5, round 2 TH2 6/6: big or none, a small one loses),
+    a face centred (cx in FACE_MID: the text loses its side), two faces or more,
+  - WARN: flat tone (grey std < TONE_STD or mean < TONE_MEAN) and colour count 0 or >= COLOURS_MAX hue bins (TH3),
+  - WARN: a big that starts with a small letter, a sum of money in the text (TH10, weak: n=1-2),
   - WARN: a "big" that is a bare topic label (no digit, "?", arrow, "vs", verb-like word): "Kod z AI", "Blizna", "Szlaban"
-    (long variants and short covers).
+    (long variants and short covers); a big made only of tool names ("Claude Code", "MCP", style/title_lint.json
+    "tools") is not a label.
 WARN lines do not fail the check: problems() returns only the failures, check() returns (failures, warnings).
 
 film_check.py runs it as out.thumbs_read (Out.out_thumbs_read); alone:
@@ -36,7 +42,16 @@ SHARE_MAX = 0.5    # share of the thumbnail's words that may be in a title
 FACE_MODEL = Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"
 WORDS_WARN = 4     # content words of big + sub + tag: more than this is a WARN
 WORDS_FAIL = 5     # ... more than this fails
-FACE_MIN = 0.30    # a face shorter than this share of the frame height is a WARN
+FACE_MIN = 0.40    # a face shorter than this share of the frame height is a WARN (round 2 TH2: 0.30 -> 0.40)
+FACE_MID = (0.35, 0.65)  # face centre x in this band = centred, the text has no side of its own (WARN)
+TONE_STD, TONE_MEAN = 0.25, 0.15  # grey std / mean (0..1) under these = flat or dark in the feed (WARN)
+COLOURS_MAX = 4    # hue bins (of 12) holding >= COLOUR_SHARE of the saturated pixels: 0 = grey, >= 4 = noisy (WARN)
+COLOUR_SHARE = 0.05
+MONEY = re.compile(r"\d\s*(zł|pln|\$|€|tys|mln|k\b)|[$€]\s*\d", re.IGNORECASE)
+try:  # named in check(), never a traceback at import (film_check imports this module)
+    TOOLS, TOOLS_ERROR = set(json.loads((Path(__file__).resolve().parent / "style" / "title_lint.json").read_text()).get("tools", [])), ""
+except (OSError, ValueError, AttributeError) as e:
+    TOOLS, TOOLS_ERROR = set(), f"style/title_lint.json cannot be read ({e!r}): tool names count as topic labels"
 TIMEOUT = 120
 PASSES = ("format=gray", "format=gray,lutyuv=y='if(gt(val,110),0,255)'")  # grey; black letters on white (light text on dark)
 
@@ -69,6 +84,11 @@ def read_share(big: str, seen: str) -> float:
 
 def face_height(img: Path) -> float:
     """height of the tallest YuNet face box as a share of the frame height (0.0 = no face)"""
+    return face_info(img)[0]
+
+
+def face_info(img: Path) -> tuple[float, float, int]:
+    """(height share, centre x share, number of faces) of the tallest YuNet face; (0.0, 0.0, 0) = no face"""
     import cv2  # only here: OpenCV is needed for this one check
     if not FACE_MODEL.is_file(): raise RuntimeError(f"no face model {FACE_MODEL}")
     im = cv2.imread(str(img))
@@ -78,16 +98,33 @@ def face_height(img: Path) -> float:
         _, faces = cv2.FaceDetectorYN.create(str(FACE_MODEL), "", size, 0.7).detect(cv2.resize(im, size))
     except cv2.error as e:  # not a RuntimeError: a broken model file (an LFS pointer) would be a traceback in film_check
         raise RuntimeError(f"face detector on {img.name}: {e}") from e
-    if faces is None or len(faces) == 0: return 0.0
-    return max(float(f[3]) for f in faces) / size[1]  # row = x, y, w, h, landmarks, score; the picture was resized to size
+    if faces is None or len(faces) == 0: return 0.0, 0.0, 0
+    top = max(faces, key=lambda f: float(f[3]))  # row = x, y, w, h, landmarks, score; the picture was resized to size
+    return float(top[3]) / size[1], (float(top[0]) + float(top[2]) / 2) / size[0], len(faces)
+
+
+def tone(img: Path) -> tuple[float, float, int]:
+    """(grey std, grey mean, colour bins) of the picture, 0..1 / count of COLOUR_SHARE hue bins"""
+    import cv2
+    import numpy as np
+    im = cv2.imread(str(img))
+    if im is None: raise RuntimeError(f"cannot read {img}")
+    g = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255
+    hsv = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)
+    hue = hsv[..., 0][(hsv[..., 1] > 80) & (hsv[..., 2] > 60)]  # saturated, not dark: the pixels that read as colour
+    bins = np.bincount((hue.astype(int) * 12 // 180).clip(0, 11), minlength=12) if hue.size else np.zeros(12)
+    return float(g.std()), float(g.mean()), int((bins >= COLOUR_SHARE * max(hue.size, 1)).sum()) if hue.size > 0.02 * g.size else 0
 
 
 def has_face(img: Path) -> bool:
     return face_height(img) > 0
 
 
-def title_share(thumb: str, title: str) -> float:
-    mine, theirs = list(dict.fromkeys(title_check.content(thumb))), title_check.content(title)
+def title_share(thumb: str, title: str, phrase: str = "") -> float:
+    """share of the thumbnail's content words that are in the title; words of the search phrase are left out (TH1)"""
+    key = title_check.content(phrase)
+    mine = [w for w in dict.fromkeys(title_check.content(thumb)) if not any(title_check.same(w, k) for k in key)]
+    theirs = title_check.content(title)
     if not mine: return 0.0
     return sum(any(title_check.same(w, t) for t in theirs) for w in mine) / len(mine)
 
@@ -110,47 +147,64 @@ def is_topic_label(big: str) -> bool:
     nobody needs, never a false FAIL."""
     low = big.lower().strip()
     if not content_words(low) or any(c.isdigit() for c in low): return False
+    if all(w in TOOLS for w in content_words(low)): return False  # "Claude Code", "MCP": the tool is the promise (TH1)
     if any(sg in low.split() if sg.isalpha() else sg in low for sg in SIGNS): return False
     return not any(w in VERBISH or VERBISH_END.search(w) for w in content_words(low))
 
 
-def check(spec: dict, out: Path, titles: list[str]) -> tuple[list[str], list[str]]:
-    """(failures, warnings) of the thumbnails in spec"""
+def text_warns(name: str, v: dict) -> list[str]:
+    big, words = str(v.get("big", "")), " ".join(str(v.get(k, "")) for k in ("big", "sub", "tag"))
+    w = [f"{name}: big {big!r} is a topic label (add a number, a question, a verb or a result)"] if is_topic_label(big) else []
+    first = next((c for c in big if c.isalpha()), "")
+    if first and first.islower(): w.append(f"{name}: big {big!r} starts with a small letter")
+    if MONEY.search(words): w.append(f"{name}: a sum of money in the text ({words.strip()!r}): weak in the study, a result or % reads better")
+    return w
+
+
+def check(spec: dict, out: Path, titles: list[str], phrase: str = "") -> tuple[list[str], list[str]]:
+    """(failures, warnings) of the thumbnails in spec; phrase = the long's `## Fraza kluczowa`"""
     if not shutil.which("tesseract"): return ["no tesseract: sudo apt install tesseract-ocr tesseract-ocr-pol (README, setup)"], []
-    bad, warn, faces = [], [], []
+    bad, warn, faces = [], ([TOOLS_ERROR] if TOOLS_ERROR else []), []
     for v in spec.get("shorts", []):
-        if is_topic_label(str(v.get("big", ""))): warn.append(f"{v.get('id')}: big {v.get('big')!r} is a topic label (add a number, a question, a verb or a result)")
+        warn += text_warns(str(v.get("id")), v)
     for v in spec.get("long", []):
         img = out / "thumbnails" / f"long_{v['id']}.jpg"
         if not img.is_file(): bad.append(f"long_{v['id']}: no {img.name}"); continue
         share = max(read_share(v.get("big", ""), seen) for seen in read_small(img))
         if share < OCR_MIN: bad.append(f"long_{v['id']}: at {SMALL} px only {share:.0%} of {v.get('big')!r} is read (want >= {OCR_MIN:.0%}): bigger or fewer letters")
         if FACE_MODEL.is_file():
-            h = face_height(img); faces.append(h > 0)
+            h, cx, nf = face_info(img); faces.append(h > 0)
             if 0 < h < FACE_MIN: warn.append(f"long_{v['id']}: the face is {h:.0%} of the frame height (want >= {FACE_MIN:.0%}): bigger, or no face")
+            if h > 0 and FACE_MID[0] <= cx <= FACE_MID[1]: warn.append(f"long_{v['id']}: the face is centred (x {cx:.2f}): put it on one side, the text on the other")
+            if nf >= 2: warn.append(f"long_{v['id']}: {nf} faces: one face reads at feed size")
+        sd, mean, cols = tone(img)
+        if sd < TONE_STD or mean < TONE_MEAN: warn.append(f"long_{v['id']}: flat tone (grey std {sd:.2f}, mean {mean:.2f}; want std >= {TONE_STD}, mean >= {TONE_MEAN})")
+        if cols == 0 or cols >= COLOURS_MAX: warn.append(f"long_{v['id']}: {cols} colour groups (want 1-{COLOURS_MAX - 1})")
         words = " ".join(str(v.get(k, "")) for k in ("big", "sub", "tag"))
         n = len(content_words(words))
         if n > WORDS_FAIL: bad.append(f"long_{v['id']}: {n} words of text (big + sub + tag), want <= {WORDS_FAIL}: shorten sub, drop tag")
         elif n > WORDS_WARN: warn.append(f"long_{v['id']}: {n} words of text (big + sub + tag), better <= {WORDS_WARN}")
-        if is_topic_label(str(v.get("big", ""))): warn.append(f"long_{v['id']}: big {v.get('big')!r} is a topic label (add a number, a question, a verb or a result)")
+        warn += text_warns(f"long_{v['id']}", v)
         for t in titles:
-            if title_share(words, t) >= SHARE_MAX: bad.append(f"long_{v['id']}: {title_share(words, t):.0%} of its words are in the title {t!r} (want < {SHARE_MAX:.0%})")
+            sh = title_share(words, t, phrase)
+            if sh >= SHARE_MAX: bad.append(f"long_{v['id']}: {sh:.0%} of its words are in the title {t!r} (want < {SHARE_MAX:.0%}; phrase words not counted)")
     if not FACE_MODEL.is_file(): bad.append(f"no face model {FACE_MODEL}: the variant without a face cannot be checked (README, setup)")
     if faces and all(faces): bad.append(f"all {len(faces)} long variants show a face: make one without (a chart, the number, the screen)")
     return bad, warn
 
 
-def problems(spec: dict, out: Path, titles: list[str]) -> list[str]:
-    """the failures only (film_check out.thumbs_read); the warnings are in check()"""
-    return check(spec, out, titles)[0]
+def problems(spec: dict, out: Path, titles: list[str], phrase: str = "") -> list[str]:
+    """the failures only; the warnings are in check()"""
+    return check(spec, out, titles, phrase)[0]
 
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2: print(__doc__, file=sys.stderr); return 2
     out, md = Path(argv[1]), Path(argv[1]) / "youtube" / "long.md"
-    titles = [r["title"] for r in title_check.titles(md.read_text())] if md.is_file() else []
+    text = md.read_text() if md.is_file() else ""
+    titles = [r["title"] for r in title_check.titles(text)]
     try:
-        bad, warn = check(json.loads(Path(argv[0]).read_text()), out, titles)
+        bad, warn = check(json.loads(Path(argv[0]).read_text()), out, titles, title_check.phrase(text))
     except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:
         print(f"FAILED thumb_check: {e}", file=sys.stderr); return 1
     print("\n".join(bad + [f"WARN {w}" for w in warn]) or "OK thumb_check")

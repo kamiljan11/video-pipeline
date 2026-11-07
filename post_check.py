@@ -4,9 +4,10 @@
   grafika.txt (the words it drew); OCR has to find at least RECALL of those words in the picture: a word cut at an edge,
   hidden under another element is missing. Tesseract binarises adaptively and reads even navy on navy, so contrast is
   measured on its own: WCAG AA inside every word box. Word count WORDS (REF P1: class A graphics).
-- The text completes the graphic: at most MAX_TAGS hashtags (median 0 in 94 posts), the last line is a question for the
-  comments and the resource (film, repo) sits in the line before it, WORDS_TEXT words (Kamil's rule: the graphic carries,
-  the text completes). The closing question is Kamil's call (2026-11-07, Skool CCC C07/C10/C17) against our sample (4/68
+- The text completes the graphic: at most MAX_TAGS hashtags (WARN above 0: median 0 in 94 posts, round 2 6/6), at most
+  MAX_URLS link (round 2 LI2), the last line is a question for the comments ("P.S. ...?" counts) and the resource (film,
+  repo) sits in the line before it, at least MIN_TEXT words (WARN outside WORDS_TEXT: Kamil's rule, not the sample),
+  WARN without "cta_variant" (question / ps, round 2 LI4), "5 rzeczy" in the hook = 5 list lines in the text (LI5). The closing question is Kamil's call (2026-11-07, Skool CCC C07/C10/C17) against our sample (4/68
   top posts end on a question); the weekly review shows whether comments grow.
 - Line 1 is the hook (SYNTH-linkedin W1, PLAN 4.1): no greeting, filler or list-title opener (hook_check killers 1-4 with
   style/hook_lint.json), at most HOOK_CHARS characters (LinkedIn cuts the feed at "see more"), no "?" (the question closes the post).
@@ -28,12 +29,24 @@ from pathlib import Path
 
 import count_check
 import hook_check  # killers 1-4 and the list nouns, one source with the shorts (style/hook_lint.json)
+import utm  # KamilJan.com links say where the click came from (round 2 X1)
 
 RECALL = 0.85  # [PROP] share of the drawn words OCR must find; measured 1.00 on all 9 film 2 graphics (2026-11-05); dark-on-dark text falls far below (tests)
 CONTRAST = (4.5, 3.0)  # WCAG AA: normal text, large text (a word box at least LARGE px high on the 1080 px graphic)
 LARGE = 40
 WORDS = (15, 230)  # same range as gfx/post_gfx.mjs WORDS
-MAX_TAGS = 3
+LIMITS_FILE = Path(__file__).resolve().parent / "style" / "platform_limits.json"
+try:  # a broken data file is named in problems(), never a traceback at import (film_check imports this module)
+    LIMITS, LIMITS_ERROR = json.loads(LIMITS_FILE.read_text())["hashtags"]["linkedin"], ""
+    LIMITS = {"warn": int(LIMITS["warn"]), "fail": int(LIMITS["fail"])}
+except (OSError, ValueError, KeyError, TypeError) as e:
+    LIMITS, LIMITS_ERROR = {"warn": 0, "fail": 3}, f"style/platform_limits.json cannot be read ({e!r}): hashtag limits fell back to 0/3"
+MAX_TAGS = LIMITS["fail"]  # style/platform_limits.json (round 2 X2): warn above LIMITS["warn"] (0), fail above this
+MIN_TEXT = 20  # fewer words = a caption, not a post (round 2 LI3: the 60-130 range is a WARN, this stays a problem)
+MAX_URLS = 1   # round 2 LI2 (6/6): one link in the text, the rest in the first comment
+CTA_VARIANTS = ("question", "ps")  # round 2 LI4: logged per post for the ADR-0015 review
+LIST_LINE = re.compile(r"^\s*(?:[-•*–]|\d+[.)])\s+\S")
+URL = utm.URL
 VOICE = Path(__file__).resolve().parent / "style" / "voice.md"  # "## Zakazane": phrases Kamil never writes (one per bullet)
 WORDS_TEXT = (60, 130)  # [PROP] REF-posts-top P2 point 6: about 60-120, from Kamil's rule, not from the sample
 WORD = re.compile(r"[\w%]+")
@@ -157,18 +170,42 @@ def count_problems(text: str, spec: object) -> list[str]:
     return [] if k == n else [f"the hook promises {n} things, grafika.json lists {k}"]
 
 
+def text_count_problems(text: str, spec: object) -> list[str]:
+    """round 2 LI5: "5 rzeczy:" in the hook = 5 list lines in the TEXT, when the graphic is not a "list" (that one is
+    count_problems)"""
+    n = hook_count(text)
+    if n is None or (isinstance(spec, dict) and spec.get("type") == "list"): return []
+    k = sum(1 for ln in text.splitlines()[1:] if LIST_LINE.match(ln))
+    return [] if k in (0, n) else [f"the hook promises {n} things, the text lists {k}"]
+
+
 def text_problems(text: str, hashtags: list[str], banned: list[str] | None = None) -> list[str]:
     out = []
     low = text.lower()
     hits = [b for b in (banned_phrases() if banned is None else banned) if b and b in low]
     if hits: out.append(f"phrases Kamil never writes (style/voice.md): {', '.join(repr(h) for h in hits)}")
     if len(hashtags) > MAX_TAGS: out.append(f"{len(hashtags)} hashtags, at most {MAX_TAGS}")
+    urls = URL.findall(text)
+    if len(urls) > MAX_URLS: out.append(f"{len(urls)} links in the text, at most {MAX_URLS} (the rest go in the first comment, team/roles/social.md)")
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     if not lines: return [*out, 'no "text" in linkedin.json']
     last = lines[-1]
     if not last.endswith("?"): out.append(f"the post must end on a question for the comments, got {last!r} (resource goes in the line before)")
     n = len(text.split())
-    if not WORDS_TEXT[0] <= n <= WORDS_TEXT[1]: out.append(f"{n} words of text, want {WORDS_TEXT[0]}-{WORDS_TEXT[1]} (the graphic carries the idea)")
+    if n < MIN_TEXT: out.append(f"{n} words of text, at least {MIN_TEXT} (the text completes the graphic)")
+    return out
+
+
+def text_warnings(text: str, hashtags: list[str], cta_variant: object = None) -> list[str]:
+    """round 2 LI1, LI3, LI4, LI5: observe until our own posts show an effect"""
+    out = []
+    if LIMITS["warn"] < len(hashtags) <= MAX_TAGS: out.append(f"{len(hashtags)} hashtags (median 0 in the study, want {LIMITS['warn']})")
+    n = len(text.split())
+    if n >= MIN_TEXT and not WORDS_TEXT[0] <= n <= WORDS_TEXT[1]: out.append(f"{n} words of text, better {WORDS_TEXT[0]}-{WORDS_TEXT[1]} (the graphic carries the idea)")
+    if cta_variant not in CTA_VARIANTS: out.append(f"no cta_variant ({' / '.join(CTA_VARIANTS)}) in linkedin.json: the ADR-0015 review will compare comments per variant")
+    for u in utm.untagged(text): out.append(f"{u} has no utm_ (utm.py tag ... linkedin post <film>)")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if lines and lines[0].endswith(":") and not any(LIST_LINE.match(ln) for ln in lines[1:]): out.append("line 1 ends on ':' but no list follows")
     return out
 
 
@@ -198,14 +235,16 @@ def warnings(d: Path) -> list[str]:
     2026-11-07, SYNTH-linkedin.md); the numbers stay blocking"""
     try: s = json.loads((d / "linkedin.json").read_text())
     except (OSError, ValueError): return []
-    text = s.get("text") if isinstance(s, dict) else None
-    return hook_problems(text) if isinstance(text, str) else []
+    if not isinstance(s, dict) or not isinstance(s.get("text"), str): return []
+    raw = s.get("hashtags")
+    tags: list[str] = [str(t) for t in raw] if isinstance(raw, list) else []
+    return hook_problems(s["text"]) + text_warnings(s["text"], tags, s.get("cta_variant"))
 
 
 def problems(d: Path, words_file: Path | None = None) -> list[str]:
     """everything wrong with one post folder (grafika.png, grafika.txt, linkedin.json); words_file = the film's whisper words
     json (plan "words"), without it the numbers are not checked against the film"""
-    out = graphic_problems(d)
+    out = ([LIMITS_ERROR] if LIMITS_ERROR else []) + graphic_problems(d)
     spec = d / "linkedin.json"
     if not spec.exists(): return [*out, "no linkedin.json"]
     try: s = json.loads(spec.read_text())
@@ -216,7 +255,7 @@ def problems(d: Path, words_file: Path | None = None) -> list[str]:
     gj = d / "grafika.json"
     try: g = json.loads(gj.read_text()) if gj.exists() else None
     except ValueError: g = None  # graphic_problems / post_gfx name a broken spec
-    out += count_problems(text, g)
+    out += count_problems(text, g) + text_count_problems(text, g)
     try: said = article_said(words_file)
     except ValueError as e: return [*out, str(e)]
     return out + number_problems(text, drawn_text(d), said)

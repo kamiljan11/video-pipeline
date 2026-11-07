@@ -39,11 +39,15 @@ LONG_MD = """## Tytuły
 kod z AI, agent AI
 
 ## Opis
-x
-## Rozdziały
+Kod z AI, który sam się sprawdza.
+Artykuł: https://kamiljan.com/blog/x?utm_source=youtube&utm_medium=long&utm_campaign=t
+
+Rozdziały:
 0:00 a
 1:00 b
 2:00 c
+
+Strona: https://KamilJan.com
 ## Tagi
 x
 """
@@ -375,7 +379,7 @@ class FilmCheckTest(unittest.TestCase):
         for p, body in {"long/film.mp4": "", "shorts/s1.mp4": "", 
                         "thumbnails/s1_cover.jpg": "", "posts/p1/post.md": "x", "posts/p1/slide.png": "",
                         "posts/p1/linkedin.json": json.dumps({"text": "Recenzent znalazł błąd w wydaniu.\n" + " ".join(["słowo"] * 80) + "\nRepo w komentarzu.\nA jak to wygląda u Ciebie?", "hashtags": ["AI"]}),
-                        "youtube/shorts/s1.md": "## Tytuł\n## Opis\n",
+                        "youtube/shorts/s1.md": "## Tytuł\n## Opis\nJedno zdanie.\nPełny film: {{LONG_URL}}\n## Powiązany film\nlong\n",
                         "youtube/long.md": LONG_MD}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
         (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA"}, {"id": "B", "big": "SZLABAN"}]}))
@@ -396,6 +400,17 @@ class FilmCheckTest(unittest.TestCase):
         bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k not in ("out.posts", "out.thumbs_read") or shutil.which("tesseract"))
                and (k != "out.thumbs_read" or FACE_MODEL.is_file())}
         self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts and out.thumbs_read read by OCR (tesseract: local and CI); the face model is not in git (models/), CI has none
+
+    def test_posts_need_their_own_publish_day(self):  # round 2 LI6
+        import film_check
+        (self.d / "posts.json").write_text(json.dumps({"items": [{"id": "p1", "make": True, "publish_day": 1}, {"id": "p2", "make": True, "publish_day": 1},
+                                                               {"id": "p3", "make": True}]}))
+        o = film_check.Out(self.d, self.d / "out")
+        self.assertEqual(o.publish_days(["p1", "p2", "p3"]), ["publish_day 1: p1, p2 (one post a day)"])
+        self.assertTrue(any("p3: no publish_day" in w for _, w in o.warns), o.warns)
+        (self.d / "posts.json").write_text(json.dumps({"items": ["junk", {"id": "p1", "publish_day": [1]}, {"id": "p2", "publish_day": "1"}]}))
+        o = film_check.Out(self.d, self.d / "out")  # review 2026-11-07: code-3, data-2 (no TypeError, "1" is not 1)
+        self.assertEqual(o.publish_days(["p1", "p2"]), ["p1: publish_day [1] is not a whole number of days >= 0", "p2: publish_day '1' is not a whole number of days >= 0"])
 
     def test_titles_are_checked_against_length_phrase_source_and_opening(self):  # title_check.py, out.titles
         opening(self.d)

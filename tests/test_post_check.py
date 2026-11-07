@@ -40,6 +40,24 @@ class TextTest(unittest.TestCase):
             self.assertTrue(any(want in b for b in bad), bad)
 
 
+    def test_round_2_links_word_range_hashtags_cta_variant(self):  # LI1-LI4
+        self.assertTrue(any("2 links" in b for b in P.text_problems(TEXT + "\nhttps://a.pl https://b.pl\nA Ty?", [])))
+        short30 = " ".join(["słowo"] * 29) + " koniec?"
+        self.assertFalse([b for b in P.text_problems(short30, []) if "words" in b])  # 30 words: a WARN now, not a problem
+        self.assertTrue(any("30 words" in w for w in P.text_warnings(short30, [])))
+        self.assertTrue(any("at least" in b for b in P.text_problems("dziesięć słów tylko tutaj i nic więcej nie ma?", [])))
+        w = P.text_warnings(TEXT, ["AI"])
+        self.assertTrue(any("1 hashtags" in x for x in w) and any("cta_variant" in x for x in w), w)
+        self.assertFalse([x for x in P.text_warnings(TEXT, [], "ps") if "hashtags" in x or "cta_variant" in x])
+        self.assertEqual(P.text_problems(TEXT.rstrip() + "\nP.S. Jak to robisz u siebie?", []), [])  # "P.S. ...?" closes the post
+        self.assertTrue(any("no utm_" in x for x in P.text_warnings(TEXT + "\nhttps://kamiljan.com/blog/x\nA Ty?", [], "ps")))
+
+    def test_round_2_count_in_the_text_and_colon_without_list(self):  # LI5
+        t = "5 rzeczy, które sprawdzam w kodzie z AI:\n- testy\n- typy\n- lint\n- recenzja\nA Ty?"
+        self.assertEqual(P.text_count_problems(t, None), ["the hook promises 5 things, the text lists 4"])
+        self.assertEqual(P.text_count_problems(t, {"type": "list", "items": []}), [])  # the graphic's list is count_problems
+        self.assertTrue(any("ends on ':'" in x for x in P.text_warnings("Oto co robię:\nNic nie robię.\nA Ty?", [])))
+
     def test_line_1_is_a_hook_not_a_greeting_filler_long_or_a_question(self):  # PLAN 4.1
         def bad(first): return P.hook_problems(TEXT.replace(TEXT.splitlines()[0], first, 1))
         self.assertEqual([b for b in P.text_problems(TEXT.replace(TEXT.splitlines()[0], "Cześć, dziś pokażę coś o AI.", 1), []) if b.startswith("line 1")], [],

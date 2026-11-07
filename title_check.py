@@ -12,9 +12,12 @@ Words match on a shared start of STEM letters (Polish endings: "wstydziłem" / "
 Soft WARN lines (style/title_lint.json, creator-study PLAN 2.7, 2.9; never in the exit code, never in problems()):
   - shorter than min_len characters,
   - a long title with no promise marker (digit + result, delivery word, audience, pain),
-  - "Mój/Moje/Moja" without a result (a digit with a result word or %),
-  - a number next to a news word (news titles lose to evergreen ones),
-  - a series prefix ("Tutorial:") or a brand tag after "|".
+  - "Mój/Moje/Moja" without a result (a digit with a result word or %) or an outcome verb ("sprzedaje", "zastąpił"),
+  - a meta event title (vlog, Q&A, livestream, wywiad): a topic for a post or a short, not a long (round 2 TI4),
+  - more than one of A/B/C ending in a question (round 2: "?" titles 0.82x the channel median, 2800 titles),
+  - a series prefix ("Odcinek 3:", "Vlog:") or a brand tag after "|".
+Round 2 removed: the "number + news" WARN (no effect in 2800 titles) and "Tutorial/Kurs/Poradnik" as a series prefix
+(they are the best Polish delivery words). Each list's evidence is in title_lint.json "_evidence".
 
 film_check.py runs it as out.titles (Out.out_titles); alone:
   python3 title_check.py <long.md> [<plan_long.json>]   (with the plan the opening is read from its words and EDL)
@@ -114,7 +117,7 @@ def hit(text: str, entries: list[str]) -> bool:
 
 
 def warnings(md: str, lint: dict | None = None) -> list[str]:
-    """soft title advice (PLAN 2.7, 2.9): promise marker, "Mój" without a result, number + news, min length, series/brand tag"""
+    """soft title advice (PLAN 2.7, 2.9, round 2 TI2-TI6): promise marker, "Mój" without a result, meta event, questions, min length, series/brand tag"""
     try:  # a hand-edited lint file with a typo or a missing list: name it, never a traceback (warnings keep the exit code)
         return _warnings(md, lint or lint_lists())
     except (OSError, ValueError, KeyError, TypeError) as e:
@@ -133,15 +136,18 @@ def _warnings(md: str, lint: dict) -> list[str]:
             or any(re.search(x, t.lower()) for x in lint["delivery_regex"])
         if len(t) >= lint["marker_min_len"] and not marker:
             out.append(f"{v}: no promise marker (digit + result, delivery word like 'jak' / 'od zera' / 'w N minut', audience, or pain)")
-        if hit(t, lint["mine"]) and not result:
+        if hit(t, lint["mine"]) and not result and not hit(t, lint["outcome"]):
             out.append(f"{v}: 'Mój/Moje/Moja' without a result (a digit with its result): the viewer has no reason to care yet")
-        if number and hit(t, lint["news"]):
-            out.append(f"{v}: a number next to a news word (news titles lose to evergreen ones)")
+        if hit(t, lint["meta_event"]):
+            out.append(f"{v}: a meta event title (vlog, Q&A, live, wywiad): a topic for a post or a short, not a long")
         head = t.split(":", 1)[0].strip().lower() if ":" in t else ""
         if (head and head in lint["series_prefix"]) or any(re.search(x, t.lower()) for x in lint["series_prefix_regex"]):
             out.append(f"{v}: series prefix {t.split(':', 1)[0].strip()!r} (spend those characters on the promise)")
         if any(sep in t for sep in lint["brand_separators"]):
             out.append(f"{v}: brand tag after '|' (the channel name is already under the title)")
+    asks = [r["variant"] for r in titles(md) if r["title"].rstrip().endswith("?")]
+    if len(asks) > 1:
+        out.append(f"{', '.join(asks)}: {len(asks)} titles end in '?' (question titles 0.82x the median in the study): keep at most one")
     return out
 
 

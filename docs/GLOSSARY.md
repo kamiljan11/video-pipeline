@@ -43,3 +43,8 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | tokeny ruchu | czasy ruchu kart w klatkach przy 30 fps, 4 krzywe (land, pop, shift, leave), 5 staggerów; `gfx/motion_tokens.mjs` (ADR-0017) |
 | `"motion": "tokens"` | klucz karty sceny: czasy z tokenów; bez klucza = `legacy`, czasy sprzed tokenów (gotowe filmy bez zmian) |
 | stagger | odstęp wejścia kolejnych elementów grupy (wiersze, linie terminala, wiadomości), w klatkach; max 12 |
+| `{{LONG_URL}}` | znacznik w opisie shorta w miejscu linku do longa; po publikacji longa `python3 desc_check.py --fill-long <url> out` wstawia prawdziwy link (desc_check daje WARN, dopóki znacznik jest) |
+| `publish_day` | dzień publikacji posta w `posts.json`, liczony od premiery longa (0 = dzień premiery); jeden post dziennie |
+| `cta_variant` | forma zamknięcia posta LinkedIn: `question` (ostatnia linia = pytanie) albo `ps` („P.S. …?”); zapisana w `linkedin.json`, do przeglądu ADR-0015 (do czasu `results.jsonl` przegląd czyta ją z `out/posts/*/linkedin.json`) |
+| end screen | elementy YouTube Studio (film, playlista, subskrypcja) w ostatnich 5-20 s longa; `## End screen` w long.md mówi, na co wskazują |
+| `first_comment` | tekst pierwszego komentarza pod postem LinkedIn (`linkedin.json`); tam idą linki ponad jeden w treści (dziś wklejany ręcznie, kod go nie sprawdza) |

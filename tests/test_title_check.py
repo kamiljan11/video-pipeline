@@ -90,9 +90,28 @@ class TitleWarnTest(unittest.TestCase):
         self.assertTrue(any("Mój/Moje/Moja" in x for x in w), w)
         self.assertFalse(any("Mój/Moje/Moja" in x for x in warn("92% zmian bez przeglądu. Dziś 18%. Mój system na AI")))
 
-    def test_number_with_news_warns(self):
-        self.assertTrue(any("news word" in w for w in warn("14 nowości w Claude Code, jak ich używać od zera")))
-        self.assertTrue(any("news word" in w for w in warn("5 aktualizacji AI, które zmieniły kod w tym tygodniu")))
+    def test_number_with_news_no_longer_warns(self):  # round 2 TI3: no effect in 2800 titles
+        self.assertFalse(any("news" in w for w in warn("14 nowości w Claude Code, jak ich używać od zera")))
+
+    def test_kurs_is_delivery_not_a_series_prefix(self):  # round 2 TI2
+        w = warn("Kurs: Claude Code od podstaw dla nietechnicznych")
+        self.assertFalse(any("series prefix" in x or "promise marker" in x for x in w), w)
+        self.assertTrue(any("series prefix" in x for x in warn("Odc. 3 Claude Code od podstaw dla firm i ludzi")))
+
+    def test_meta_event_and_outcome(self):  # round 2 TI4, TI6
+        self.assertTrue(any("meta event" in x for x in warn("Vlog: tydzień z Claude Code w mojej firmie")))
+        self.assertFalse(any("meta event" in x for x in warn("Jak zbudować agenta AI, który odpisuje klientom")))
+        self.assertFalse(any("Mój/Moje/Moja" in x for x in warn("Mój agent AI sprzedaje za mnie, kiedy śpię w nocy")))
+
+    def test_more_than_one_question_title_warns(self):  # round 2 TI5
+        two = MD.replace("Kod pisze AI, a ja się wstydziłem", "Kod z AI: czy to działa?").replace("AI mówi „gotowe”, a nic nie działa", "Kod z AI: kto sprawdza?")
+        self.assertTrue(any("end in '?'" in x for x in T.warnings(two)), T.warnings(two))
+        self.assertFalse(any("end in '?'" in x for x in T.warnings(two.replace("kto sprawdza?", "18% zmian"))))
+
+    def test_every_list_has_its_evidence(self):  # round 2 TI1: a list without a source is a guess
+        lint = T.lint_lists()
+        lists = [k for k, v in lint.items() if not k.startswith("_") and isinstance(v, (list, int))]
+        self.assertEqual(sorted(k for k in lists if k not in lint["_evidence"]), [])
 
     def test_soft_minimum_length(self):
         w = warn("Jak pisać kod z AI")
@@ -100,7 +119,7 @@ class TitleWarnTest(unittest.TestCase):
         self.assertEqual(warn("Jak pisać kod z AI krok po kroku w 20 minut"), [])
 
     def test_series_prefix_and_brand_tag(self):
-        self.assertTrue(any("series prefix" in w for w in warn("Tutorial: jak pisać kod z AI krok po kroku")))
+        self.assertTrue(any("series prefix" in w for w in warn("Vlog: jak pisać kod z AI krok po kroku i bez stresu")))
         self.assertTrue(any("series prefix" in w for w in warn("Nowości: Claude Code dla firm i programistów")))
         self.assertTrue(any("brand tag" in w for w in warn("Jak pisać kod z AI krok po kroku \\| Kamil Jan")))
 

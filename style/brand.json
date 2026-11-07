@@ -3,5 +3,7 @@
   "name": "Kamil Jan",
   "title": "Inżynier automatyzacji i wdrożeń AI",
   "site": "KamilJan.com",
-  "lower_sub": "Inżynier automatyzacji i wdrożeń AI · KamilJan.com"
+  "lower_sub": "Inżynier automatyzacji i wdrożeń AI · KamilJan.com",
+  "description_footer": "Strona: https://KamilJan.com",
+  "_doc_footer": "description_footer: the last line of every long description (desc_check.py Y5); one place for it."
 }
