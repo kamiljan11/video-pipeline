@@ -63,6 +63,17 @@ class MasterTest(unittest.TestCase):
         self.assertEqual(self.film.stat().st_size, size)
         self.assertFalse(Path(film + ".master.mp4").exists())
 
+    def test_a_limiter_that_takes_loudness_gets_one_correction_pass(self):
+        calls, real = [], (M.measure, M._apply)
+        try:
+            M.measure = lambda f: {"lufs": -10.0, "tp": 2.0}
+            M._apply = lambda f, o, gain, tp: calls.append(gain) or {"lufs": -14.8 if len(calls) == 1 else -14.1, "tp": -2.0}
+            rep = M.master("in.mp4", "out.mp4")
+        finally:
+            M.measure, M._apply = real
+        self.assertEqual([round(g, 2) for g in calls], [-4.0, -3.2])  # the 0.8 LU the limiter took is added once
+        self.assertTrue(rep["ok"]); self.assertEqual(rep["gain_db"], -3.2)
+
     def test_usage_and_a_broken_file(self):
         self.assertEqual(M.main([]), 2)
         bad = self.d / "bad.mp4"; bad.write_text("x")

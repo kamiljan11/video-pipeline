@@ -69,6 +69,16 @@ class PictureTest(unittest.TestCase):
         thumb(self.out / "thumbnails/long_A.jpg", "SZLABAN", 200)
         self.assertFalse(T.has_face(self.out / "thumbnails/long_A.jpg"))
 
+    def test_a_broken_model_file_is_a_named_error(self):  # cv2.error is not a RuntimeError
+        thumb(self.out / "thumbnails/long_A.jpg", "SZLABAN", 200)
+        model = T.FACE_MODEL
+        try:
+            T.FACE_MODEL = self.out / "lfs.onnx"; T.FACE_MODEL.write_text("version https://git-lfs.github.com/spec/v1\n")
+            with self.assertRaises(RuntimeError) as e: T.has_face(self.out / "thumbnails/long_A.jpg")
+        finally:
+            T.FACE_MODEL = model
+        self.assertIn("face detector on long_A.jpg", str(e.exception))
+
     def test_cli(self):
         self.assertEqual(T.main([]), 2)
 

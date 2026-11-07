@@ -65,7 +65,10 @@ def has_face(img: Path) -> bool:
     im = cv2.imread(str(img))
     if im is None: raise RuntimeError(f"cannot read {img}")
     size = (640, 360) if im.shape[1] >= im.shape[0] else (360, 640)
-    _, faces = cv2.FaceDetectorYN.create(str(FACE_MODEL), "", size, 0.7).detect(cv2.resize(im, size))
+    try:
+        _, faces = cv2.FaceDetectorYN.create(str(FACE_MODEL), "", size, 0.7).detect(cv2.resize(im, size))
+    except cv2.error as e:  # not a RuntimeError: a broken model file (an LFS pointer) would be a traceback in film_check
+        raise RuntimeError(f"face detector on {img.name}: {e}") from e
     return faces is not None and len(faces) > 0
 
 
