@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """build_edl.py plan.json -> edl.json
 plan: {"words": "x.cw.json", "sil": "x.sil", "src": "/path.mp4", "keeps": [[w0, w1, {"t0":opt,"t1":opt}], ...],
-       "gfx": [{"id":..., "word": idx, "lead": 0.0}], "gfx_dir": "...", "gfx_specs": "...", "face": [x,y], "zooms": [1.0, 1.15]}"""
+       "gfx": [{"id":..., "word": idx, "lead": 0.0}], "gfx_lead": -0.12, "gfx_dir": "...", "gfx_specs": "...", "face": [x,y], "zooms": [1.0, 1.15]}"""
 import json
 import re
 import sys
@@ -112,12 +112,17 @@ def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:
     return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v" and not beside(sp)  # beside the head: zoom allowed
 if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
     sys.exit("gfx: the plan places graphics, so it needs \"gfx_specs\" (cards file) and \"gfx_dir\" (their .mov folder)")
+_lead = P.get("gfx_lead", 0.0)  # seconds a graphic enters before its word; film_check wants -0.5..-0.1
+if isinstance(_lead, bool) or not isinstance(_lead, (int, float)) or not -2 <= _lead <= 0:
+    sys.exit(f"gfx_lead: seconds before the word, -2..0 (film_check wants -0.5..-0.1), got {_lead!r}")
 for g in P.get("gfx", []):
     if g.get("id") not in specs: sys.exit(f"gfx {g.get('id')!r}: no such card in {P['gfx_specs']}")
     if "find" in g:
         c = [i for i in range(max(0, g["near"] - 25), min(len(W), g["near"] + 25)) if g["find"].lower() in W[i][2].lower()]
         g["word"] = min(c, key=lambda i: abs(i - g["near"]))
-    at = total if g["word"] == "END" else src2out(W[g["word"]][0]) + g.get("lead", 0.0)
+    # a graphic comes in a little before its word (Skool CCC A19: entrance ~0.12 s early, so it is up when the word lands);
+    # plan "gfx_lead" sets it for the film, a card's own "lead" wins; an old plan without the key keeps 0.0
+    at = total if g["word"] == "END" else max(0.0, src2out(W[g["word"]][0]) + g.get("lead", _lead))
     sp = specs[g["id"]]; vert = sp.get("canvas") == "v"
     if vert and sp.get("type") in ("web", "meme") and not P.get("vertical"):  # a 9:16 card in a 16:9 film: no face box, no PiP = no face
         sys.exit(f"{g['id']}: a \"{sp['type']}\" card with canvas \"v\" belongs to a vertical film (plan \"vertical\": true)")
@@ -218,7 +223,7 @@ if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _t
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py
+       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME

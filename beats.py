@@ -244,7 +244,7 @@ def make_gfx(plan, beats, W, grammar, specs):
         if fmt == "short":
             spec["canvas"] = "v"
         new.append(spec)
-        plan.setdefault("gfx", []).append({"id": gid, "word": b["word"], "lead": 0.0})
+        plan.setdefault("gfx", []).append({"id": gid, "word": b["word"]})  # lead: the plan's "gfx_lead" (build_edl.py)
         near.append(b["word"])
     return new
 

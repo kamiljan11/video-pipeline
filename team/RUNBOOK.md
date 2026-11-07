@@ -24,6 +24,7 @@ flowchart TD
   qa -->|uwagi| ed
   qa --> pack[9 pakowanie: miniatury A/B, metadane YouTube]
   social --> pack
+  prod --> art[12 artykul: blog kamiljan.com]
   pack --> gate2{{film_check.py --out}}
   gate2 --> out[(out/: long, shorts, youtube, thumbnails, posts, RAPORT.md)]
 ```
@@ -43,6 +44,7 @@ flowchart TD
 | 8 | `producent-shortow.md` | clips.json | `plan_<clip>.json` dla każdego `make: true` | `film_check` short.* |
 | 9 | `pakowanie.md` | story, EDL po renderze | `thumbs.json`, `out/youtube/*.md`, `out/thumbnails/` | `film_check --out` |
 | 10 | `social.md` | story, clips | `posts.json`, `out/posts/<id>/` | `film_check --out` posts |
+| 12 | `artykul.md` | story, transkrypcja, grafiki postów | `out/blog/<slug>/article.json` | `film_check --out` article; `publish_post.py` -> PR |
 | 11 | `qa-widz.md` | out/ | `qa/findings.<film>.json`, poprawki | brak blockerów |
 
 Uruchomienie renderu: `bash run_v4.sh <work> <out>/_render long <clipy…>` (run_v4 sam woła `film_check` przed renderem), potem

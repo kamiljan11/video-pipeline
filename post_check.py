@@ -4,8 +4,10 @@
   grafika.txt (the words it drew); OCR has to find at least RECALL of those words in the picture: a word cut at an edge,
   hidden under another element is missing. Tesseract binarises adaptively and reads even navy on navy, so contrast is
   measured on its own: WCAG AA inside every word box. Word count WORDS (REF P1: class A graphics).
-- The text completes the graphic: at most MAX_TAGS hashtags (median 0 in 94 posts), no question as the last line (4/68 of
-  the sample vs 5/9 of our v2 posts), WORDS_TEXT words (Kamil's rule: the graphic carries, the text completes).
+- The text completes the graphic: at most MAX_TAGS hashtags (median 0 in 94 posts), the last line is a question for the
+  comments and the resource (film, repo) sits in the line before it, WORDS_TEXT words (Kamil's rule: the graphic carries,
+  the text completes). The closing question is Kamil's call (2026-11-07, Skool CCC C07/C10/C17) against our sample (4/68
+  top posts end on a question); the weekly review shows whether comments grow.
 film_check.py out.posts calls problems() for every post folder.
 
   python3 post_check.py <post dir>...       prints the problems, rc 1 when there are any
@@ -24,6 +26,7 @@ CONTRAST = (4.5, 3.0)  # WCAG AA: normal text, large text (a word box at least L
 LARGE = 40
 WORDS = (15, 230)  # same range as gfx/post_gfx.mjs WORDS
 MAX_TAGS = 3
+VOICE = Path(__file__).resolve().parent / "style" / "voice.md"  # "## Zakazane": phrases Kamil never writes (one per bullet)
 WORDS_TEXT = (60, 130)  # [PROP] REF-posts-top P2 point 6: about 60-120, from Kamil's rule, not from the sample
 WORD = re.compile(r"[\w%]+")
 
@@ -87,13 +90,26 @@ def graphic_problems(d: Path) -> list[str]:
     return out
 
 
-def text_problems(text: str, hashtags: list[str]) -> list[str]:
+def banned_phrases(voice: Path = VOICE) -> list[str]:
+    """the bullets under "## Zakazane" in style/voice.md, lowercase; "długi myślnik" stands for the character itself"""
+    # a renamed heading must not switch the gate off quietly: no file or no list = an error, not "nothing banned"
+    text = voice.read_text(encoding="utf-8").replace("\r\n", "\n")
+    sect = re.search(r"^## Zakazane\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
+    items = [m.strip().lower() for m in re.findall(r"^- (.+)$", sect.group(1), re.MULTILINE)] if sect else []
+    if not items: raise ValueError(f'{voice}: no "## Zakazane" list of bullets, the banned-phrase check needs it')
+    return ["\u2014" if i == "długi myślnik" else i for i in items]
+
+
+def text_problems(text: str, hashtags: list[str], banned: list[str] | None = None) -> list[str]:
     out = []
+    low = text.lower()
+    hits = [b for b in (banned_phrases() if banned is None else banned) if b and b in low]
+    if hits: out.append(f"phrases Kamil never writes (style/voice.md): {', '.join(repr(h) for h in hits)}")
     if len(hashtags) > MAX_TAGS: out.append(f"{len(hashtags)} hashtags, at most {MAX_TAGS}")
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     if not lines: return [*out, 'no "text" in linkedin.json']
     last = lines[-1]
-    if last.endswith("?"): out.append(f"the post ends on a question ({last!r}): point to the resource instead (repo, film)")
+    if not last.endswith("?"): out.append(f"the post must end on a question for the comments, got {last!r} (resource goes in the line before)")
     n = len(text.split())
     if not WORDS_TEXT[0] <= n <= WORDS_TEXT[1]: out.append(f"{n} words of text, want {WORDS_TEXT[0]}-{WORDS_TEXT[1]} (the graphic carries the idea)")
     return out

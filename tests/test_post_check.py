@@ -20,7 +20,7 @@ import post_check as P  # after the path insert: the scripts are not a package
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"  # fonts-dejavu-extra (Ubuntu desktop, CI)
 LINES = ["Każdy błąd zostawia bliznę", "Nowe sprawdzenie w systemie", "Ten sam błąd nie przejdzie drugi raz",
          "Jak nowy punkt w procedurze pilota", "Ponad sto blizn z prawdziwych projektów"]
-TEXT = " ".join(["słowo"] * 80) + "\nRepo w pierwszym komentarzu."
+TEXT = " ".join(["słowo"] * 80) + "\nRepo w pierwszym komentarzu.\nA Ty jak to robisz?"
 
 
 def picture(d: Path, ink: str, lines=LINES) -> None:
@@ -32,12 +32,28 @@ def picture(d: Path, ink: str, lines=LINES) -> None:
 
 
 class TextTest(unittest.TestCase):
-    def test_hashtags_end_question_and_length_are_named(self):
+    def test_hashtags_missing_question_and_length_are_named(self):
         self.assertEqual(P.text_problems(TEXT, ["AI", "ClaudeCode", "kod"]), [])
-        bad = P.text_problems("za krótko?", ["a", "b", "c", "d"])
-        for want in ("4 hashtags", "ends on a question", "words of text"):
+        bad = P.text_problems("za krótko.", ["a", "b", "c", "d"])
+        for want in ("4 hashtags", "must end on a question", "words of text"):
             self.assertTrue(any(want in b for b in bad), bad)
 
+
+    def test_banned_phrases_from_the_voice_file_are_named(self):  # style/voice.md "## Zakazane"
+        with tempfile.TemporaryDirectory() as t:
+            v = Path(t) / "voice.md"
+            v.write_text("# Głos\n## Zakazane\n- Game changer\n- długi myślnik\n## Przykłady\n- nie to\n")
+            self.assertEqual(P.banned_phrases(v), ["game changer", "\u2014"])
+            bad = P.text_problems(TEXT.replace("słowo", "To game changer \u2014 serio", 1), [], P.banned_phrases(v))
+            self.assertTrue(any("'game changer'" in b and "'\u2014'" in b for b in bad), bad)
+            self.assertEqual(P.text_problems(TEXT, [], P.banned_phrases(v)), [])
+        self.assertIn("rewolucja", P.banned_phrases())  # the repo's own voice file is read
+        with tempfile.TemporaryDirectory() as d:
+            v = Path(d) / "voice.md"
+            v.write_bytes(b"## Zakazane\r\n- Game Changer\r\n")
+            self.assertEqual(P.banned_phrases(v), ["game changer"])  # CRLF
+            v.write_text("## Banned\n- game changer\n", encoding="utf-8")
+            with self.assertRaises(ValueError): P.banned_phrases(v)  # renamed heading
 
     def test_a_broken_post_folder_is_a_named_problem_not_a_traceback(self):
         # review 2026-11-05: empty text gave IndexError, bad JSON a JSONDecodeError, both without the post's name

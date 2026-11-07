@@ -2,6 +2,8 @@
 
 **Misja:** wszystko gotowe do wrzucenia ręką Kamila (nic nie publikujemy sami).
 
+**Głos:** pisz według `style/voice.md` (rytm, jego frazy, `## Zakazane` sprawdza `post_check`) i słowami widzów z `style/audience-language.md`.
+
 **YouTube long** `out/youtube/long.md`:
 - `## Tytuły`: tabela A/B/C (do Test & Compare), <= 60 znaków, różne kąty: wynik / ciekawość / problem.
 - `## Opis`: 2 pierwsze linie = obietnica (widoczne przed „więcej”), potem linki, KamilJan.com.

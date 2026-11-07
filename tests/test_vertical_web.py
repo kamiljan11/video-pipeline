@@ -117,6 +117,14 @@ class BuildEdlSplitTest(unittest.TestCase):
                 self.assertNotEqual(r.returncode, 0)
                 self.assertIn(k, r.stderr)
 
+    def test_a_bad_gfx_lead_is_a_named_error(self):  # plan "gfx_lead": refused at plan time, like "tail"
+        for bad in ("x", True, 0.5, -3):
+            with self.subTest(gfx_lead=bad):
+                r = self.build({"canvas": "v"}, gfx_lead=bad)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("gfx_lead", r.stderr)
+        self.assertEqual(self.build({"canvas": "v"}, gfx_lead=-0.12).returncode, 0)
+
     def test_face_corner_and_no_fade_out_flags(self):
         o = self.overlay({"canvas": "v", "layout": "full", "face_corner": True, "no_fade_out": True})
         self.assertTrue(o["corner"]); self.assertTrue(o["no_fade_out"]); self.assertNotIn("split", o)

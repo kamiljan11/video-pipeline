@@ -17,6 +17,8 @@
      "why": "Kamil 4.11: 'na początku filmu jest zbyt mało bajerów'; references: about 14 cuts and many overlays in the first minute; Negacz 11-12 changes in the first 60 s in 8 of 8 films (style/REF-long-negacz.md L8): 8 -> 10"},
     {"id": "long.head_track", "fmt": "long", "metric": "face_windows_head_tracked", "op": "true",
      "why": "Kamil 5.11: the PiP window looked like the full screen pasted in; plan \"head_track\": true cuts it from the recording around the head"},
+    {"id": "long.gfx_lead", "fmt": "long", "metric": "gfx_lead_early", "op": "true",
+     "why": "Skool CCC A19 (motion): a graphic enters ~0.12 s before its word so it is up when the word lands; plan \"gfx_lead\": -0.12"},
     {"id": "long.punch", "fmt": "long", "metric": "punches_per_min", "op": ">=", "value": 2,
      "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute"},
     {"id": "long.behind", "fmt": "long", "metric": "behind_cards", "op": ">=", "value": 2,
@@ -57,6 +59,8 @@
      "why": "Kamil 5.11: text or a drawing behind the head must stay readable (behind.py measures it)"},
     {"id": "short.reading", "fmt": "short", "metric": "cards_shorter_than_reading", "op": "==", "value": 0, "args": {"scene_min": 3.0},
      "why": "Kamil 5.11: elements gone before they can be read, in the shorts too; same text rule as the long, a short's scene 3 s min (its pace is faster)"},
+    {"id": "short.gfx_lead", "fmt": "short", "metric": "gfx_lead_early", "op": "true",
+     "why": "Skool CCC A19 (motion): a graphic enters ~0.12 s before its word; plan \"gfx_lead\": -0.12"},
     {"id": "short.head_track", "fmt": "short", "metric": "face_windows_head_tracked", "op": "true",
      "why": "Kamil 5.11: the corner circle was an ultra close-up cut from the zoomed picture; plan \"head_track\": true cuts it from the recording around the head"},
     {"id": "short.meme", "fmt": "short", "metric": "meme_cards", "op": ">=", "value": 1,
@@ -79,6 +83,8 @@
     {"id": "out.thumbs", "fmt": "out", "metric": "out_thumbnails", "op": "true",
      "why": "Kamil 4.11: 'miałeś mi zawsze robić a/b thumbnaile': at least 2 for the long, a cover per short"},
     {"id": "out.posts", "fmt": "out", "metric": "out_posts", "op": "true",
-     "why": "Kamil 4.11: posts ready to upload; 5.11: the graphic alone carries the message (post_check.py: OCR finds its words, WCAG contrast, 15-230 words) and the text completes it (60-130 words, <= 3 hashtags, no closing question)"}
+     "why": "Kamil 4.11: posts ready to upload; 5.11: the graphic alone carries the message (post_check.py: OCR finds its words, WCAG contrast, 15-230 words) and the text completes it (60-130 words, <= 3 hashtags, last line a question for the comments: Kamil 2026-11-07)"},
+    {"id": "out.article", "fmt": "out", "metric": "out_article", "op": "true",
+     "why": "Kamil 2026-11-07: from the film also a detailed blog article on kamiljan.com that links the YouTube film and adds what the film does not say (article_check.py: the site's post tests + >= 1200 Polish words, sources, numbers said or sourced)"}
   ]
 }

@@ -29,3 +29,6 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | punch-in | szybki najazd kamery na twarz na ważnym słowie (`emph` w planie); pod kartą z twarzą w boksie/kółku/PiP go nie ma |
 | `punch_headroom` | ile nad twarzą zoom musi zostawić: `"hair"` cała głowa, `"face"` czoło-broda (ADR-0012) |
 | ogon (`tail`) | sekundy obrazu po ostatnim słowie (plan/EDL `tail`, ffmpeg tpad/apad); w shorcie <= 0,6 s i bez karty `end` (bramka `short.end`, ADR-0014) |
+| `gfx_lead` | o ile sekund grafika wchodzi przed swoim słowem (klucz planu, -0,5..-0,1 s; ADR-0015) |
+| głos (`style/voice.md`) | jak Kamil pisze, z jego tekstów; lista `## Zakazane` blokuje posty i artykuły |
+| artykuł | wpis na blog kamiljan.com z filmu (`out/blog/<slug>/article.json`, `article_check.py`); wchodzi PR-em `publish_post.py`, merge = Kamil |

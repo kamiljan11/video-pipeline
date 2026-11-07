@@ -12,6 +12,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_article  # an article folder that passes article_check
+
 ROOT = Path(__file__).resolve().parent.parent
 BRAND = json.loads((ROOT / "style" / "brand.json").read_text())["lower_sub"]
 
@@ -49,7 +52,7 @@ class FilmCheckTest(unittest.TestCase):
 
     def project(self, overlays, specs, segments=None, **plan):
         segs = segments or [{"src": "A", "in": 0.0, "out": 600.0, "zoom": 1.0}]
-        (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": overlays}))
+        (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": overlays, "gfx_lead": -0.12}))  # build_edl copies plan gfx_lead
         (self.d / "specs.json").write_text(json.dumps(specs))
         (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_long.json", "gfx_specs": "specs.json", **plan}))
 
@@ -106,6 +109,16 @@ class FilmCheckTest(unittest.TestCase):
         (self.d / "edl_long.json").write_text(json.dumps({**edl, "head_track": True}))
         _, rep = self.run_check("long")
         self.assertEqual(rep["long.head_track"]["status"], "OK")
+
+    def test_graphics_must_enter_before_their_word(self):  # Skool CCC A19: entrance ~0.12 s before the word
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segs)
+        edl = json.loads((self.d / "edl_long.json").read_text())
+        for lead, want in ((None, "FAIL"), (0.0, "FAIL"), (-0.12, "OK"), (-1.0, "FAIL")):
+            (self.d / "edl_long.json").write_text(json.dumps({**{k: v for k, v in edl.items() if k != "gfx_lead"},
+                                                               **({} if lead is None else {"gfx_lead": lead})}))
+            _, rep = self.run_check("long")
+            self.assertEqual(rep["long.gfx_lead"]["status"], want, lead)
 
     def test_text_behind_the_head_must_stay_readable(self):
         ovs, specs, segs = self.full_long()
@@ -241,13 +254,20 @@ class FilmCheckTest(unittest.TestCase):
         self.assertIn("s1", rep["out.shorts_all"]["detail"])
         for p, body in {"long/film.mp4": "", "shorts/s1.mp4": "", "thumbnails/long_A.jpg": "", "thumbnails/long_B.jpg": "",
                         "thumbnails/s1_cover.jpg": "", "posts/p1/post.md": "x", "posts/p1/slide.png": "",
-                        "posts/p1/linkedin.json": json.dumps({"text": " ".join(["słowo"] * 80) + "\nRepo w komentarzu.", "hashtags": ["AI"]}),
+                        "posts/p1/linkedin.json": json.dumps({"text": " ".join(["słowo"] * 80) + "\nRepo w komentarzu.\nA jak to wygląda u Ciebie?", "hashtags": ["AI"]}),
                         "youtube/shorts/s1.md": "## Tytuł\n## Opis\n",
                         "youtube/long.md": "## Tytuły\n| A | t |\n| B | t |\n| C | t |\n## Opis\nx\n## Rozdziały\n0:00 a\n1:00 b\n2:00 c\n## Tagi\nx\n"}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
         r, rep = self.run_check("--out", str(out))
         self.assertIn("no grafika.png", rep["out.posts"]["detail"])  # a picture alone is not enough: the graphic that says it (post_check)
         post_graphic(out / "posts/p1")
+        self.assertIn("no out/blog", rep["out.article"]["detail"])
+        (out / "blog/bramki-dla-agenta").mkdir(parents=True)
+        test_article.article(out / "blog/bramki-dla-agenta")  # the blog article for kamiljan.com (article_check)
+        r, rep = self.run_check("--out", str(out))
+        self.assertIn("cannot be checked", rep["out.article"]["detail"])  # no words of the long: the numbers check must not pass quietly
+        (self.d / "w.json").write_text(json.dumps({"transcription": [{"text": " siedemnaście"}]}))
+        if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
         r, rep = self.run_check("--out", str(out))
         bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k != "out.posts" or shutil.which("tesseract"))}
         self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts reads the graphic by OCR (tesseract: local and CI)

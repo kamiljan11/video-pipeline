@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
+import article_check  # the kamiljan.com blog article made from the film
 import gfx_types  # next to this script: which card types are a separate screen
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 
@@ -243,6 +244,12 @@ class Film:
         n = sum(1 for o in self.edl.get("overlays", []) if o.get("pip") or o.get("corner"))
         return (self.edl.get("head_track") is True or n == 0), f"{n} face windows, head_track {self.edl.get('head_track', False)}"
 
+    def gfx_lead_early(self):
+        """graphics enter before their word (plan "gfx_lead" <= -0.1 s, build_edl.py); a film without graphics passes"""
+        lead = self.edl.get("gfx_lead")
+        ok = not self.ovs or (isinstance(lead, (int, float)) and not isinstance(lead, bool) and -0.5 <= lead <= -0.1)
+        return ok, f"gfx_lead {lead!r} (want -0.5 to -0.1 s), {len(self.ovs)} cards"
+
     def screen_switches_per_min(self):
         sp = full_spans(self.edl, self.specs)
         return round(len(sp) / max(self.len / 60, 1e-9), 2), f"{len(sp)} separate screens in {self.len / 60:.1f} min"
@@ -340,6 +347,18 @@ class Out:
             if not (d / "post.md").exists(): bad.append(f"{pid}: no post.md")
             bad += [f"{pid}: {p}" for p in post_check.problems(d)]  # the graphic alone (OCR, contrast) and the text habits
         return not bad, "; ".join(bad)
+
+    def out_article(self):
+        """the blog article for kamiljan.com (team/roles/artykul.md): out/blog/<slug>/article.json passes article_check, numbers
+        checked against the long's words (plan_long.json "words"; without them the item fails)"""
+        arts = sorted((self.out / "blog").glob("*/article.json"))
+        if not arts: return False, "no out/blog/<slug>/article.json (artykul role)"
+        plan = self.work / "plan_long.json"
+        words = load(plan, "plan_long.json").get("words") if plan.exists() else None
+        wf = self.work / words if words and (self.work / words).exists() else None
+        if wf is None: return False, 'numbers in the article cannot be checked: plan_long.json names no "words" file that exists'
+        bad = [f"{a.parent.name}: {p}" for a in arts for p in article_check.problems(a.parent, wf)]
+        return not bad, "; ".join(bad[:8])
 
 
 def judge(obj, item: dict) -> tuple[str, str]:
