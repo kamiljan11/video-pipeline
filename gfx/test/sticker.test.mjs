@@ -52,6 +52,16 @@ fs.writeFileSync(path.join(toons, 'slide.svg'), '<svg xmlns="http://www.w3.org/2
   + '<rect class="m" x="0" y="0" width="200" height="400" fill="#f00"/></svg>');
 fs.writeFileSync(path.join(toons, 'evil.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><script>alert(1)</script></svg>');
 fs.writeFileSync(path.join(toons, 'link.svg'), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><image href="https://x.y/a.png"/></svg>');
+const VB = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"';
+const sneaky = {  // every way out of the drawing the check must stop, beside <script> and a double-quoted href
+  link1: `${VB}><image href='https://x.y/a.png'/></svg>`, link2: `${VB}><image href=https://x.y/a.png /></svg>`,
+  link3: `${VB}><image xlink:href = '//x.y/a'/></svg>`, css1: `${VB}><style>.a{fill:url(https://x.y/p.svg)}</style></svg>`,
+  css2: `${VB}><style>@import 'a.css';</style></svg>`, fo: `${VB}><foreignObject/></svg>`, handler: `${VB}><rect onload="x()"/></svg>`,
+};
+for (const [n, svg] of Object.entries(sneaky)) fs.writeFileSync(path.join(toons, `${n}.svg`), svg);
+fs.writeFileSync(path.join(toons, 'novb.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
+fs.writeFileSync(path.join(toons, 'rootstyle.svg'), `${VB} style="width:1px"><rect/></svg>`);
+fs.writeFileSync(path.join(toons, 'inner.svg'), `${VB}><defs><linearGradient id="g"/></defs><rect fill="url(#g)"/><use href='#g'/></svg>`);
 const renderToon = specs => {
   const specFile = path.join(work, `${specs[0].id}.json`); fs.writeFileSync(specFile, JSON.stringify(specs));
   return spawnSync('node', [path.join(GFX, 'render.mjs'), specFile, path.join(work, 'gfx')], { encoding: 'utf8', timeout: 120000, env: { ...process.env, VP_TOONS: toons } });
@@ -72,6 +82,27 @@ test('a toon with a script, an outside link or no file stops by name', () => {
     const r = renderToon([{ id, type: 'sticker', toon, dur: 2 }]);
     assert.notEqual(r.status, 0); assert.match(r.stderr, msg);
   }
+});
+
+test('every way out of a toon stops by name, links inside the drawing pass', () => {
+  for (const n of Object.keys(sneaky)) {
+    const r = renderToon([{ id: `x_${n}`, type: 'sticker', toon: n, dur: 2 }]);
+    assert.notEqual(r.status, 0, `${n} passed`); assert.match(r.stderr, new RegExp(`x_${n}.*drawing and CSS only`, 's'));
+  }
+  for (const [n, msg] of [['novb', /viewBox="0 0 W H"/], ['rootstyle', /no style="" on the root/]]) {
+    const r = renderToon([{ id: `y_${n}`, type: 'sticker', toon: n, dur: 2 }]);
+    assert.notEqual(r.status, 0); assert.match(r.stderr, msg);
+  }
+  for (const [id, sp, msg] of [['z1', { side: 'top' }, /"side" = "right" or "left"/], ['z2', { canvas: 'v' }, /16:9/],
+    ['z3', { text: [1] }, /list of strings/], ['z4', { at: [5] }, /"at" = seconds/]]) {
+    const r = renderToon([{ id, type: 'sticker', toon: 'inner', dur: 2, ...sp }]);
+    assert.notEqual(r.status, 0); assert.match(r.stderr, msg);
+  }
+});
+
+test('a toon linking only inside itself renders', CHROME, () => {
+  const r = renderToon([{ id: 'in1', type: 'sticker', toon: 'inner', dur: 1 }]);
+  assert.equal(r.status, 0, r.stderr);
 });
 
 test('the toons in the repo pass the drawing-only check', CHROME, () => {

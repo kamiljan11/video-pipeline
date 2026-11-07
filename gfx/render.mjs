@@ -129,17 +129,21 @@ function meme(sp) {
 // meme picture: no licence and no Content ID match (Kamil 2026-11-07: "możesz tworzyć gify od zera"). Same beats and chips as a
 // sticker; the drawing has no white frame, its own outline makes it a die-cut sticker
 const TOONS = process.env.VP_TOONS ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), 'toons');
+const toonErr = sp => why => new Error(`"${sp.id}": toon ${JSON.stringify(sp.toon)}: ${why}`);
+// allow-list: a link may only point inside the drawing (#id), in any quoting, in markup or CSS; anything else could reach
+// the network from the render page and make frames depend on it
+const TOON_FORBIDDEN = /<script|<foreignObject|\bon[a-z]+\s*=|(?:href|src)\s*=\s*(?!["']?#)|url\(\s*(?!["']?#)|@import/i;
 function toonSvg(sp) {
-  const f = `${TOONS}/${sp.toon}.svg`, bad = why => new Error(`"${sp.id}": toon ${JSON.stringify(sp.toon)}: ${why}`);
+  const f = `${TOONS}/${sp.toon}.svg`, bad = toonErr(sp);
   if (typeof sp.toon !== 'string' || !/^[a-z0-9_]+$/.test(sp.toon) || !fs.existsSync(f)) throw bad(`not in ${TOONS}`);
   const svg = fs.readFileSync(f, 'utf8'), vb = svg.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
   if (!vb) throw bad('the <svg> needs viewBox="0 0 W H"');
-  if (/<script|<foreignObject|\bon[a-z]+\s*=|(?:href|src)\s*=\s*"(?!#)/i.test(svg)) throw bad('a toon is drawing and CSS only: no script, event handler, foreignObject or outside link');
+  if (TOON_FORBIDDEN.test(svg)) throw bad('a toon is drawing and CSS only: no script, event handler, foreignObject, @import or outside link');
+  if (/^<svg\b[^>]*\sstyle\s*=/i.test(svg.trim())) throw bad('no style="" on the root <svg> (render.mjs sets its size there)');
   return { svg, width: +vb[1], height: +vb[2] };
 }
 function toonSticker(sp) {
-  const t = toonSvg(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [];
-  const bad = why => new Error(`"${sp.id}": toon ${JSON.stringify(sp.toon)}: ${why}`);
+  const t = toonSvg(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [], bad = toonErr(sp);
   if (!B) throw bad(`"side" = "right" or "left", got ${JSON.stringify(sp.side)}`);
   if (sp.canvas === 'v') throw bad('a toon sticker is 16:9 (STICKER_BOX); in 9:16 use a scene');
   if (!Array.isArray(texts) || !texts.every(x => typeof x === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
@@ -180,7 +184,7 @@ function memeStamp(sp) {
 }
 // a toon's frames change with its drawing and the code that places it
 const toonStamp = sp => crypto.createHash('sha1').update(JSON.stringify(sp)).update(toonSvg(sp).svg).update(MEME_CODE)
-  .update(toonSticker.toString()).update(toonSvg.toString()).digest('hex');
+  .update(toonSticker.toString()).update(toonSvg.toString()).update(TOON_FORBIDDEN.source).digest('hex');
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
