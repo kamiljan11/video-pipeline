@@ -22,10 +22,14 @@ LUFS, TP, LRA = -14.0, -1.5, 11.0
 LU_TOL = 0.5
 TP_MARGIN = 0.5    # dB under the ceiling for the limiter: AAC still adds a little
 LOWPASS = 16000    # Hz
+TIMEOUT = 3600     # s per ffmpeg pass: a 21 min long takes ~1 min, a hang ends with a message
 
 
 def _ff(args: list[str]) -> str:
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", *args], capture_output=True, text=True, check=False)
+    try:
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", *args], capture_output=True, text=True, check=False, timeout=TIMEOUT)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"ffmpeg {' '.join(args[:4])}...: no answer in {TIMEOUT} s") from e
     if r.returncode: raise RuntimeError(f"ffmpeg {' '.join(args[:4])}...: {r.stderr.strip().splitlines()[-1:]}")
     return r.stderr
 
@@ -57,6 +61,23 @@ def master(film: str, out: str, lufs: float = LUFS, tp: float = TP) -> dict:
     after = measure(out)
     ok = abs(after["lufs"] - lufs) <= LU_TOL and after["tp"] <= tp
     return {"film": film, "out": out, "target": {"lufs": lufs, "tp": tp, "lu_tol": LU_TOL}, "before": before, "after": after, "ok": ok}
+
+
+def master_in_place(final: str, cfg: dict) -> dict:
+    """assemble.py's step (EDL "master", {} = the defaults): the mastered mix replaces final; off target or an ffmpeg
+    error = SystemExit naming it, the unmastered file stays and no half-made .master.mp4 is left behind"""
+    tmp = final + ".master.mp4"
+    try:
+        rep = master(final, tmp, cfg.get("lufs", LUFS), cfg.get("tp", TP))
+    except RuntimeError as e:
+        Path(tmp).unlink(missing_ok=True)
+        raise SystemExit(f"FAILED master {final}: {e} (unmastered file kept)") from e
+    Path(final).with_suffix(".master.json").write_text(json.dumps(rep, indent=1))
+    if not rep["ok"]:
+        Path(tmp).unlink(missing_ok=True)
+        raise SystemExit(f"FAILED master {final}: {rep['after']} vs target {rep['target']} (unmastered file kept)")
+    Path(tmp).replace(final)
+    return rep
 
 
 def main(argv: list[str]) -> int:

@@ -357,13 +357,8 @@ args = ["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(fc),
 # the exact stage-2 command next to the film: a render killed for memory or time can be rerun and measured by hand
 Path(out, "assemble.args.json").write_text(json.dumps(args, ensure_ascii=False, indent=0))
 subprocess.run(args, check=True)
-if edl.get("master") and not PROXY:  # the whole mix to its loudness and true peak (master_audio.py, plan "master"); previews stay quick
+if "master" in edl and not PROXY:  # the whole mix to its loudness and true peak (master_audio.py, plan "master", {} = defaults); previews stay quick
     import master_audio
-    mk = {"lufs": master_audio.LUFS, "tp": master_audio.TP, **edl["master"]}
-    tmp = final + ".master.mp4"
-    rep = master_audio.master(final, tmp, mk["lufs"], mk["tp"])
-    Path(final).with_suffix(".master.json").write_text(json.dumps(rep, indent=1))
-    if not rep["ok"]: sys.exit(f"FAILED master {final}: {rep['after']} vs target {rep['target']} (unmastered file kept)")
-    os.replace(tmp, final)
+    rep = master_audio.master_in_place(final, edl["master"])
     print("master", rep["before"], "->", rep["after"])
 print("OK", final)

@@ -35,6 +35,7 @@ FLASH = 0.5         # s
 ENTER = 0.4         # s a card's entrance (fade, slide) may take after its EDL start, and its exit before its end (film 2: 0.25-0.35)
 MIN_EVENT = 1.5     # s
 REPEAT_OK = {"no", "tak", "nie", "bardzo", "dalej"}  # Polish doubles people say on purpose ("no no", "tak tak")
+TIMEOUT = 3600      # s for the scene pass (a 21 min long: ~3 min)
 SCALE = 320         # px wide for the scene pass: the score barely changes, the decode is much faster
 FACE_BEFORE = 0.3   # s before a card: the face the card must leave visible
 FACE_MODEL = Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"
@@ -52,9 +53,12 @@ def marks(edl: dict) -> list[float]:
 
 
 def scene_changes(film: str, threshold: float = SCENE) -> list[float]:
-    r = subprocess.run(["ffmpeg", "-v", "info", "-nostdin", "-i", film, "-an", "-vf",
-                        f"scale={SCALE}:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"],
-                       capture_output=True, text=True, check=False)
+    try:
+        r = subprocess.run(["ffmpeg", "-v", "info", "-nostdin", "-i", film, "-an", "-vf",
+                            f"scale={SCALE}:-2,select='gt(scene,{threshold})',showinfo", "-f", "null", "-"],
+                           capture_output=True, text=True, check=False, timeout=TIMEOUT)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"ffmpeg scene pass on {film}: no answer in {TIMEOUT} s") from e
     if r.returncode: raise RuntimeError(f"ffmpeg scene pass on {film}: {r.stderr.strip().splitlines()[-1:]}")
     return [float(t) for t in re.findall(r"pts_time:([0-9.]+)", r.stderr)]
 
@@ -97,14 +101,16 @@ def face_covered(edl: dict, specs: dict[str, dict], seen: Callable[[float], bool
 def face_seer(film: str) -> Callable[[float], bool]:
     import cv2  # only here: the scene and word checks run without OpenCV
     if not FACE_MODEL.is_file(): raise RuntimeError(f"no face model {FACE_MODEL}")
-    det = cv2.FaceDetectorYN.create(str(FACE_MODEL), "", (640, 360), 0.7)
     cap = cv2.VideoCapture(film)
+    w, h = cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    size = (640, 360) if w >= h else (360, 640)  # the frame's own shape: a 9:16 short is not squashed to 16:9
+    det = cv2.FaceDetectorYN.create(str(FACE_MODEL), "", size, 0.7)
 
     def seen(t: float) -> bool:
         cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
         ok, fr = cap.read()
         if not ok: return False
-        _, faces = det.detect(cv2.resize(fr, (640, 360)))
+        _, faces = det.detect(cv2.resize(fr, size))
         return faces is not None and len(faces) > 0
     return seen
 

@@ -110,6 +110,21 @@ class FilmCheckTest(unittest.TestCase):
         _, rep = self.run_check("long")
         self.assertEqual(rep["long.head_track"]["status"], "OK")
 
+    def test_the_count_he_says_must_be_the_count_on_the_card(self):  # count_check.py, long.counts
+        ovs, specs, segs = self.full_long()
+        ovs.append({"id": "tiles", "at": 300.5, "dur": 8}); specs.append({"id": "tiles", "type": "scene", "els": [{"k": "chip"}] * 6})
+        w = words(600)
+        w["transcription"][299]["text"] = " trzy"  # said at 299 s, 1.5 s before the card
+        (self.d / "w.json").write_text(json.dumps(w))
+        self.project(ovs, specs, segs)
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.counts"]["status"], "FAIL")
+        self.assertIn("tiles: 6 on the card, says [3]", rep["long.counts"]["detail"])
+        w["transcription"][299]["text"] = " sześć"
+        (self.d / "w.json").write_text(json.dumps(w))
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.counts"]["status"], "OK")
+
     def test_graphics_must_enter_before_their_word(self):  # Skool CCC A19: entrance ~0.12 s before the word
         ovs, specs, segs = self.full_long()
         self.project(ovs, specs, segs)
