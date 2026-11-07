@@ -192,7 +192,9 @@ function logoStamp(sp) {
 // "behind" is left out: behind.py rewrites the .mov from the front card and keeps its own key in the file
 // a scene is drawn by scene_lib.mjs: a change there (new piece look, the 9:16 solo fade) changes the same spec's frames,
 // so its source is part of a scene's key (film 2 shorts, 2026-11-04: the solo fade was not rendered, the spec was the same)
-const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+// motion_tokens.mjs too: a "tokens" card takes its timings from there
+const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url)))
+  .update(fs.readFileSync(new URL('./motion_tokens.mjs', import.meta.url))).digest('hex').slice(0, 12);
 // a meme is drawn by MEME_BOX, meme(), memeLib() and its CSS in template.html: a change in any of them changes its frames,
 // so they are part of a meme's key like SCENE_LIB for scenes (review r3 code-2, r4 code-1)
 const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(JSON.stringify(STICKER_BOX)).update(meme.toString()).update(sticker.toString()).update(memeLib.toString())

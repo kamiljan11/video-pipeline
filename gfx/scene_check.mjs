@@ -2,9 +2,12 @@
 // pieces whose drawn boxes (labels included, they overflow the piece) cover each other while both are on screen.
 // Film 2 long, s14_hooki (2026-11-04): three node labels ran into each other ("polecpokażdej zmianie plikugdy") and nobody saw
 // it until a contact sheet. Exit 1 with every clash named; 0 when clean. Fast: one page, no screenshots.
+// Cards with "motion": "tokens" also get the motion lint (gfx/motion_tokens.mjs): no entrance that eases both ways, no
+// stagger step over 12 frames. Cards without it keep the timings from before tokens and are only counted.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
 import { scene } from './scene_lib.mjs';
+import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 
 // pieces meant to sit on others: a stamp lands on a card, a check or ring marks it, a cursor points at it, a line joins them
@@ -17,6 +20,11 @@ export function window_(e, dur) {
   const ats = [e.at, ...(e.words ?? []).map(w => w[1]), ...(e.msgs ?? []).map(m => m.at), ...(e.items ?? []).map(m => m?.at)]
     .filter(v => typeof v === 'number');
   return [ats.length ? Math.min(...ats) : 0, typeof e.gone === 'number' ? e.gone : dur];
+}
+
+// the motion lint for one card (no browser): problems for a "tokens" card, [] for the others
+export function motionLint(sp) {
+  return sp.motion === 'tokens' ? [...motionProblems(scene(sp, esc, icon)).map(p => `${sp.id}: ${p}`), ...staggerProblems(sp)] : [];
 }
 
 // rects: [{i, x, y, w, h}] (world px, as laid out); returns the clashing pairs as text. A pair clashes when both are on screen
@@ -45,7 +53,7 @@ async function main() {
   if (!specFile) { console.error('usage: node gfx/scene_check.mjs <specs.json> [id ...]'); process.exit(2); }
   const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(s => s.type === 'scene' && (!only.length || only.includes(s.id)));
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
-  const bad = [];
+  const bad = [], motion = specs.flatMap(motionLint), legacy = specs.filter(s => s.motion !== 'tokens').length;
   try {
     for (const sp of specs) {
       const v = sp.canvas === 'v';
@@ -72,8 +80,9 @@ async function main() {
     }
   } finally { await browser.close(); }
   for (const b of bad) console.log(`CLASH ${b}`);
-  console.log(`scene_check: ${specs.length} scenes, ${bad.length} clashes`);
-  process.exit(bad.length ? 1 : 0);
+  for (const m of motion) console.log(`MOTION ${m}`);
+  console.log(`scene_check: ${specs.length} scenes, ${bad.length} clashes, ${motion.length} motion problems (${legacy} without "motion": "tokens", not linted)`);
+  process.exit(bad.length || motion.length ? 1 : 0);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) await main();

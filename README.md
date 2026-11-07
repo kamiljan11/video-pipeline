@@ -325,6 +325,10 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
  ],
  "cam": [{"t": 0, "on": "term"}, {"t": 5.2, "on": "*"}]}
 ```
+- **Ruch (`"motion": "tokens"` na karcie)**: czasy z `gfx/motion_tokens.mjs` (klatki przy 30 fps: wejście 12, wyjście 6 =
+  połowa wejścia; krzywe land / pop / shift / leave; stagger wierszy 5 klatek, linii terminala 3, wiadomości czatu 8, max 12).
+  `scene_check` sprawdza takie karty: zero wejść ease-in-out, `step` <= 12 klatek. Karta bez klucza = czasy sprzed tokenów
+  (gotowe filmy rysują się bajt w bajt tak samo, sprawdzone na 222 scenach filmu 2), więc lint jej nie ocenia.
 - **Elementy (`k`)**, każdy z `x`, `y` (piksele płótna 2560x1440, może wyjść poza nie), opcjonalnie `w`, `h`, `id`, `at` (wejście, s),
   `anim` (`up` domyślnie, `pop`, `fade`, `left`, `right`, `drop`), `dim` (s: przygaszenie do 28 %, gdy oko ma iść gdzie indziej),
   `gone` (s: znika), `tone` (`acc`, `ok`, `bad`, `warn`, `blue`, `orange`, `mute`):
