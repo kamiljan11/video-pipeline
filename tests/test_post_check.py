@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -20,7 +21,7 @@ import post_check as P  # after the path insert: the scripts are not a package
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"  # fonts-dejavu-extra (Ubuntu desktop, CI)
 LINES = ["Każdy błąd zostawia bliznę", "Nowe sprawdzenie w systemie", "Ten sam błąd nie przejdzie drugi raz",
          "Jak nowy punkt w procedurze pilota", "Ponad sto blizn z prawdziwych projektów"]
-TEXT = " ".join(["słowo"] * 80) + "\nRepo w pierwszym komentarzu.\nA Ty jak to robisz?"
+TEXT = "Pierwsza linia mówi wynik, nie wstęp.\n" + " ".join(["słowo"] * 80) + "\nRepo w pierwszym komentarzu.\nA Ty jak to robisz?"
 
 
 def picture(d: Path, ink: str, lines=LINES) -> None:
@@ -38,6 +39,48 @@ class TextTest(unittest.TestCase):
         for want in ("4 hashtags", "must end on a question", "words of text"):
             self.assertTrue(any(want in b for b in bad), bad)
 
+
+    def test_line_1_is_a_hook_not_a_greeting_filler_long_or_a_question(self):  # PLAN 4.1
+        def bad(first): return [b for b in P.text_problems(TEXT.replace(TEXT.splitlines()[0], first, 1), []) if b.startswith("line 1")]
+        self.assertEqual(bad("92% zmian wchodziło bez przeglądu, dziś 18%."), [])
+        for first, want in (("Cześć, dziś pokażę coś o AI.", "greeting"), ("Dzisiaj opowiem o szlabanie.", "filler"),
+                            ("5 rzeczy o AI w kodzie.", "title"), ("Jak ufać AI, które kłamie?", "question mark"),
+                            ("AI kłamie w kodzie. " + "x" * 130, "characters")):
+            self.assertTrue(any(want in b for b in bad(first)), (first, bad(first)))
+        self.assertEqual(P.hook_problems("  \n"), [])
+
+    def test_numbers_must_be_said_in_the_film(self):  # PLAN 4.2
+        said = {"92", "18", "3"}
+        self.assertEqual(P.number_problems("92% do 18%, trzy razy 3,5", "3 filary", said)[0].split(": ")[1].split(" (")[0], "3.5")
+        bad = P.number_problems("W 2026 było 92 proc.", "Liczba 40 i 18", said)
+        self.assertTrue("text" in bad[0] and "2026" in bad[0] and "92" not in bad[0].split(": ")[1], bad)
+        self.assertTrue("graphic" in bad[1] and "40" in bad[1], bad)
+        self.assertEqual(P.number_problems("2026", "40", None), [])  # no words file: skipped, never a failure
+
+    def test_problems_reads_the_words_file_and_spelled_numbers(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "linkedin.json").write_text(json.dumps({"text": TEXT.replace("słowo", "92 i 40", 1), "hashtags": []}))
+            (d / "grafika.txt").write_text("trzy filary i 7")
+            w = d / "w.json"
+            w.write_text(json.dumps({"transcription": [{"text": " 92"}, {"text": " trzy"}, {"text": " 7"}]}))
+            for f in ("grafika.png",): (d / f).write_text("x")
+            bad = [b for b in P.problems(d, w) if "numbers" in b]
+            self.assertEqual(len(bad), 1, bad)
+            self.assertIn("40", bad[0]); self.assertNotIn("92,", bad[0])
+            self.assertFalse(any("numbers" in b for b in P.problems(d)))  # no words file
+            w.write_text("{}")
+            self.assertTrue(any("not a whisper.cpp" in b for b in P.problems(d, w)))
+
+    def test_a_count_in_the_hook_equals_the_list_items(self):  # PLAN 4.3
+        spec = {"type": "list", "items": [{"h": "a"}] * 4}
+        self.assertEqual(P.hook_count("5 rzeczy, które zmieniły kod"), 5)
+        self.assertEqual(P.hook_count("Trzy drobne rzeczy w systemie"), 3)
+        self.assertIsNone(P.hook_count("92% zmian bez przeglądu"))
+        self.assertIn("promises 5", P.count_problems("5 rzeczy o AI", spec)[0])
+        self.assertEqual(P.count_problems("4 rzeczy o AI", spec), [])
+        self.assertEqual(P.count_problems("5 rzeczy o AI", {"type": "bars", "items": [1]}), [])  # no list to count
+        self.assertEqual(P.count_problems("Jedno zdanie o AI", spec), [])
 
     def test_banned_phrases_from_the_voice_file_are_named(self):  # style/voice.md "## Zakazane"
         with tempfile.TemporaryDirectory() as t:

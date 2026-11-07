@@ -8,9 +8,14 @@
   comments and the resource (film, repo) sits in the line before it, WORDS_TEXT words (Kamil's rule: the graphic carries,
   the text completes). The closing question is Kamil's call (2026-11-07, Skool CCC C07/C10/C17) against our sample (4/68
   top posts end on a question); the weekly review shows whether comments grow.
+- Line 1 is the hook (SYNTH-linkedin W1, PLAN 4.1): no greeting, filler or list-title opener (hook_check killers 1-4 with
+  style/hook_lint.json), at most HOOK_CHARS characters (LinkedIn cuts the feed at "see more"), no "?" (the question closes the post).
+- Numbers are honest (PLAN 4.2): every number in the text and on the graphic has to be said in the film (article_check.said_numbers
+  on the film's whisper words json), blocking. Without a words file the check is skipped (a note, not a failure).
+- A count in the hook ("5 rzeczy", "Trzy rzeczy") equals the list items in grafika.json (PLAN 4.3, only for a "list" graphic).
 film_check.py out.posts calls problems() for every post folder.
 
-  python3 post_check.py <post dir>...       prints the problems, rc 1 when there are any
+  python3 post_check.py [--words <film words json>] <post dir>...   prints the problems, rc 1 when there are any
 """
 from __future__ import annotations
 
@@ -21,6 +26,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import hook_check  # killers 1-4 and the list nouns, one source with the shorts (style/hook_lint.json)
+
 RECALL = 0.85  # [PROP] share of the drawn words OCR must find; measured 1.00 on all 9 film 2 graphics (2026-11-05); dark-on-dark text falls far below (tests)
 CONTRAST = (4.5, 3.0)  # WCAG AA: normal text, large text (a word box at least LARGE px high on the 1080 px graphic)
 LARGE = 40
@@ -29,6 +36,11 @@ MAX_TAGS = 3
 VOICE = Path(__file__).resolve().parent / "style" / "voice.md"  # "## Zakazane": phrases Kamil never writes (one per bullet)
 WORDS_TEXT = (60, 130)  # [PROP] REF-posts-top P2 point 6: about 60-120, from Kamil's rule, not from the sample
 WORD = re.compile(r"[\w%]+")
+HOOK_CHARS = 140  # REF-posts-top: the feed shows about this much before "see more"
+HOOK_KILLERS = ("greeting", "title", "filler", "vague")  # hook_check.problems messages 1-4; "no stake" and the word cap are the short's rules
+NUM = re.compile(r"\d+(?:[.,]\d+)?")
+COUNT_WORDS = {"jeden": 1, "jedna": 1, "dwa": 2, "dwie": 2, "trzy": 3, "cztery": 4, "pięć": 5, "sześć": 6, "siedem": 7, "osiem": 8,
+               "dziewięć": 9, "dziesięć": 10, "jedenaście": 11, "dwanaście": 12}
 
 
 def words(text: str) -> list[str]:
@@ -100,6 +112,51 @@ def banned_phrases(voice: Path = VOICE) -> list[str]:
     return ["\u2014" if i == "długi myślnik" else i for i in items]
 
 
+def hook_problems(text: str) -> list[str]:
+    """PLAN 4.1: line 1 of the post (the hook): killers 1-4, at most HOOK_CHARS characters, no question mark"""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines: return []
+    first = lines[0]
+    out = [f"line 1: {p}" for p in hook_check.problems(first) if p.startswith(HOOK_KILLERS)]
+    if len(first) > HOOK_CHARS: out.append(f"line 1: {len(first)} characters, at most {HOOK_CHARS} (the feed cuts it at 'see more')")
+    if "?" in first: out.append("line 1: a question mark (the hook states the result; the question closes the post)")
+    return out
+
+
+def hook_count(text: str, listicle: list[str] | None = None) -> int | None:
+    """the number of things line 1 promises ("5 rzeczy", "Trzy drobne rzeczy"): a count word or digits with a list noun (hook_lint
+    "listicle") in the next 3 words; None when the hook promises no list"""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    nouns = hook_check.lists()["listicle"] if listicle is None else listicle
+    toks = WORD.findall(lines[0].lower()) if lines else []
+    for i, t in enumerate(toks):
+        n = int(t) if t.isdigit() else COUNT_WORDS.get(t)
+        if n is not None and any(hook_check._match(e, w) for w in toks[i + 1:i + 4] for e in nouns): return n
+    return None
+
+
+def spoken_numbers(text: str) -> set[str]:
+    return {n.replace(",", ".") for n in NUM.findall(text)}
+
+
+def number_problems(text: str, drawn: str, said: set[str] | None) -> list[str]:
+    """PLAN 4.2: numbers of the text and of the graphic that the film never says (said None = no words file: skipped)"""
+    if said is None: return []
+    out = []
+    for where, src in (("text", text), ("graphic", drawn)):
+        gone = sorted(spoken_numbers(src) - said, key=float)
+        if gone: out.append(f"numbers in the {where} that the film does not say: {', '.join(gone)} (say them in the film or drop them)")
+    return out
+
+
+def count_problems(text: str, spec: object) -> list[str]:
+    """PLAN 4.3: "5 rzeczy" in the hook = 5 items of a "list" graphic (other graphic types carry no list to count)"""
+    n = hook_count(text)
+    if n is None or not isinstance(spec, dict) or spec.get("type") != "list" or not isinstance(spec.get("items"), list): return []
+    k = len(spec["items"])
+    return [] if k == n else [f"the hook promises {n} things, grafika.json lists {k}"]
+
+
 def text_problems(text: str, hashtags: list[str], banned: list[str] | None = None) -> list[str]:
     out = []
     low = text.lower()
@@ -108,6 +165,7 @@ def text_problems(text: str, hashtags: list[str], banned: list[str] | None = Non
     if len(hashtags) > MAX_TAGS: out.append(f"{len(hashtags)} hashtags, at most {MAX_TAGS}")
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     if not lines: return [*out, 'no "text" in linkedin.json']
+    out += hook_problems(text)
     last = lines[-1]
     if not last.endswith("?"): out.append(f"the post must end on a question for the comments, got {last!r} (resource goes in the line before)")
     n = len(text.split())
@@ -115,8 +173,33 @@ def text_problems(text: str, hashtags: list[str], banned: list[str] | None = Non
     return out
 
 
-def problems(d: Path) -> list[str]:
-    """everything wrong with one post folder (grafika.png, grafika.txt, linkedin.json)"""
+def drawn_text(d: Path) -> str:
+    """the words on the graphic: grafika.txt, else every string of grafika.json"""
+    txt, spec = d / "grafika.txt", d / "grafika.json"
+    if txt.exists(): return txt.read_text()
+    if not spec.exists(): return ""
+
+    def strings(v: object) -> list[str]:
+        if isinstance(v, str): return [v]
+        if isinstance(v, list): return [x for e in v for x in strings(e)]
+        if isinstance(v, dict): return [x for e in v.values() for x in strings(e)]
+        return [str(v)] if isinstance(v, (int, float)) and not isinstance(v, bool) else []
+    try: return " ".join(strings(json.loads(spec.read_text())))
+    except ValueError: return ""
+
+
+def article_said(words_file: Path | None) -> set[str] | None:
+    """digits the film says (article_check.said_numbers) plus numbers it spells out ("trzy"), which whisper often leaves as words"""
+    import article_check  # late: article_check imports banned_phrases from here
+    said = article_check.said_numbers(words_file)
+    if said is None or words_file is None: return said
+    spoken = [w.lower() for w in WORD.findall(" ".join(str(x.get("text", "")) for x in json.loads(words_file.read_text(encoding="utf-8"))["transcription"]))]
+    return said | {str(COUNT_WORDS[w]) for w in spoken if w in COUNT_WORDS}
+
+
+def problems(d: Path, words_file: Path | None = None) -> list[str]:
+    """everything wrong with one post folder (grafika.png, grafika.txt, linkedin.json); words_file = the film's whisper words
+    json (plan "words"), without it the numbers are not checked against the film"""
     out = graphic_problems(d)
     spec = d / "linkedin.json"
     if not spec.exists(): return [*out, "no linkedin.json"]
@@ -124,13 +207,26 @@ def problems(d: Path) -> list[str]:
     except ValueError as e: return [*out, f"linkedin.json is not JSON ({e})"]
     text, tags = (s.get("text"), s.get("hashtags", [])) if isinstance(s, dict) else (None, None)
     if not isinstance(text, str) or not isinstance(tags, list): return [*out, 'linkedin.json needs {"text": "...", "hashtags": [...]}']
-    return out + text_problems(text, tags)
+    out += text_problems(text, tags)
+    gj = d / "grafika.json"
+    try: g = json.loads(gj.read_text()) if gj.exists() else None
+    except ValueError: g = None  # graphic_problems / post_gfx name a broken spec
+    out += count_problems(text, g)
+    try: said = article_said(words_file)
+    except ValueError as e: return [*out, str(e)]
+    return out + number_problems(text, drawn_text(d), said)
 
 
 def main(argv: list[str]) -> int:
+    words = None
+    if "--words" in argv:
+        i = argv.index("--words")
+        if i + 1 >= len(argv): print("--words needs a file", file=sys.stderr); return 2
+        words, argv = Path(argv[i + 1]), argv[:i] + argv[i + 2:]
+    else: print("note: no --words <film words json>: numbers are not checked against the film", file=sys.stderr)
     bad = 0
     for a in argv:
-        for p in problems(Path(a)):
+        for p in problems(Path(a), words):
             print(f"{a}: {p}"); bad += 1
     return 1 if bad else 0
 
