@@ -535,9 +535,6 @@ class CutOutTest(unittest.TestCase):
         self.assertEqual(behind.cut_out(rgba, None).tolist(), rgba.tolist())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class CleanEdgesTest(unittest.TestCase):
     def test_same_length_centred_mean_choke_and_feather(self):
@@ -553,3 +550,7 @@ class CleanEdgesTest(unittest.TestCase):
         f = behind.feather(dot, 1.2)
         self.assertAlmostEqual(float(f.sum()), 9.0, places=3)  # blur keeps the amount, spreads the edge
         self.assertLess(float(f.max()), 1.0)
+
+
+if __name__ == "__main__":
+    unittest.main()
