@@ -24,7 +24,11 @@ Short (out/youtube/shorts/<id>.md, `## Opis`):
         limit, #shorts (0/10 creators), chapters,
         no `## Powiązany film` (S10), the same line in two or more shorts (every short reads as its own)
 
-  python3 desc_check.py <out dir> [<film seconds>]
+Both (round 2 X3, one rule for every form): FAIL on a number in the long's description or pinned comment, or in a
+short's title or description, that the film never says (with the film's words: film_check passes them, CLI --words;
+URLs, chapter times and hashtags are not counted).
+
+  python3 desc_check.py [--words <film words json>] <out dir> [<film seconds>]
   python3 desc_check.py --fill-long <youtube url of the long> <out dir>   (after the long is published, before the shorts)
 """
 from __future__ import annotations
@@ -168,17 +172,38 @@ def short_check(name: str, md: str, lim: dict | None = None) -> tuple[list[str],
     return bad, warn
 
 
-def check(out: Path, film_s: float | None = None, shorts: list[str] | None = None) -> tuple[list[str], list[str]]:
-    """(failures, warnings) of out/youtube; shorts = the ids to check (default: every shorts/*.md)"""
+NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
+
+
+def loose_numbers(where: str, text: str, said: set[str] | None) -> list[str]:
+    """round 2 X3: numbers of a description the film never says (said None = no words: skipped). Not counted: chapter
+    rows (labels, "Pomysł 2"), list markers ("2. "), hashtags, URLs, and a line with an outside link (the source backs its number, as
+    article_check.loose_numbers; our own and YouTube links back nothing)"""
+    if said is None: return []
+    keep = [ln for ln in text.splitlines() if not CHAPTER.match(ln.strip())
+            and not any(utm.SITE not in u.lower() and not LONG_LINK.match(u) for u in utm.URL.findall(ln))]
+    keep = [re.sub(r"^\s*\d+[.)]\s", "", ln) for ln in keep]  # "2. Każdy błąd": a list marker, not a claim
+    text = HASHTAG.sub(" ", utm.URL.sub(" ", LONG_LINK.sub(" ", "\n".join(keep))))
+    gone = sorted({n.replace(",", ".") for n in NUMBER.findall(text)} - said, key=float)
+    return [f"{where}: numbers the film does not say: {', '.join(gone)} (say them in the film or drop them)"] if gone else []
+
+
+def check(out: Path, film_s: float | None = None, shorts: list[str] | None = None, said: set[str] | None = None) -> tuple[list[str], list[str]]:
+    """(failures, warnings) of out/youtube; shorts = the ids to check (default: every shorts/*.md); said = the numbers
+    the film says (article_check.said_numbers), None = the numbers are not checked"""
     lim = limits()
     yt = out / "youtube"
     bad, warn = (long_check((yt / "long.md").read_text(), film_s, lim) if (yt / "long.md").is_file() else (["no out/youtube/long.md"], []))
+    if (yt / "long.md").is_file():
+        md = (yt / "long.md").read_text()
+        bad += loose_numbers("long", (section(md, "Opis") or "") + "\n" + (section(md, "Przypięty komentarz") or ""), said)
     files = [yt / "shorts" / f"{s}.md" for s in shorts] if shorts is not None else sorted((yt / "shorts").glob("*.md"))
     seen: dict[str, list[str]] = {}
     for f in files:
         if not f.is_file(): bad.append(f"no {f.relative_to(out)}"); continue
         md = f.read_text()
         b, w = short_check(f.stem, md, lim); bad += b; warn += w
+        bad += loose_numbers(f.stem, (section(md, "Tytuł") or "") + "\n" + (section(md, "Opis") or ""), said)
         for ln in lines(section(md, "Opis") or ""):
             if not utm.URL.search(ln) and not LONG_LINK.search(ln) and len(ln) > 20: seen.setdefault(ln.strip(), []).append(f.stem)
     for ln, who in seen.items():
@@ -192,9 +217,15 @@ def main(argv: list[str]) -> int:
         try: done = fill_long(Path(argv[2]), argv[1])
         except (OSError, ValueError) as e: print(f"FAILED desc_check --fill-long: {e}", file=sys.stderr); return 1
         print(f"filled {len(done)} short descriptions"); return 0
+    words = None
+    if "--words" in argv[:-1]:
+        i = argv.index("--words")
+        words, argv = Path(argv[i + 1]), argv[:i] + argv[i + 2:]
     if not 1 <= len(argv) <= 2: print(__doc__, file=sys.stderr); return 2
     try:
-        bad, warn = check(Path(argv[0]), float(argv[1]) if len(argv) == 2 else None)
+        import article_check  # late: the words reader, one rule for posts, the article and descriptions
+        said = article_check.said_numbers(words)
+        bad, warn = check(Path(argv[0]), float(argv[1]) if len(argv) == 2 else None, said=said)
     except (OSError, ValueError, KeyError) as e:
         print(f"FAILED desc_check: {e}", file=sys.stderr); return 1
     print("\n".join(bad + [f"WARN {w}" for w in warn]) or "OK desc_check")

@@ -396,6 +396,7 @@ class FilmCheckTest(unittest.TestCase):
         self.assertIn("cannot be checked", rep["out.article"]["detail"])  # no words of the long: the numbers check must not pass quietly
         self.assertIn("opening cannot be checked", rep["out.titles"]["detail"])  # nor the titles' promise
         self.assertIn("Instagram captions cannot be checked", rep["out.instagram"]["detail"])
+        self.assertIn("numbers in the descriptions cannot be checked", rep["out.youtube"]["detail"])  # review 2026-11-08: X3 never skips quietly
         test_ig_check.make(out)  # out/instagram/p01: one carousel that passes ig_check
         opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))

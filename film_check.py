@@ -387,11 +387,12 @@ class Out:
         edl = self.work / "edl_long.json"
         try:
             film_s = body_len(load(edl, "edl_long.json")) if edl.exists() else None
-            b, w = desc_check.check(self.out, film_s, self.made("clips.json"))
+            b, w = desc_check.check(self.out, film_s, self.made("clips.json"), post_check.article_said(self.long_words()))
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
             return False, f"desc_check failed: {e}"
         self.warns += [("out.youtube", x) for x in w]
         bad += b
+        if self.long_words() is None: bad.append('numbers in the descriptions cannot be checked: plan_long.json names no "words" file that exists')  # as out.posts: never a silent skip
         return not bad, "; ".join(bad[:8])
 
     def out_titles(self):

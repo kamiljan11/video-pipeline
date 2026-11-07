@@ -133,6 +133,27 @@ class ShortTest(unittest.TestCase):
             self.assertEqual(D.short_check("s1", (out / "youtube/shorts/s1.md").read_text()), ([], []))
 
 
+class NumbersTest(unittest.TestCase):  # round 2 X3: one rule for every form
+    def test_numbers_the_film_never_says_fail_labels_and_sources_do_not_count(self):
+        said = {"3", "4"}
+        self.assertEqual(D.loose_numbers("long", "W 3 na 4 porażkach.", said), [])
+        self.assertEqual(D.loose_numbers("long", "W 3 na 5 porażkach.", said), ["long: numbers the film does not say: 5 (say them in the film or drop them)"])
+        ok = ("0:00 Wstęp\n5:51 Pomysł 2: blizna\n2. Każdy błąd\n#AI2\nhttps://kamiljan.com/blog/a-92?utm_campaign=2026-11-04\n"
+              "Badanie (arXiv 2606.09863): https://arxiv.org/abs/2606.09863\nPełny film: https://youtu.be/x1")
+        self.assertEqual(D.loose_numbers("long", ok, said), [])
+        self.assertTrue(D.loose_numbers("long", "92% zmian: https://kamiljan.com/blog/a", said))  # our own link backs nothing
+        self.assertEqual(D.loose_numbers("long", "99 rzeczy", None), [])  # no words: skipped
+
+    def test_check_reads_the_long_and_every_short(self):
+        with tempfile.TemporaryDirectory() as t:
+            out = Path(t); (out / "youtube/shorts").mkdir(parents=True)
+            (out / "youtube/long.md").write_text(LONG.replace("Kod z AI, który", "Kod z AI w 7 krokach, który"))
+            (out / "youtube/shorts/s1.md").write_text(SHORT.replace("## Tytuł\nx", "## Tytuł\n9 błędów AI"))
+            bad, _ = D.check(out, 20 * 60, ["s1"], {"3"})
+            self.assertTrue(any(b.startswith("long: numbers") and "7" in b for b in bad), bad)
+            self.assertTrue(any(b.startswith("s1: numbers") and "9" in b for b in bad), bad)
+
+
 class FolderTest(unittest.TestCase):
     def test_the_same_line_in_two_shorts_and_a_missing_file(self):
         with tempfile.TemporaryDirectory() as t:
