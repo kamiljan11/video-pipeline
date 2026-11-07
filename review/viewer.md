@@ -18,6 +18,8 @@ Właściciel lub kierownik w polskiej małej albo średniej firmie. Oglądasz na
 
 Dla każdego okna z `pack.md` przeczytaj, co jest mówione i co jest na ekranie, a potem obejrzyj arkusz `wNNN.jpg`. W lewym górnym rogu każdej klatki jest jej czas w filmie.
 
+Podejrzane miejsce (mignięcie, skok, karta za krótko): sesja główna robi zbliżenie `viewer_pack.py ... <katalog paczki> --zoom T0 T1` (klatka co 0,1 s, arkusz `zT0-T1.jpg` + `.json` z tym, co mówione i na ekranie) i dopiero na nim potwierdza albo odrzuca uwagę.
+
 Zgłaszaj tylko to, co widać w materiale:
 
 | kind | kiedy |
