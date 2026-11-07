@@ -50,6 +50,7 @@ def spec(**change):
 class CheckTest(unittest.TestCase):
     def test_a_good_spec_passes(self):
         self.assertEqual(linkedin.check(spec(), RULES), [])
+        self.assertEqual(linkedin.check(spec(hashtags=[], cta_variant="question"), RULES), [])  # round 2: 0 hashtags, A/B label of the closing call
 
     def test_every_broken_rule_is_named(self):
         slides = SPEC["carousel"]["slides"]
@@ -58,7 +59,8 @@ class CheckTest(unittest.TestCase):
             "first two lines": spec(text="a" * 140 + "\n" + "b" * 100 + "\n" + SPEC["text"]),
             "has a link": spec(text=SPEC["text"] + " https://example.com"),
             "en/em dash": spec(text=SPEC["text"] + " a – b"),
-            "hashtags\": 2": spec(hashtags=["AI", "biznes"]),
+            "hashtags\": 4": spec(hashtags=["AI", "biznes", "kod", "praca"]),
+            '"cta_variant": \'pytanie\'': spec(cta_variant="pytanie"),
             "single words": spec(hashtags=["#AI", "biznes", "x y"]),
             "at least": spec(text=HOOK),
             "first_comment": spec(first_comment="x" * 2000),

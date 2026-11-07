@@ -63,12 +63,15 @@ def _lines(text: str) -> list[str]:
     return [ln.strip() for ln in text.strip().split("\n") if ln.strip()]
 
 
-SPEC_KEYS, SLIDE_KEYS = {"text", "hashtags", "first_comment", "carousel"}, {"type", "title", "sub", "body", "photo"}
+CTA_VARIANTS = ("question", "ps")
+SPEC_KEYS, SLIDE_KEYS = {"text", "hashtags", "first_comment", "carousel", "cta_variant"}, {"type", "title", "sub", "body", "photo"}
 
 
 def check(spec: dict, rules: dict) -> list[str]:
     """every rule the spec breaks, named; [] = fine"""
     out = [f'unknown key "{k}" (a typo? known: {", ".join(sorted(SPEC_KEYS))})' for k in sorted(set(spec) - SPEC_KEYS)]
+    if "cta_variant" in spec and spec["cta_variant"] not in CTA_VARIANTS:  # round 2 LI4: the A/B label of the closing call, never posted
+        out.append(f'"cta_variant": {spec["cta_variant"]!r}, want one of {", ".join(CTA_VARIANTS)}')
     return out + _check_text(spec, rules["text"]) + _check_carousel(spec.get("carousel"), rules["carousel"])
 
 
