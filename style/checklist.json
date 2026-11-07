@@ -103,6 +103,8 @@
     {"id": "out.posts", "fmt": "out", "metric": "out_posts", "op": "true",
      "why": "Kamil 4.11: posts ready to upload; 5.11: the graphic alone carries the message (post_check.py: OCR finds its words, WCAG contrast, 15-230 words) and the text completes it (60-130 words, <= 3 hashtags, last line a question for the comments: Kamil 2026-11-07)"},
     {"id": "out.article", "fmt": "out", "metric": "out_article", "op": "true",
-     "why": "Kamil 2026-11-07: from the film also a detailed blog article on kamiljan.com that links the YouTube film and adds what the film does not say (article_check.py: the site's post tests + >= 1200 Polish words, sources, numbers said or sourced)"}
+     "why": "Kamil 2026-11-07: from the film also a detailed blog article on kamiljan.com that links the YouTube film and adds what the film does not say (article_check.py: the site's post tests + >= 1200 Polish words, sources, numbers said or sourced)"},
+    {"id": "out.instagram", "fmt": "out", "metric": "out_instagram", "op": "true",
+     "why": "Kamil 2026-11-07: Instagram graphic posts and carousels from the film, shorts as Reels (ig_check.py, creator study round 2 IG1/IG2/IG4/IG6: FAIL on platform limits and numbers the film never says, the rest WARN)"}
   ]
 }

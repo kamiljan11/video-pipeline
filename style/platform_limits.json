@@ -1,9 +1,26 @@
 {
- "_doc": "One table of limits per form (round 2 X2, C12). desc_check.py and post_check.py read it (Instagram limits come with ig_check.py): a limit changes in one place. hashtags: warn above 'warn', fail above 'fail'. Sources: SYNTH2-yt-description D6/D9 (long 15/16 use 0 in the first lines), SYNTH2-shorts (#shorts 0/10 creators), SYNTH2-linkedin R1 (6/6 median 0), SYNTH2-instagram R1 (IG doc: 3-5). Long: global 8/9 creators use 0, the 3 Polish ones 3-7 (SYNTH2-long, resynth 2026-11-07): warn above 3, fail above 7 (the most seen). short_desc (round 2 S2/S3, 32 shorts): lines and words counted BEFORE the long's link and the footer; title_copy_max = share of the title's words the description may repeat.",
+ "_doc": "One table of limits per form (round 2 X2, C12). desc_check.py, post_check.py and ig_check.py read it: a limit changes in one place. hashtags: warn above 'warn', fail above 'fail'. Sources: SYNTH2-yt-description D6/D9 (long 15/16 use 0 in the first lines), SYNTH2-shorts (#shorts 0/10 creators), SYNTH2-linkedin R1 (6/6 median 0), SYNTH2-instagram R1 (IG doc: 3-5). Long: global 8/9 creators use 0, the 3 Polish ones 3-7 (SYNTH2-long, resynth 2026-11-07): warn above 3, fail above 7 (the most seen). short_desc (round 2 S2/S3, 32 shorts): lines and words counted BEFORE the long's link and the footer; title_copy_max = share of the title's words the description may repeat. instagram (SYNTH2-instagram): 5 tags = platform limit (R1), 2200 caption (R2, secondary), ~125 before 'więcej' (R2, secondary), 5-10 slides ok and 20 max (R6), alt_max 1000 = API value, not verified (R12).",
  "hashtags": {
-  "long": {"warn": 3, "fail": 7},
-  "short": {"warn": 2, "fail": 3},
-  "linkedin": {"warn": 0, "fail": 3}
+  "long": {
+   "warn": 3,
+   "fail": 7
+  },
+  "short": {
+   "warn": 2,
+   "fail": 3
+  },
+  "linkedin": {
+   "warn": 0,
+   "fail": 3
+  },
+  "instagram": {
+   "warn": 3,
+   "fail": 5
+  },
+  "instagram_reel": {
+   "warn": 3,
+   "fail": 5
+  }
  },
  "long_desc": {
   "line1_max": 110,
@@ -16,5 +33,15 @@
   "lines_max": 3,
   "words_max": 50,
   "title_copy_max": 0.8
+ },
+ "instagram": {
+  "caption_max": 2200,
+  "line1_max": 125,
+  "slides_ok": [
+   5,
+   10
+  ],
+  "slides_max": 20,
+  "alt_max": 1000
  }
 }

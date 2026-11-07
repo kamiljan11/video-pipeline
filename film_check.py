@@ -26,6 +26,7 @@ import count_check  # the count he says is the count on the card
 import desc_check  # the YouTube descriptions (round 2 Y0-Y5, S2-S3)
 import gfx_types  # next to this script: which card types are a separate screen
 import hook_check  # the 6 hook killers
+import ig_check  # the Instagram carousels and Reel captions (round 2 IG1-IG6)
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 import thumb_check  # the long thumbnails as the feed shows them
 import title_check  # the A/B/C titles of the long
@@ -481,6 +482,15 @@ class Out:
         self.warns += [("out.article", f"{a.parent.name}: {w}") for a in arts for w in article_check.warnings(a.parent)]
         return not bad, "; ".join(bad[:8])
 
+
+    def out_instagram(self):
+        """the Instagram form (team/roles/social.md): out/instagram/<post>/ carousels + reels/<short>.json pass ig_check,
+        numbers checked against the long's words (without them the item fails, as out.posts)"""
+        wf = self.long_words()
+        if wf is None: return False, 'numbers in the Instagram captions cannot be checked: plan_long.json names no "words" file that exists'
+        bad, warn = ig_check.check(self.out / "instagram", wf)
+        self.warns += [("out.instagram", w) for w in warn]
+        return not bad, "; ".join(bad[:8])
 
 def judge(obj, item: dict) -> tuple[str, str]:
     skip = (obj.plan.get("skip") or {}).get(item["id"])

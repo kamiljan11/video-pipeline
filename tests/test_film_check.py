@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_article  # an article folder that passes article_check
+import test_ig_check  # an Instagram carousel that passes ig_check
 
 ROOT = Path(__file__).resolve().parent.parent
 FACE_MODEL = ROOT / "models" / "face_detection_yunet_2023mar.onnx"
@@ -394,6 +395,8 @@ class FilmCheckTest(unittest.TestCase):
         r, rep = self.run_check("--out", str(out))
         self.assertIn("cannot be checked", rep["out.article"]["detail"])  # no words of the long: the numbers check must not pass quietly
         self.assertIn("opening cannot be checked", rep["out.titles"]["detail"])  # nor the titles' promise
+        self.assertIn("Instagram captions cannot be checked", rep["out.instagram"]["detail"])
+        test_ig_check.make(out)  # out/instagram/p01: one carousel that passes ig_check
         opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
         r, rep = self.run_check("--out", str(out))
