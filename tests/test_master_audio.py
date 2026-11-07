@@ -53,6 +53,11 @@ class MasterTest(unittest.TestCase):
             M.master = broken
             with self.assertRaises(SystemExit) as e: M.master_in_place(film, {})
             self.assertIn("ffmpeg died", str(e.exception))
+            def no_json(f, o, lufs, tp):
+                Path(o).write_text("half"); raise ValueError("substring not found")  # loudnorm printed no JSON block
+            M.master = no_json
+            with self.assertRaises(SystemExit) as e: M.master_in_place(film, {})
+            self.assertIn("FAILED master", str(e.exception))
         finally:
             M.master = real
         self.assertEqual(self.film.stat().st_size, size)

@@ -45,22 +45,29 @@ class PictureTest(unittest.TestCase):
         thumb(self.out / "thumbnails/long_A.jpg", "SZLABAN", 200)
         thumb(self.out / "thumbnails/long_B.jpg", "BLIZNA ZOSTAJE NA ZAWSZE", 14)  # 3.5 px at 320 wide
         spec = {"long": [{"id": "A", "big": "SZLABAN"}, {"id": "B", "big": "BLIZNA ZOSTAJE NA ZAWSZE"}]}
-        bad = T.problems(spec, self.out, [])
+        bad = [b for b in T.problems(spec, self.out, []) if not b.startswith("no face model")]  # CI: models/ is not in git
         self.assertEqual(len(bad), 1, bad)
         self.assertIn("long_B: at 320 px only", bad[0])
 
     def test_every_variant_with_a_face_and_a_missing_file_are_named(self):
         thumb(self.out / "thumbnails/long_A.jpg", "SZLABAN", 200)
         spec = {"long": [{"id": "A", "big": "SZLABAN"}, {"id": "B", "big": "BLIZNA"}]}
-        real = T.has_face
+        real, model = T.has_face, T.FACE_MODEL
         try:
-            T.has_face = lambda img: True
+            T.has_face, T.FACE_MODEL = (lambda img: True), Path(__file__)  # any file: the model is "there"
             bad = T.problems(spec, self.out, [])
+            T.FACE_MODEL = self.out / "none.onnx"
+            gone = T.problems(spec, self.out, [])
         finally:
-            T.has_face = real
+            T.has_face, T.FACE_MODEL = real, model
         self.assertIn("long_B: no long_B.jpg", bad)
         self.assertTrue(any(b.startswith("all 1 long variants show a face") for b in bad), bad)
-        self.assertFalse(T.has_face(self.out / "thumbnails/long_A.jpg"))  # YuNet on a picture of words: no face
+        self.assertTrue(any(b.startswith("no face model") for b in gone), gone)  # named, never a pass
+
+    @unittest.skipUnless(T.FACE_MODEL.is_file(), "no face model (models/ is not in git; CI has none)")
+    def test_yunet_sees_no_face_in_a_picture_of_words(self):
+        thumb(self.out / "thumbnails/long_A.jpg", "SZLABAN", 200)
+        self.assertFalse(T.has_face(self.out / "thumbnails/long_A.jpg"))
 
     def test_cli(self):
         self.assertEqual(T.main([]), 2)

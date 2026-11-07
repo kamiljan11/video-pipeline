@@ -83,10 +83,11 @@ def problems(spec: dict, out: Path, titles: list[str]) -> list[str]:
         if not img.is_file(): bad.append(f"long_{v['id']}: no {img.name}"); continue
         share = max(read_share(v.get("big", ""), seen) for seen in read_small(img))
         if share < OCR_MIN: bad.append(f"long_{v['id']}: at {SMALL} px only {share:.0%} of {v.get('big')!r} is read (want >= {OCR_MIN:.0%}): bigger or fewer letters")
-        faces.append(has_face(img))
+        if FACE_MODEL.is_file(): faces.append(has_face(img))
         words = " ".join(str(v.get(k, "")) for k in ("big", "sub", "tag"))
         for t in titles:
             if title_share(words, t) >= SHARE_MAX: bad.append(f"long_{v['id']}: {title_share(words, t):.0%} of its words are in the title {t!r} (want < {SHARE_MAX:.0%})")
+    if not FACE_MODEL.is_file(): bad.append(f"no face model {FACE_MODEL}: the variant without a face cannot be checked (README, setup)")
     if faces and all(faces): bad.append(f"all {len(faces)} long variants show a face: make one without (a chart, the number, the screen)")
     return bad
 
@@ -97,7 +98,7 @@ def main(argv: list[str]) -> int:
     titles = [r["title"] for r in title_check.titles(md.read_text())] if md.is_file() else []
     try:
         bad = problems(json.loads(Path(argv[0]).read_text()), out, titles)
-    except (RuntimeError, OSError, ValueError, subprocess.SubprocessError) as e:
+    except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:
         print(f"FAILED thumb_check: {e}", file=sys.stderr); return 1
     print("\n".join(bad) or "OK thumb_check")
     return 1 if bad else 0

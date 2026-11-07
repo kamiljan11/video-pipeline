@@ -16,6 +16,7 @@ import inspect
 import itertools
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import NoReturn
@@ -364,7 +365,10 @@ class Out:
         if not spec.exists(): return False, "no thumbs.json next to the plans (thumbs.mjs input)"
         md = self.out / "youtube" / "long.md"
         titles = [r["title"] for r in title_check.titles(md.read_text())] if md.exists() else []
-        bad = thumb_check.problems(load(spec, "thumbs.json"), self.out, titles)
+        try:
+            bad = thumb_check.problems(load(spec, "thumbs.json"), self.out, titles)
+        except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
+            return False, f"thumb_check failed: {e}"
         return not bad, "; ".join(bad[:8])
 
     def out_posts(self):

@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_article  # an article folder that passes article_check
 
 ROOT = Path(__file__).resolve().parent.parent
+FACE_MODEL = ROOT / "models" / "face_detection_yunet_2023mar.onnx"
 BRAND = json.loads((ROOT / "style" / "brand.json").read_text())["lower_sub"]
 
 
@@ -326,8 +327,9 @@ class FilmCheckTest(unittest.TestCase):
         opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
         r, rep = self.run_check("--out", str(out))
-        bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k not in ("out.posts", "out.thumbs_read") or shutil.which("tesseract"))}
-        self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts and out.thumbs_read read by OCR (tesseract: local and CI)
+        bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k not in ("out.posts", "out.thumbs_read") or shutil.which("tesseract"))
+               and (k != "out.thumbs_read" or FACE_MODEL.is_file())}
+        self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts and out.thumbs_read read by OCR (tesseract: local and CI); the face model is not in git (models/), CI has none
 
     def test_titles_are_checked_against_length_phrase_source_and_opening(self):  # title_check.py, out.titles
         opening(self.d)
