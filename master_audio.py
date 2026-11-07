@@ -2,9 +2,10 @@
 """master_audio.py: loudness and true peak on the FINISHED mix (Skool CCC G1/A11, P1 task 7).
 
 assemble.py normalises the voice alone, then adds music and SFX and a sample-peak limiter: film 2's long came out at
--14.6 LUFS with a true peak of +1.9 dBFS (clips after AAC). This runs ffmpeg loudnorm twice on the whole mix (measure,
-then apply with the measured values), limits the peaks at 4x oversampling, copies the video untouched, measures the
-result again and writes a report.
+-14.6 LUFS with a true peak of +1.9 dBFS (clips after AAC). This measures the whole mix (EBU R128), sets the gain to
+the target itself (ffmpeg loudnorm leaves its linear mode for a dynamic one when the peaks would pass its ceiling, and
+then lands up to 0.6 LU short), limits the peaks at 4x oversampling, copies the video untouched, measures the result
+again (one correction pass when the limiter took loudness away) and writes a report.
 
   python3 master_audio.py <film.mp4> <out.mp4> [--lufs -14] [--tp -1.5] [--report <json>]
 assemble.py runs it when the EDL has "master": {"lufs": -14, "tp": -1.5} (plan key "master"; without it nothing changes).
@@ -18,7 +19,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-LUFS, TP, LRA = -14.0, -1.5, 11.0
+LUFS, TP = -14.0, -1.5
 LU_TOL = 0.5
 TP_MARGIN = 0.5    # dB under the ceiling for the limiter: AAC still adds a little
 LOWPASS = 16000    # Hz
@@ -34,11 +35,6 @@ def _ff(args: list[str]) -> str:
     return r.stderr
 
 
-def measure_loudnorm(film: str, lufs: float, tp: float) -> dict:
-    out = _ff(["-i", film, "-vn", "-af", f"loudnorm=I={lufs}:TP={tp}:LRA={LRA}:print_format=json", "-f", "null", "-"])
-    return json.loads(out[out.rindex("{"):out.rindex("}") + 1])
-
-
 def measure(film: str) -> dict:
     """integrated loudness and true peak as EBU R128 reads them (the same ebur128 critic.py C7 uses)"""
     out = _ff(["-i", film, "-vn", "-af", "ebur128=peak=true:framelog=quiet", "-f", "null", "-"])
@@ -47,20 +43,27 @@ def measure(film: str) -> dict:
     return {"lufs": float(i[-1]), "tp": float(p[-1])}
 
 
-def master(film: str, out: str, lufs: float = LUFS, tp: float = TP) -> dict:
-    """loudnorm sets the gain (linear, measured first); a look-ahead limiter at 4x oversampling (192 kHz) holds the peaks
-    TP_MARGIN under the ceiling; a LOWPASS before AAC: the encoder put ~4 dB of overs on film 2's top end (TP -1.7 in PCM,
-    +2.3 after AAC; with the low-pass -2.0). YouTube's own encode cuts about there anyway."""
-    before, m = measure(film), measure_loudnorm(film, lufs, tp)
-    ln = (f"loudnorm=I={lufs}:TP={tp}:LRA={LRA}:measured_I={m['input_i']}:measured_TP={m['input_tp']}:"
-          f"measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}:offset={m['target_offset']}:linear=true")
+def _apply(film: str, out: str, gain: float, tp: float) -> dict:
+    """the gain (dB, linear); a look-ahead limiter at 4x oversampling (192 kHz) holds the peaks TP_MARGIN under the ceiling;
+    a LOWPASS before AAC: the encoder put ~4 dB of overs on film 2's top end (TP -1.7 in PCM, +2.3 after AAC; with the
+    low-pass -2.0). YouTube's own encode cuts about there anyway."""
     lim = 10 ** ((tp - TP_MARGIN) / 20)
-    chain = f"{ln},lowpass=f={LOWPASS},aresample=192000,alimiter=limit={lim:.4f}:attack=5:release=50:level=disabled,aresample=48000"
+    chain = (f"volume={gain:.2f}dB,lowpass=f={LOWPASS},aresample=192000,"
+             f"alimiter=limit={lim:.4f}:attack=5:release=50:level=disabled,aresample=48000")
     _ff(["-y", "-i", film, "-map", "0:v?", "-map", "0:a", "-c:v", "copy", "-af", chain,
          "-c:a", "aac", "-b:a", "256k", "-ac", "2", "-movflags", "+faststart", out])
-    after = measure(out)
+    return measure(out)
+
+
+def master(film: str, out: str, lufs: float = LUFS, tp: float = TP) -> dict:
+    before = measure(film)
+    gain = lufs - before["lufs"]
+    after = _apply(film, out, gain, tp)
+    if abs(after["lufs"] - lufs) > LU_TOL / 2:  # the limiter took some loudness: once more with the difference added
+        gain += lufs - after["lufs"]
+        after = _apply(film, out, gain, tp)
     ok = abs(after["lufs"] - lufs) <= LU_TOL and after["tp"] <= tp
-    return {"film": film, "out": out, "target": {"lufs": lufs, "tp": tp, "lu_tol": LU_TOL}, "before": before, "after": after, "ok": ok}
+    return {"film": film, "out": out, "target": {"lufs": lufs, "tp": tp, "lu_tol": LU_TOL}, "gain_db": round(gain, 2), "before": before, "after": after, "ok": ok}
 
 
 def master_in_place(final: str, cfg: dict) -> dict:
@@ -69,7 +72,7 @@ def master_in_place(final: str, cfg: dict) -> dict:
     tmp = final + ".master.mp4"
     try:
         rep = master(final, tmp, cfg.get("lufs", LUFS), cfg.get("tp", TP))
-    except (RuntimeError, ValueError, KeyError) as e:  # ValueError/KeyError: loudnorm printed no or a broken JSON block
+    except (RuntimeError, ValueError, KeyError) as e:  # ValueError/KeyError: a measurement that cannot be read
         Path(tmp).unlink(missing_ok=True)
         raise SystemExit(f"FAILED master {final}: {e} (unmastered file kept)") from e
     Path(final).with_suffix(".master.json").write_text(json.dumps(rep, indent=1))
