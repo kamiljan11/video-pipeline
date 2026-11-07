@@ -424,14 +424,21 @@ class Out:
             return False, f"thumb_check failed: {e}"
         return not bad, "; ".join(bad[:8])
 
+    def long_words(self) -> Path | None:
+        """the long's whisper words file (plan_long.json "words"), None when it is not named or missing"""
+        plan = self.work / "plan_long.json"
+        words = load(plan, "plan_long.json").get("words") if plan.exists() else None
+        return self.work / words if words and (self.work / words).exists() else None
+
     def out_posts(self):
         want = self.made("posts.json")
         if not want: return False, "posts.json has no post with \"make\": true (social role)"
+        wf = self.long_words()  # numbers in a post must be said in the film (PLAN 4.2); without words post_check notes the skip
         bad = []
         for pid in want:
             d = self.out / "posts" / pid
             if not (d / "post.md").exists(): bad.append(f"{pid}: no post.md")
-            bad += [f"{pid}: {p}" for p in post_check.problems(d)]  # the graphic alone (OCR, contrast) and the text habits
+            bad += [f"{pid}: {p}" for p in post_check.problems(d, wf)]  # the graphic alone (OCR, contrast) and the text habits
         return not bad, "; ".join(bad)
 
     def out_article(self):
@@ -439,9 +446,7 @@ class Out:
         checked against the long's words (plan_long.json "words"; without them the item fails)"""
         arts = sorted((self.out / "blog").glob("*/article.json"))
         if not arts: return False, "no out/blog/<slug>/article.json (artykul role)"
-        plan = self.work / "plan_long.json"
-        words = load(plan, "plan_long.json").get("words") if plan.exists() else None
-        wf = self.work / words if words and (self.work / words).exists() else None
+        wf = self.long_words()
         if wf is None: return False, 'numbers in the article cannot be checked: plan_long.json names no "words" file that exists'
         bad = [f"{a.parent.name}: {p}" for a in arts for p in article_check.problems(a.parent, wf)]
         return not bad, "; ".join(bad[:8])

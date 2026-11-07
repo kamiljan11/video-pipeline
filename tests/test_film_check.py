@@ -374,7 +374,7 @@ class FilmCheckTest(unittest.TestCase):
         self.assertIn("s1", rep["out.shorts_all"]["detail"])
         for p, body in {"long/film.mp4": "", "shorts/s1.mp4": "", 
                         "thumbnails/s1_cover.jpg": "", "posts/p1/post.md": "x", "posts/p1/slide.png": "",
-                        "posts/p1/linkedin.json": json.dumps({"text": " ".join(["słowo"] * 80) + "\nRepo w komentarzu.\nA jak to wygląda u Ciebie?", "hashtags": ["AI"]}),
+                        "posts/p1/linkedin.json": json.dumps({"text": "Recenzent znalazł błąd w wydaniu.\n" + " ".join(["słowo"] * 80) + "\nRepo w komentarzu.\nA jak to wygląda u Ciebie?", "hashtags": ["AI"]}),
                         "youtube/shorts/s1.md": "## Tytuł\n## Opis\n",
                         "youtube/long.md": LONG_MD}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
