@@ -69,7 +69,7 @@ def master_in_place(final: str, cfg: dict) -> dict:
     tmp = final + ".master.mp4"
     try:
         rep = master(final, tmp, cfg.get("lufs", LUFS), cfg.get("tp", TP))
-    except RuntimeError as e:
+    except (RuntimeError, ValueError, KeyError) as e:  # ValueError/KeyError: loudnorm printed no or a broken JSON block
         Path(tmp).unlink(missing_ok=True)
         raise SystemExit(f"FAILED master {final}: {e} (unmastered file kept)") from e
     Path(final).with_suffix(".master.json").write_text(json.dumps(rep, indent=1))

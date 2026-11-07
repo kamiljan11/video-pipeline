@@ -25,6 +25,37 @@ def words(n: int, step: float = 1.0) -> dict:
 
 
 
+LONG_MD = """## Tytuły
+
+| wariant | kąt | tytuł | źródło |
+|---|---|---|---|
+| A | wynik | Kod z AI, który sam się sprawdza | kanał X: Kod z AI bez błędów |
+| B | ciekawość | AI agent mówi gotowe | kanał Y: Agent mówi done |
+| C | problem | Agent AI kłamie, że kod działa | kanał X: Agent AI kłamie |
+
+## Fraza kluczowa
+
+kod z AI, agent AI
+
+## Opis
+x
+## Rozdziały
+0:00 a
+1:00 b
+2:00 c
+## Tagi
+x
+"""
+
+
+def opening(d: Path) -> None:
+    """the long's words (with "siedemnaście" for the article's numbers) and an EDL: what the titles promise is said in the first 30 s"""
+    said = ["siedemnaście", "agent", "AI", "mówi", "gotowe", "kod", "działa", "sprawdza"]
+    (d / "w.json").write_text(json.dumps({"transcription": [{"offsets": {"from": i * 1000, "to": i * 1000 + 500}, "text": f" {w}"}
+                                                            for i, w in enumerate(said)]}))
+    (d / "edl_long.json").write_text(json.dumps({"segments": [{"src": "A", "in": 0.0, "out": 20.0, "zoom": 1.0}]}))
+
+
 POST_LINES = ["Każdy błąd zostawia bliznę", "Nowe sprawdzenie w systemie", "Ten sam błąd nie przejdzie drugi raz",
               "Jak nowy punkt w procedurze pilota"]
 
@@ -271,7 +302,7 @@ class FilmCheckTest(unittest.TestCase):
                         "thumbnails/s1_cover.jpg": "", "posts/p1/post.md": "x", "posts/p1/slide.png": "",
                         "posts/p1/linkedin.json": json.dumps({"text": " ".join(["słowo"] * 80) + "\nRepo w komentarzu.\nA jak to wygląda u Ciebie?", "hashtags": ["AI"]}),
                         "youtube/shorts/s1.md": "## Tytuł\n## Opis\n",
-                        "youtube/long.md": "## Tytuły\n| A | t |\n| B | t |\n| C | t |\n## Opis\nx\n## Rozdziały\n0:00 a\n1:00 b\n2:00 c\n## Tagi\nx\n"}.items():
+                        "youtube/long.md": LONG_MD}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
         r, rep = self.run_check("--out", str(out))
         self.assertIn("no grafika.png", rep["out.posts"]["detail"])  # a picture alone is not enough: the graphic that says it (post_check)
@@ -281,11 +312,30 @@ class FilmCheckTest(unittest.TestCase):
         test_article.article(out / "blog/bramki-dla-agenta")  # the blog article for kamiljan.com (article_check)
         r, rep = self.run_check("--out", str(out))
         self.assertIn("cannot be checked", rep["out.article"]["detail"])  # no words of the long: the numbers check must not pass quietly
-        (self.d / "w.json").write_text(json.dumps({"transcription": [{"text": " siedemnaście"}]}))
+        self.assertIn("opening cannot be checked", rep["out.titles"]["detail"])  # nor the titles' promise
+        opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
         r, rep = self.run_check("--out", str(out))
         bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k != "out.posts" or shutil.which("tesseract"))}
         self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts reads the graphic by OCR (tesseract: local and CI)
+
+    def test_titles_are_checked_against_length_phrase_source_and_opening(self):  # title_check.py, out.titles
+        opening(self.d)
+        (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
+        yt = self.d / "out" / "youtube"; yt.mkdir(parents=True)
+        cases = {"too long": (LONG_MD.replace("AI agent mówi gotowe", "AI agent mówi gotowe, a potem przez cały tydzień naprawiam to, co zepsuł"), "B: 72 characters"),
+                 "phrase late": (LONG_MD.replace("Agent AI kłamie, że kod działa", "Dlaczego mój program kłamie o kodzie z AI"), "C: no word of the phrase"),
+                 "no source": (LONG_MD.replace("| kanał X: Agent AI kłamie |", "|  |"), "C: empty źródło"),
+                 "promise not said": (LONG_MD.replace("Kod z AI, który sam się sprawdza", "Kod: 92% mniej przeglądów w miesiąc"), "A: the first 30 s say")}
+        for name, (md, want) in cases.items():
+            with self.subTest(name):
+                (yt / "long.md").write_text(md)
+                _, rep = self.run_check("--out", str(self.d / "out"))
+                self.assertEqual(rep["out.titles"]["status"], "FAIL")
+                self.assertIn(want, rep["out.titles"]["detail"])
+        (yt / "long.md").write_text(LONG_MD)
+        _, rep = self.run_check("--out", str(self.d / "out"))
+        self.assertEqual(rep["out.titles"]["status"], "OK", rep["out.titles"])
 
     def test_bad_inputs_are_named_with_exit_2(self):  # 1 means "items missing"; a broken file is another thing
         self.project(*self.full_long(), music_palette={"name": "lofi", "key": 2})

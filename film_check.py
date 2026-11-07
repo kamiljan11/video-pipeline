@@ -24,6 +24,7 @@ import article_check  # the kamiljan.com blog article made from the film
 import count_check  # the count he says is the count on the card
 import gfx_types  # next to this script: which card types are a separate screen
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
+import title_check  # the A/B/C titles of the long
 
 ROOT = Path(__file__).resolve().parent
 CHECKLIST = ROOT / "style" / "checklist.json"
@@ -338,6 +339,14 @@ class Out:
         miss = [c for c in self.made("clips.json") if not (self.out / "youtube" / "shorts" / f"{c}.md").exists()]
         bad += [f"no out/youtube/shorts/{c}.md" for c in miss]
         return not bad, "; ".join(bad)
+
+    def out_titles(self):
+        """the A/B/C titles (title_check.py): length, the phrase in the first words, a source, the promise said in the first 30 s"""
+        p = self.out / "youtube" / "long.md"
+        if not p.exists(): return False, "no out/youtube/long.md"
+        plan = self.work / "plan_long.json"
+        bad = title_check.problems(p.read_text(), title_check.opening_words(plan) if plan.exists() else None)
+        return not bad, "; ".join(bad[:8])
 
     def out_thumbnails(self):
         d = self.out / "thumbnails"

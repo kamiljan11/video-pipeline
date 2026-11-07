@@ -84,6 +84,8 @@
      "why": "Kamil 4.11: 'nie wiem czy nie jesteś leniwy z ilością shortów': every clip in clips.json with \"make\": true is rendered"},
     {"id": "out.youtube", "fmt": "out", "metric": "out_youtube_meta", "op": "true",
      "why": "Kamil 4.11: 'nie widzę plików z tytułami opisami per platforma': youtube/long.md with titles A/B/C, description, chapters from 0:00, tags; one file per short"},
+    {"id": "out.titles", "fmt": "out", "metric": "out_titles", "op": "true",
+     "why": "Skool CCC So3/So4/C5/C10: each A/B/C title <= 60 characters, a word of ## Fraza kluczowa in its first 3 words, a filled zrodlo column (the niche title it started from), and its promise heard in the long's first 30 s (title_check.py)"},
     {"id": "out.thumbs", "fmt": "out", "metric": "out_thumbnails", "op": "true",
      "why": "Kamil 4.11: 'miałeś mi zawsze robić a/b thumbnaile': at least 2 for the long, a cover per short"},
     {"id": "out.posts", "fmt": "out", "metric": "out_posts", "op": "true",
