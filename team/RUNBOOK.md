@@ -60,3 +60,6 @@ Render stoi (`FAILED scene_check`, `FAILED gfx`, `FAILED film_check <film>` w `r
 - Rola nie poprawia artefaktów innej roli; uwagi zapisuje w swoim artefakcie (`notes`), sesja główna rozstrzyga.
 - Ilość z jakości: shortów i postów jest tyle, ilu kandydatów przeszło próg w rubryce, nie stała liczba.
 - Nic nie jest publikowane. Wynik to folder `out/` do obejrzenia przez Kamila (memory: watch locally).
+- Uwaga Kamila -> od razu wiersz w `style/NOTES_LOG.md` i w pliku POPRAWKI rundy -> **przepisz JEDNĄ istniejącą regułę**
+  (punkt checklisty, bramka, dane stylu), nie dopisuj obok nowej; nowa tylko, gdy żadna nie dotyczy tematu. Wiersz bez
+  działającej reguły ma status `do zrobienia`, dopóki bramki nie ma (`tests/test_notes_log.py`).
