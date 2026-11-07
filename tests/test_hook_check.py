@@ -41,7 +41,7 @@ class KillerTest(unittest.TestCase):
         self.assertTrue(any(b.startswith("no stake") for b in H.problems("Niebieski system dla agenta")))  # "nie" is a word, not a stem
 
     def test_inflected_stake_words_count(self):  # review 2026-11-07: "psuj*" missed "psuło", "traci*" missed "tracą"
-        for hook in ("Psuło mi się wszystko w AI", "Tracą na tym wszyscy w AI", "Tracą wszystko", "Nikomu tego nie pokazałem"):
+        for hook in ("Psuło mi się wszystko w AI", "Tracą na tym wszyscy w AI", "Tracą wszystko", "Nikomu tego nie pokazałem", "Stracisz wszystko w AI"):
             with self.subTest(hook):
                 self.assertFalse(any(b.startswith("no stake") for b in H.problems(hook)), H.problems(hook))
 
@@ -50,6 +50,7 @@ class KillerTest(unittest.TestCase):
             with self.subTest(hook):
                 self.assertTrue(any(b.startswith("title, not a hook") for b in H.problems(hook)), H.problems(hook))
         self.assertEqual(H.problems("3 błędy kosztowały mnie 40 tys."), [])
+        self.assertEqual(H.problems("3 błędy, przez które straciłem klientów"), [])  # "strac*": stracić, straciłem, stracisz
 
     def test_a_vague_word_with_an_anchor_is_not_vague(self):  # "trik" next to a number or an acronym says something concrete
         self.assertFalse(any(b.startswith("vague") for b in H.problems("Jeden trik w CLAUDE.md zamiast 40 zasad")))
