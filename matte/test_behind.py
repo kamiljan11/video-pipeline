@@ -62,6 +62,21 @@ class Crash(FakeMatter):
         return super().__call__(rgb)
 
 
+class FlickerMatter(FakeMatter):
+    """the person's edge jumps 4 px back and forth every frame, as RVM's does around hair (behind.clean)"""
+
+    def __call__(self, rgb):
+        super().__call__(rgb)
+        p = np.zeros(rgb.shape[:2], np.float32)
+        p[:, : 30 + 4 * (len(FakeMatter.seen) % 2)] = 1
+        return p
+
+
+def flicker(alpha: np.ndarray) -> float:
+    """mean change of the card's alpha from one frame to the next"""
+    return float(np.abs(np.diff(alpha.astype(np.float32), axis=0)).mean())
+
+
 def sha(p: Path) -> str:
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -143,6 +158,25 @@ class BehindTest(unittest.TestCase):
         film = [*range(15), *range(30, 44)]
         for k, a in enumerate(self.alpha().mean(axis=(1, 2))):
             self.assertAlmostEqual(float(a), 255 - self.grey[film[9 + k]], delta=2, msg=k)
+
+    def test_clean_edges_calm_a_flickering_matte_and_keep_the_card_elsewhere(self):  # Skool CCC G3, P1 task 11
+        self.run_once(FlickerMatter)
+        raw = flicker(self.alpha())
+        self.spec["behind"]["clean"] = True
+        self.assertIn("cut out", self.run_once(FlickerMatter))  # its own key: cut out again
+        a = self.alpha()
+        self.assertEqual(len(a), 20)
+        self.assertLess(flicker(a), raw / 2, (flicker(a), raw))
+        self.assertGreaterEqual(int(a[:, :, 40:].min()), 254)  # away from the edge: the card as rendered
+        self.assertLessEqual(int(a[:, :, :24].max()), 1)       # inside the person: see-through
+        self.spec["behind"]["clean"] = "yes"
+        with self.assertRaises(behind.BehindError): self.run_once(FlickerMatter)
+
+    def test_the_old_cut_out_keeps_its_key_without_clean(self):  # films already made are not cut out again
+        self.run_once()
+        self.spec["behind"]["clean"] = False
+        with mock.patch.object(FakeMatter, "__call__", side_effect=AssertionError("matted again")):
+            self.assertIn("up to date", self.run_once())
 
     def test_nothing_changed_nothing_redone(self):
         self.run_once()
@@ -503,3 +537,19 @@ class CutOutTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CleanEdgesTest(unittest.TestCase):
+    def test_same_length_centred_mean_choke_and_feather(self):
+        m = [np.full((9, 9), float(v), np.float32) for v in (0, 1, 0, 1)]
+        out = list(behind.clean_edges(iter(m)))
+        self.assertEqual(len(out), 4)
+        self.assertAlmostEqual(float(out[0].mean()), 0.5, places=5)  # frames 0-1
+        self.assertAlmostEqual(float(out[1].mean()), 1 / 3, places=5)  # frames 0-2
+        self.assertAlmostEqual(float(out[3].mean()), 0.5, places=5)  # frames 2-3
+        self.assertEqual(len(list(behind.clean_edges(iter(m[:1])))), 1)
+        dot = np.zeros((15, 15), np.float32); dot[6:9, 6:9] = 1  # far from the frame edge: nothing blurs out of it
+        self.assertEqual(float(behind.choke(dot, 1).sum()), 1.0)  # a 3x3 person shrinks by a pixel to its centre
+        f = behind.feather(dot, 1.2)
+        self.assertAlmostEqual(float(f.sum()), 9.0, places=3)  # blur keeps the amount, spreads the edge
+        self.assertLess(float(f.max()), 1.0)

@@ -54,6 +54,10 @@ SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # specs come over Syncthing: a card id 
 SAFE_EDL = re.compile(r"[A-Za-z0-9_-]+\.json")
 MAX_PIXELS = 3840 * 2160
 Matting = Callable[[float], Callable[[np.ndarray], np.ndarray]]
+# "behind": {"clean": true} (Skool CCC G3, P1 task 11): the matte's edge flickers frame to frame around hair and shoulders.
+# Mean of CLEAN_FRAMES mattes centred on the frame, the person choked by CHOKE px (the halo of the old background goes),
+# then feathered with a Gaussian of FEATHER px. Without the key the cut-out stays as it was (films already made keep theirs).
+CLEAN_FRAMES, CHOKE, FEATHER = 3, 1, 1.2
 
 
 class BehindError(Exception):
@@ -140,6 +144,47 @@ class Matter:
                                  "r4i": self.rec[3], "downsample_ratio": self.ratio})
         self.rec = [np.asarray(r) for r in outs[2:]]
         return np.asarray(outs[1])[0, 0]
+
+
+def _shifted(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    """a moved by (dy, dx) with its edge pixels repeated: no person comes in from outside the frame"""
+    h, w = a.shape
+    p = np.pad(a, ((abs(dy), abs(dy)), (abs(dx), abs(dx))), mode="edge")
+    return p[abs(dy) - dy:abs(dy) - dy + h, abs(dx) - dx:abs(dx) - dx + w]
+
+
+def choke(a: np.ndarray, px: int) -> np.ndarray:
+    """the person shrunk by px: the smallest value in each (2px+1)^2 square"""
+    for _ in range(px):
+        a = np.minimum.reduce([_shifted(a, dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)])
+    return a
+
+
+def feather(a: np.ndarray, sigma: float) -> np.ndarray:
+    """a separable Gaussian blur of sigma px (radius 3 sigma)"""
+    r = max(1, math.ceil(3 * sigma))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2); k /= k.sum()
+    rows = np.zeros_like(a, dtype=np.float32)
+    for i in range(-r, r + 1): rows += k[i + r] * _shifted(a, 0, i)
+    out = np.zeros_like(rows)
+    for i in range(-r, r + 1): out += k[i + r] * _shifted(rows, i, 0)
+    return out
+
+
+def clean_edges(mattes: Iterator[np.ndarray]) -> Iterator[np.ndarray]:
+    """each matte as the mean of CLEAN_FRAMES centred on it (fewer at the start and the end), choked and feathered; one
+    matte of look-ahead, so the stream comes out one frame later and just as long"""
+    half, win = CLEAN_FRAMES // 2, []
+    def out(m: list[np.ndarray]) -> np.ndarray:
+        return np.clip(feather(choke(np.mean(m, axis=0), CHOKE), FEATHER), 0, 1).astype(np.float32)
+    k = 0  # index of the next matte to give
+    for m in mattes:
+        win.append(m)
+        if len(win) - 1 - k >= half:
+            yield out(win[max(0, k - half):k + half + 1]); k += 1
+            if k > half: win.pop(0); k -= 1
+    while k < len(win):
+        yield out(win[max(0, k - half):k + half + 1]); k += 1
 
 
 def cut_out(rgba: np.ndarray, person: np.ndarray | None) -> np.ndarray:
@@ -252,8 +297,13 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     ratio = spec["behind"].get("ratio", 0.2)
     if not (num(ratio) and 0 < ratio <= 1):
         raise BehindError(f"{cid}: ratio {ratio!r} must be a number in (0, 1]")
+    clean = spec["behind"].get("clean", False)
+    if not isinstance(clean, bool):
+        raise BehindError(f"{cid}: clean {clean!r} must be true or false")
     key = hashlib.sha256(json.dumps([VERSION, window_key(edl, o["at"], n), sha(front), ratio, MODEL_SHA,
-                                     hashlib.sha256(framing_src().encode()).hexdigest()], sort_keys=True).encode()).hexdigest()
+                                     hashlib.sha256(framing_src().encode()).hexdigest()]
+                                    + ([["clean", CLEAN_FRAMES, CHOKE, FEATHER]] if clean else []),  # absent = the old key
+                                    sort_keys=True).encode()).hexdigest()
     cover = gfx / f"{cid}.cover.json"
     if mark == MARK + key and cover_key(cover) == key:  # the card AND its measure belong to this cut-out
         return f"{cid}: up to date"
@@ -262,7 +312,8 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     matter = (matter_for or Matter)(ratio)
     tmp = temp_in(gfx, cid)
     try:
-        covered = _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter)
+        covered = _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter,
+                          clean)
         # how much of the card the speaker hides, for film_check (Kamil 2026-11-05: "WYZNANIE" with the head over the
         # middle letters could not be read). Written before the card with the card's key: a run killed in between leaves
         # a measure the old card does not match, so the next run cuts out again (the "up to date" test needs both)
@@ -276,7 +327,7 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
 
 
 def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int, int], frames: Iterator[np.ndarray],
-            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray]) -> float:
+            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray], clean: bool = False) -> float:
     """writes the cut-out card to tmp; returns the share of the card the speaker covers, the worst frame among those
     where the card is fully in (at least half of its largest opacity: the fade in and out do not count)"""
     w, h = size
@@ -303,8 +354,8 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
                     shares.append((tot, float((a * p).sum()) / tot))
             sink.write(cut_out(rgba, p).tobytes())
 
-        for i, rgb in enumerate(frames):
-            person = matter(rgb)
+        mattes = (matter(rgb) for rgb in frames)
+        for i, person in enumerate(clean_edges(mattes) if clean else mattes):
             if first + i >= c0:
                 put(person); done += 1
         for _ in range(done, n):  # the film ends under the card: its last matte (deterministic, never empty memory)

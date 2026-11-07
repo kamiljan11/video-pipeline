@@ -51,3 +51,9 @@ RVM na CPU, kilka minut na film).
 
 **Kryterium przeglądu (2027-01-31):** zostaje, gdy co najmniej jeden opublikowany film ma kartę `"behind"`. Gdy żaden: usunąć
 `behind.py`, `matte/` i oba wywołania.
+
+**Aktualizacja 2026-11-07 (Skool CCC G3, P1 #11):** krawędź maski RVM migocze klatka do klatki przy włosach i ramionach.
+Opcja karty `"behind": {"clean": true}`: średnia z 3 mat wyśrodkowana na klatce (1 klatka wyprzedzenia), choke 1 px,
+feather Gauss 1,2 px, tylko numpy (bez nowych zależności w `matte/.venv`). Klucz cięcia dostaje te parametry tylko przy
+`clean`, więc karty bez opcji zachowują swój klucz i nie są wycinane od nowa (`VERSION` bez zmian). Test: syntetyczna maska
+skacząca o 4 px co klatkę, średnia zmiana alfy spada ponad 2x. Koszt ~0,18 s na klatkę 2560x1440.

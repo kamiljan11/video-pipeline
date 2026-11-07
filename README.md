@@ -386,6 +386,9 @@ klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, któ
   (`comment=behind:…`); ten sam klucz = pominięta, `.mov` bez znacznika = świeży render (nowy `<id>.front.mov`).
 - Plan musi mieć `"seg_exact": true`; karta do 20 s, w rozmiarze klatki filmu (najwyżej 4K); `id` i nazwa EDL tylko
   `[A-Za-z0-9_-]`. Opcja `"ratio"` (większa od 0, najwyżej 1; domyślnie 0.2) = skala, w jakiej model patrzy na klatkę (mniejsza = szybciej, grubsza maska).
+  Opcja `"clean": true` (Skool CCC G3): krawędź maski spokojniejsza: średnia z 3 klatek wokół bieżącej, postać zwężona o 1 px
+  (znika poświata starego tła), wtapianie Gaussem 1,2 px. ~0,18 s na klatkę 2560x1440 więcej. Bez klucza wycinka jak dotąd
+  (gotowe filmy nie przeliczają się).
 - Efekt wyłączasz, usuwając `"behind"` ze speca i przesuwając `<id>.mov` i `<id>.front.mov` na bok (render.mjs zrobi zwykłą kartę). Maska myli się
   na dłoni przed głową: wtedy inne miejsce na słowo.
 - Napis musi sięgać głowy (dół słowa na wysokości czubka głowy lub niżej), inaczej efektu nie widać. `build_edl` trzyma kadr
