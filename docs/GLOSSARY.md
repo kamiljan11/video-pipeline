@@ -37,3 +37,5 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | bank hooków | `style/hook_bank.json`: sprawdzone hooki (`own-*`) i mechanizmy (`mech-*`); `result` = wyświetlenia / mediana kanału, null do pomiaru |
 | `hook_from` | id wiersza banku, od którego wyszedł hook shorta (`clips.json`) |
 | wariant hooka | jeden z >= 3 hooków kandydata w `clips.json` `hooks`; wybrany = `hook` |
+| still (stopklatka karty) | jedna klatka karty graficznej, gdy wszystko już weszło (`still` w specu albo ostatnie wejście + 0,6 s), na prawdziwej klatce filmu, ze zdaniem mówionym pod nią (`stills.py`) |
+| akceptacja stilla | klucz renderu karty w `gfx/stills/accepted.json` (`stills.py accept`); od pierwszego arkusza bez niej `render.mjs` nie robi `.mov` (ADR-0018) |

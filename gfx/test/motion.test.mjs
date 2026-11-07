@@ -1,26 +1,14 @@
 // node --test gfx/test/*.test.mjs   (motion_tokens.mjs: frames at 30 fps, curves by role, the motion lint; scene "motion": "tokens")
 import test from 'node:test';
+import crypto from 'crypto';
 import assert from 'node:assert/strict';
 import { EASE, F, FPS, STAGGER, STAGGER_MAX, easesBothWays, motionProblems, sec, staggerProblems } from '../motion_tokens.mjs';
 import { checkScene, scene } from '../scene_lib.mjs';
 import { motionLint } from '../scene_check.mjs';
+import { ALL } from './motion_fixture.mjs';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const icon = n => `<svg data-i="${n}"></svg>`;
-// every kind that has its own timings: rows with marks, terminal lines, chat, check, ring, say with a strike, toggle, line, exits
-const ALL = {
-  id: 'm1', type: 'scene', dur: 8, els: [
-    { k: 'file', id: 'f', x: 0, y: 0, name: 'a.md', rows: [{ t: 'x', mark: 'ok', hl: true }, '~60'], badge: { text: 'nowy' } },
-    { k: 'term', id: 't', x: 0, y: 400, cmd: 'ls', out: ['a', 'b'], hl: [1], gone: 6 },
-    { k: 'chat', id: 'c', x: 900, y: 0, msgs: [{ who: 'me', t: 'hej' }, { t: '~50' }] },
-    { k: 'check', id: 'k', x: 900, y: 500, at: 1 },
-    { k: 'ring', x: 0, y: 0, w: 300, h: 200, at: 2, gone: 5 },
-    { k: 'say', id: 's', x: 0, y: 800, words: [['to', 1], ['~nie~', 1.4]] },
-    { k: 'toggle', id: 'g', x: 900, y: 800, at: 2, text: 'on', out_at: 7 },
-    { k: 'line', from: [0, 0], to: [400, 300], at: 1, packet_at: 2 },
-    { k: 'chip', id: 'p', x: 1400, y: 0, text: 'x', at: 3, strike_at: 4, anim: 'fade' },
-  ],
-};
 
 test('tokens are frames at 30 fps, turned into seconds that land on a frame', () => {
   assert.equal(FPS, 30);
@@ -42,6 +30,10 @@ test('the lint names an ease-in-out entrance once per curve, and leaves moves an
   const html = '<i style="animation:scdraw .28s cubic-bezier(.45,0,.55,1) 1.00s forwards"></i><i style="animation:scdraw .2s cubic-bezier(.45,0,.55,1) 2s forwards"></i>'
     + '<i style="animation:scfade .2s 1s both,sccur .7s cubic-bezier(.45,0,.55,1) 2s both"></i><style>.b{animation:scb1 17s ease-in-out infinite alternate}</style>';
   assert.deepEqual(motionProblems(html), ['entrance eases both ways: scdraw cubic-bezier(.45,0,.55,1) (2x); use land or pop']);
+});
+
+test('a card without "motion" is drawn byte for byte as before tokens (golden: sha1 of the fixture with scene_lib.mjs at 5cd9d32)', () => {
+  assert.equal(crypto.createHash('sha1').update(scene(ALL, esc, icon)).digest('hex'), '6e28193a0cfc7d93754f54cd43baa49295089c3f');
 });
 
 test('a card without "motion" keeps the old timings (and the old check draw eases both ways); "tokens" passes the lint', () => {

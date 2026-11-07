@@ -1,4 +1,8 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
+// node render.mjs specs.json outdir --stills [id ...]  -> outdir/stills/<id>.png + <id>.key: one frame per card at its still
+// time (stillTime), drawn by the same page as the .mov; stills.py lays them on film frames for review (Skool CCC Taski #9).
+// Stills gate: once outdir/stills/accepted.json exists (stills.py made the film's first sheet), a card is rendered only when
+// its key there is the key it renders with (accepted after the last change). STILLS=off renders anyway (WARN in the log).
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
@@ -7,8 +11,18 @@ import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } fro
 import { loadTheme } from './theme_lib.mjs';
 import { camKeyframes, scene, sceneFit, sceneSafe, soloKeys } from './scene_lib.mjs';
 import { esc, icon } from './html_lib.mjs';
-const [specFile, outDir] = process.argv.slice(2);
-const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
+const [specFile, outDir, mode, ...only] = process.argv.slice(2);
+const STILLS = mode === '--stills';
+const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(sp => !STILLS || !only.length || only.includes(sp.id));
+const ACCEPTED = `${outDir}/stills/accepted.json`;
+const accepted = !STILLS && fs.existsSync(ACCEPTED) ? JSON.parse(fs.readFileSync(ACCEPTED, 'utf8')) : null;
+if (accepted && process.env.STILLS === 'off') console.error('WARN stills gate off (STILLS=off): cards render without an accepted still');
+// the moment a still shows: "still" in the spec, else when every piece of a scene is in (+0.6 s), else 60 % into the card
+const stillTime = sp => {
+  if (typeof sp.still === 'number') return Math.min(Math.max(sp.still, 0), sp.dur - 1 / 30);
+  const ins = sp.type === 'scene' ? (sp.els ?? []).flatMap(e => [e.at, ...(e.words ?? []).map(w => w[1]), ...(e.msgs ?? []).map(m => m.at)]).filter(Number.isFinite) : [];
+  return Math.min(ins.length ? Math.max(...ins) + 0.6 : sp.dur * 0.6, sp.dur - 0.3);
+};
 const THEME = loadTheme(specFile);  // work/theme.json -> style/themes/<name>.json colors; null = the template's own
 const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
 const FPS = 30;
@@ -222,7 +236,11 @@ async function one(sp) {
   const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
   const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'sticker' && sp.toon !== undefined ? toonStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
   const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
-  if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
+  if (!STILLS && fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
+  if (accepted && process.env.STILLS !== 'off' && accepted[sp.id] !== (key ?? '')) {
+    console.error(`FAILED gfx ${sp.id}: no accepted still for this version of the card (python3 stills.py <plan.json>, then stills.py accept <plan.json> ${sp.id})`);
+    process.exit(1);
+  }
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';
   const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });
@@ -252,6 +270,14 @@ async function one(sp) {
     [maximSeek.toString(), CARET_HOLD, MARK_DUR]);
   // "no_fade_out": the card is cut, not faded, at its end (a card followed straight by the next one: a fade would show the face between them)
   if (sp.no_fade_out) await page.evaluate(() => { window.__noout = true; });
+  if (STILLS) {
+    const sd = `${outDir}/stills`, t = stillTime(sp); fs.mkdirSync(sd, { recursive: true });
+    await page.evaluate(t => { document.getAnimations().forEach(a => { a.pause(); a.currentTime = t * 1000; }); if (window.__seek) window.__seek(t);
+      return new Promise(res => requestAnimationFrame(() => res())); }, t);
+    await page.screenshot({ path: `${sd}/${sp.id}.png`, omitBackground: true });
+    fs.writeFileSync(`${sd}/${sp.id}.key`, key ?? ''); fs.writeFileSync(`${sd}/${sp.id}.t`, String(t));
+    await page.close(); return;
+  }
   const dir = `${outDir}/${sp.id}_frames`; fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(sp.dur * FPS);
   for (let f = 0; f < n; f++) {
@@ -276,7 +302,7 @@ async function one(sp) {
 const q = [...specs]; await Promise.all([0,1,2,3,4,5].map(async () => { while (q.length) await one(q.shift()); }));
 await browser.close();
 // "behind" cards: behind.py cuts the speaker out of each one's alpha (text behind the head); skipped when nothing changed
-if (specs.some(sp => sp.behind)) {
+if (!STILLS && specs.some(sp => sp.behind)) {
   const PY = '/home/kamil-jan/video-pipeline/matte/.venv/bin/python';
   if (!fs.existsSync(PY)) { console.error('FAILED gfx: "behind" cards need matte/.venv (README: text behind the speaker)'); process.exit(1); }
   try { execFileSync(PY, ['/home/kamil-jan/video-pipeline/behind.py', specFile, outDir], { stdio: 'inherit', timeout: 1800000 }); }
