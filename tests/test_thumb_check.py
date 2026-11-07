@@ -32,6 +32,81 @@ class ShareTest(unittest.TestCase):
         self.assertEqual(T.title_share("", title), 0.0)
 
 
+class WordsTest(unittest.TestCase):
+    def test_what_counts_as_a_word(self):
+        self.assertEqual(T.content_words("3 z 4"), ["3", "4"])  # one-letter words go, digits stay
+        self.assertEqual(T.content_words("92% → 18%: czy to zadziałało?"), ["92%", "18%", "czy", "to", "zadziałało"])
+        self.assertEqual(T.content_words(""), [])
+
+    def test_film_2_long_a_is_ten_words(self):  # 18% | zmian bez przeglądu. Było 92% | AI pisze mój kod
+        self.assertEqual(len(T.content_words("18% zmian bez przeglądu. Było 92% AI pisze mój kod")), 10)
+
+
+class TopicLabelTest(unittest.TestCase):
+    def test_labels_warn(self):
+        for big in ("Kod z AI", "Blizna", "Szlaban", "Jedno zdanie", "Nowy pracownik"):
+            self.assertTrue(T.is_topic_label(big), big)
+
+    def test_a_promise_is_not_a_label(self):
+        for big in ("18%", "3 z 4", "Kto sprawdza?", "„Gotowe”?", "Katar vs rezonans", "92% → 18%", "A -> B", "Psuję kod", "Kiedy przestać", "Stop dla AI", ""):
+            self.assertFalse(T.is_topic_label(big), big)
+
+
+class CheckTest(unittest.TestCase):
+    def setUp(self):
+        self.t = tempfile.TemporaryDirectory(); self.out = Path(self.t.name)
+        (self.out / "thumbnails").mkdir()
+        for i in "AB": thumb(self.out / f"thumbnails/long_{i}.jpg", "SZLABAN", 200)
+        self.real = T.face_height, T.FACE_MODEL
+        T.FACE_MODEL = Path(__file__)  # any file: the model is "there"
+
+    def tearDown(self):
+        T.face_height, T.FACE_MODEL = self.real
+        self.t.cleanup()
+
+    def run_check(self, spec, height=0.0):
+        T.face_height = lambda img: height
+        return T.check(spec, self.out, [])
+
+    @unittest.skipUnless(shutil.which("tesseract"), "no tesseract")
+    def test_word_limit_fail_warn_pass(self):
+        ten = {"id": "A", "big": "SZLABAN", "sub": "zmian bez przeglądu. Było 92%", "tag": "AI pisze mój kod"}  # 1 + 5 + 4 = 10
+        six = {"id": "B", "big": "SZLABAN", "sub": "bez przeglądu zmian", "tag": "AI pisze"}  # 1 + 3 + 2
+        bad, _ = self.run_check({"long": [ten]})
+        self.assertTrue(any("long_A: 10 words" in b for b in bad), bad)
+        bad, _ = self.run_check({"long": [six]})
+        self.assertTrue(any("long_B: 6 words" in b for b in bad), bad)
+        five = dict(six, sub="bez przeglądu", tag="AI pisze")  # 1 + 2 + 2 = 5: WARN, not FAIL
+        bad, warn = self.run_check({"long": [five]})
+        self.assertFalse([b for b in bad if "words" in b], bad)
+        self.assertTrue(any("long_B: 5 words" in w for w in warn), warn)
+        four = dict(six, sub="bez przeglądu", tag="")  # 1 + 2 = 3
+        bad, warn = self.run_check({"long": [four]})
+        self.assertFalse([x for x in bad + warn if "words" in x], (bad, warn))
+
+    @unittest.skipUnless(shutil.which("tesseract"), "no tesseract")
+    def test_face_height_warns_only_between_zero_and_the_minimum(self):
+        spec = {"long": [{"id": "A", "big": "SZLABAN"}]}
+        for h, warns in ((0.0, False), (0.29, True), (0.30, False), (0.6, False)):
+            _, warn = self.run_check(spec, h)
+            self.assertEqual(any("face is" in w for w in warn), warns, (h, warn))
+        self.assertIn("29%", self.run_check(spec, 0.29)[1][0])
+
+    @unittest.skipUnless(shutil.which("tesseract"), "no tesseract")
+    def test_topic_label_is_checked_on_long_and_shorts(self):
+        spec = {"long": [{"id": "A", "big": "Kod z AI"}, {"id": "B", "big": "18%"}],
+                "shorts": [{"id": "s02", "big": "Szlaban"}, {"id": "s07", "big": "Katar vs rezonans"}]}
+        _, warn = self.run_check(spec)
+        self.assertEqual(sorted(w.split(":")[0] for w in warn if "topic label" in w), ["long_A", "s02"], warn)
+
+    def test_warnings_do_not_fail_the_cli(self):
+        (self.out / "youtube").mkdir()
+        spec = self.out / "thumbs.json"
+        spec.write_text('{"shorts": [{"id": "s02", "big": "Szlaban"}]}')
+        T.face_height = lambda img: 0.0
+        self.assertEqual(T.main([str(spec), str(self.out)]), 0 if shutil.which("tesseract") else 1)
+
+
 @unittest.skipUnless(shutil.which("tesseract"), "no tesseract")
 class PictureTest(unittest.TestCase):
     def setUp(self):
@@ -52,14 +127,14 @@ class PictureTest(unittest.TestCase):
     def test_every_variant_with_a_face_and_a_missing_file_are_named(self):
         thumb(self.out / "thumbnails/long_A.jpg", "SZLABAN", 200)
         spec = {"long": [{"id": "A", "big": "SZLABAN"}, {"id": "B", "big": "BLIZNA"}]}
-        real, model = T.has_face, T.FACE_MODEL
+        real, model = T.face_height, T.FACE_MODEL
         try:
-            T.has_face, T.FACE_MODEL = (lambda img: True), Path(__file__)  # any file: the model is "there"
+            T.face_height, T.FACE_MODEL = (lambda img: 0.5), Path(__file__)  # any file: the model is "there"
             bad = T.problems(spec, self.out, [])
             T.FACE_MODEL = self.out / "none.onnx"
             gone = T.problems(spec, self.out, [])
         finally:
-            T.has_face, T.FACE_MODEL = real, model
+            T.face_height, T.FACE_MODEL = real, model
         self.assertIn("long_B: no long_B.jpg", bad)
         self.assertTrue(any(b.startswith("all 1 long variants show a face") for b in bad), bad)
         self.assertTrue(any(b.startswith("no face model") for b in gone), gone)  # named, never a pass
