@@ -27,4 +27,8 @@ słowa nigdy cudze). `hook` = wybrany (trafia do `hook_text` planu), `hook_from`
 `python3 hook_check.py "<hook>"`: bez powitania, bez tytułu-listy („5 porad”), bez rozbiegu („Dzisiaj”, „W tym filmie”), bez
 mglistej obietnicy i stosu przymiotników, ze stawką (liczba albo słowo straty/zysku), <= 12 słów. Słowniki: `style/hook_lint.json`.
 
+**Przegląd tygodnia (właściciel: Kamil albo rola social, w poniedziałek; ADR-0016):** dla każdego shorta starszego niż 7 dni
+z `hook_from` wpisz w jego wierszu `style/hook_bank.json` `result` = wyświetlenia shorta / mediana wyświetleń kanału z 28 dni
+(YouTube Studio, liczby ręcznie, nigdy zgadnięte). Hook z `result` >= 1.5 (próg startowy, do zmiany po pierwszym miesiącu danych) dopisz jako nowy wiersz `own-*` z `why`.
+
 **Gotowe gdy:** każdy kandydat z oceną; `make` zgodny z progiem; `film_check --out` out.hooks OK.

@@ -1,5 +1,5 @@
 {
- "_doc": "hook_check.py word lists (Skool CCC C1/C2, 'the 6 hook killers'; ADR-0016). Data, not code: add a word here when a weak hook slips through. \"word\" = that whole word, \"stem*\" = any word starting with it, an entry with a space = that phrase anywhere; greeting and filler_start are checked at the start of the hook only. Lower case.",
+ "_doc": "hook_check.py word lists (Skool CCC C1/C2, 'the 6 hook killers'; ADR-0016). Data, not code: add a word here when a weak hook slips through. \"word\" = that whole word, \"stem*\" = any word starting with it, an entry with a space = that phrase anywhere; greeting and filler_start are checked at the start of the hook only. stake_weak = stake words that do not save a list opener (\"5 porad bez nudy\" is still a title); a stake word that is the list noun itself (\"3 błędy\") does not either. Lower case.",
  "max_words": 12,
  "greeting": [
   "cześć",
@@ -68,12 +68,22 @@
   "patent*",
   "magiczn*"
  ],
+ "stake_weak": [
+  "nie",
+  "bez",
+  "tylko",
+  "zamiast",
+  "więcej",
+  "mniej"
+ ],
  "stake": [
   "nie",
   "nic",
   "niczego",
+  "niczym",
   "nikt",
   "nikogo",
+  "nikomu",
   "nigdy",
   "bez",
   "zamiast",
@@ -83,14 +93,16 @@
   "strat*",
   "traci*",
   "tracę",
+  "tracą",
+  "tracimy",
+  "tracicie",
   "koszt*",
   "kosztow*",
   "płac*",
   "pieniąd*",
   "pieniędz*",
   "ryzyk*",
-  "psuj*",
-  "psuć",
+  "psu*",
   "zepsu*",
   "nadpis*",
   "usun*",

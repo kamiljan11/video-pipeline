@@ -4,7 +4,7 @@
 A hook FAILS on any of:
   1. greeting      starts with a hello ("Cześć", "Hej", "Dzień dobry"),
   2. title         a listicle opener with nothing at stake ("5 porad", "3 sposoby"): a title, not a reason to stay
-                   ("3 błędy kosztowały mnie 40 tys." has a stake and passes),
+                   ("3 błędy kosztowały mnie 40 tys." has a stake and passes; "bez", "tylko" or the list noun itself is no stake),
   3. filler        throat clearing before the first interesting word ("Dzisiaj", "W tym filmie", "Chciałbym"),
   4. vague         a vague promise ("sekret", "coś", "patent") with no number, acronym, quote or name to anchor it,
                    or hype adjectives piled up (2 or more),
@@ -48,6 +48,12 @@ def _starts(low: str, entries: list[str]) -> list[str]:
     return [e for e in entries if re.match(rf"{re.escape(e)}(?!\w)", low)]
 
 
+def _saves_list(words: list[str], low: str, wl: dict) -> bool:
+    """a stake word that is neither weak ("5 porad bez nudy") nor the list noun itself ("3 błędy w kodzie"): "3 błędy
+    kosztowały mnie 40 tys." passes"""
+    return any(e not in wl.get("stake_weak", []) and not _match(e, words[1]) for e in _has(words, low, wl["stake"]))
+
+
 def anchored(hook: str) -> bool:
     """a number, an acronym (AI, CRM), a quoted word or a capitalised name after the first word"""
     toks = WORD.findall(hook)
@@ -64,8 +70,7 @@ def problems(hook: str, on_screen: bool | None = None, wl: dict | None = None) -
     if not words: return ["empty hook", *no_text]
     if len(words) > wl["max_words"]: bad.append(f"{len(words)} words (max {wl['max_words']})")
     if g := _starts(low, wl["greeting"]): bad.append(f"greeting: starts with {g[0]!r}")
-    stake = any(c.isdigit() for c in hook) and len(_has(words, low, wl["stake"])) > 0
-    if re.match(r"\d+\s", low) and _has(words[1:2], " ".join(words[1:2]), wl["listicle"]) and not stake: bad.append(f"title, not a hook: {' '.join(words[:2])!r} is a list opener")
+    if re.match(r"\d+\s", low) and _has(words[1:2], words[1], wl["listicle"]) and not _saves_list(words, low, wl): bad.append(f"title, not a hook: {' '.join(words[:2])!r} is a list opener")
     if f := _starts(low, wl["filler_start"]): bad.append(f"filler: starts with {f[0]!r}, start at the first interesting word")
     if (v := _has(words, low, wl["vague"])) and not anchored(hook): bad.append(f"vague: {v[0]!r} with no number, acronym, quote or name")
     if len(h := _has(words, low, wl["hype"])) >= 2: bad.append(f"vague: hype adjectives {h}")

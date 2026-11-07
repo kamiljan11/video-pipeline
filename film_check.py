@@ -368,11 +368,11 @@ class Out:
         p = self.work / "clips.json"
         items = [c for c in load(p, "clips.json").get("items", []) if c.get("make")] if p.exists() else []
         if not items: return False, "clips.json has no clip with \"make\": true"
-        try:
+        try:  # the loop too: a list missing in hook_lint.json is a KeyError only when the first hook is read
             ids, wl = set(hook_check.bank()), hook_check.lists()
+            bad = [b for c in items for b in hook_check.clip_problems(c, ids, wl)]
         except (OSError, ValueError, KeyError, TypeError) as e:  # a hand-edited style file with a typo: name it
             return False, f"style/hook_bank.json or style/hook_lint.json cannot be read: {e!r}"
-        bad = [b for c in items for b in hook_check.clip_problems(c, ids, wl)]
         return not bad, "; ".join(bad[:8]) or f"{len(items)} shorts"
 
     def out_thumbnails(self):

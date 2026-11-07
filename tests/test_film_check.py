@@ -315,6 +315,19 @@ class FilmCheckTest(unittest.TestCase):
         _, rep = self.run_check("long")
         self.assertEqual(rep["long.music_palette"]["status"], "OK")  # another key is another piece
 
+    def test_a_broken_hook_lint_file_is_named_not_a_traceback(self):  # review 2026-11-07: KeyError came from the loop
+        import film_check
+        import hook_check
+        (self.d / "clips.json").write_text(json.dumps({"items": [{"id": "s1", "make": True, "hook": HOOKS[0], "hooks": HOOKS, "hook_from": "mech-contrarian"}]}))
+        real = hook_check.lists
+        try:
+            hook_check.lists = lambda path=None: {"max_words": 12}  # "greeting" and the rest gone
+            ok, detail = film_check.Out(self.d, self.d / "out").out_hooks()
+        finally:
+            hook_check.lists = real
+        self.assertFalse(ok)
+        self.assertIn("cannot be read", detail)
+
     def test_out_folder(self):
         (self.d / "clips.json").write_text(json.dumps({"items": [{"id": "s1", "make": True, "hook": HOOKS[0], "hooks": HOOKS, "hook_from": "mech-contrarian"},
                                                               {"id": "s9", "make": False}]}))
