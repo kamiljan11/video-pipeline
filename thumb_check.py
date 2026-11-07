@@ -155,8 +155,8 @@ def is_topic_label(big: str) -> bool:
 def text_warns(name: str, v: dict) -> list[str]:
     big, words = str(v.get("big", "")), " ".join(str(v.get(k, "")) for k in ("big", "sub", "tag"))
     w = [f"{name}: big {big!r} is a topic label (add a number, a question, a verb or a result)"] if is_topic_label(big) else []
-    first = next((c for c in big if c.isalpha()), "")
-    if first and first.islower(): w.append(f"{name}: big {big!r} starts with a small letter")
+    first = next((c for c in big if c.isalnum()), "")  # "3 z 4", "1 zdanie": a big that starts with a digit is fine
+    if first.isalpha() and first.islower(): w.append(f"{name}: big {big!r} starts with a small letter")
     if MONEY.search(words): w.append(f"{name}: a sum of money in the text ({words.strip()!r}): weak in the study, a result or % reads better")
     return w
 

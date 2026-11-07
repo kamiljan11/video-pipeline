@@ -66,6 +66,7 @@ class RoundTwoTextTest(unittest.TestCase):  # round 2 TH1, TH10
         w = T.text_warns("x", {"big": "leci na ślepo.", "sub": "10 000 zł"})
         self.assertTrue(any("small letter" in x for x in w) and any("money" in x for x in w), w)
         self.assertFalse(T.text_warns("x", {"big": "92% → 18%"}))
+        self.assertFalse([x for x in T.text_warns("x", {"big": "3 z 4"}) if "small letter" in x])  # film 2: a digit first is not a small letter
 
 
 class CheckTest(unittest.TestCase):
