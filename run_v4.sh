@@ -44,6 +44,8 @@ for n in "$@"; do
   # projects made before the checklist (logged), never to get a film out faster
   if [ "${FILM_CHECK:-on}" = off ]; then echo "WARN film_check off $n" >> "$R/render.log"
   else python3 $VP/film_check.py . "$n" >> "$L" 2>&1 || { echo "FAILED film_check $n ($L)" >> "$R/render.log"; failed="$failed $n"; continue; }
+    # soft items (checklist "level": "warn") pass, but they must be seen where the render is watched, not only in the critic log
+    grep "^WARN" "$L" | sed "s/^/[$n] /" >> "$R/render.log" || true
   fi
   $PY $VP/music/make_beds.py edl_$n.json "$R/beds_$n" >> "$R/render.log" 2>&1 || { echo "FAILED make_beds $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # "behind" cards of THIS film (behind.py --edl): the speaker cut out on its final EDL (the gfx render above ran before the

@@ -79,6 +79,16 @@ test('motion pieces (check, cursor, ring, say, toggle, steps, counting stat) dra
   assert.doesNotMatch(h, /scpulse[^,"]*both/);  // a pulse never fills: the entrance's end state stays
 });
 
+test('toggle back_at: the switch snaps back and glows red after it flipped on (ODMOWA, Kamil 2026-11-05)', () => {
+  const sp = ok([{ k: 'toggle', x: 0, y: 0, text: 'wyłącz szlaban', at: 1, on_at: 2, back_at: 3, tone: 'ok' }], { bg: 'blobs' });
+  assert.deepEqual(checkScene(sp), []);
+  const h = scene(sp, esc, icon);
+  assert.match(h, /sctgk \.25s [^ ]+ 2\.00s both,sctgkback \.3s [^ ]+ 3\.00s forwards/);
+  assert.match(h, /sctgbad \.6s [^ ]+ 3\.00s forwards/);
+  assert.match(checkScene(ok([{ k: 'toggle', x: 0, y: 0, at: 1, on_at: 2, back_at: 1.5 }], { bg: 'blobs' })).join(' '), /"back_at" = after the switch flips on/);
+  assert.doesNotMatch(scene(ok([{ k: 'toggle', x: 0, y: 0, on_at: 2 }], { bg: 'blobs' }), esc, icon), /sctgkback/);  // keyframes and animation only with back_at
+});
+
 test('motion pieces: bad times and shapes are named', () => {
   const bad = checkScene(ok([
     { k: 'say', x: 0, y: 0, words: [['a', 9]] }, { k: 'cursor', from: [0, 0] }, { k: 'ring', x: 0, y: 0 },

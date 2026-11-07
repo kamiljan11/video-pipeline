@@ -116,9 +116,10 @@ export function checkScene(sp) {
     if (FREE.includes(e.k)) {
       if (!pt(e.from) || !pt(e.to)) bad.push(`${n}: "from" and "to" = [x, y]`);
     } else if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) bad.push(`${n}: "x" and "y" are required`);
-    for (const key of ['click_at', 'on_at', 'out_at', 'strike_at', 'hl_at', 'packet_at'])
+    for (const key of ['click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at'])
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
     if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
+    if (e.k === 'toggle' && e.back_at !== undefined && !(e.back_at > num(e.on_at, num(e.at, 0) + 0.8))) bad.push(`${n}: "back_at" = after the switch flips on ("on_at")`);
     if (e.k === 'ring' && !(e.w > 0 && e.h > 0)) bad.push(`${n}: "w" and "h" = the box to circle`);
     if (e.k === 'say') {
       if (!Array.isArray(e.words) || !e.words.length || !e.words.every(w => Array.isArray(w) && typeof w[0] === 'string' && typeof w[1] === 'number' && w[1] >= 0 && w[1] < dur))
@@ -268,8 +269,14 @@ const PIECES = {
     }).join(' '),
   }),
   toggle: (e, { esc, at, tn, m }) => {  // a switch flips on at on_at: knob slides with a little overshoot, the track takes the colour
-    const on = num(e.on_at, at + 0.8);
-    return { inner: `<span class="tg"><i class="tgb" style="--on:${tn};animation:sctgbg .2s ${m.draw} ${f2(on)}s both"></i><i class="tgk" style="animation:sctgk .25s ${EASE_POP} ${f2(on)}s both"></i></span>${e.text ? `<span class="tgl">${esc(e.text)}</span>` : ''}` };
+    // back_at (Kamil 2026-11-05 "ODMOWA" -> a switch that snaps back and glows red): the knob returns, the track stays red
+    const on = num(e.on_at, at + 0.8), back = e.back_at !== undefined ? num(e.back_at, on + 1) : null;
+    const bg = `sctgbg .2s ${m.draw} ${f2(on)}s both${back !== null ? `,sctgbad .6s ${EASE_IN} ${f2(back)}s forwards` : ''}`;
+    const kn = `sctgk .25s ${EASE_POP} ${f2(on)}s both${back !== null ? `,sctgkback .3s ${EASE_POP} ${f2(back)}s forwards` : ''}`;
+    // its keyframes only with back_at: a card without it is drawn byte for byte as before (motion.test golden)
+    const css = back !== null ? '<style>@keyframes sctgkback{from{transform:translateX(60px)}to{transform:none}}'
+      + '@keyframes sctgbad{0%{background:var(--on)}35%{background:#ff5f57;box-shadow:0 0 48px #ff5f57}100%{background:#c8423c;box-shadow:0 0 26px rgba(255,95,87,.7)}}</style>' : '';
+    return { inner: `${css}<span class="tg"><i class="tgb" style="--on:${tn};animation:${bg}"></i><i class="tgk" style="animation:${kn}"></i></span>${e.text ? `<span class="tgl">${esc(e.text)}</span>` : ''}` };
   },
   steps: (e, { esc, tn }) => {  // a progress pill "label N / total": the number changes and the bar grows at each step
     const st = e.steps;
