@@ -19,7 +19,8 @@ const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(sp => !STILLS
 const ACCEPTED = `${outDir}/stills/accepted.json`;
 const SCOPE = `${outDir}/stills/scope.json`;
 const accepted = !STILLS && fs.existsSync(SCOPE) ? (fs.existsSync(ACCEPTED) ? JSON.parse(fs.readFileSync(ACCEPTED, 'utf8')) : {}) : null;
-const inReview = new Set(accepted ? JSON.parse(fs.readFileSync(SCOPE, 'utf8')) : []);
+const scoped = accepted ? JSON.parse(fs.readFileSync(SCOPE, 'utf8')) : [];
+const inReview = new Set(Array.isArray(scoped) ? scoped : Object.values(scoped).flat());  // {film: [ids]} (a list = the first format)
 if (accepted && process.env.STILLS === 'off') console.error('WARN stills gate off (STILLS=off): cards render without an accepted still');
 // the moment a still shows: "still" in the spec, else when every piece of a scene is in (+0.6 s), else 60 % into the card
 const stillTime = sp => {

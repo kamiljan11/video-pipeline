@@ -55,18 +55,20 @@ class PictureTest(unittest.TestCase):
         work = self.d / "w"; gfx = work / "gfx"; sd = gfx / "stills"; sd.mkdir(parents=True)
         cv2.imwrite(str(sd / "k.png"), np.zeros((1440, 2560, 4), np.uint8)); (sd / "k.t").write_text("1.0"); (sd / "k.key").write_text("x")
         (work / "edl.json").write_text(json.dumps({"segments": [{"src": "A", "in": 0, "out": 2}], "sources": {"A": "a.mp4"},
-                                                   "overlays": [{"file": str(gfx / "k.mov"), "id": "k", "at": 5, "dur": 2}]}))
+                                                   "overlays": [{"file": str(gfx / "k.mov"), "id": "k", "at": 5, "dur": 2},
+                                                                {"file": str(gfx / "j.mov"), "id": "j", "at": 6, "dur": 1}]}))
         (work / "w.json").write_text(json.dumps({"transcription": []}))
-        (work / "specs.json").write_text(json.dumps([{"id": "k", "type": "kw", "dur": 2}]))
+        (work / "specs.json").write_text(json.dumps([{"id": "k", "type": "kw", "dur": 2}, {"id": "j", "type": "kw", "dur": 1}]))
+        (sd / "scope.json").write_text('["old"]')  # the first format: one list
         plan = work / "plan.json"; plan.write_text(json.dumps({"edl_out": "edl.json", "words": "w.json", "gfx_specs": "specs.json"}))
         real = S.subprocess.run
         S.subprocess.run = lambda *a, **k: None  # render.mjs --stills: the PNG is already there
         try:
-            S.make(plan)
+            S.make(plan, ["k"])  # the 2 key cards first: the gate still covers every card of the film
         finally:
             S.subprocess.run = real
         self.assertIn("[no source frame]", (sd / "sheet.md").read_text())
-        self.assertEqual(json.loads((sd / "scope.json").read_text()), ["k"])
+        self.assertEqual(json.loads((sd / "scope.json").read_text()), {"_before_per_film": ["old"], "plan.json": ["j", "k"]})
         self.assertEqual(json.loads((sd / "accepted.json").read_text()), {})
 
     def test_accept_copies_the_render_keys_and_names_a_card_without_a_still(self):

@@ -225,7 +225,7 @@ class ConfirmTest(unittest.TestCase):
         git("config", "core.hooksPath", str(hooks), cwd=self.repo)
         r = self.publish()
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("pre-push hook would run with the token", r.stderr)
+        self.assertIn("push hook would run with the token", r.stderr)
         self.assertEqual(git("branch", "--list", "blog/*", cwd=self.bare), "")
 
     def test_a_hooks_dir_elsewhere_under_the_pg_folder_is_not_trusted(self):  # stop gate 2026-11-07: TMPDIR there let the push through
@@ -235,7 +235,7 @@ class ConfirmTest(unittest.TestCase):
         git("config", "core.hooksPath", str(hooks), cwd=self.repo)
         r = self.publish(env_more={"HOME": str(home)})
         self.assertNotEqual(r.returncode, 0, r.stderr)
-        self.assertIn("pre-push hook would run with the token", r.stderr)
+        self.assertIn("push hook would run with the token", r.stderr)
 
     def test_a_site_reference_transaction_hook_stops_before_the_push(self):  # git push runs it locally too
         self.site()

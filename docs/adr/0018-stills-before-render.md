@@ -14,7 +14,7 @@ najpierw 2 najważniejsze, potem arkusz; dopiero po akceptacji budowa.
 | tło | klatka źródła w chwili karty (EDL `at` przez segmenty), bez zoomu EDL; short: wycinek 9:16 wokół `face` | `stills.py` `source_at`, `frame` |
 | zdanie | słowa słyszane, gdy karta jest na ekranie (`viewer_pack.film_words`) | `stills.py` `said` |
 | arkusz | 2 kolumny, komórka 960x540 + 110 px podpisu (id, czas, zdanie), kolejność filmu; `sheet.md` ze zdaniami po polsku | `gfx/stills/sheet.jpg` |
-| bramka | karta filmu, który ma arkusz (jej id w `gfx/stills/scope.json`), renderuje się tylko z kluczem renderu zaakceptowanym po ostatniej zmianie; wszystkie odmowy nazwane przed renderem; `gfx/` jest wspólny dla longa i shortów, więc karty filmu bez arkusza i nieużywane nie są tu blokowane; `STILLS=off` = obejście z WARN | `render.mjs`, `stills.py accept` |
+| bramka | karta filmu, który ma arkusz (jej id w `gfx/stills/scope.json` pod nazwą planu filmu: każdy arkusz, także `--only`, zapisuje wszystkie karty z EDL filmu i zastępuje jego listę, więc karta usunięta z EDL wypada z bramki), renderuje się tylko z kluczem renderu zaakceptowanym po ostatniej zmianie; wszystkie odmowy nazwane przed renderem; `gfx/` jest wspólny dla longa i shortów, więc karty filmu bez arkusza i nieużywane nie są tu blokowane; `STILLS=off` = obejście z WARN | `render.mjs`, `stills.py accept` |
 | zakres | filmy bez arkusza (stare, testy) bez zmian w renderze; checklista `long/short.stills` wymaga arkusza od filmu z kartami | brak `scope.json` = brak bramki renderu |
 
 **Odrzucone:** bramka zawsze włączona (zablokowałaby testy i filmy sprzed stills bez korzyści); zgoda na cały arkusz jednym

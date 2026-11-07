@@ -41,7 +41,7 @@ test('gate: a card in scope.json renders only with its accepted key; a change ne
   assert.ok(fs.existsSync(path.join(out, 'g.mov')));
   const changed = { ...card, els: [{ ...card.els[0], t: 'dwa' }] };
   assert.equal(run([changed]).status, 1, 'a card changed after acceptance rendered');
-  fs.writeFileSync(path.join(sd, 'scope.json'), JSON.stringify(['g', 'h']));
+  fs.writeFileSync(path.join(sd, 'scope.json'), JSON.stringify({ 'plan_a.json': ['g'], 'plan_b.json': ['h'] }));  // per film
   const h = sc('h', { dur: 0.4, els: [{ k: 'text', x: 100, y: 100, t: 'h', at: 0 }] });
   r = run([changed, h]);
   assert.equal(r.status, 1);

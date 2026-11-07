@@ -9,8 +9,8 @@ A still = gfx/render.mjs --stills (the same page as the .mov, at the moment ever
 laid over the source frame at that moment of the film (EDL overlay "at" + still time, mapped through the segments; the
 source frame as shot, without the EDL zoom), the words heard while the card is up underneath. Shorts (canvas "v") get the
 source centre-cropped to 9:16 around the EDL face x.
-accept copies each card's render key into <gfx>/stills/accepted.json. A sheet adds its cards to <gfx>/stills/scope.json; render.mjs
-renders a card in scope only when its accepted key matches (a card changed after acceptance needs a new still and accept).
+accept copies each card's render key into <gfx>/stills/accepted.json. A sheet (also --only) writes every card of the film's EDL
+under the film's name in <gfx>/stills/scope.json; render.mjs renders a card in scope only when its accepted key matches (a card changed after acceptance needs a new still and accept).
 gfx/ is shared by the long and the shorts, so cards of a film without a sheet are not gated there; film_check long/short.stills
 asks for every card of the film. STILLS=off overrides.
 """
@@ -137,9 +137,12 @@ def make(plan_path: Path, only: list[str] | None = None) -> dict:
     (sd / "sheet.md").write_text("".join(f"- `{cid}` {s or '(nothing said)'}\n" for cid, _, s in done))
     acc, scope = sd / "accepted.json", sd / "scope.json"
     if not acc.exists(): acc.write_text("{}\n")
-    # from now on render.mjs asks for an accepted still for these cards (the union over every film that made a sheet)
-    old = set(json.loads(scope.read_text())) if scope.exists() else set()
-    scope.write_text(json.dumps(sorted(old | set(ids))) + "\n")
+    # from now on render.mjs asks for an accepted still for every card of this film (all of its EDL, also after --only), keyed by
+    # film: a new sheet replaces the film's list, so a card dropped from the EDL leaves the gate (review 2026-11-07)
+    film_ids = sorted({o["id"] for o in edl.get("overlays", []) if o.get("id") in specs})
+    old = json.loads(scope.read_text()) if scope.exists() else {}
+    films = old if isinstance(old, dict) else {"_before_per_film": old}  # a list = the first format (one union)
+    scope.write_text(json.dumps({**films, plan_path.name: film_ids}, indent=1, sort_keys=True) + "\n")
     return {"cards": len(done), "sheet": str(sd / "sheet.jpg"), "seconds": round(time.monotonic() - t0, 1)}
 
 

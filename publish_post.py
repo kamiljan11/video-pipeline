@@ -140,7 +140,7 @@ def main(argv: list[str]) -> int:
         # the site's pre-commit ran before the token entered any environment, so it may stay
         live = [h for h in PUSH_HOOKS if (hooks / h).is_file() and os.access(hooks / h, os.X_OK)]
         if live and hooks.resolve() != PG_HOOKS.resolve():
-            sys.exit(f"{hooks}: the site's own {', '.join(live)} (pre-push hook would run with the token in its environment); read it, then push by hand")
+            sys.exit(f"{hooks}: the site's own {', '.join(live)} (a push hook would run with the token in its environment); read it, then push by hand")
         pushing = True
         run("git", "push", "-q", remote, f"{branch}:{branch}", cwd=wt, env=auth_env(token), token=token)
     except BaseException:
