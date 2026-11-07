@@ -16,6 +16,8 @@
 **Shorty** `out/youtube/shorts/<id>.md`: `## Tytuł`, `## Opis` (+ link do longa).
 
 **Miniatury** (`node gfx/thumbs.mjs thumbs.json out/thumbnails`): >= 2 warianty longa (A/B, najlepiej 3), `big` <= 18 znaków,
-różne klatki/emocje i różne słowa; okładka każdego shorta.
+różne klatki/emocje i różne słowa; okładka każdego shorta. Bramki feedu: >= 1 wariant BEZ twarzy (liczba, schemat, ekran),
+słowa miniatury dopowiadają tytuł (< 50 % wspólnych z każdym tytułem), `big` czytelne przy 320 px (OCR), żadna litera < 12 px
+przy 320 (tag 48 px albo bez tagu), nic w prawym dolnym rogu (czas filmu), tekst okładki w y 220-1500.
 
-**Gotowe gdy:** `film_check --out` out.youtube, out.titles (`title_check.py`) i out.thumbs OK.
+**Gotowe gdy:** `film_check --out` out.youtube, out.titles (`title_check.py`), out.thumbs i out.thumbs_read (`thumb_check.py`) OK.

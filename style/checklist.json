@@ -88,6 +88,8 @@
      "why": "Skool CCC So3/So4/C5/C10: each A/B/C title <= 60 characters, a word of ## Fraza kluczowa in its first 3 words, a filled zrodlo column (the niche title it started from), and its promise heard in the long's first 30 s (title_check.py)"},
     {"id": "out.thumbs", "fmt": "out", "metric": "out_thumbnails", "op": "true",
      "why": "Kamil 4.11: 'miałeś mi zawsze robić a/b thumbnaile': at least 2 for the long, a cover per short"},
+    {"id": "out.thumbs_read", "fmt": "out", "metric": "out_thumbs_read", "op": "true",
+     "why": "Skool CCC So5/So6/C4/Z6: at 320 px (a phone feed) OCR reads >= 80% of each big, one long variant without a face, a thumbnail shares < 50% of its words with every title (thumb_check.py); thumbs.mjs itself refuses letters under 12 px at 320, words in the timestamp corner and cover text outside y 220-1500"},
     {"id": "out.posts", "fmt": "out", "metric": "out_posts", "op": "true",
      "why": "Kamil 4.11: posts ready to upload; 5.11: the graphic alone carries the message (post_check.py: OCR finds its words, WCAG contrast, 15-230 words) and the text completes it (60-130 words, <= 3 hashtags, last line a question for the comments: Kamil 2026-11-07)"},
     {"id": "out.article", "fmt": "out", "metric": "out_article", "op": "true",

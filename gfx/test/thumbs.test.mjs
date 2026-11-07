@@ -33,6 +33,20 @@ test('fit: a headline wider than its column or words past the bottom are named, 
   assert.ok(bad.some(b => b.includes('40 px past the bottom')), bad.join('\n'));
 });
 
+test('the feed: a word too small at 320 px, a word under the length in the corner, cover text outside the safe zone', () => {
+  const box = (k, x0, y0, x1, y1, fs) => ({ k, x0, y0, x1, y1, fs });
+  const fit = { wide: [], bottom: 600 };
+  assert.deepEqual(fitProblems('long_A.jpg', { ...fit, boxes: [box('big', 60, 110, 700, 300, 150), box('tag', 60, 500, 400, 560, 48)] }, 720), []);
+  const small = fitProblems('long_A.jpg', { ...fit, boxes: [box('tag', 60, 500, 400, 540, 30)] }, 720);
+  assert.ok(small.some(b => b.includes('"tag" is 7.5 px at 320 px')), small.join('\n'));
+  const corner = fitProblems('long_B.jpg', { ...fit, boxes: [box('sub', 580, 560, 1220, 690, 60)] }, 720);
+  assert.ok(corner.some(b => b.includes('bottom-right 12%')), corner.join('\n'));
+  assert.deepEqual(fitProblems('s1_cover.jpg', { ...fit, bottom: 700, boxes: [box('big', 60, 220, 1020, 400, 140)] }, 1920, 1080, true), []);
+  const low = fitProblems('s1_cover.jpg', { ...fit, bottom: 1800, boxes: [box('sub', 60, 1700, 1020, 1800, 62)] }, 1920, 1080, true);
+  assert.ok(low.some(b => b.includes('outside the cover\'s safe zone 220-1500')), low.join('\n'));
+  assert.match(shortHtml(v('s1'), dir, 'cetus'), /top:220px/);
+});
+
 test('a run that stops on variant B leaves out as it was: no new A next to an old B', { skip: !fs.existsSync('/usr/bin/google-chrome') }, async () => {
   const { execFileSync, spawnSync } = await import('child_process');
   const w = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-run-')), out = path.join(w, 'out');

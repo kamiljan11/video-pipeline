@@ -12,6 +12,9 @@ import { esc, icon } from './html_lib.mjs';
 
 const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+// the feed (Skool CCC So5/So6, P1 task 15): a phone shows a thumbnail about SMALL px wide, so no letter under MIN_PX there;
+// YouTube puts the length in the bottom-right CORNER; the Shorts shelf and the player cover SAFE_TOP / SAFE_BOTTOM of a cover
+const SMALL = 320, MIN_PX = 12, CORNER = 0.12, SAFE_TOP = 220, SAFE_BOTTOM = 420;
 
 // checks the spec before a browser starts; returns the problems (empty = fine)
 export function checkThumbs(t, base) {
@@ -52,27 +55,36 @@ html,body{width:1280px;height:720px}
 .bg{background-image:url(${img});background-size:${v.fw ?? 1600}px auto;background-position:${v.fx ?? (left ? 80 : -400)}px ${v.fy ?? -150}px}
 .sh{position:absolute;inset:0;background:linear-gradient(${left ? 90 : 270}deg,rgba(var(--panel-rgb),.98) 0%,rgba(var(--panel-rgb),.9) 42%,rgba(var(--panel-rgb),0) 62%)}
 .txt{position:absolute;${left ? 'left' : 'right'}:60px;top:${v.icon ? 70 : 110}px;width:640px;text-align:${left ? 'left' : 'right'}}
-.big{font-size:${v.big.length > 9 ? 150 : v.big.length > 5 ? 190 : 240}px}.sub{font-size:60px;margin-top:22px}.tag{font-size:30px;margin-top:26px}
+.big{font-size:${v.big.length > 9 ? 150 : v.big.length > 5 ? 190 : 240}px}.sub{font-size:60px;margin-top:22px}.tag{font-size:48px;margin-top:26px}
 .ic{width:150px;height:150px;margin-bottom:26px}</style>
 <div class="bg"></div><div class="sh"></div><div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${esc(v.big)}</div>
 ${v.sub ? `<div class="sub">${esc(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${esc(v.tag)}</div>` : ''}</div>`;
 };
 
 // short cover: the words above the head. The Shorts shelf crops covers to about 2:3 (~150 px lost at the top and the bottom,
-// seen 2026-10-25), so the text starts at 200 px; dy pushes the frame down to make room above the head
+// seen 2026-10-25), so the text starts at SAFE_TOP; dy pushes the frame down to make room above the head
 export const shortHtml = (v, base, theme) => `<style>${css(theme)}
 html,body{width:1080px;height:1920px}
 .bg{background-image:url(${pathToFileURL(path.resolve(base, v.frame)).href});background-size:1080px 1920px;background-position:0 ${v.dy ?? 200}px}
 .sh{position:absolute;left:0;right:0;top:0;height:900px;background:linear-gradient(rgba(var(--panel-rgb),1) 0%,rgba(var(--panel-rgb),1) 40%,rgba(var(--panel-rgb),.6) 70%,rgba(var(--panel-rgb),0))}
-.txt{position:absolute;left:60px;right:60px;top:200px;text-align:center}.big{font-size:${v.big.length > 6 ? 140 : 190}px}.sub{font-size:62px;margin-top:22px}</style>
+.txt{position:absolute;left:60px;right:60px;top:${SAFE_TOP}px;text-align:center}.big{font-size:${v.big.length > 6 ? 140 : 190}px}.sub{font-size:62px;margin-top:22px}</style>
 <div class="bg"></div><div class="sh"></div><div class="txt"><div class="big">${esc(v.big)}</div>${v.sub ? `<div class="sub">${esc(v.sub)}</div>` : ''}</div>`;
 
 // words that do not fit their thumbnail, measured in the browser: a headline wider than its column is cut at the frame
-// edge and a block that runs past the bottom loses its last line (film 2, long_A and long_B, 2026-11-04)
-export function fitProblems(file, m, h) {
+// edge and a block that runs past the bottom loses its last line (film 2, long_A and long_B, 2026-11-04). m.boxes
+// [{k, x0, y0, x1, y1, fs}] (page px, fs = font size): a letter too small in the feed, anything under the length in the
+// corner of a long, anything a cover's safe zones hide
+export function fitProblems(file, m, h, w = 1280, cover = false) {
   const bad = [];
   for (const [k, sc, cl] of m.wide) if (sc > cl + 1) bad.push(`${file}: "${k}" is ${sc - cl} px wider than its column (shorten it)`);
   if (m.bottom > h + 1) bad.push(`${file}: the words run ${Math.round(m.bottom - h)} px past the bottom (shorter "big" or "sub")`);
+  for (const b of m.boxes ?? []) {
+    const small = b.fs * SMALL / w;
+    if (b.k !== 'ic' && small < MIN_PX) bad.push(`${file}: "${b.k}" is ${small.toFixed(1)} px at ${SMALL} px wide (want >= ${MIN_PX}): bigger or drop it`);
+    if (!cover && b.x1 > w * (1 - CORNER) && b.y1 > h * (1 - CORNER)) bad.push(`${file}: "${b.k}" reaches the bottom-right ${CORNER * 100}% where YouTube shows the length`);
+    if (cover && (b.y0 < SAFE_TOP - 1 || b.y1 > h - SAFE_BOTTOM + 1))
+      bad.push(`${file}: "${b.k}" spans y ${Math.round(b.y0)}-${Math.round(b.y1)}, outside the cover's safe zone ${SAFE_TOP}-${h - SAFE_BOTTOM}`);
+  }
   return bad;
 }
 
@@ -91,7 +103,7 @@ async function main() {
   let browser;
   try {
     browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
-    const shot = async (html, w, h, file, scale = 1) => {
+    const shot = async (html, w, h, file, scale = 1, cover = false) => {
       const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: scale });
       const f = path.join(tmp, `${file}.html`);  // a file:// page: setContent (about:blank) may not load file:// images
       fs.writeFileSync(f, `<!doctype html><meta charset="utf-8">${html}`);
@@ -99,10 +111,14 @@ async function main() {
       await page.evaluate(() => document.fonts.ready);
       const m = await page.evaluate(() => {
         const els = ['big', 'sub', 'tag'].map(k => [k, document.querySelector(`.${k}`)]).filter(([, e]) => e);
+        const boxes = [...els, ['ic', document.querySelector('.ic')]].filter(([, e]) => e).map(([k, e]) => {
+          const r = e.getBoundingClientRect();
+          return { k, x0: r.left, y0: r.top, x1: r.right, y1: r.bottom, fs: parseFloat(getComputedStyle(e).fontSize) };
+        });
         return { wide: els.map(([k, e]) => [k, e.scrollWidth, e.clientWidth]),
-                 bottom: Math.max(...els.map(([, e]) => e.getBoundingClientRect().bottom)) };
+                 bottom: Math.max(...els.map(([, e]) => e.getBoundingClientRect().bottom)), boxes };
       });
-      const bad = fitProblems(file, m, h);
+      const bad = fitProblems(file, m, h, w, cover);
       if (bad.length) throw new Error(bad.join('; '));
       const jpg = file.endsWith('.jpg');
       await page.screenshot({ path: path.join(stage, file), type: jpg ? 'jpeg' : 'png', ...(jpg ? { quality: 92 } : {}) });
@@ -112,7 +128,7 @@ async function main() {
       await shot(longHtml(v, base, theme), 1280, 720, `long_${v.id}.jpg`);
       await shot(longHtml(v, base, theme), 1280, 720, `long_${v.id}_2560.png`, 2);
     }
-    for (const v of t.shorts ?? []) await shot(shortHtml(v, base, theme), 1080, 1920, `${v.id}_cover.jpg`);
+    for (const v of t.shorts ?? []) await shot(shortHtml(v, base, theme), 1080, 1920, `${v.id}_cover.jpg`, 1, true);
     for (const f of fs.readdirSync(out)) if (/^long_.+\.(jpg|png)$|_cover\.jpg$/.test(f) && !made.includes(f)) fs.rmSync(path.join(out, f));
     for (const f of made) fs.renameSync(path.join(stage, f), path.join(out, f));
   } finally {

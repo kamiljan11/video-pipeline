@@ -24,6 +24,7 @@ import article_check  # the kamiljan.com blog article made from the film
 import count_check  # the count he says is the count on the card
 import gfx_types  # next to this script: which card types are a separate screen
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
+import thumb_check  # the long thumbnails as the feed shows them
 import title_check  # the A/B/C titles of the long
 
 ROOT = Path(__file__).resolve().parent
@@ -355,6 +356,16 @@ class Out:
         miss = [c for c in self.made("clips.json") if not list(d.glob(f"{c}_cover.*"))]
         bad = ([f"{len(longs)} long thumbnail variants (want >= 2 for an A/B test)"] if len(longs) < 2 else []) + [f"no cover for {c}" for c in miss]
         return not bad, "; ".join(bad)
+
+    def out_thumbs_read(self):
+        """the long thumbnails at feed size (thumb_check.py): "big" read by OCR at 320 px, one variant without a face, words
+        that complete the titles instead of repeating them"""
+        spec = self.work / "thumbs.json"
+        if not spec.exists(): return False, "no thumbs.json next to the plans (thumbs.mjs input)"
+        md = self.out / "youtube" / "long.md"
+        titles = [r["title"] for r in title_check.titles(md.read_text())] if md.exists() else []
+        bad = thumb_check.problems(load(spec, "thumbs.json"), self.out, titles)
+        return not bad, "; ".join(bad[:8])
 
     def out_posts(self):
         want = self.made("posts.json")

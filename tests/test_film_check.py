@@ -48,6 +48,14 @@ x
 """
 
 
+def thumb(f: Path, text: str) -> None:
+    """a long thumbnail with one big readable word and no face (thumb_check reads it at 320 px)"""
+    font = "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=0x0A1430:s=1280x720", "-frames:v", "1",
+                    "-vf", f"drawtext=fontfile={font}:text='{text}':fontsize=200:fontcolor=0xECF0F6:x=80:y=200", str(f)], check=True)
+
+
 def opening(d: Path) -> None:
     """the long's words (with "siedemnaście" for the article's numbers) and an EDL: what the titles promise is said in the first 30 s"""
     said = ["siedemnaście", "agent", "AI", "mówi", "gotowe", "kod", "działa", "sprawdza"]
@@ -298,12 +306,14 @@ class FilmCheckTest(unittest.TestCase):
         r, rep = self.run_check("--out", str(out))
         self.assertEqual(r.returncode, 1)
         self.assertIn("s1", rep["out.shorts_all"]["detail"])
-        for p, body in {"long/film.mp4": "", "shorts/s1.mp4": "", "thumbnails/long_A.jpg": "", "thumbnails/long_B.jpg": "",
+        for p, body in {"long/film.mp4": "", "shorts/s1.mp4": "", 
                         "thumbnails/s1_cover.jpg": "", "posts/p1/post.md": "x", "posts/p1/slide.png": "",
                         "posts/p1/linkedin.json": json.dumps({"text": " ".join(["słowo"] * 80) + "\nRepo w komentarzu.\nA jak to wygląda u Ciebie?", "hashtags": ["AI"]}),
                         "youtube/shorts/s1.md": "## Tytuł\n## Opis\n",
                         "youtube/long.md": LONG_MD}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
+        (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA"}, {"id": "B", "big": "SZLABAN"}]}))
+        thumb(out / "thumbnails/long_A.jpg", "BLIZNA"); thumb(out / "thumbnails/long_B.jpg", "SZLABAN")
         r, rep = self.run_check("--out", str(out))
         self.assertIn("no grafika.png", rep["out.posts"]["detail"])  # a picture alone is not enough: the graphic that says it (post_check)
         post_graphic(out / "posts/p1")
@@ -316,8 +326,8 @@ class FilmCheckTest(unittest.TestCase):
         opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
         r, rep = self.run_check("--out", str(out))
-        bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k != "out.posts" or shutil.which("tesseract"))}
-        self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts reads the graphic by OCR (tesseract: local and CI)
+        bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k not in ("out.posts", "out.thumbs_read") or shutil.which("tesseract"))}
+        self.assertEqual(bad, {}, json.dumps(bad, ensure_ascii=False))  # out.posts and out.thumbs_read read by OCR (tesseract: local and CI)
 
     def test_titles_are_checked_against_length_phrase_source_and_opening(self):  # title_check.py, out.titles
         opening(self.d)
