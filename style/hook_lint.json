@@ -1,0 +1,10 @@
+{
+ "_doc": "hook_check.py word lists (Skool CCC C1/C2, 'the 6 hook killers'). Data, not code: add a word here when a weak hook slips through. Stems match the start of a word (lower case); entries with a space match anywhere in the hook.",
+ "max_words": 12,
+ "greeting": ["cześć", "hej", "siema", "witam", "witajcie", "dzień dobry", "elo", "yo", "hello"],
+ "filler_start": ["dzisiaj", "dziś", "w tym filmie", "w tym odcinku", "w tym shorcie", "w tym materiale", "chciałbym", "chcę wam", "opowiem", "pokażę wam", "zaraz", "pogadamy", "porozmawiamy", "słuchajcie", "no więc", "okej"],
+ "listicle": ["porad", "sposob", "sposób", "trik", "tip", "rzecz", "błęd", "krok", "zasad", "pomysł", "narzędz"],
+ "hype": ["niesamowit", "świetn", "genialn", "rewelacyjn", "najlepsz", "mega", "super", "ogromn", "nieprawdopodobn", "szalon", "epick", "kozack"],
+ "vague": ["coś", "rzecz", "sekret", "trik", "sposób", "sposob", "patent", "magiczn"],
+ "stake": ["nie", "nic", "nikt", "nikog", "nigdy", "bez", "zamiast", "tylko", "błąd", "błęd", "strat", "trac", "koszt", "płac", "pieniąd", "ryzyk", "psu", "zepsu", "nadpis", "usun", "usuw", "kasow", "zniszcz", "kłam", "wstyd", "problem", "porażk", "zysk", "oszczędz", "szybc", "więcej", "mniej", "najtrudniej", "najgorsz", "celowo", "po cichu", "dowod", "dowód"]
+}

@@ -17,7 +17,14 @@
 **Artefakt:**
 ```json
 {"items": [{"id": "s1", "w0": 120, "w1": 210, "title_work": "…", "score": {"hook": 3, "alone": 2, "one": 3, "visual": 2, "loop": 1, "value": 3},
-            "total": 14, "make": true, "why": "…"}]}
+            "total": 14, "make": true, "why": "…",
+            "hooks": ["…", "…", "…", "…", "…"], "hook": "…", "hook_from": "mech-contrarian"}]}
 ```
 
-**Gotowe gdy:** każdy kandydat z oceną; `make` zgodny z progiem.
+**Hooki (Skool CCC B05, So2):** na każdy short z `make: true` 5 wariantów w `hooks` (min. 3), każdy z innego mechanizmu
+`style/hook_bank.json` (wiersz `own-*` = nasz sprawdzony, `mech-*` = mechanizm do przerobienia: mechanizm zostaje, temat nasz,
+słowa nigdy cudze). `hook` = wybrany (trafia do `hook_text` planu), `hook_from` = id wiersza banku. Każdy wariant przechodzi
+`python3 hook_check.py "<hook>"`: bez powitania, bez tytułu-listy („5 porad”), bez rozbiegu („Dzisiaj”, „W tym filmie”), bez
+mglistej obietnicy i stosu przymiotników, ze stawką (liczba albo słowo straty/zysku), <= 12 słów. Słowniki: `style/hook_lint.json`.
+
+**Gotowe gdy:** każdy kandydat z oceną; `make` zgodny z progiem; `film_check --out` out.hooks OK.

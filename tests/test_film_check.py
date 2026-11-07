@@ -49,6 +49,9 @@ x
 """
 
 
+HOOKS = ["AI mówi „gotowe”. A nic nie działa.", "92% zmian bez przeglądu. A dziś?", "Na katar nikt nie robi rezonansu"]
+
+
 def thumb(f: Path, text: str) -> None:
     """a long thumbnail with one big readable word and no face (thumb_check reads it at 320 px)"""
     font = "/usr/share/fonts/truetype/dejavu/DejaVuSansCondensed-Bold.ttf"
@@ -262,6 +265,18 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(short([], [])["status"], "FAIL")
         self.assertEqual(short([], [], skip={"short.meme": "no face gap of 3.5 s"})["status"], "SKIP")
 
+    def test_a_short_hook_is_checked_against_the_six_killers(self):  # hook_check.py, short.hook_lint
+        def lint(**plan):
+            (self.d / "edl_s1.json").write_text(json.dumps({"segments": [{"src": "A", "in": 0.0, "out": 40.0, "zoom": 1.0}], "overlays": []}))
+            (self.d / "specs.json").write_text("[]")
+            (self.d / "plan_s1.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_s1.json", "gfx_specs": "specs.json",
+                                                             "vertical": True, **plan}))
+            return self.run_check("s1")[1]["short.hook_lint"]
+        self.assertEqual(lint(hook_text=HOOKS[0])["status"], "OK")
+        bad = lint(hook_text="Cześć, dzisiaj o moim systemie")
+        self.assertEqual(bad["status"], "FAIL"); self.assertIn("greeting", bad["detail"]); self.assertIn("no stake", bad["detail"])
+        self.assertIn("no text", lint()["detail"])  # nothing on screen in the first frame
+
     def test_opening_part_without_chapter(self):
         """the first part may say "chap": false (the hook stands there); it still needs its explainer"""
         ovs, specs, segs = self.full_long()
@@ -301,7 +316,8 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(rep["long.music_palette"]["status"], "OK")  # another key is another piece
 
     def test_out_folder(self):
-        (self.d / "clips.json").write_text(json.dumps({"items": [{"id": "s1", "make": True}, {"id": "s9", "make": False}]}))
+        (self.d / "clips.json").write_text(json.dumps({"items": [{"id": "s1", "make": True, "hook": HOOKS[0], "hooks": HOOKS, "hook_from": "mech-contrarian"},
+                                                              {"id": "s9", "make": False}]}))
         (self.d / "posts.json").write_text(json.dumps({"items": [{"id": "p1", "make": True}]}))
         out = self.d / "out"
         r, rep = self.run_check("--out", str(out))

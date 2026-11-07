@@ -24,6 +24,7 @@ from typing import NoReturn
 import article_check  # the kamiljan.com blog article made from the film
 import count_check  # the count he says is the count on the card
 import gfx_types  # next to this script: which card types are a separate screen
+import hook_check  # the 6 hook killers
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 import thumb_check  # the long thumbnails as the feed shows them
 import title_check  # the A/B/C titles of the long
@@ -301,6 +302,17 @@ class Film:
         return (tail <= tail_max and not self.has_end_card()), f"tail {tail:.1f} s, end card {self.has_end_card()}"
     def hook_text(self):  # the hook line from the plan (ASS) or a card on screen from the first half second
         return bool(str(self.plan.get("hook_text", "")).strip()) or any(o["at"] <= 0.5 for o in self.ovs)
+    def hook_lint(self):
+        """the hook on screen from the first frame passes the 6 killers (hook_check.py): the plan's hook_text, else the
+        text of a card that is up by 0.5 s"""
+        text = str(self.plan.get("hook_text", "")).strip()
+        if not text:
+            first = next((o for o in sorted(self.ovs, key=lambda o: o["at"]) if o["at"] <= 0.5), None)
+            spec = self.specs.get(first["id"], {}) if first else {}
+            text = " ".join(str(spec.get(k, "")) for k in ("text", "sub")).strip()
+        bad = hook_check.problems(text, on_screen=bool(text))
+        return not bad, f"{text!r}: " + "; ".join(bad) if bad else text
+
     def first_overlay_at(self): return 0.0 if self.hook_text() else round(min((o["at"] for o in self.ovs), default=self.len), 2)
     def caption_pop(self): return self.plan.get("caption_pop") is True
 
@@ -349,6 +361,16 @@ class Out:
         plan = self.work / "plan_long.json"
         bad = title_check.problems(p.read_text(), title_check.opening_words(plan) if plan.exists() else None)
         return not bad, "; ".join(bad[:8])
+
+    def out_hooks(self):
+        """every short that is made has >= 3 hook variants that pass the 6 killers, the chosen one among them, and the
+        hook bank row it started from (hook_check.py, style/hook_bank.json)"""
+        p = self.work / "clips.json"
+        items = [c for c in load(p, "clips.json").get("items", []) if c.get("make")] if p.exists() else []
+        if not items: return False, "clips.json has no clip with \"make\": true"
+        ids, wl = set(hook_check.bank()), hook_check.lists()
+        bad = [b for c in items for b in hook_check.clip_problems(c, ids, wl)]
+        return not bad, "; ".join(bad[:8]) or f"{len(items)} shorts"
 
     def out_thumbnails(self):
         d = self.out / "thumbnails"
