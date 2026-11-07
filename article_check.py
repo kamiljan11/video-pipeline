@@ -28,7 +28,7 @@ from pathlib import Path
 
 # style/voice.md "## Zakazane": one reader for posts and articles
 from count_check import WORD_N
-from post_check import banned_phrases
+from post_check import banned_phrases, hook_count
 
 MIN_WORDS = 1200    # Kamil 2026-11-07: "raczej szczegółowy"; a 20 min film says ~2500 words, the article goes deeper per part
 MIN_H2 = 3
@@ -208,13 +208,46 @@ def problems(folder: Path, words_file: Path | None = None) -> list[str]:
     return out
 
 
+MAX_PARA = 80  # round 2 A8: a paragraph over this many words reads as a wall on a phone (one note per language)
+NUMBERED_H2 = re.compile(r"^\s*(?:\d+[.)]|(?:krok|step|część|part)\s+\d+\b)", re.IGNORECASE)
+CALLOUTS = ("**Uwaga:**", "**Zasób:**")  # round 2 A3: a warning box and a resource box (pl body)
+
+
+def shape_warnings(b: dict, tag: str) -> list[str]:
+    """round 2 A1, A3, A4, A8 (creator study, observe): soft structure rules of one language body"""
+    blocks = [x for x in b.get("blocks", []) if isinstance(x, dict)]
+    out: list[str] = []
+    h2 = [x for x in blocks if x.get("t") == "h2"]
+    n = hook_count(str(b.get("lead", "")))
+    numbered = sum(1 for x in h2 if NUMBERED_H2.match(str(x.get("text", ""))))
+    if n is not None and numbered and numbered != n: out.append(f"promise {tag}: the lead promises {n}, the text has {numbered} numbered sections")
+    if tag == "(pl)":
+        whole = " ".join(block_text(x) for x in blocks)
+        missing = [c for c in CALLOUTS if c not in whole]
+        if missing: out.append(f"callouts {tag}: no {' / '.join(missing)} paragraph (a warning and a resource the reader can use)")
+    last_h2 = max((i for i, x in enumerate(blocks) if x.get("t") == "h2"), default=-1)
+    recap = next((x for x in blocks[last_h2 + 1:] if x.get("t") == "list"), None)
+    if recap is not None:
+        k, parts = len(recap.get("items", [])), max(len(h2) - 1, 3)  # the last h2 is the closing one; never ask for fewer than 3
+        if k < 3 or k > parts: out.append(f"recap {tag}: {k} points, want 3 to {parts} (no more than the sections it sums up)")
+    long_paras = sum(1 for x in blocks if x.get("t") == "p" and len(block_text(x).split()) > MAX_PARA)
+    if long_paras: out.append(f"paragraphs {tag}: {long_paras} over {MAX_PARA} words (split them for the phone)")
+    title_nums = set(NUM.findall(str(b.get("title", ""))))
+    first = next((i for i, x in enumerate(blocks) if x.get("t") == "h2"), len(blocks))
+    after = " ".join(block_text(x) for x in blocks[first:])
+    gone = sorted(x for x in title_nums if x not in NUM.findall(after))
+    if gone: out.append(f"title {tag}: the number {', '.join(gone)} from the title does not come back after the first section")
+    return out
+
+
 def warnings(folder: Path) -> list[str]:
     """soft rules: never fail the article (publish_post and film_check read problems() only)"""
     try:
         body = json.loads((folder / "article.json").read_text(encoding="utf-8")).get("body") or {}
     except (OSError, json.JSONDecodeError):
         return []
-    return [w for lang in ("pl", "en") if isinstance(body.get(lang), dict) for w in image_density(body[lang].get("blocks", []), f"({lang})")]
+    langs = [lang for lang in ("pl", "en") if isinstance(body.get(lang), dict)]
+    return [w for lang in langs for w in image_density(body[lang].get("blocks", []), f"({lang})") + shape_warnings(body[lang], f"({lang})")]
 
 
 def main(argv: list[str]) -> int:

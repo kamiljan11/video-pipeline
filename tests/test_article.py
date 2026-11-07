@@ -26,7 +26,8 @@ def article(d: Path, **over) -> dict:
         for k in range(1, 6):  # five "Krok N" sections, a picture under every other one, n paragraphs spread over them
             blocks += [{"t": "h2", "id": f"krok-{k}", "text": f"Krok {k}: zrób część {k}"}] + [{"t": "p", "text": PARA} for _ in range(n // 5 + 1)]
             if k % 2: blocks.append({"t": "img", "src": "schemat.png", "alt": "Schemat bramki, która zatrzymuje agenta", "caption": "Bramka", "width": 64, "height": 36})
-        blocks += [{"t": "h2", "id": "podsumowanie", "text": "Podsumowanie"},
+        blocks += [{"t": "p", "text": "**Uwaga:** bramka nie zastąpi przeglądu. **Zasób:** gotowy plik z regułami jest w repo."},
+                   {"t": "h2", "id": "podsumowanie", "text": "Podsumowanie"},
                    {"t": "list", "items": ["Bramka zatrzymuje agenta", "Test czerwony blokuje koniec", "Raport pokazuje powód"]},
                    {"t": "p", "text": f"Cały film: [obejrzyj na YouTube]({YT}). Dane: [raport]({SRC}) mówi 95 procent."},
                    {"t": "p", "text": "Którą bramkę postawisz pierwszą u siebie?"}]
@@ -44,6 +45,10 @@ def article(d: Path, **over) -> dict:
 def pick(a: dict, lang: str, t: str, n: int = 0) -> dict:
     """the n-th block of type t in the article body"""
     return [x for x in a["body"][lang]["blocks"] if x["t"] == t][n]
+
+
+def block_has(x: dict, s: str) -> bool:
+    return s in str(x.get("text", ""))
 
 
 def save(d: Path, a: dict) -> None:
@@ -115,6 +120,30 @@ class ArticleCheckTest(unittest.TestCase):
         w = self.d / "w.json"
         w.write_text(json.dumps({"transcription": [{"text": t} for t in text.split()]}))
         return w
+
+    def test_shape_warnings_never_fail(self):  # round 2 A1, A3, A4, A8
+        a = article(self.d)
+        pl = a["body"]["pl"]
+        pl["blocks"] = [x for x in pl["blocks"] if not block_has(x, "**Uwaga:**")]
+        pick(a, "pl", "h2", 0)["text"] = "1. Zrób część"
+        pick(a, "pl", "h2", 1)["text"] = "2. Druga część"
+        pick(a, "pl", "h2", 5)["text"] = "6. Podsumowanie"
+        pick(a, "pl", "list")["items"] = ["jedno", "dwa"]
+        pick(a, "pl", "p")["text"] = " ".join(["słowo"] * 81)
+        pl["title"] = "Tytuł z liczbą 7 o bramkach"
+        save(self.d, a)
+        self.assertNotIn("WARN", " ".join(A.problems(self.d)))
+        w = " | ".join(A.warnings(self.d))
+        for part in ("callouts (pl): no **Uwaga:** / **Zasób:**", "recap (pl): 2 points", "over 80 words", "number 7 from the title",
+                     "promise (pl): the lead promises 5, the text has 6 numbered sections"):
+            self.assertIn(part, w)
+
+    def test_a_clean_article_has_no_shape_warnings(self):  # review 2026-11-08: the negative path, en skips callouts, recap 3..N
+        a = article(self.d)
+        self.assertEqual(A.shape_warnings(a["body"]["pl"], "(pl)"), [])
+        self.assertEqual(A.shape_warnings({"lead": "", "blocks": [{"t": "p", "text": "x"}]}, "(en)"), [])
+        few = {"lead": "", "blocks": [{"t": "h2", "text": "A"}, {"t": "p", "text": "x"}, {"t": "list", "items": list("abc")}]}
+        self.assertEqual(A.shape_warnings(few, "(en)"), [])  # one section: a 3 point recap is fine, never "want 3 to 1"
 
     def test_picture_density_warns_but_never_fails(self):  # 3.4
         a = article(self.d)
