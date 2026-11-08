@@ -18,6 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+import title_check
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_GRAMMAR = os.path.join(HERE, "style", "grammar.json")
 LLM_URL = os.environ.get("BEATS_LLM_URL", "http://127.0.0.1:8081/v1/chat/completions")
@@ -101,7 +103,18 @@ def hook_anchor(idx, W, earliest=0.5, latest=1.5):
     return next((i for i in idx if W[i][0] - t_first >= earliest), idx[-1])
 
 
+def enabled(grammar, plan):
+    """the grammar as this plan detects it: a beat with "opt_in": true (define, note: ledger plan2:L12, plan2:L21) only
+    when plan["beat_opt_in"] lists it, so a plan without the key finds the same moments as before"""
+    want = plan.get("beat_opt_in", [])
+    opt = {k for k, b in grammar["beats"].items() if b.get("opt_in")}
+    if not (isinstance(want, list) and all(isinstance(x, str) and x in opt for x in want)):
+        raise ValueError(f"beat_opt_in: a list of opt-in beats from the grammar {sorted(opt)}, got {want!r}")
+    return {**grammar, "beats": {k: b for k, b in grammar["beats"].items() if not b.get("opt_in") or k in want}}
+
+
 def detect(plan, W, grammar):
+    grammar = enabled(grammar, plan)
     beats, d = [], grammar["detect"]
     for n, idx in enumerate(sentences(plan, W, d["max_sentence"])):
         text = " ".join(W[i][2].strip() for i in idx)
@@ -218,10 +231,128 @@ def pick_icon(text, grammar):
     return "hash"
 
 
+LIST_CONJ = {"i", "oraz", "lub", "albo", "czy", "a"}  # the word before the last item of a spoken list ("Claude, n8n i Supabase")
+HOOK_SHOW_DUR = (0.5, 1.2)  # s a hook item card stays: until the next item, within this range (ledger S16)
+ITEM_WORDS = 2  # an item is at most this many words ("Google Sheets"); the rest of its chunk is the sentence around the list
+
+
+def _clean(t):
+    return t.strip().strip(",.?!:;„”\"()…")
+
+
+def _content(t):
+    c = _clean(t).lower()  # title_check.STOP: one stop list for a word that carries meaning (titles, caption key words, here)
+    return bool(c) and c not in title_check.STOP and c not in LIST_CONJ and (len(c) >= 2 or c.isdigit())
+
+
+def hook_items(idx, W):
+    """items of a list of >= 3 in the first sentence (S16): chunks split on commas, the last one holding "i"/"oraz"/...;
+    the first item ends its chunk, the last one starts after the conjunction. An item is one content word, grown to
+    ITEM_WORDS only by a name-like neighbour (a capital not opening the sentence, or a digit: "Google Sheets"), so the
+    sentence around the list stays out ("Supabase robią" -> "Supabase"). [[word index, ...], ...] or [] when the
+    sentence lists fewer than 3 things"""
+    def name_like(i):
+        t = _clean(W[i][2])
+        return i != idx[0] and _content(W[i][2]) and (t[:1].isupper() or any(c.isdigit() for c in t))
+
+    chunks, cur = [], []
+    for i in idx:
+        cur.append(i)
+        if W[i][2].strip().endswith(","):
+            chunks.append(cur); cur = []
+    if cur:
+        chunks.append(cur)
+    for a in range(len(chunks) - 1):
+        if not _content(W[chunks[a][-1]][2]):
+            continue
+        tail = [chunks[a][-1]]  # the first item: the content word that ends its chunk, with a name before it
+        for i in reversed(chunks[a][:-1]):
+            if len(tail) == ITEM_WORDS or not name_like(i):
+                break
+            tail.insert(0, i)
+        items = [tail]
+        for ch in chunks[a + 1:]:
+            conj = next((p for p, i in enumerate(ch) if _clean(W[i][2]).lower() in LIST_CONJ), None)
+            if conj is None:
+                if len(ch) <= ITEM_WORDS and all(_content(W[i][2]) for i in ch):
+                    items.append(ch); continue  # a middle item: the whole chunk
+                break
+            before, rest = ch[:conj], ch[conj + 1:]
+            if before and len(before) <= ITEM_WORDS and all(_content(W[i][2]) for i in before):
+                items.append(before)
+            elif before:
+                break
+            if rest and _content(W[rest[0]][2]):
+                after = [rest[0]]
+                for i in rest[1:]:
+                    if len(after) == ITEM_WORDS or re.search(r"[.?!,;:]$", W[after[-1]][2].strip()) or not name_like(i):
+                        break
+                    after.append(i)
+                items.append(after)
+            break
+        if len(items) >= 3:
+            return items
+    return []
+
+
+def icon_for(text, grammar):
+    """the grammar icon whose regex matches text, None when only the catch-all would (no picture of its own)"""
+    for rx, name in grammar.get("icons", {}).items():
+        if rx not in ("_doc", "") and re.search(rx, text, re.IGNORECASE):
+            return name
+    return None
+
+
+def hook_show(plan, W, grammar, order, have, near, name, d):
+    """plan "hook_show": true (ledger S16): when the first sentence lists >= 3 things, one 9:16 "kw" card per item, from
+    the item's first word (lead = plan gfx_lead, at most 0.2 s early) until the next item (HOOK_SHOW_DUR). Each item needs
+    a picture: plan "hook_assets" {"item": "lucide icon"} or a grammar icon matching it; one missing = no cards and the
+    item named (the producer rewrites the hook or adds the asset). Returns (new specs, report for plan["hook_show_report"])."""
+    rep = {"items": [], "missing": [], "why": None}
+    if not plan.get("vertical"):
+        rep["why"] = "shorts only (plan \"vertical\": true)"; return [], rep
+    if plan.get("hook_text") and plan.get("hook_pos", "top") != "mid":  # 9:16 kw cards sit in the top band (template.html)
+        rep["why"] = "the hook title sits in the top band where the cards go: set hook_pos \"mid\""; return [], rep
+    sents = sentences(plan, W, d["max_sentence"])
+    items = hook_items(sents[0], W) if sents else []
+    rep["items"] = [" ".join(_clean(W[i][2]) for i in it) for it in items]
+    if not items:
+        rep["why"] = "the first sentence does not list 3 or more things"; return [], rep
+    assets = plan.get("hook_assets") or {}
+    if not isinstance(assets, dict) or not all(isinstance(v, str) and re.fullmatch(r"[a-z0-9-]+", v) for v in assets.values()):
+        raise SystemExit(f"hook_assets: {{\"item\": \"lucide icon name\"}}, got {assets!r}")
+    # an icon name with no .svg in beatfx.ICONS would stop gfx/render.mjs: that item has no picture
+    from beatfx import ICONS
+    icons = [assets.get(t.lower()) or icon_for(t, grammar) for t in rep["items"]]
+    icons = [ic if ic and os.path.exists(os.path.join(ICONS, f"{ic}.svg")) else None for ic in icons]
+    rep["missing"] = [t for t, ic in zip(rep["items"], icons, strict=True) if ic is None]
+    if rep["missing"]:
+        rep["why"] = "no picture for an item: rewrite the hook or give hook_assets"; return [], rep
+    gl = plan.get("gfx_lead", -0.12)  # a bad value is build_edl.py's named error; here it only falls back
+    lead = max(-0.2, min(0.0, gl if isinstance(gl, (int, float)) and not isinstance(gl, bool) else -0.12))  # S16: [word - 0.2 s, word]
+    firsts = [it[0] for it in items]
+    if any(w not in firsts and any(abs(W[w][0] - W[f][0]) < HOOK_SHOW_DUR[1] for f in firsts) for w in near):
+        rep["why"] = "another graphic is placed inside the list"; return [], rep
+    new = []
+    for n, (it, ic) in enumerate(zip(items, icons, strict=True)):
+        w0 = it[0]
+        nxt = W[items[n + 1][0]][0] if n + 1 < len(items) else W[w0][0] + HOOK_SHOW_DUR[1]
+        gid = f"h_{name}_{w0}"
+        if gid in have or w0 not in order:
+            continue
+        new.append({"id": gid, "type": "kw", "text": rep["items"][n], "sub": "", "icon": ic, "canvas": "v", "quote": True,
+                    "dur": round(min(max(nxt - W[w0][0], HOOK_SHOW_DUR[0]), HOOK_SHOW_DUR[1]), 2), "beat": "hook_show"})
+        plan.setdefault("gfx", []).append({"id": gid, "word": w0, "lead": lead})
+        near.append(w0)
+    rep["cards"] = [f"h_{name}_{it[0]}" for it in items]
+    return new, rep
+
+
 def make_gfx(plan, beats, W, grammar, specs):
     """Graphics for moments listed in grammar auto_gfx[format] (shorts: number cards, 9:16). Idempotent: id per moment;
     a moment with another graphic closer than gfx_min_gap s is left alone (one card read at a time). Returns new specs
-    (plan["gfx"] updated in place). Graphic ids use only [A-Za-z0-9_-] (the panel and gfx/render.mjs file names)."""
+    (plan["gfx"] updated in place). Graphic ids use only [A-Za-z0-9_-] (the panel and gfx/render.mjs file names).
+    Plan "hook_show": true adds the hook list cards first (hook_show(); its report goes to plan["hook_show_report"])."""
     fmt = "short" if plan.get("vertical") else "long"
     d = grammar["detect"]
     name = re.sub(r"[^A-Za-z0-9_-]+", "_", str(plan.get("name") or "film")).strip("_") or "film"
@@ -232,6 +363,10 @@ def make_gfx(plan, beats, W, grammar, specs):
     # shorts: the hook title sits in the same top band for hook_dur s; source time >= output time, so +1 s margin
     hook_end = W[order[0]][0] + plan.get("hook_dur", 3.0) + 1.0 if plan.get("hook_text") and order else -1.0
     new = []
+    if plan.get("hook_show"):
+        new, plan["hook_show_report"] = hook_show(plan, W, grammar, order, have, near, name, d)
+        if plan["hook_show_report"]["why"]:
+            print("hook_show:", plan["hook_show_report"]["why"], plan["hook_show_report"]["missing"] or "", file=sys.stderr)
     for b in beats:
         if b["type"] not in kinds or b.get("off") or b["word"] not in order:
             continue
@@ -244,7 +379,7 @@ def make_gfx(plan, beats, W, grammar, specs):
         if fmt == "short":
             spec["canvas"] = "v"
         new.append(spec)
-        plan.setdefault("gfx", []).append({"id": gid, "word": b["word"], "lead": 0.0})
+        plan.setdefault("gfx", []).append({"id": gid, "word": b["word"]})  # lead: the plan's "gfx_lead" (build_edl.py)
         near.append(b["word"])
     return new
 
@@ -264,8 +399,8 @@ def main(argv):
     grammar = load_grammar(gpath)
     W = load_words(plan, os.path.dirname(os.path.abspath(plan_p)))
     beats = detect(plan, W, grammar)
-    if "--llm" in argv:
-        print("llm: oznaczone", llm_refine(beats, W, grammar))
+    if "--llm" in argv:  # the model is offered only the moment types this plan detects
+        print("llm: oznaczone", llm_refine(beats, W, enabled(grammar, plan)))
     beats = [{k: v for k, v in b.items() if not k.startswith("_")} for b in beats if b["type"]]
     beats = merge(plan.get("beats", []), beats)
     fmt = "short" if plan.get("vertical") else "long"
@@ -290,7 +425,8 @@ def main(argv):
             _atomic_json(sp_path, specs + new)  # pointing at a card that does not exist
     if "--json" in argv:  # proposal for the editing panel, which applies it through its undo history
         _atomic_json(argv[argv.index("--json") + 1], {"beats": beats, "gfx": plan.get("gfx", [])[len(gfx_before):],
-                                                       "specs": new})
+                                                       "specs": new,
+                                                       **({"hook_show_report": plan["hook_show_report"]} if plan.get("hook_show") and "hook_show_report" in plan else {})})
     if "--write" in argv:
         plan["beats"] = beats
         _atomic_json(plan_p, plan)

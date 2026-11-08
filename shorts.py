@@ -34,6 +34,17 @@ LEANS_BACK = re.compile(r"^\W*(czyli|więc|ale|dlatego|\d+\.(\s|$)|a\b|i\b|no\b|
 POINTS_ON = re.compile(r"\b(zaczniemy|zacznijmy|przejdźmy|przejdziemy|za chwilę|zaraz (powiem|pokażę)|w następn\w*|o tym (za|później))\b",
                        re.IGNORECASE)  # the closer announces what comes next in the long
 LONG_ONLY = {"cta", "section"}
+CALLBACK = 1.5  # round 2 S6 (Sinek 3/3): the last sentence comes back to the hook (a number or a noun of the first one)
+KEY = re.compile(r"\d+%?|[^\W\d_]{5,}")
+STOP = {w[:5] for w in ("który", "która", "które", "którz", "takie", "taki", "tylko", "jeszc", "bardz", "wszys", "właśn", "dlate", "trzeb", "można",
+        "naprawdę", "potem", "zawsz", "nigdy", "teraz", "kiedy", "gdzie", "jakie", "jaki", "przez", "przed", "między", "każdy",
+        "każde", "swoje", "moich", "twoje", "będzie", "jestem", "byłem", "mówię", "znaczy", "chciałem")}
+
+
+def callback(first: str, last: str) -> bool:
+    """the last sentence repeats a number or a content word (>= 5 letters, first 5 letters = the stem) of the first"""
+    keys = lambda t: {k.lower()[:5] for k in KEY.findall(t)} - STOP
+    return bool(keys(first) & keys(last))
 
 
 def span(idx, W):
@@ -69,6 +80,7 @@ def score(sents, moments, W):
     if end.endswith("?"): pts -= 2; why.append("kończy pytaniem")
     elif not re.search(r"[.!…]$", end): pts -= 2; why.append("kończy w pół zdania")
     if POINTS_ON.search(text(last, W)): pts -= 3; why.append("koniec zapowiada dalszą część longa")
+    if len(sents) > 1 and callback(text(first, W), text(last, W)): pts += CALLBACK; why.append("puenta wraca do haka")
     body = min(BODY_CAP, sum(BODY.get(t, 0) for m in moments for t, _ in m))
     if body: pts += body; why.append(f"konkret +{body:.1f}")
     if any(t in LONG_ONLY for m in moments for t, _ in m): pts -= 3; why.append("CTA/przejście longa w środku")

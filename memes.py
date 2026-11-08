@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """memes.py add <slug>: fetch the picture of a style/memes.json template from imgflip into render/memes/<slug>.<ext> plus
-<slug>.json (name, size, text boxes, source URL) for the 9:16 "meme" card (gfx/render.mjs). The pictures are third-party, so
+<slug>.json (name, size, text boxes, source URL) for the "meme" card, 9:16 and 16:9 (gfx/render.mjs). The pictures are third-party, so
 they stay out of the public repo (render/ is ignored). Only https://i.imgflip.com pictures, JPEG or PNG, at most MAX_BYTES.
 """
 from __future__ import annotations

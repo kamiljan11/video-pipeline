@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """build_edl.py plan.json -> edl.json
 plan: {"words": "x.cw.json", "sil": "x.sil", "src": "/path.mp4", "keeps": [[w0, w1, {"t0":opt,"t1":opt}], ...],
-       "gfx": [{"id":..., "word": idx, "lead": 0.0}], "gfx_dir": "...", "gfx_specs": "...", "face": [x,y], "zooms": [1.0, 1.15]}"""
+       "gfx": [{"id":..., "word": idx, "lead": 0.0}], "gfx_lead": -0.12, "gfx_dir": "...", "gfx_specs": "...", "face": [x,y], "zooms": [1.0, 1.15]}
+plan2 cards (gfx/cards_lib.mjs, all opt-in): a gfx entry's "item_words" [idx, ...] times a "list" card's items (L8: overlay
+delays / items_said / item_lead); "note", "lower" + "define", "chap" + "chap_style" are held to their rules here (L9, L12,
+L21); each such overlay gets "variant" (roadmap | part_tag | define | note | upto | stack). Beats: plan "beat_opt_in" (beats.py)."""
+import itertools
 import json
 import re
 import sys
@@ -9,8 +13,16 @@ from pathlib import Path
 
 import edges
 import edl_guard
+import framing
+import gfx_events
 import themes
-from gfx_types import PIP, SIDE_BOX, SPLIT
+import timeline
+import title_check  # its STOP words: the caption key word (S9) is never one of them
+from gfx_types import CORNER, DEFINE, NOTE, SIDE_BOX, SPLIT, SPLIT_FULL, beside, has_pip
+
+# keys of the face box under a 9:16 card (assemble.py): caption line y in px, face point in the box height, picture scale
+# (< 1 = smaller picture on its blurred copy; 0 divides by zero in assemble.py, film 2 review 2026-11-04)
+BOX_KEYS = (("caption_y", 0, 1920), ("face_anchor", 0.0, 1.0), ("face_zoom", 0.4, 1.0))
 
 P = json.loads(Path(sys.argv[1]).read_text())
 W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x in json.loads(Path(P["words"]).read_text())["transcription"]]
@@ -84,46 +96,168 @@ for t0, t1, a in ranges:
     segs += rs
 # zoom: toggle only on real jump cuts (removed > 0.8 s of source) -> hides the jump
 zs = P.get("zooms", [1.0, 1.15]); zi = 0; out = []; prev_end = None
-for s0, s1, kind in segs:
-    if prev_end is not None and (s0 - prev_end > 0.8 or P.get("zoom_every_cut")): zi = (zi + 1) % len(zs)
-    out.append({"src": "A", "in": round(s0, 3), "out": round(s1, 3), "zoom": zs[zi]}); prev_end = s1
+EXACT = bool(P.get("seg_exact"))  # assemble.py cuts whole frames then: film times come from timeline.py, never from EDL lengths
+try:  # plan "zoom_every_s" / "part_framing" (ledger L10, "second camera from one"): framing.py decides every level then
+    FRAMING = framing.options(P, Path(sys.argv[1]).resolve().parent, len(W))
+except framing.FramingError as e:
+    sys.exit(str(e))
+FRAMING_REPORT = None
+if FRAMING is None:
+    for s0, s1, kind in segs:
+        if prev_end is not None and (s0 - prev_end > 0.8 or P.get("zoom_every_cut")): zi = (zi + 1) % len(zs)
+        out.append({"src": "A", "in": round(s0, 3), "out": round(s1, 3), "zoom": zs[zi]}); prev_end = s1
+else:
+    out, FRAMING_REPORT = framing.assign(framing.part_pieces(segs, W, FRAMING["parts"]), W, zs, FRAMING, EXACT, bool(P.get("zoom_every_cut")))
 def src2out(t):
-    acc = 0.0
-    for s in out:
-        if t < s["in"]: return acc
-        if t <= s["out"]: return acc + t - s["in"]
-        acc += s["out"] - s["in"]
-    return acc
-total = sum(s["out"] - s["in"] for s in out)
+    return timeline.src2out(t, out, EXACT)
+total = timeline.total(out, EXACT)
 specs = {s["id"]: s for s in json.loads(Path(P["gfx_specs"]).read_text())} if P.get("gfx_specs") else {}
 ovs = []
 def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:16 top card (canvas "v") sits above the face
-    sp = specs.get(gid, {}); return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v"
+    sp = specs.get(gid, {})
+    # a 9:16 "float" in its own screen (layout split/corner): the face sits in a box or circle, a zoom there only jumps
+    if sp.get("canvas") == "v" and sp.get("type") in ("float", "scene") and sp.get("layout") in ("split", "corner", "split_full"): return True
+    if sp.get("canvas") == "v" and sp.get("face_corner"): return True  # a full card with the face in the corner circle
+    # a 9:16 "web" card with the face in a box under it: a punch-in there shows the face far too close (Kamil 2026-10-31, c2)
+    if sp.get("canvas") == "v" and sp.get("type") == "web" and sp.get("layout", "split") in ("split", "split_full"): return True
+    if sp.get("canvas") == "v" and sp.get("type") == "meme" and sp.get("layout", "split") in ("split", "corner", "split_full"): return True
+    return sp.get("type") in SIDE_BOX and sp.get("canvas") != "v" and not beside(sp)  # beside the head: zoom allowed
 if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
     sys.exit("gfx: the plan places graphics, so it needs \"gfx_specs\" (cards file) and \"gfx_dir\" (their .mov folder)")
+_lead = P.get("gfx_lead", 0.0)  # seconds a graphic enters before its word; film_check wants -0.5..-0.1
+if isinstance(_lead, bool) or not isinstance(_lead, (int, float)) or not -2 <= _lead <= 0:
+    sys.exit(f"gfx_lead: seconds before the word, -2..0 (film_check wants -0.5..-0.1), got {_lead!r}")
+ITEM_EARLY, ITEM_LATE, ITEM_HOLD = 0.05, 0.3, 1.5  # s: an item never shows before it is said (+ lead); later than 0.3 s = WARN
+
+
+def list_timing(g, sp, at, lead):
+    """plan gfx "item_words" (ledger plan2:L8): the word that names each item shown on a "list" card -> when each item
+    may come in. The card's .mov is drawn before this step (run_v4.sh), so the spec's "delays" must already say it: an
+    item on screen before its word (+ the card's lead) stops the build with the delays to put in gfx_specs.json"""
+    gid, iw, items = g["id"], g["item_words"], sp.get("items")
+    if sp.get("type") != "list": sys.exit(f"{gid}: item_words is for a \"list\" card, this one is {sp.get('type')!r}")
+    if not (isinstance(items, list) and items): sys.exit(f"{gid}: a list with item_words needs \"items\"")
+    n = sp.get("upto", len(items)); stacked = "upto" not in sp
+    if type(n) is not int or not 1 <= n <= len(items): sys.exit(f"{gid}: upto = a whole number 1..{len(items)}, got {n!r}")
+    d = sp.get("delays") or []
+    if not (isinstance(d, list) and all(v is None or (type(v) in (int, float) and v >= 0) for v in d)):
+        sys.exit(f"{gid}: delays = seconds >= 0 or null per item, got {d!r}")
+    kept = {i for k in P["keeps"] for i in range(k[0], k[1] + 1)}
+    if not (isinstance(iw, list) and len(iw) == n and all(type(i) is int and i in kept for i in iw) and iw == sorted(iw)):
+        sys.exit(f"{gid}: item_words = {n} kept word indexes in order (one per item shown), got {iw!r}")
+    said = [src2out(W[i][0]) for i in iw]
+    need = [max(0.0, t + lead - at) for t in said]  # earliest delay of each item
+    first = 0 if stacked else n - 1  # an "upto" card: the earlier items stand still from its start
+    if any(t + lead > at + ITEM_EARLY for t in said[:first]):
+        sys.exit(f"{gid}: \"upto\" {n}: items 1..{n - 1} are on the card from its start, so their words come before it")
+    # the delay the renderer uses (gfx/cards_lib.mjs listHtml): the spec's, else i s in a stack, 0.3 s for an "upto" card
+    moving = range(first, n)
+    timed = {i: float(d[i]) if i < len(d) and d[i] is not None else float(i if stacked else 0.3) for i in moving}
+    want = [None] * first + [round(need[i] + 0.02, 2) for i in moving]
+    early = [i + 1 for i in moving if timed[i] < need[i] - ITEM_EARLY]
+    if early:
+        sys.exit(f"{gid}: item(s) {early} on screen before they are said; set \"delays\": {json.dumps(want)} in {P['gfx_specs']} and render the card again")
+    late = [i + 1 for i in moving if timed[i] > need[i] + ITEM_LATE]
+    if late: print(f"WARN {gid}: item(s) {late} come in more than {ITEM_LATE} s after their word; delays from item_words: {json.dumps(want)}")
+    if sp["dur"] < timed[n - 1] + ITEM_HOLD:
+        sys.exit(f"{gid}: dur {sp['dur']} s: the last item needs {ITEM_HOLD} s on screen (dur >= {timed[n - 1] + ITEM_HOLD:.2f})")
+    return {"delays": [timed.get(i) for i in range(n)], "items_said": [round(t, 3) for t in said], "item_lead": lead}
+
+
+def card_variant(sp):
+    """the plan2 card a spec draws (gfx/cards_lib.mjs), written to the EDL so a checker sees which features a film uses"""
+    t = sp.get("type")
+    if t == "chap" and sp.get("chap_style") in ("roadmap", "part_tag"): return sp["chap_style"]
+    if t == "lower" and sp.get("define") is True: return "define"
+    if t == "note": return "note"
+    if t == "list" and "upto" in sp: return "upto"
+    if t == "list" and "dim_done" in sp: return "stack"
+    return None
+
+
 for g in P.get("gfx", []):
     if g.get("id") not in specs: sys.exit(f"gfx {g.get('id')!r}: no such card in {P['gfx_specs']}")
     if "find" in g:
         c = [i for i in range(max(0, g["near"] - 25), min(len(W), g["near"] + 25)) if g["find"].lower() in W[i][2].lower()]
         g["word"] = min(c, key=lambda i: abs(i - g["near"]))
-    at = total if g["word"] == "END" else src2out(W[g["word"]][0]) + g.get("lead", 0.0)
+    # a graphic comes in a little before its word (Skool CCC A19: entrance ~0.12 s early, so it is up when the word lands);
+    # plan "gfx_lead" sets it for the film, a card's own "lead" wins; an old plan without the key keeps 0.0
+    at = total if g["word"] == "END" else max(0.0, src2out(W[g["word"]][0]) + g.get("lead", _lead))
     sp = specs[g["id"]]; vert = sp.get("canvas") == "v"
+    # layout "split_full" (ledger S19, an A/B option): the face fills the bottom half, the card the top 1080x960, the
+    # captions on the seam (gfx_types.SPLIT_FULL); every check below treats it as a "split" card with a bigger box
+    full_split = sp.get("layout") == "split_full"
+    if full_split:
+        if not (vert and sp.get("type") in ("web", "meme", "float")):
+            sys.exit(f"{g['id']}: layout \"split_full\" is for a 9:16 (canvas \"v\") \"web\", \"meme\" or \"float\" card, got type {sp.get('type')!r}, canvas {sp.get('canvas')!r}")
+        sp = {**sp, "layout": "split"}
     if vert and sp.get("type") in ("web", "meme") and not P.get("vertical"):  # a 9:16 card in a 16:9 film: no face box, no PiP = no face
         sys.exit(f"{g['id']}: a \"{sp['type']}\" card with canvas \"v\" belongs to a vertical film (plan \"vertical\": true)")
-    if sp.get("type") == "meme" and not vert:  # gfx/render.mjs draws a meme only in 9:16
-        sys.exit(f"{g['id']}: a \"meme\" card needs canvas \"v\" (shorts only)")
+    if sp.get("type") == "meme" and not vert and P.get("vertical"):  # a 16:9 meme (left of the PiP) in a short: no face
+        sys.exit(f"{g['id']}: a \"meme\" card in a vertical film needs canvas \"v\"")
     # 9:16 "web" card: "split" (default) = face in a box under the card (assemble.py), "full" = the card alone; no corner PiP
     # a 9:16 "float" may ask for "layout": "split" too (a full-screen illustration: its own background, the face in the box under it)
-    if "layout" in sp and (not vert or sp.get("type") not in ("web", "meme", "float") or sp["layout"] not in ("split", "full")
-                           or (sp.get("type") == "float" and sp["layout"] != "split")):
-        sys.exit(f"{g['id']}: layout = \"split\" or \"full\" on a \"web\" or \"meme\" card, \"split\" on a \"float\" (canvas \"v\"), got {sp['layout']!r}")
-    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": sp.get("type") in PIP and not vert}
-    if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") == "float" and sp.get("layout") == "split")): o["split"] = True
+    # ... or "corner": the card fills the screen and the face sits in a circle in the corner (gfx_types.CORNER, assemble.py)
+    # a 9:16 "scene" (gfx/scene_lib.mjs, the long's animated explainer drawn for a short) must say which: split or corner
+    if vert and sp.get("type") == "scene" and sp.get("layout") not in ("split", "corner"):
+        sys.exit(f"{g['id']}: a 9:16 \"scene\" needs layout \"split\" (face box under it) or \"corner\" (face circle), got {sp.get('layout')!r}")
+    if "layout" in sp and not (not vert and sp.get("type") == "scene" and sp["layout"] == "side") and (not vert or sp.get("type") not in ("web", "meme", "float", "scene") or sp["layout"] not in ("split", "full", "corner")
+                           or (sp.get("type") in ("float", "scene") and sp["layout"] not in ("split", "corner"))
+                           or (sp.get("type") == "web" and sp["layout"] == "corner")):
+        sys.exit(f"{g['id']}: layout = \"side\" on a 16:9 \"scene\", \"split\" or \"full\" on a \"web\" card, \"split\", \"full\" or \"corner\" on a \"meme\", \"split\" or \"corner\" on a \"float\" or \"scene\" (canvas \"v\"), got {sp['layout']!r}")
+    o = {"file": f"{P['gfx_dir']}/{g['id']}.mov", "at": round(at, 3), "dur": sp["dur"], "id": g["id"], "pip": has_pip(sp)}
+    if vert and ((sp.get("type") in ("web", "meme") and sp.get("layout", "split") == "split") or (sp.get("type") in ("float", "scene") and sp.get("layout") == "split")): o["split"] = True
+    if full_split:
+        o["layout"] = "split_full"
+        if "face_box" not in sp: o["face_box"] = list(SPLIT_FULL["face_box"])  # a card's own box still wins
+        if "caption_y" not in sp: o["caption_y"] = SPLIT_FULL["caption_y"]
+    if o.get("split") and "face_box" in sp:  # own face box under a short card: [x, y, w, h] inside 1080x1920 (assemble.py)
+        fb = sp["face_box"]
+        if not (isinstance(fb, list) and len(fb) == 4 and all(isinstance(v, int) for v in fb) and fb[0] >= 0 and fb[1] >= 0
+                and fb[2] >= 100 and fb[3] >= 100 and fb[0] + fb[2] <= 1080 and fb[1] + fb[3] <= 1920):
+            sys.exit(f"{g['id']}: face_box = [x, y, w, h] in whole px inside 1080x1920, got {fb!r}")
+        o["face_box"] = fb
+    if o.get("split"):  # the box under the card (own face_box or the default one): named stop on a value ffmpeg cannot use
+        for k, lo, hi in BOX_KEYS:
+            if k not in sp: continue
+            if not (isinstance(sp[k], (int, float)) and not isinstance(sp[k], bool) and lo <= sp[k] <= hi):
+                sys.exit(f"{g['id']}: {k} = a number from {lo:g} to {hi:g}, got {sp[k]!r}")
+            o[k] = sp[k]
+    if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
+    if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
+    if vert and sp.get("type") in ("float", "scene", "meme") and sp.get("layout") == "corner": o["corner"] = True
+    if (variant := card_variant(sp)) is not None:
+        if vert or P.get("vertical"): sys.exit(f"{g['id']}: a {variant} card is 16:9 only (a Long feature), not in a vertical film")
+        o["variant"] = variant
+    if "item_words" in g: o.update(list_timing(g, sp, at, g.get("lead", _lead)))
+    # what happens inside the card, in film seconds (gfx_events.py): "zooms" (L17), "moves" (S14), "read_along" (L16b), "items"
+    # (S11); a plan gfx entry naming the words of its cues ("read_along" / "items": word indexes) is held to them here
+    o.update(gfx_events.overlay_fields(sp, o["at"]))
+    cue = gfx_events.cue_problems(g, sp, o["at"], lambda w: src2out(W[w][0]), len(W))
+    if cue: sys.exit(f"{g['id']}: " + "; ".join(cue))
     ovs.append(o)
+# plan2 cards held to their time (gfx_types NOTE / DEFINE): reading time (film_check.reading_need, the one rule) or the
+# minimum; one note per NOTE["every"] s, so it stays a pointer and not a caption track; a note and a lower third share the
+# bottom-left corner, so never both at once; every roadmap card of a film is one drawing (the same "parts")
+_timed = [(o, specs[o["id"]]) for o in ovs if o.get("variant") in ("note", "define")]
+if _timed:  # film_check loaded only here: a film without these cards does not need the checker
+    from film_check import reading_need
+    for o, sp in _timed:
+        need = max(reading_need(sp), NOTE["min_dur"] if o["variant"] == "note" else DEFINE["min_dur"])
+        if sp["dur"] < need - 1e-6: sys.exit(f"{o['id']}: a {o['variant']} card needs {need:.1f} s on screen (reading time), dur is {sp['dur']}")
+_notes = sorted(o["at"] for o in ovs if o.get("variant") == "note")
+for _a, _b in itertools.pairwise(_notes):
+    if _b - _a < NOTE["every"]: sys.exit(f"notes at {_a:.1f} s and {_b:.1f} s: at most one note per {NOTE['every']:.0f} s")
+for o in ovs:
+    if o.get("variant") != "note": continue
+    hit = [q["id"] for q in ovs if specs[q["id"]].get("type") == "lower" and q["at"] < o["at"] + o["dur"] and o["at"] < q["at"] + q["dur"]]
+    if hit: sys.exit(f"{o['id']}: a note and the lower third {hit} share the bottom-left corner at once")
+_maps = {json.dumps(specs[o["id"]].get("parts"), ensure_ascii=False) for o in ovs if o.get("variant") in ("roadmap", "part_tag")}
+if len(_maps) > 1: sys.exit(f"roadmap / part_tag cards with different \"parts\" in one film ({len(_maps)} lists): one roadmap, one drawing")
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
 for sg in out:
-    d = sg["out"] - sg["in"]
+    d = timeline.piece_len(sg, EXACT)
     for o in ovs:
         if side_box(o["id"]) and acc < o["at"] + o["dur"] and acc + d > o["at"]:
             sg["zoom"] = 1.0
@@ -135,14 +269,14 @@ if "beats" in P:  # intent grammar (style/grammar.json): every punch comes from 
     EMPH, BEAT_FX = plan_beat_fx(P, W, out, ovs, specs, src2out)
 boxed = set(); acc = 0.0
 for k, sg in enumerate(out):
-    d = sg["out"] - sg["in"]
+    d = timeline.piece_len(sg, EXACT)
     for o in ovs:
         if side_box(o["id"]) and acc < o["at"] + o["dur"] and acc + d > o["at"]:
             boxed.add(k)
     acc += d
 DRIFT = P.get("drift", 0.05); flip = 0
 for k, sg in enumerate(out):
-    d = sg["out"] - sg["in"]; base = sg["zoom"]
+    d = timeline.piece_len(sg, EXACT); base = sg["zoom"]
     if k in boxed or d < 3.0 or DRIFT <= 0: continue
     a, b = (base, base + DRIFT) if flip % 2 == 0 else (base + DRIFT, base)
     sg["zoom"] = {"a": round(a, 3), "b": round(b, 3), "t0": 0.0, "t1": round(d, 3)}; flip += 1
@@ -155,7 +289,7 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
     acc_e = 0.0
     for k, sg in enumerate(out):
         if sg["in"] <= t_src <= sg["out"]:
-            t_out = acc_e + t_src - sg["in"]; seg_end = acc_e + sg["out"] - sg["in"]
+            t_out = acc_e + t_src - sg["in"]; seg_end = acc_e + timeline.piece_len(sg, EXACT)
             hit = [o["id"] for o in ovs if side_box(o["id"]) and o["at"] < seg_end and o["at"] + o["dur"] > t_out - 0.2]
             if hit: print("emph skipped (box on screen)", em.get("find", em.get("word")), hit); break
             base = sg["zoom"]["a"] if isinstance(sg["zoom"], dict) else sg["zoom"]
@@ -169,7 +303,22 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
             sg["zoom"] = {"a": base, "b": round(min(base + em.get("amt", 0.2), 1.38), 3), "t0": round(t0, 3), "t1": round(t0 + em.get("speed", 0.3), 3)}
             PUNCHED.add(k)
             print("emph", em.get("find", em.get("word")), "seg", k, *([em["beat"]] if "beat" in em else [])); break
-        acc_e += sg["out"] - sg["in"]
+        acc_e += timeline.piece_len(sg, EXACT)
+# plan "hook_pos" (ledger S8): "top" (default) = the hook title in the top band as before; "mid" = the title at 0.45 H
+# (HOOK_MID_Y, inside the 0.40-0.50 H of the study, above the CORNER face circle at y 1300) and a picture change when it
+# leaves (framing.hook_punch, at hook_dur +-0.25 s)
+HOOK_POS = P.get("hook_pos", "top")
+if HOOK_POS not in ("top", "mid"): sys.exit(f"hook_pos: \"top\" or \"mid\", got {HOOK_POS!r}")
+HOOK_MID_Y = 864  # px of 1920: a 2-line hook (2 x 84 px in its box) spans about 760-970, never into the corner circle
+HOOK_PUNCH = None
+if HOOK_POS == "mid":
+    if not (P.get("vertical") and P.get("hook_text") and P.get("ass_out")):
+        sys.exit("hook_pos: \"mid\" moves the hook title of a short: the plan needs \"vertical\": true, \"hook_text\" and \"ass_out\"")
+    _hd = P.get("hook_dur", 3.0)
+    if isinstance(_hd, bool) or not isinstance(_hd, (int, float)) or not 0.5 <= _hd <= 10:
+        sys.exit(f"hook_dur: seconds 0.5..10, got {_hd!r}")
+    HOOK_PUNCH = framing.hook_punch(out, boxed, float(_hd), EXACT)
+    print("hook punch", HOOK_PUNCH)
 # manual per-segment zoom from the editing panel: {"<source in, 2 decimals>": zoom}; face_track still clamps to zmax
 for sg in out:
     ov = P.get("seg_zoom", {}).get(f"{sg['in']:.2f}")
@@ -182,12 +331,17 @@ if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anch
 if P.get("progress", False) not in (True, False, "fill"): sys.exit(f"progress: true, false or \"fill\", got {P['progress']!r}")
 if "music_duck" in P and not edl_guard.duck_ok(P["music_duck"]):
     sys.exit(f"music_duck: {{\"threshold\": 0.001..1, \"ratio\": 1..20}}, got {P['music_duck']!r}")
+_master = P.get("master")  # loudness of the finished mix (master_audio.py); absent = assemble.py as before
+if _master is not None and not (isinstance(_master, dict) and set(_master) <= {"lufs", "tp"}
+                                and all(isinstance(_master.get(k, v), (int, float)) and not isinstance(_master.get(k, v), bool) for k, v in (("lufs", -14), ("tp", -1.5)))
+                                and -24 <= _master.get("lufs", -14) <= -9 and -3 <= _master.get("tp", -1.5) <= -0.5):
+    sys.exit(f"master: {{\"lufs\": -24..-9, \"tp\": -3..-0.5}}, got {_master!r}")
 _tail = P.get("tail", 0)  # end screen seconds (long: YouTube end screen; short: end card), goes to ffmpeg tpad/apad
 if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _tail <= 60:
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods: music/make_beds.py
+       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead", "master") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead; master: assemble.py -> master_audio.py
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME
@@ -201,6 +355,26 @@ if BROLL is not None:
     edl["broll_removed"] = sum(isinstance(r, dict) for r in rej) if isinstance(rej, list) else 0
     for b in BROLL[0]: print("broll", b["id"], b["at"])
     for b in BROLL[1]: print("broll skipped word", b["word"], b["reason"])
+# research options (ledger L10, S8, S9, S16, S19): each one used leaves its key here, so a checker proves it from the EDL;
+# a plan without them gets no key at all (its EDL stays byte for byte as before)
+OPTIONS = {k: P[k] for k in ("zoom_every_s", "part_framing", "caption_emph", "caption_emph_scale", "hook_show")
+           if k in P and P[k] not in (None, False, "active")}
+if HOOK_POS == "mid": OPTIONS["hook_pos"] = "mid"
+_split_full = [o["id"] for o in ovs if o.get("layout") == "split_full"]
+if _split_full: OPTIONS["split_full"] = _split_full
+if FRAMING_REPORT is not None: edl["framing"] = FRAMING_REPORT
+if HOOK_POS == "mid": edl.update({"hook_pos": "mid", "hook_y": HOOK_MID_Y, "hook_punch": HOOK_PUNCH})
+if P.get("hook_show"):  # beats.py --gfx --write leaves its report in the plan: which hook cards came, which items had no picture
+    rep = P.get("hook_show_report")
+    edl["hook_show"] = {"cards": [o["id"] for o in ovs if specs.get(o["id"], {}).get("beat") == "hook_show"],
+                        **(rep if isinstance(rep, dict) else {"why": "no hook_show_report in the plan: run beats.py --gfx --write"})}
+# punch_headroom: what a zoom must keep in frame (face_track.py). "hair" (default): the head with its hair; "face": brow to chin,
+# so a punch-in may cut the top of the head (film 2026-11-04: Kamil sits close, the head fills 73 % of the frame and "hair" left
+# zooms of about 1.01, 0.6 punch-ins a minute against the checklist's 2)
+if "punch_headroom" in P:
+    if P["punch_headroom"] not in ("hair", "face"):
+        sys.exit(f'punch_headroom: "hair" (keep the whole head) or "face" (brow to chin), got {P["punch_headroom"]!r}')
+    edl["punch_headroom"] = P["punch_headroom"]
 if "face_target_y" in P and not P.get("vertical"):
     print("face_target_y: ignored, only vertical films use it", file=sys.stderr)
 if P.get("vertical"):
@@ -289,7 +463,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             sys.exit(f"{o['id']}: pill = true/false, only on a maxim with canvas \"v\", got {sp['pill']!r}")
     quiet = [(o["at"], o["at"] + o["dur"]) for o in ovs if specs.get(o["id"], {}).get("pill") is True]
     PILL_MIN_LEFT = 0.3  # s: a shorter rest of a line after the pill leaves would only flash
-    split_win = [(o["at"], o["at"] + o["dur"]) for o in ovs if o.get("split")]  # under a split "web" card: captions in the gap above the face box
+    split_win = [(o["at"], o["at"] + o["dur"]) for o in ovs if o.get("split") or o.get("corner")]  # under a split "web" card: captions in the gap above the face box
+    cap_pos = [(o["at"], o["at"] + o["dur"], CORNER["caption_y"] if o.get("corner") else o.get("caption_y", SPLIT["caption_y"])) for o in ovs if o.get("split") or o.get("corner")]
     ev = []; i = 0
     CAP_ACC = themes.ass_color(THEME["acc"]) if THEME else "&HC4E22D"  # spoken word in the accent colour
     # caption_case "as_said": words as transcribed (sentence case) instead of CAPS; caption_ahead "dim": a word of the line not
@@ -303,9 +478,39 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     if type(P.get("caption_pop", False)) is not bool: sys.exit(f"caption_pop: true/false, got {P['caption_pop']!r}")
     POP = "{\\fscx60\\fscy60\\t(0,70,\\fscx108\\fscy108)\\t(70,130,\\fscx100\\fscy100)}" if P.get("caption_pop") else ""
     CAP_DIM = "&H8C8C8C"  # grey of a word not said yet: readable on the face, clearly behind the white ones
-    def cap_word(x, k, j):
+    # caption_emph (ledger S9): "active" (default) = the word being said in the accent (karaoke, as before); "key" = one
+    # content word of each line in the accent for the whole line (a number first, else the longest content word: a noun in
+    # most spoken Polish lines; never a preposition or a filler), optional caption_emph_scale (x1.6 in the study) on it.
+    # caption_case stays the plan's choice: CAPS is 2/3 of the niche (SYNTH2-shorts S9)
+    EMPH_CAP = P.get("caption_emph", "active")
+    if EMPH_CAP not in ("active", "key"): sys.exit(f"caption_emph: \"active\" or \"key\", got {EMPH_CAP!r}")
+    EMPH_SCALE = P.get("caption_emph_scale")
+    if EMPH_SCALE is not None and (EMPH_CAP != "key" or isinstance(EMPH_SCALE, bool) or not isinstance(EMPH_SCALE, (int, float)) or not 1.0 <= EMPH_SCALE <= 2.0):
+        sys.exit(f"caption_emph_scale: 1.0..2.0 with caption_emph \"key\", got {EMPH_SCALE!r}")
+    if EMPH_CAP == "key" and AHEAD == "dim":  # dim colours every word ahead: the one key word would drown in it
+        sys.exit("caption_emph: \"key\" keeps one coloured word a line, it does not go with caption_ahead \"dim\"")
+    _fs = re.search(r"^Style: Cap,[^,]*,(\d+),", hdr, flags=re.MULTILINE)
+    CAP_FS = int(_fs.group(1)) if _fs else 92
+    KEY_ON = "{\\c" + CAP_ACC + "&" + (f"\\fs{round(CAP_FS * EMPH_SCALE)}" if EMPH_SCALE else "") + "}"
+    KEY_OFF = "{\\c&HFFFFFF&" + (f"\\fs{CAP_FS}" if EMPH_SCALE else "") + "}"
+    NUM_WORD = re.compile(r"\d|^(jed(en|na|no)|dw(a|ie|óch|u)|trz(y|ech)|czter(y|ech)|pięć|pięciu|sześć|siedem|osiem|dziewięć|dziesięć"
+                          r"|sto|setk\w*|tysi[ąę]c\w*|milion\w*|miliard\w*|procent\w*|połow\w*)$", re.IGNORECASE)
+    KEY_SKIP = title_check.STOP | {"przy", "we", "bo", "też", "także", "tylko", "jeszcze", "bardzo", "bardziej", "właśnie", "naprawdę",
+                                   "wtedy", "potem", "kiedy", "dlaczego", "więc", "jeśli", "żeby", "jako", "sobie", "siebie", "tego",
+                                   "temu", "tym", "tych", "tutaj", "wszystko", "coś", "ktoś", "może", "można", "trzeba", "jestem",
+                                   "jesteś", "będzie", "było", "była", "był", "mamy", "mają", "wiem", "chcę"}
+    def key_word(ws):
+        """index of the line's key word, None when it has no content word"""
+        clean = [re.sub(r"[^\w%]", "", x[2]).lower() for x in ws]
+        nums = [k for k, c in enumerate(clean) if c and NUM_WORD.search(c)]
+        if nums: return nums[0]
+        cands = [(len(c), -k) for k, c in enumerate(clean) if len(c) >= 4 and c not in KEY_SKIP]
+        return -max(cands)[1] if cands else None
+    keyed = [0, 0]  # lines, lines with a key word (edl "caption_emph")
+    def cap_word(x, k, j, key=None):
         t = x[2].strip(",.")
         t = t.upper() if CASE == "upper" else t
+        if EMPH_CAP == "key": return KEY_ON + t + KEY_OFF if k == key else t
         if k == j: return "{\\c" + CAP_ACC + "&}" + t + "{\\c&HFFFFFF&}"
         if k > j and AHEAD == "dim": return "{\\c" + CAP_DIM + "&}" + t + "{\\c&HFFFFFF&}"
         return t
@@ -313,20 +518,27 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         grp = [kept[i]]; i += 1
         while i < len(kept) and len(grp) < 3 and len(" ".join(x[2] for x in grp + [kept[i]])) <= 18 and not re.search(r"[.?!,]$", grp[-1][2]):
             grp.append(kept[i]); i += 1
+        key = key_word(grp) if EMPH_CAP == "key" else None
+        keyed[0] += 1; keyed[1] += key is not None
         for j, w in enumerate(grp):  # karaoke-style: current word in accent colour
             end = grp[j + 1][0] if j + 1 < len(grp) else (kept[i][0] if i < len(kept) else w[1])
-            txt = (POP if j == 0 else "") + " ".join(cap_word(x, k, j) for k, x in enumerate(grp))
+            txt = (POP if j == 0 else "") + " ".join(cap_word(x, k, j, key) for k, x in enumerate(grp))
             # a line ends where a pill comes in, and where a split card comes or goes (the next word's line takes the other spot)
             e = min([end, w[1] + 0.6] + [q0 for q0, _ in quiet if q0 > w[0]] + [q for sw in split_win for q in sw if q > w[0] + 0.05])
             s = max([w[0]] + [q1 for q0, q1 in quiet if q0 - 0.05 <= w[0] < q1])  # 0.05: card "at" is rounded to ms, the word is not
             if s > w[0] and e - s < PILL_MIN_LEFT: continue  # said under the pill: a line still on when it leaves shows from then, no blank gap
-            if any(q0 - 0.05 <= s < q1 for q0, q1 in split_win): txt = f"{{\\an5\\pos(540,{SPLIT['caption_y']})}}" + txt
+            cy = next((y for q0, q1, y in cap_pos if q0 - 0.05 <= s < q1), None)
+            if cy is not None: txt = f"{{\\an5\\pos(540,{cy})}}" + txt
             ev.append(f"Dialogue: 0,{ts(s, '.')[1:-1]},{ts(e, '.')[1:-1]},Cap,,0,0,0,,{txt}")
     if P.get("hook_text"):
         # BorderStyle 3 = opaque box drawn in OutlineColour (libass, like VSFilter); BackColour would only colour a shadow
         box, back = (themes.ass_color(THEME["ink"], 0), "&H00000000") if THEME else ("&H00000000", "&HD8120F0D")  # no theme: as before
         hdr = hdr.replace("[Events]", f"Style: Hook,Montserrat,84,&H00FFFFFF,&H00FFFFFF,{box},{back},-1,0,0,0,100,100,0,0,3,0,0,8,90,130,330,1\n\n[Events]")
-        ev.insert(0, f"Dialogue: 1,0:00:00.00,0:00:{P.get('hook_dur', 3.0):05.2f},Hook,,0,0,0,,{{\\fad(0,250)\\bord14}}{P['hook_text']}")
+        hook_at = f"\\an5\\pos(540,{HOOK_MID_Y})" if HOOK_POS == "mid" else ""  # S8: mid-screen title, see HOOK_MID_Y
+        ev.insert(0, f"Dialogue: 1,0:00:00.00,0:00:{P.get('hook_dur', 3.0):05.2f},Hook,,0,0,0,,{{{hook_at}\\fad(0,250)\\bord14}}{P['hook_text']}")
     Path(P["ass_out"]).write_text(hdr + "\n".join(ev) + "\n")
+    if EMPH_CAP == "key":
+        edl["caption_emph"] = {"mode": "key", "scale": EMPH_SCALE or 1.0, "lines": keyed[0], "keyed": keyed[1]}
+if OPTIONS: edl["options_used"] = OPTIONS
 
 Path(P["edl_out"]).write_text(json.dumps(edl, indent=1, ensure_ascii=False))

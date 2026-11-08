@@ -33,6 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
+import timeline  # next to this script: frames of each seg_exact piece
 from cpu_budget import heavy_threads, low_priority  # next to this script
 from edl_guard import (  # next to this script, as in assemble.py
     framing_ok,
@@ -49,11 +50,15 @@ WARM = 1.0  # seconds of film fed to the model before the card: its recurrent st
 MAX_DUR = 20.0  # seconds; a card is held one frame at a time, this bounds the run, not the memory
 STALE_PART = 2 * 3600  # seconds; a temp file this old is from a killed run (run_v4.sh's timeout is 3600 s)
 MARK = "behind:"
-VERSION = 2  # in the key: a change of how the cut-out is made redoes every card
+VERSION = 3  # in the key: a change of how the cut-out is made redoes every card (3: <id>.cover.json written)
 SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")  # specs come over Syncthing: a card id / EDL name never leaves gfx_dir / work
 SAFE_EDL = re.compile(r"[A-Za-z0-9_-]+\.json")
 MAX_PIXELS = 3840 * 2160
 Matting = Callable[[float], Callable[[np.ndarray], np.ndarray]]
+# "behind": {"clean": true} (Skool CCC G3, P1 task 11): the matte's edge flickers frame to frame around hair and shoulders.
+# Mean of CLEAN_FRAMES mattes centred on the frame, the person choked by CHOKE px (the halo of the old background goes),
+# then feathered with a Gaussian of FEATHER px. Without the key the cut-out stays as it was (films already made keep theirs).
+CLEAN_FRAMES, CHOKE, FEATHER = 3, 1, 1.2
 
 
 class BehindError(Exception):
@@ -86,7 +91,7 @@ def framing(edl: dict):
 
 def seg_frames(edl: dict) -> list[int]:
     """frames each segment gets in the film: assemble.py's seg_exact cuts exactly round(d*30)"""
-    return [max(1, round((s["out"] - s["in"]) * FPS)) for s in edl["segments"]]
+    return [timeline.piece_frames(s) for s in edl["segments"]]
 
 
 def film_frames(edl: dict, first: int, n: int, vf_for, size: tuple[int, int]) -> Iterator[np.ndarray]:
@@ -140,6 +145,47 @@ class Matter:
                                  "r4i": self.rec[3], "downsample_ratio": self.ratio})
         self.rec = [np.asarray(r) for r in outs[2:]]
         return np.asarray(outs[1])[0, 0]
+
+
+def _shifted(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    """a moved by (dy, dx) with its edge pixels repeated: no person comes in from outside the frame"""
+    h, w = a.shape
+    p = np.pad(a, ((abs(dy), abs(dy)), (abs(dx), abs(dx))), mode="edge")
+    return p[abs(dy) - dy:abs(dy) - dy + h, abs(dx) - dx:abs(dx) - dx + w]
+
+
+def choke(a: np.ndarray, px: int) -> np.ndarray:
+    """the person shrunk by px: the smallest value in each (2px+1)^2 square"""
+    for _ in range(px):
+        a = np.minimum.reduce([_shifted(a, dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)])
+    return a
+
+
+def feather(a: np.ndarray, sigma: float) -> np.ndarray:
+    """a separable Gaussian blur of sigma px (radius 3 sigma)"""
+    r = max(1, math.ceil(3 * sigma))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2); k /= k.sum()
+    rows = np.zeros_like(a, dtype=np.float32)
+    for i in range(-r, r + 1): rows += k[i + r] * _shifted(a, 0, i)
+    out = np.zeros_like(rows)
+    for i in range(-r, r + 1): out += k[i + r] * _shifted(rows, i, 0)
+    return out
+
+
+def clean_edges(mattes: Iterator[np.ndarray]) -> Iterator[np.ndarray]:
+    """each matte as the mean of CLEAN_FRAMES centred on it (fewer at the start and the end), choked and feathered; one
+    matte of look-ahead, so the stream comes out one frame later and just as long"""
+    half, win = CLEAN_FRAMES // 2, []
+    def out(m: list[np.ndarray]) -> np.ndarray:
+        return np.clip(feather(choke(np.mean(m, axis=0), CHOKE), FEATHER), 0, 1).astype(np.float32)
+    k = 0  # index of the next matte to give
+    for m in mattes:
+        win.append(m)
+        if len(win) - 1 - k >= half:
+            yield out(win[max(0, k - half):k + half + 1]); k += 1
+            if k > half: win.pop(0); k -= 1
+    while k < len(win):
+        yield out(win[max(0, k - half):k + half + 1]); k += 1
 
 
 def cut_out(rgba: np.ndarray, person: np.ndarray | None) -> np.ndarray:
@@ -252,24 +298,39 @@ def process(spec: dict, gfx: Path, base: Path, matter_for: Matting | None = None
     ratio = spec["behind"].get("ratio", 0.2)
     if not (num(ratio) and 0 < ratio <= 1):
         raise BehindError(f"{cid}: ratio {ratio!r} must be a number in (0, 1]")
+    clean = spec["behind"].get("clean", False)
+    if not isinstance(clean, bool):
+        raise BehindError(f"{cid}: clean {clean!r} must be true or false")
     key = hashlib.sha256(json.dumps([VERSION, window_key(edl, o["at"], n), sha(front), ratio, MODEL_SHA,
-                                     hashlib.sha256(framing_src().encode()).hexdigest()], sort_keys=True).encode()).hexdigest()
-    if mark == MARK + key:
+                                     hashlib.sha256(framing_src().encode()).hexdigest()]
+                                    + ([["clean", CLEAN_FRAMES, CHOKE, FEATHER]] if clean else []),  # absent = the old key
+                                    sort_keys=True).encode()).hexdigest()
+    cover = gfx / f"{cid}.cover.json"
+    if mark == MARK + key and cover_key(cover) == key:  # the card AND its measure belong to this cut-out
         return f"{cid}: up to date"
     # card frame k is on screen at at + k/30 -> film frame ceil((at + k/30) * 30) (overlay shows the last card frame <= t)
     c0 = math.ceil(o["at"] * FPS - 1e-6); first = max(0, math.floor((o["at"] - WARM) * FPS))
     matter = (matter_for or Matter)(ratio)
     tmp = temp_in(gfx, cid)
     try:
-        _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter)
+        covered = _encode(cid, front, tmp, key, n, (w, h), film_frames(edl, first, c0 - first + n, framing(edl), (w, h)), first, c0, matter,
+                          clean)
+        # how much of the card the speaker hides, for film_check (Kamil 2026-11-05: "WYZNANIE" with the head over the
+        # middle letters could not be read). Written before the card with the card's key: a run killed in between leaves
+        # a measure the old card does not match, so the next run cuts out again (the "up to date" test needs both)
+        part = cover.with_suffix(".part")
+        part.write_text(json.dumps({"covered": round(covered, 3), "key": key}))
+        part.replace(cover)
         tmp.replace(mov)
     finally:
         tmp.unlink(missing_ok=True)  # a failed run leaves the card as it was (the .mov is only ever replaced whole)
-    return f"{cid}: speaker cut out of {n} frames"
+    return f"{cid}: speaker cut out of {n} frames, covers {covered:.0%} of the card"
 
 
 def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int, int], frames: Iterator[np.ndarray],
-            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray]) -> None:
+            first: int, c0: int, matter: Callable[[np.ndarray], np.ndarray], clean: bool = False) -> float:
+    """writes the cut-out card to tmp; returns the share of the card the speaker covers, the worst frame among those
+    where the card is fully in (at least half of its largest opacity: the fade in and out do not count)"""
     w, h = size
     with subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(front), "-f", "rawvideo", "-pix_fmt", "rgba", "-"], stdout=subprocess.PIPE) as dec, \
          subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}", "-framerate", str(FPS),
@@ -280,14 +341,22 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
         fsz = w * h * 4
         done, person = 0, None
 
+        shares: list[tuple[float, float]] = []  # (card opacity, share of it under the speaker) per frame
+
         def put(p):
             b = src.read(fsz)
             if len(b) != fsz:
                 raise BehindError(f"{cid}: {front.name} has fewer frames than its {n}")
-            sink.write(cut_out(np.frombuffer(b, np.uint8).reshape(h, w, 4), p).tobytes())
+            rgba = np.frombuffer(b, np.uint8).reshape(h, w, 4)
+            if p is not None:
+                a = rgba[..., 3].astype(np.float32)
+                tot = float(a.sum())
+                if tot > 0:
+                    shares.append((tot, float((a * p).sum()) / tot))
+            sink.write(cut_out(rgba, p).tobytes())
 
-        for i, rgb in enumerate(frames):
-            person = matter(rgb)
+        mattes = (matter(rgb) for rgb in frames)
+        for i, person in enumerate(clean_edges(mattes) if clean else mattes):
             if first + i >= c0:
                 put(person); done += 1
         for _ in range(done, n):  # the film ends under the card: its last matte (deterministic, never empty memory)
@@ -295,6 +364,17 @@ def _encode(cid: str, front: Path, tmp: Path, key: str, n: int, size: tuple[int,
         sink.close()
         if enc.wait(timeout=600) or dec.wait(timeout=60):
             raise BehindError(f"{cid}: ffmpeg could not write the card (rc {enc.returncode}/{dec.returncode})")
+    full = max((t for t, _ in shares), default=0.0)
+    return max((c for t, c in shares if t >= 0.5 * full), default=0.0)
+
+
+def cover_key(cover: Path) -> str | None:
+    """the cut-out key stored with a card's measure (<id>.cover.json); None when there is no readable measure"""
+    try:
+        k = json.loads(cover.read_text()).get("key")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return k if isinstance(k, str) else None
 
 
 def temp_in(gfx: Path, cid: str) -> Path:

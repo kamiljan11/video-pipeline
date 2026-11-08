@@ -40,7 +40,20 @@ postaci na klatkach filmu. W pipeline nie było nic do segmentacji osoby (YuNet 
 - Maska myli się na dłoni przed głową i na rzeczach w kadrze podobnych do postaci; wtedy karta bez `"behind"` albo inne miejsce.
 - `matte/.venv` i model są poza gitem (jak whisper.cpp i YuNet); instrukcja w README › „Postawienie od zera”.
 
+**Czytelność (2026-11-05, Kamil: „WYZNANIE” za głową nie dało się przeczytać):** `behind.py` mierzy, jaką część karty zasłania
+mówiący (najgorsza klatka z tych, w których karta jest w pełni widoczna) i zapisuje to w `gfx/<id>.cover.json` razem z kluczem
+wycięcia. `film_check.py --phase behind` (w `run_v4.sh` zaraz po `behind.py`, przed montażem) przepuszcza najwyżej 15%. Karta bez
+miary liczy się jako zasłonięta w całości. Próg 15% to wybór z pomiaru filmu 2: zgłoszone karty miały 22–38%, a czytelne
+„KTO SPRAWDZA” 4%. Zmiana progu = `value` w `style/checklist.json`. `VERSION` 3 wycina od nowa wszystkie karty `behind` (koszt:
+RVM na CPU, kilka minut na film).
+
 **Koszt cykliczny:** 0 zł (lokalnie, CPU).
 
 **Kryterium przeglądu (2027-01-31):** zostaje, gdy co najmniej jeden opublikowany film ma kartę `"behind"`. Gdy żaden: usunąć
 `behind.py`, `matte/` i oba wywołania.
+
+**Aktualizacja 2026-11-07 (Skool CCC G3, P1 #11):** krawędź maski RVM migocze klatka do klatki przy włosach i ramionach.
+Opcja karty `"behind": {"clean": true}`: średnia z 3 mat wyśrodkowana na klatce (1 klatka wyprzedzenia), choke 1 px,
+feather Gauss 1,2 px, tylko numpy (bez nowych zależności w `matte/.venv`). Klucz cięcia dostaje te parametry tylko przy
+`clean`, więc karty bez opcji zachowują swój klucz i nie są wycinane od nowa (`VERSION` bez zmian). Test: syntetyczna maska
+skacząca o 4 px co klatkę, średnia zmiana alfy spada ponad 2x. Koszt ~0,18 s na klatkę 2560x1440.

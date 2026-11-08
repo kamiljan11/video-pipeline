@@ -1,5 +1,7 @@
 # video-pipeline
 
+> Shorty 9:16: najpierw `style/ZASADY-KAMILA-SHORTY.md` (uwagi Kamila, błędy już raz zgłoszone).
+
 **One talking-head recording in, an edited long video (16:9) and a set of vertical shorts (9:16) out.**
 A local, scriptable editing pipeline: transcript, edit plan, EDL, face-aware framing, motion cards, music beds and an
 ffmpeg render, with an automatic critic between every step. The browser editor that sits on top of it lives in its own
@@ -35,16 +37,35 @@ flowchart LR
 | Framing | `face_track.py`, `head_check.py` | face tracking for 16:9 and 9:16 crops, zoom limits that keep the head in frame |
 | Critic | `critic.py` | 13 checks: static stretches, overlay collisions, hook timing, choppy shots, caption length, end screen, loudness (-14 LUFS), clipped speech, unverified numbers on screen, editing grammar, b-roll, dead air and loud cuts at edges; `--fix` rewrites the plan |
 | Safety | `edl_guard.py` | an EDL may carry only numbers, local paths and allow-listed filters into ffmpeg ([ADR-0006](docs/adr/0006-edl-guard.md)) |
-| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists) rendered by Chrome to ProRes 4444 with alpha |
+| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists, explainer scenes with a camera) rendered by Chrome to ProRes 4444 with alpha |
 | Text behind the speaker | `behind.py` | RobustVideoMatting matte, the card sits between the background and the person ([ADR-0005](docs/adr/0005-text-behind-speaker.md)) |
 | B-roll | `broll.py`, `stock.py` | free Pexels clips where the speech names a concrete thing; credits for the description |
 | Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |
 | Render | `assemble.py`, `run_v4.sh` | segment cache, grading, captions for shorts, final mix; `--proxy` for 360p previews |
+| Title check | `title_check.py` (`film_check` out.titles) | each A/B/C title in `out/youtube/long.md`: <= 60 characters, a word of `## Fraza kluczowa` in its first 3 words, a filled `źródło` column, and >= 2 of its content words heard in the long's first 30 s (words through the EDL); WARN (lists in `style/title_lint.json`, each with its `_evidence`) on no promise marker (kurs, od podstaw, tutorial count as delivery), "Mój" without a result or an outcome verb, a meta event title (vlog, Q&A, live), > 1 title ending in `?`, < 35 characters, a series prefix ("Odcinek 3:") or a brand tag after `\|` (creator study round 2) |
+| Thumb check | `thumb_check.py` (`film_check` out.thumbs_read) + `gfx/thumbs.mjs` | at 320 px (a phone feed) OCR reads >= 80% of each long `big`, one variant without a face (YuNet), < 50% of a thumbnail's words in any title (words of `## Fraza kluczowa` not counted), big + sub + tag <= 5 content words (FAIL > 5, WARN > 4); WARN on a face under 40% of the frame height, a centred face, 2+ faces, flat tone or 0 / 4+ colour groups, a `big` that is a bare topic label (tool names are not, long and shorts), a small first letter or a sum of money; thumbs.mjs refuses letters under 12 px at 320, words in the bottom-right 12% (timestamp) and cover text outside y 220-1500 |
+| Description check | `desc_check.py` (`film_check` out.youtube), `utm.py`, `style/platform_limits.json` | the long's `## Opis`: a `Rozdziały:` block from 0:00 inside it (YouTube reads chapters only there), tags <= 500 characters, hashtags under the limit; WARN on line 1 > 110 characters, the first link below line 2, KamilJan.com links without `utm_`, the `style/brand.json` footer missing, part 1 after 90 s, > 0.6 chapters/min, no `## End screen` naming a video or playlist, an empty pinned comment. Each short: a link to the long (`{{LONG_URL}}` until `desc_check.py --fill-long <url> out`), no template leftovers; WARN on > 3 lines or > 50 words before the link, a copy of the title, #shorts, > 2 hashtags, no `## Powiązany film` (creator study round 2, 16 longs, 32 shorts). Long and shorts: a number the film never says fails (round 2 X3, the same rule as posts, Instagram and the article; chapter rows, list markers, hashtags and lines with an outside source link do not count) |
+| Hook check | `hook_check.py` (`film_check` short.hook_lint, out.hooks), `style/hook_lint.json`, `style/hook_bank.json` | the 6 hook killers on a short's hook (greeting, list title, filler start, vague promise or hype, no stake, not on screen from frame one) and <= 12 words; every short that is made has >= 3 clean variants in clips.json `hooks`, `hook` among them, `hook_from` a bank row. `result` = the short's views / the channel's 28-day median views, written by hand from YouTube Studio in the weekly review (ADR-0016), null until then |
+| Count check | `count_check.py` (`film_check` long/short.counts) | the count he says (digits or Polish words, any case) from 3 s before to 4 s into a card equals its list items / largest group of scene elements, and every small number the card shows is said |
+| Render audit | `render_audit.py` | the finished film against its EDL: flashes < 0.5 s, picture changes the EDL does not explain (card fades allowed), a word doubled by a cut, cards < 1.5 s, a non-full card hiding the face (YuNet); rc 1 with each item and time -> `<film>.audit.json` |
 | Viewer review | `viewer_pack.py`, `review/viewer.md` | frame sheets + what is said + what is on screen, for an agent acting as a first-time viewer |
+| Bare face | `film_check.py` (`face_full`, checklist `long.face_full <= 0.35`, level warn) | share of the long with no EDL overlay (card, float, sticker, scene, lower, chap, end) and no b-roll on the face; the 0.35 comes from the course author study (n=1), to be revised after the wider creator study |
+| Research gate | `research_gate.py`, rejestr `creator-study/round2/ledger.jsonl` (ADR-0019) | no render while a research item of the form is `todo`, or `done` without a `check:<id>` that measures it; after `film_check --json`, `--report fc.json` needs every done item's check OK (a row for every film of its format; WARN, FAIL or no row = not met, SKIP = INFO with the plan's reason); `run_v4.sh` step `research_used` |
+| Out gate | `out_gate.py <work> <out>` (ADR-0019) | the last step before Kamil watches an out folder: `film_check --out` without FAIL and every done `out.*` research item met; writes `<work>/fc_out.json`; an empty or broken report = exit 2 |
+| Frame pick | `frame_pick.py`, `models/face_landmarker.task` (ADR-0020) | thumbnail and cover frames: every 0.1 s of a window scored on the face (YuNet: sharp, eye-box contrast, closed or smiling mouth, still; MediaPipe Face Landmarker: gaze, half-shut lids, pursed or rolled-in lips, open jaw, head yaw/pitch/roll). A glance aside, eyes down, a turned or tilted head and an odd mouth are no candidates; the rest ranked against the window's 90th percentile; `--sheet` = the top 6 to look at before a frame is used. Needs mediapipe: `python3 -m venv --system-site-packages ~/.local/share/vp-face-venv && ~/.local/share/vp-face-venv/bin/pip install mediapipe==1.2.2`, model from `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task` into `models/`; run frame_pick and every script that imports it (the film's `work/build_pack_v3.py`, which picks the thumbnail and cover frames) with that python; `frame_pick` checks the model's sha256 (`LANDMARK_SHA`) |
+| Checklist gate | `film_check.py`, `style/checklist.json` | every feature a long, a short and the out folder must have (chapters, explainer scenes, lower third, new music, A/B thumbnails, posts...); an item is met or skipped with a reason in the plan, else the film does not render ([ADR-0011](docs/adr/0011-editorial-team.md)) |
+| Stills before render | `stills.py`, `gfx/render.mjs --stills` | every card of a film as a still on the real frame under it, with the sentence said, one sheet in < 60 s (film 2 long: 93 cards in 57.7 s); Kamil looks at the 2 key cards (`--only`), then the sheet, then `stills.py accept <plan> <id>…`; a card of a film with a sheet (`gfx/stills/scope.json`) does not render without an accepted still; `film_check` long/short.stills asks for the sheet ([ADR-0018](docs/adr/0018-stills-before-render.md)) |
+| Scene check | `gfx/scene_check.mjs` | every explainer scene laid out in Chrome on its real camera before any frame is rendered (constants at the top of the file, why in `style/NOTES_LOG.md`): pieces covering each other or a stamp on words; rings around whole lines and lines ending <= 40 px from a piece (NOTES_LOG 18); text >= 40 px on the 1440 frame (9:16: 30 px) after the camera scale for its first 1.5 s (`MIN_TEXT_PX`, `READ_S`, NOTES_LOG 15); every piece of words up >= 0.6 s + 0.25 s a word, at least 1.2 s (`READ_MIN_S`, same rule as `screen_grammar.piece_need`, NOTES_LOG 4); no line cut by the frame or a board edge while the camera rests; no piece hidden for the whole card or faded out within 1.5 s of coming in (NOTES_LOG 18). Fix = move or enlarge the piece in the spec, fewer pieces, or a short's scene in one column; thresholds change in the file with a NOTES_LOG row |
+| Thumbnails | `gfx/thumbs.mjs` | YouTube A/B/C thumbnails for the long and a cover per short from `thumbs.json`; stops when a word does not fit. Opt-in per variant: `tone: "lift"`, `accent: "thumb"` (theme token `--acc-thumb`), `layout: "object"` with `object` (1-2, >= 40% H or 45% W) or `panel` (3-5 steps/bars), one `arrow`; `python3 thumb_check.py --place thumbs.json` writes `fx`/`fy` so the face sits at x 0.72 / 0.28 |
+| LinkedIn post graphic | `gfx/post_gfx.mjs`, `post_check.py` | a 1080x1350 graphic that carries the post's idea alone (list, bars, split, table or quote from `grafika.json`); OCR finds its words, WCAG contrast, and the text has >= 20 words (WARN outside 60-130), <= 3 hashtags (WARN above 0), <= 1 link (KamilJan.com with `utm_`), ends on a question for the comments ("P.S. …?" counts), a `cta_variant` (WARN without), `publish_day` per post in posts.json (one a day), no phrase from `style/voice.md` "## Zakazane", every number of the text and graphic said in the film (FAIL), a counted hook equal to the list items; WARN on line 1 with a greeting/filler, > 140 characters or a `?` ([ADR-0015](docs/adr/0015-blog-article-and-post-voice.md)) |
+| Instagram check | `ig_check.py`, `style/platform_limits.json` "instagram" | `<out>/instagram`: one carousel per post (`slide_NN.png` 1080x1350 numbered without gaps, `caption.json` {text, hashtags, alt[]}) and `reels/<short>.json` (the short's caption as a Reel). FAIL only on platform limits and honest numbers: > 5 hashtags, caption > 2200 characters, > 20 slides, alt not one per slide, a number the film never says (`--words`), a counted line 1 against the content slides, a Reel without line 1. WARN on line 1 > 125 characters, hook killers or `?`, > 3 hashtags, slides outside 5-10, a link in a caption (not clickable: "link w bio"), the last slide without exactly one call (SYNTH2-instagram R1-R6, R12; thresholds move after our own Insights) |
+| Blog article | `article_check.py`, `publish_post.py` | a detailed PL + EN article for kamiljan.com from the film (`out/blog/<slug>/article.json`, sources beyond the film, the film linked before the first h2 and in the ending, numbers said or sourced, a lead <= 80 words with a digit, a recap list and one closing question; a how-to (lead promises N steps) needs 1500 words and N "Krok N" h2, else 1200 and 3); `publish_post.py --confirm` opens a PR on `kamiljan11/comfy-container`, the merge is Kamil's (needs a clone in `~/src/comfy-container` or `--repo`, `gh` on PATH, `GITHUB_Token` from the Infisical bridge) ([ADR-0015](docs/adr/0015-blog-article-and-post-voice.md)) |
+| Screen grammar | `screen_grammar.py` | memes with `sticker` crops (`style/memes.json`) go beside the speaker as stickers, simple scenes in the free field (`layout: "side"`), cards held to their reading time, close separate screens joined ([REF-long-negacz](style/REF-long-negacz.md)) |
+| Editorial team | `team/RUNBOOK.md`, `team/roles/` | the 12 steps of an edit, one role card each (mission, input, output file, when done) |
 
 The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
 from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
-(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/video-pipeline-panel/blob/main/docs/GLOSSARY.md).
+(plan, EDL, moment, critic codes, plan keys) are defined in the panel's [glossary](https://github.com/kamiljan11/video-pipeline-panel/blob/main/docs/GLOSSARY.md). Terms of this repo (card vs role card, scene, gate, checklist, palette): [`docs/GLOSSARY.md`](docs/GLOSSARY.md).
 
 ## Plan keys (sound, picture, framing)
 
@@ -60,7 +81,12 @@ checks the EDL again before ffmpeg runs. A bad value stops the build with the ke
 | `audio` | ffmpeg filter chain for the voice | replaces the default voice chain; only filters on the `AUDIO` list in `edl_guard.py` |
 | `grade` | ffmpeg filter chain for the picture | replaces the default colour grade; only filters on the `VIDEO` list (`hqdn3d` included, against sensor grain in 9:16 crops) |
 | `pads` | `{"pre", "post", "keep_l", "keep_r", "mingap"}`, seconds 0..2, each optional | more air at cuts. `pre`/`post`: sound kept before the first and after the last word of a keep (default 0.10 / 0.16); `keep_l`/`keep_r`: pause left after / before speech when a long pause inside a keep is shortened (0.15 / 0.12); `mingap`: only pauses longer than this are shortened (0.45); `keep_l + keep_r` must stay below `mingap`, or two pieces would overlap and play the same sound twice. Absent = the defaults, old plans cut as before |
+| `music_palette` | `{"name": "lofi"\|"drive"\|"cinematic"\|"tech"\|"bright", "key": -6..6}` | another piece of music per film (`gen_music.py --palette --key`); `make_beds.py` writes it to `render/music_ledger.json` and `film_check.py` refuses the palette and key of the last other project. Absent = the old bed |
+| `master` | `{"lufs": -14, "tp": -1.5}` (-24..-9, -3..-0.5) | after the render `assemble.py` runs `master_audio.py` on the whole mix: measured gain to the target (one correction pass), 4x oversampled limiter, 16 kHz low-pass before AAC; report `<film>.master.json`, off target = FAILED and the unmastered file kept. Absent = as before (film 2 long: -14.6 LUFS, true peak +1.9) |
+| `gfx_lead` | seconds, -0.5..-0.1 (e.g. `-0.12`) | every overlay enters this much before its word (`build_edl.py`); a per-graphic `lead` wins; `film_check` gates `long/short.gfx_lead`. Absent = 0, as old EDLs |
+| `skip` | `{"<checklist item id>": "why"}` | `film_check.py` lets the item pass and prints the reason in its report; an item without a reason stops the render |
 | `face_target_y` | 0.3..0.6, vertical films only | height of the face centre in a zoomed 9:16 crop (default 0.40). Set it close to where the face sits in the recording (about 0.48 for a seated talking head), or the head jumps between zoomed and unzoomed shots. A 16:9 plan ignores it with a warning. Changing it re-cuts the segments on the next render |
+| `punch_headroom` | `"hair"` (default) \| `"face"` | what a zoom keeps in frame (`face_track.py`): the whole head with its hair, or brow to chin. `"face"` lets a punch-in cut the top of the head; use it when the speaker sits close and the head fills the frame (film 2026-11-04: 0.61 punch-ins a minute with `"hair"`, 2.06 with `"face"`, ADR-0012) |
 
 ## Quick start (Ubuntu)
 
@@ -69,7 +95,7 @@ The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author'
 CI does, or replace it (`grep -rl /home/kamil-jan`). Chrome is expected at `/usr/bin/google-chrome`. Linux only.
 
 ```bash
-sudo apt install ffmpeg poppler-utils python3.12-venv   # ffmpeg 8 or newer (24.04 apt has 6.1); + Node 24, Google Chrome
+sudo apt install ffmpeg poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol   # ffmpeg 8+ (24.04 apt has 6.1); tesseract: post_check OCR; + Node 24, Google Chrome
 npm ci
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # whisper.cpp + model, YuNet face model, optional matting model: see "Postawienie od zera" below
@@ -78,6 +104,18 @@ bash run_v4.sh <project>/work <project>/out long short1
 
 A project directory holds the recording, `words.json` (transcript), `plan_<film>.json` and `gfx_specs.json`; renders
 and caches go to `render/` (ignored by git). Recordings, transcripts and renders are never committed.
+
+A full render (a long with ~100 cards) peaks at tens of GB. Run it in its own memory-capped unit, so a blow-up kills
+the render and not the desktop session or the terminal it was started from:
+
+```bash
+systemd-run --user --unit=vp-render --collect -p MemoryMax=60G -p MemorySwapMax=0 --setenv=PATH="$PATH" \
+  bash run_v4.sh <project>/work <project>/out long
+```
+
+`assemble.py` writes the exact stage-2 picture command to `<out>/assemble.args.json` (the sound mix and the mux go to
+`assemble.audio.args.json`: they run separately, see av_check.py), so a killed render can be rerun
+and measured by hand (`/usr/bin/time -v ffmpeg ...`). Why the card inputs carry `CARD_IN`: comment in `assemble.py`.
 
 ## Install with Claude Code
 
@@ -136,7 +174,7 @@ Skrypty montażu nagrań (talking head -> long 16:9 + shorty 9:16). Repo gita, p
 | krytyk | `critic.py` (C1–C13), `head_check.py` | panel / `run_v4.sh` |
 | muzyka | `music/make_beds.py` | `run_v4.sh` |
 | render | `edl_guard.py` (co EDL może wnieść do ffmpeg, ADR-0006; odmowa = `FAILED edl_guard <film>`), `assemble.py` (`--proxy` = podgląd), grafiki `gfx/render.mjs` | `run_v4.sh <work> <out> <filmy…>` |
-| recenzent-widz | `viewer_pack.py <plan.json> <film.mp4> <katalog>` (`.venv`): arkusze klatek co 2,5 s (short 1,5 s) z czasem + co mówi + co na ekranie, okna 30 s (short 15 s) -> `pack.md`; agent czyta to wg `review/viewer.md` i zapisuje `findings.<film>.json` (gdzie widz odpadnie: nuda, pusta karta, niezgodność obrazu i słów). Uwagi nanosi człowiek albo sesja główna | po renderze, przed publikacją (sesja Claude Code) |
+| recenzent-widz | `viewer_pack.py <plan.json> <film.mp4> <katalog>` (`.venv`): arkusze klatek co 2,5 s (short 1,5 s) z czasem + co mówi + co na ekranie, okna 30 s (short 15 s) -> `pack.md`; `--zoom T0 T1` = jedno podejrzane miejsce klatka co 0,1 s (`zT0-T1.jpg`); agent czyta to wg `review/viewer.md` i zapisuje `findings.<film>.json` (gdzie widz odpadnie: nuda, pusta karta, niezgodność obrazu i słów). Uwagi nanosi człowiek albo sesja główna | po renderze, przed publikacją (sesja Claude Code) |
 
 Panel montażowy i cała dokumentacja (README z obsługą błędów, kluczami planu i kontraktami skryptów, słownik, ADR gramatyki
 montażu i b-rollu, testy tych skryptów): `panel/` — osobne repo gita (tu ignorowane), zob. `panel/README.md`,
@@ -144,6 +182,27 @@ montażu i b-rollu, testy tych skryptów): `panel/` — osobne repo gita (tu ign
 
 Logi (`render/`): `render.log` (każdy krok, `DONE <film>` / `FAILED <krok> <film>` / `FAILED_FILMS`), `critic_<film>.log`,
 `beat_stats.log` (metryka po renderze), `gfx.log` w katalogu `work` projektu.
+
+**Bramki w `run_v4.sh` i co robić, gdy render stoi** (kolejność: scene_check -> gfx -> film po filmie: build_edl ... edl_guard ->
+film_check -> make_beds -> behind -> film_check --phase behind -> assemble). Proces montażu krok po kroku: `team/RUNBOOK.md`.
+
+| `render.log` | Gdzie przyczyna | Co zrobić |
+|---|---|---|
+| `FAILED scene_check` | `gfx.log`: linie `CLASH <scena>: <a> covers <b>` (exit 124 = Chrome zawisł, limit 600 s) | przesunąć element w specu sceny (`node gfx/scene_check.mjs gfx_specs.json <id>` sprawdza jedną). Fałszywy alarm: `SCENE_CHECK=off bash run_v4.sh …` (w logu zostaje `WARN scene_check off`) |
+| `FAILED gfx <id>: no accepted still` | `gfx.log`; karta filmu z arkuszem (`gfx/stills/scope.json`), karta nowa albo zmieniona po akceptacji | `python3 $VP/stills.py plan_<film>.json --only <id>`, Kamil ogląda `gfx/stills/<id>_still.jpg`, potem `python3 $VP/stills.py accept plan_<film>.json <id>`. Pilne: `STILLS=off bash run_v4.sh …` (w logu `WARN stills gate off`) |
+| `FAILED scene_check rc=124` | limit `SCENE_CHECK_TIMEOUT` (domyślnie 600 s) minął, Chrome zawisł | puścić jeszcze raz; zawisa stale = `node gfx/scene_check.mjs gfx_specs.json` ręcznie i patrzeć, na której scenie staje |
+| `film_check: music ledger … ` (exit 2) | `render/music_ledger.json` (lokalny, poza gitem, pisze go `make_beds.py`) zepsuty | poprawić JSON ręcznie albo usunąć plik (traci się tylko pamięć palet poprzednich filmów; inna maszyna zaczyna z pustym) |
+| `FAILED out` (exit 2, przed jakimkolwiek krokiem) | folder wyników nie istnieje albo nie ma prawa zapisu; względny OUT liczy się od folderu `work` (skrypt robi `cd` do niego) | podać ścieżkę bezwzględną albo `../out` względem `work` |
+| `FAILED research_gate <forma> <film>` (przed filmem) | `render.log`: pozycje rejestru badań formy `todo` albo `done` bez `check:<id>` (ADR-0019) | wprowadzić pozycję do filmu i punktu `film_check`, albo `deferred` z `Kamil:`/`data:`, `rejected` z powodem w `ledger.jsonl`. Pilne: `RESEARCH_GATE=off bash run_v4.sh …` (w logu `RESEARCH_GATE=off: research_gate skipped`) |
+| `FAILED research_used <forma> <film>` | `render/fc_<film>.json` (raport `film_check --json`) i linie `… done, but <check> is WARN/FAIL in <film>` albo `has no row for <film>` w `render.log` | poprawić plan filmu, aż punkt jest OK, albo `skip` z powodem w planie (raport pokaże INFO); exit 2 = raport pusty lub zepsuty (film_check padł: jego błąd jest wyżej w logu) |
+| `out_gate.py` exit 1 / 2 (po materiałach, poza `run_v4.sh`) | `<work>/fc_out.json`, linie `FAIL …` i `… not met` na wyjściu | poprawić materiał w `out/` i puścić `python3 $VP/out_gate.py <work> <out>` jeszcze raz; exit 2 = `film_check --out` nie dał raportu albo przekroczył 3600 s |
+| `FAILED gfx` | `gfx.log` | błąd specu karty albo Chrome; karta z tym samym kluczem (`<id>.mov.key`) nie renderuje się drugi raz |
+| `FAILED film_check behind <film>` | `critic_<film>.log`: `long.behind_readable` z listą `hidden: <karta> <procent>` (`gfx/<id>.cover.json`) | karta za postacią jest zasłonięta w ponad 15%: przesunąć ją nad linię głowy albo zmniejszyć w planie i puścić ponownie. Miara zginęła (karta bez `cover.json`): `behind.py` zrobi ją sam przy następnym uruchomieniu. Świadomie zasłonięta: `"skip": {"long.behind_readable": "<powód>"}` |
+| `FAILED film_check <film>` | `critic_<film>.log`: lista pozycji z `why` | dodać brakującą rzecz do planu albo `"skip": {"<id>": "powód"}` w planie. Stary projekt sprzed listy (przed 2026-11-04): `FILM_CHECK=off bash run_v4.sh …` (`WARN film_check off <film>`); nigdy po to, żeby film wyszedł szybciej |
+
+Cache kart (`gfx/render.mjs`): klucz `<id>.mov.key` = motyw + specyfikacja karty (scena także źródło `gfx/scene_lib.mjs`). Po
+zmianie specu karta renderuje się sama, nie trzeba kasować `.mov`. Projekty sprzed 2026-11-04 nie mają `.key`, więc przy
+pierwszym renderze po tej zmianie wszystkie ich karty renderują się raz od nowa (dłuższy render, ten sam wygląd).
 
 Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projektów): `render_v3.sh`, `render_all.sh`,
 `check_long.sh`, `final_check.sh`. Pomocnicze: `run_whisper.sh` (whisper.cpp bez dzielenia), `spot_check.py`, `verify_cut.py`,
@@ -180,6 +239,12 @@ na innej maszynie uruchamiaj `ruff check . && pyright` ręcznie.
 od 2026-10-24 (ADR-0007). Nagrania, transkrypcje, plany i rendery NIE idą do gita (`.gitignore`): kopii poza laptopem nie mają.
 **Dysk:** od 2026-10-24 `~/video-pipeline` i `~/Videos` to symlinki do `~/Dane/...` (dysk Dane, LUKS, montowany przy starcie z
 `/etc/crypttab`); ścieżki w skryptach i planach się nie zmieniły. Panel kluczuje swoje katalogi po ścieżce rozwiązanej (`render/panel/*/<klucz>`).
+**Po filmie (Kamil 2026-11-05):** gotowy film żyje w chmurze, więc stary projekt (`render/montaz/<data>`, `render/<film>`, karty,
+cięcia) na laptopie nie zostaje: usuwamy go, gdy Kamil potwierdzi, że film jest w chmurze. Film w toku sprzątamy w całości po
+akceptacji, nigdy po kawałku: spis kart w EDL to nie wszystkie używane pliki (`behind.py` czyta `<id>.front.mov`, którego żaden EDL
+nie wymienia). Jeden film zostawia ok. 50-60 GB pamięci podręcznej, a Dane ma 196 GB: przed dużym renderem `df -h ~/Dane`.
+**Miniatury A/B:** każdy film dostaje co najmniej 2 warianty miniatury longa i okładkę każdego shorta; pilnuje tego
+`film_check.py --out` (punkt `out.thumbs` w `style/checklist.json`).
 
 Testy skryptów: `cd panel && .venv/bin/python -m unittest discover -s tests` (strażnik zgodności: bez nowych kluczy planu
 wynik identyczny jak `panel/tests/pipeline_baseline/*.py.orig`). Lint: `ruff check .`, `pyright` (pre-commit).
@@ -210,7 +275,7 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
 - Błąd (zdania nie ma na stronie, HTTP 4xx/5xx, adres prywatny, > 150 s na kartę) = `FAILED webshot <id>: powód` w `gfx.log`
   (render z `run_v4.sh`) albo w wyniku zadania w panelu (podgląd), i film się nie renderuje (`FAILED gfx`). Nieudany zrzut nie
   zostaje w pamięci: po poprawce wystarczy uruchomić ponownie.
-- **Short (9:16): `"canvas": "v"`**, wzorzec z rozbioru `style/REF-shorts-proof-cards.md`. Karta pokazuje stronę powiększoną na cytacie
+- **Short (9:16): `"canvas": "v"`**, wzorzec z rozbioru `style/REF-shorts-proof-cards.md`; uwagi Kamila, których nie wolno powtórzyć: `style/ZASADY-KAMILA-SHORTY.md` (czytać przed montażem shortów). Klucze karty 9:16: `face_box` [x, y, w, h] + `caption_y` + `face_anchor` (boks pod krótką kartą), `face_corner` (kółko z twarzą przy pełnej karcie), `no_fade_out` / `no_fade_in` (karty stykające się bez zanikania), `logo_h` (wysokość logo na karcie końcowej). Karta pokazuje stronę powiększoną na cytacie
   (okno ≥ 40 % szerokości zrzutu, cytat + 5 % z boków; `gfx/webshot_lib.mjs` › `vZoom`), żeby tekst dało się przeczytać na telefonie.
   Zrzut 9:16 robiony w szerokości telefonu (430×932 CSS px @3x, `VIEW_V`): strona ma jedną kolumnę, więc okno to ≥ 90 % szerokości
   zrzutu (`V_MIN_WIN_PHONE`); własny klucz pamięci (zrzuty 16:9 bez zmian, klucz przypięty w teście). Warstwy zgód (cookie/CMP)
@@ -227,6 +292,9 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
   ```
   Paywall, który rozmywa tekst (np. Fortune), przechodzi przez zrzut bez błędu i daje kartę z rozmytym tekstem: obejrzyj
   `gfx/web/<klucz>.png` przed renderem; wtedy inne źródło albo własny zrzut (`img`).
+- `"read_along": [s, …]` (L16b, opcjonalnie): linia cytatu dostaje zaznaczenie w chwili, gdy ją czytasz (s od startu karty, po
+  jednej na linię; brakujące idą co 0,25 s). Każda chwila po przewinięciu i 1,4 s przed końcem karty, inaczej nazwany błąd. Bez
+  klucza: zaznaczenie po przewinięciu, linie co 0,25 s, jak dotąd (`webshot_lib.mjs` › `markTimes`).
 - Prawo cytatu: krótki fragment z podanym źródłem; nie pokazuj całych artykułów zza paywalla.
 
 ## Karta licznika `count` (liczba odliczana od 0)
@@ -239,6 +307,8 @@ ale każda liczba z `text` odlicza od 0 do swojej wartości (GSAP, `gfx/count_li
 - Nie liczy (zostaje jak napisane): liczby w słowie albo kodzie („B2B”, „Q3”, „v2.0”), godziny („15:30”), liczby z kropką
   („10.5”), zera wiodące („007”). Panel odrzuca kartę `count`, w której nie ma żadnej liczby do odliczania.
 - Odliczanie startuje po 0,35 s (gdy ramka już weszła) i trwa 40 % długości karty, maks. 1,6 s; kończy się przed wygaszeniem.
+- `"from"` (S11, opcjonalnie): start odliczania zamiast 0, jedna liczba dla wszystkich albo lista, po jednej na liczbę w `text`
+  (lista rośnie z 3 do 4 pozycji: `"text": "4 kroki", "from": 3`). Bez klucza: od 0, jak dotąd (`count_lib.mjs` › `countFrom`).
   Karta krótsza niż ok. 1 s pokazuje liczby od razu.
 - Dźwięk „pop” jak `kw`; pod kartą 16:9 nie ma najazdu (`gfx_types.SIDE_BOX`).
 - Wymaga `node_modules/gsap` (`npm ci`, krok 2 wyżej). Bez niego render kart kończy się `FAILED gfx` w `render.log`.
@@ -258,6 +328,113 @@ pod kartą działa); `canvas: "v"`: górny pas shortu. Logika: `gfx/maxim_lib.mj
 - Dźwięk: miękki whoosh na wejście (`make_beds.py`); własne chwile karty (np. pop na wyróżnieniu) w `sfx`.
 - Kiedy: 1 zdanie-puenta (`maxim` w gramatyce), maks. ok. 1 na 3–4 min w long; nie razem z inną kartą.
 
+## Scena `scene` (schemat na ciemnym płótnie, twarz w kółku)
+Decyzja i koszt: `docs/adr/0010-scene-card.md`. Wzór: rozbiór filmu AI LABS z 2026-10-25 (16 min bez twarzy: płaskie ciemne
+karty, szare kreski zamiast nieistotnego tekstu, kolor tylko tam, gdzie ma patrzeć oko, kamera, która przesuwa się między
+elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py` kładzie twarz w kółku w prawym dolnym rogu
+(`gfx_types.PIP`), jak przy `slide` i `web`. Logika: `gfx/scene_lib.mjs`, test: `gfx/test/scene.test.mjs`. Bez GSAP.
+```json
+{"id": "s_szlaban", "type": "scene", "dur": 9,
+ "els": [
+   {"k": "term", "id": "term", "x": 160, "y": 260, "w": 1640, "title": "Claude Code · bash", "cmd": "git push --force origin main",
+    "out": ["[bash-guard:force-push] ZABLOKOWANE / BLOCKED (rule force-push)."], "hl": [0], "tone": "bad", "at": 0.5},
+   {"k": "stamp", "id": "stamp", "x": 1180, "y": 860, "text": "ZABLOKOWANE", "tone": "bad", "at": 5.4}
+ ],
+ "cam": [{"t": 0, "on": "term"}, {"t": 5.2, "on": "*"}]}
+```
+- **Ruch (`"motion": "tokens"` na karcie)**: czasy z `gfx/motion_tokens.mjs` (klatki przy 30 fps: wejście 12, wyjście 6 =
+  połowa wejścia; krzywe land / pop / shift / leave; stagger wierszy 5 klatek, linii terminala 3, wiadomości czatu 8, max 12).
+  `scene_check` sprawdza takie karty: zero wejść ease-in-out, `step` <= 12 klatek. Karta bez klucza = czasy sprzed tokenów
+  (gotowe filmy rysują się bajt w bajt tak samo, sprawdzone na 222 scenach filmu 2), więc lint jej nie ocenia.
+- **Elementy (`k`)**, każdy z `x`, `y` (piksele płótna 2560x1440, może wyjść poza nie), opcjonalnie `w`, `h`, `id`, `at` (wejście, s),
+  `anim` (`up` domyślnie, `pop`, `fade`, `left`, `right`, `drop`), `dim` (s: przygaszenie do 28 %, gdy oko ma iść gdzie indziej),
+  `gone` (s: znika), `tone` (`acc`, `ok`, `bad`, `warn`, `blue`, `orange`, `mute`):
+  - `win` okno z kropkami (`title`, `icon`, `rows`), `file` plik (`name`, `badge: {text, tone, at}`, `rows`). Wiersz: `"~60"` = szara
+    kreska na 60 % szerokości, `"tekst"`, albo `{"t", "mark": "ok"|"bad"|"warn", "mark_at", "hl": true, "hl_at", "tone"}`; `step` = odstęp wejścia wierszy.
+  - `term` terminal: `cmd` pisze się literami (28 znaków/s od `cmd_at`), potem `out` linia po linii, linie z `hl` dostają podświetlenie.
+    **`out` to prawdziwy wynik polecenia**, przepisany z terminala; skrót oznacz „…”. Nigdy wymyślony.
+  - `chip` pigułka z ikoną (`icon` z lucide, `text`), `node` duża ikona z podpisem (`icon`, `text`, `sub`, `size`), `you` osoba („Ty”),
+    `chat` dymki (`msgs: [{who: "me"|"ai", t}]`, `t` = tekst albo `"~70"`), `stamp` pieczątka (`text`, `rot`), `text` napis
+    (`t`, `*gwiazdki*` = kolor akcentu, `size`), `bar` pasek (`label`, `v` 0..1, `d`), `stat` liczba z podpisem (`value`, `label`),
+    `line` linia rysowana od `from` do `to` (`curve`, `d` = czas rysowania, `arrow: false` bez kropki na końcu, `head: "arrow"`
+    = grot zamiast kropki, `packet_at` + `packet_d` = kropka „pakiet” jadąca po linii).
+  - `stat` z `count: {from, to, d, at, pre, suf}`: liczba nabija się od `from` do `to` w `d` s (np. 0 → 92 z `suf: "%"`).
+  - `check` ptaszek: kółko i ptaszek rysują się, iskry rozbiegają się (`size`). `ring` odręczne kółko wokół pudełka
+    `x, y, w, h` (`pad`, `d`). `cursor` kursor jedzie z `from` do `to`, klika w `click_at` (fala w miejscu kliknięcia).
+  - `say` napis kinetyczny: `words: [["słowo", s], …]`, każde słowo wchodzi, gdy pada (czas z transkrypcji, liczony od startu karty);
+    znaczniki na JEDNYM słowie: `*słowo*` akcent szeryfowy, `[słowo]` pigułka w kolorze, `~słowo~` przekreślenie, `!słowo!` czerwone
+    (znak zapytania w środku znacznika: `*przejrzał?*`, nie `*przejrzał*?`), `size`.
+  - `toggle` przełącznik z podpisem `text`, włącza się w `on_at`. `steps` pigułka „`label` N / `total`”: `steps: [[s, N], …]`
+    zmienia liczbę i dopełnia pasek w podanych chwilach.
+- **Wspólne chwile każdego elementu (s od startu karty):** `hl_at` podświetlenie za elementem, `strike_at` przekreślenie i
+  przygaszenie, `pulse_at` (liczba albo lista) puls, `out_at` szybkie rozmycie i zniknięcie, `dim`, `gone` (wyżej).
+- **Badania (wszystko opcjonalne; scena bez tych kluczy rysuje się bajt w bajt jak dotąd):**
+  - `read_along: [[s, linia], …]` na `term` / `win` / `file` (L16b): linia (wyjście terminala, wiersz okna z tekstem, nie
+    szara kreska `~`) podświetla się w chwili, gdy ją mówisz, i gaśnie przy następnej; ostatnia świeci do końca.
+  - `item: n` na elemencie (S11): pozycja listy nr n; musi zostać na ekranie co najmniej 3 s (`ITEM_HOLD`), inaczej nazwany błąd.
+  - `"extends": "<id sceny>"` na scenie (S11): scena zaczyna z elementami tamtej, które były na ekranie na jej końcu (bez `gone`
+    i `out_at`), już w stanie końcowym (wpisane, zaznaczone, policzone, bez ponownego wejścia; także to, co tamta scena
+    pokazałaby dopiero po swoim końcu, np. późne wiadomości czatu), i dokłada swoje. Kamera własna
+    (może kadrować odziedziczone `id`); `canvas`, `layout`, `pip` też podaj sama (nie dziedziczą się).
+  - `"canvas_zoom": [{"t", "on", "k", "d"}]` na scenie (L17): w `t` kamera zbliża się `k` razy (domyślnie 1,25) na pudełko `on`
+    w `d` s (domyślnie 0,4), środek zostaje w miejscu; następny przystanek `cam` rusza z tego kadru. Nie w środku ruchu kamery
+    i nie przy `"cam": "none"`. Dwa zoomy bez przystanku `cam` między nimi mnożą się (1,25 × 1,25); w 9:16 element, który po
+    zbliżeniu wychodzi poza kadr, gaśnie jak przy każdym przystanku (`soloKeys`).
+  - `build_edl.py` wpisuje to do nakładki karty w EDL (s filmu, `gfx_events.py`): `zooms` (starty `canvas_zoom`), `moves` (każda
+    zmiana obrazu w karcie: ruch kamery między różnymi przystankami, `canvas_zoom`, ruszenie kursora, start pisania w terminalu,
+    krok `read_along`; S14), `read_along`, `items` ([wejście, wyjście] pozycji w kolejności `item`). W planie wpis `gfx` może
+    podać słowa wskazówek: `"read_along": [indeks słowa, …]`, `"items": [indeks liczebnika, …]`; `build_edl.py` odrzuca kartę,
+    której wskazówka jest dalej niż -0,15..+0,3 s od słowa, i podaje czas karty, który wpisać.
+- **Tło sceny `bg`:** brak = siatka kropek, `"dots"` to samo jawnie, `"blobs"` = trzy rozmyte plamy w kolorach motywu.
+- **Nowy rodzaj elementu:** wpis w `PIECES` (`gfx/scene_lib.mjs`: funkcja `(e, {esc, icon, at, tn})` → `{inner, style}` albo
+  `{html}`, gdy element rysuje własne pudełko jak `line`), nazwa w `KINDS`, jego klucze w `checkScene`, opis tutaj, test w
+  `gfx/test/scene.test.mjs`. Zmiana pliku renderuje sceny od nowa (cache niżej).
+- **Kamera.** Bez `cam` cały rysunek jest kadrowany tak, żeby wypełnił wolną część ekranu, na lewo od kółka z twarzą. Przystanek
+  `{"t", "on": "id" | ["id", …] | "*", "pad", "zmax", "move"}` kadruje te elementy (zmierzone w przeglądarce, po ułożeniu, więc
+  nie trzeba zgadywać ich rozmiaru); `{"t", "x", "y", "z"}` = ręcznie (punkt świata w lewym górnym rogu, zoom). Ruch trwa `move` s
+  (domyślnie 0,9) i kończy się w `t`. `zmax` (domyślnie 1,8) nie pozwala za bardzo powiększyć jednej małej rzeczy. `"cam": "none"` =
+  płótno 1:1; wtedy element, który wchodzi w róg z twarzą, zatrzymuje render z nazwą (chyba że `"pip": false`).
+- `"pip": false`: scena bez kółka z twarzą (build_edl.py nie włącza PiP pod nią), kadruje na cały ekran.
+- **Scena w shorcie (`"canvas": "v"`, `"layout": "split"|"corner"`)**: ten sam rysunek (współrzędne świata jak w longu), kamera
+  kadruje go w wolnym polu nad boksem twarzy / nad napisami przy kółku (`sceneSafe`). Element, który przy danym przystanku kamery
+  nie mieści się w kadrze (np. szeroki napis obok kadrowanego węzła), gaśnie na ten przystanek i wraca, gdy kamera go obejmie
+  (`soloKeys`; linie zostają). Ostatni przystanek `"*"` pokazuje cały rysunek.
+- **Kolizje (`gfx/scene_check.mjs <specs.json> [id…]`)**: każda scena ułożona w Chrome bez renderu klatek; dwa elementy, które
+  zasłaniają się (podpisy węzłów wychodzą poza węzeł) w czasie, gdy oba są na ekranie, = `CLASH <scena>: <a> covers <b>` i exit 1.
+  `run_v4.sh` puszcza to przed renderem. Pieczątka, ptaszek, obwódka, kursor i linia kładą się na inne celowo: pomijane.
+- **Cache**: `.mov` sceny należy do jej specyfikacji i do źródła `gfx/scene_lib.mjs` (klucz w `<id>.mov.key`): zmiana wyglądu
+  elementów renderuje sceny od nowa, nawet przy tej samej specyfikacji.
+- Kiedy: zamiast `slide`, gdy mówisz o mechanizmie (kto co robi, co blokuje, co przechodzi dalej). Nowy obraz co 3–6 s:
+  jeden element na jedno zdanie, kamera przechodzi do niego, gdy o nim mówisz. Przy prawdziwym wyniku (terminal, log) pokazuj go,
+  nie rysuj od nowa innymi słowami.
+- Dźwięk: whoosh na wejście karty (`gfx_types.CARD_WHOOSH`, `make_beds.py`). Panel ma własną kopię `CARD_WHOOSH` w
+  `timeline.sfx_events`: do dopisania tam „scene” przy następnej zmianie panelu.
+
+## Karty z badań plan2: lista narastająca, mapa części, definicja, dopisek (tylko 16:9)
+Wszystko opcjonalne: karta bez nowych pól wygląda jak przedtem. Rysuje `gfx/cards_lib.mjs` (test `gfx/test/cards.test.mjs`),
+czasy pilnuje `build_edl.py` (test `tests/test_plan2_cards.py`). Pozycje w rejestrze badań: plan2:L8, L9, L12, L21.
+```json
+{"id": "l3", "type": "list", "text": "Trzy kroki", "items": ["Zapisz", "Daj narzędzia", "Sprawdź"], "dim_done": true, "delays": [0, 2.4, 5.1], "dur": 8}
+{"id": "l3b", "type": "list", "text": "Trzy kroki", "items": ["Zapisz", "Daj narzędzia", "Sprawdź"], "upto": 2, "dim_done": true, "delays": [null, 0.3], "dur": 4}
+{"id": "m0", "type": "chap", "chap_style": "roadmap", "parts": ["Pamięć", "Narzędzia", "Koszty"], "current": 0, "text": "Plan", "dur": 6}
+{"id": "t2", "type": "chap", "chap_style": "part_tag", "parts": ["Pamięć", "Narzędzia", "Koszty"], "current": 2, "dur": 5}
+{"id": "d1", "type": "lower", "define": true, "text": "RAG", "sub": "model najpierw szuka w twoich dokumentach", "dur": 6}
+{"id": "n1", "type": "note", "icon": "link", "text": "Link do repozytorium w opisie", "dur": 6}
+```
+- **Lista (L8):** jedna karta, pozycje wchodzą na swoje słowa. W planie `{"id": "l3", "word": 120, "item_words": [120, 140, 171]}`:
+  `build_edl` liczy, kiedy każda pozycja pada, i zatrzymuje budowę, gdy `delays` pokazują pozycję, zanim padnie (podaje
+  właściwe `delays`). `upto: k` = pozycje 1..k, wcześniejsze stoją od początku (ich `delays` = `null`), wchodzi tylko k-ta.
+  `dim_done` wygasza pozycję, gdy wchodzi następna. `count_check` pilnuje, że widać nie więcej pozycji, niż padło.
+- **Mapa części (L9):** `roadmap` = ten sam rysunek na otwarciu (`current: 0`) i na starcie każdej części (zrobione /
+  bieżąca / następne); `part_tag` = mała plakietka w lewym górnym rogu (kółko z twarzą jest w prawym dolnym), mówca zostaje
+  na pełnym kadrze. Wszystkie karty filmu mają te same `parts`. Obie liczą się jako karta rozdziału.
+- **Definicja (L12):** `lower` + `define: true`, termin w kolorze akcentu, definicja do 20 słów / 3 linii, min.
+  max(czas czytania, 6 s). Gramatyka: moment `define` (wchodzi tylko z `"beat_opt_in": ["define"]` w planie).
+- **Dopisek (L21):** `note` do 14 słów / 3 linii w lewym dolnym rogu, min. max(czas czytania, 4 s), najwyżej 1 na 5 min,
+  nie razem z `lower`, bez dźwięku. Gramatyka: moment `note` („link w opisie”, zastrzeżenie) z `"beat_opt_in": ["note"]`.
+- W EDL każda taka karta ma `"variant"` (`roadmap`, `part_tag`, `define`, `note`, `upto`, `stack`), lista z `item_words`
+  także `delays`, `items_said`, `item_lead`.
+
 ## Tekst za postacią (`"behind"` w karcie)
 Duże słowo ZA głową mówiącego (głowa zasłania środek napisu). Karta dowolnego typu (zwykle `float` z własnym html) dostaje
 `"behind": {"edl": "edl_long.json"}`; `behind.py` wycina z jej kanału alfa postać, wyliczoną modelem Robust Video Matting na
@@ -273,6 +450,9 @@ klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, któ
   (`comment=behind:…`); ten sam klucz = pominięta, `.mov` bez znacznika = świeży render (nowy `<id>.front.mov`).
 - Plan musi mieć `"seg_exact": true`; karta do 20 s, w rozmiarze klatki filmu (najwyżej 4K); `id` i nazwa EDL tylko
   `[A-Za-z0-9_-]`. Opcja `"ratio"` (większa od 0, najwyżej 1; domyślnie 0.2) = skala, w jakiej model patrzy na klatkę (mniejsza = szybciej, grubsza maska).
+  Opcja `"clean": true` (Skool CCC G3): krawędź maski spokojniejsza: średnia z 3 klatek wokół bieżącej, postać zwężona o 1 px
+  (znika poświata starego tła), wtapianie Gaussem 1,2 px. ~0,18 s na klatkę 2560x1440 więcej. Bez klucza wycinka jak dotąd
+  (gotowe filmy nie przeliczają się).
 - Efekt wyłączasz, usuwając `"behind"` ze speca i przesuwając `<id>.mov` i `<id>.front.mov` na bok (render.mjs zrobi zwykłą kartę). Maska myli się
   na dłoni przed głową: wtedy inne miejsce na słowo.
 - Napis musi sięgać głowy (dół słowa na wysokości czubka głowy lub niżej), inaczej efektu nie widać. `build_edl` trzyma kadr
@@ -296,9 +476,12 @@ zostaje jak było (kolory z `gfx/template.html`, bit w bit).
   Pojęcia pipeline'u i panelu (motyw, krawędź ujęcia, złota myśl…): `panel/docs/GLOSSARY.md`.
 
 ## Ekran końcowy shorta (`end` + `canvas: "v"`)
+**Domyślnie short NIE ma planszy końcowej:** kończy się na ostatnim słowie (bramka `short.end`: brak karty `end`, `tail` <= 0,6 s;
+30/30 top shortów kończy się 0,23 s po słowie, `style/REF-shorts-top.md` T8, decyzja: `docs/adr/0014-shorts-follow-top-retention.md`).
+Plansza zostaje jako opcja dla wyjątku (np. promo klienta, które musi pokazać adres) i wtedy plan ma `"skip": {"short.end": "<powód>"}`.
 Po ostatnim zdaniu shorta 3 s planszy „gdzie pełny odcinek” + pigułka „Subskrybuj @kamiljan11” (kolory z motywu, whoosh z
 `make_beds.py`). Plan shorta: `"tail": 3` i w `gfx` `{"id": "v_end", "word": "END"}` (start = koniec mowy); bez `tail` short
-kończy się na ostatnim słowie jak dotąd (test: `panel/tests/test_pipeline_compat.py`). Tekst w `gfx_specs.json`:
+kończy się na ostatnim słowie (test: `panel/tests/test_pipeline_compat.py`). Tekst w `gfx_specs.json`:
 ```json
 {"id": "v_end", "type": "end", "canvas": "v", "text": "Pełny odcinek na kanale", "sub": "Subskrybuj @kamiljan11", "dur": 3}
 ```
@@ -327,12 +510,15 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
   dla każdego kawałka koloru, półprzezroczyste nachodzą na siebie ciemnymi pasami. Bez klucza = stare napisy (test bit w bit).
 - **`"caption_pop": true`**: nowa linia napisów wskakuje (60 % -> 108 % -> 100 % w 0,13 s, wejście z rozbioru UFD Tech /
   Norbert Bodziony 2026-10-31); kolejne słowa tej samej linii zmieniają tylko kolor. Bez klucza jak dotąd.
-- **Mem 9:16 (`"type": "meme"`)**: znany mem jako karta u góry (układ `split` jak karta `web`: twarz w boksie, napisy w szczelinie;
-  albo `"layout": "full"`), własne słowa w polach szablonu, wskakują po kolei (`"at"` = sekundy od wejścia karty, domyślnie
+- **Mem (`"type": "meme"`)**: znany mem jako karta. 9:16: u góry (układ `split` jak karta `web`: twarz w boksie, napisy w
+  szczelinie; `"layout": "full"`; albo `"layout": "corner"`: obraz na górze ekranu, Kamil w kółku w rogu). 16:9 (bez `canvas`
+  i bez `layout`): obraz na lewo, twarz w PiP w rogu. Własne słowa w polach szablonu, wskakują po kolei (`"at"` = sekundy od wejścia karty, domyślnie
   0,25 + 0,7·i), lekki najazd 5 %. Katalog szablonów (id imgflip, pola tekstu jako ułamki obrazu, „dark”/„light”, do czego
   pasuje) = `style/memes.json`; obraz pobiera `python3 memes.py add <slug>` do `render/memes/` (poza repo: to cudze obrazy, ADR-0008).
-  Mem tylko pod konkretną frazę, 2–3,5 s (UFD: mediana 1,7 s, ~1 na 8–10 s); bez dźwięku. Nieznany `meme`, za dużo tekstów albo
-  mem w 16:9 = nazwany błąd (`build_edl.py`, `render.mjs`). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
+  Mem tylko pod konkretną frazę, 2–3,5 s (UFD: mediana 1,7 s, ~1 na 8–10 s); bez dźwięku; napis zmniejsza się do szerokości pola.
+  Nieznany `meme`, za dużo tekstów, `layout` w 16:9 albo mem 16:9 w filmie pionowym = nazwany błąd (`build_edl.py`, `render.mjs`).
+  Lista kontrolna: `long.memes` (>= 3 w longu) i `short.meme` (>= 1; short bez luki na twarzy pomija go z powodem), bo
+  karta istniała od 10-31 i żaden film jej nie użył (Kamil 4.11: „memów nie ma”). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
   ```json
   {"id": "m_excel", "type": "meme", "canvas": "v", "dur": 3, "meme": "drake", "text": ["Nowe narzędzie", "Stary dobry Excel"], "at": [0.2, 1.0]}
   ```

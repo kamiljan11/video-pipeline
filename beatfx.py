@@ -82,6 +82,7 @@ def _validate(g, path):
             bad += [f"effects.{fmt}.{k}" for fmt in ("long", "short")  # every moment type needs its effect in both formats
                     if isinstance(g.get("effects", {}).get(fmt), dict) and k not in g["effects"][fmt]]
             bad += [f"beats.{k}.tier"] * (b.get("tier", "secondary") not in ("primary", "secondary"))
+            bad += [f"beats.{k}.opt_in"] * (not isinstance(b.get("opt_in", False), bool))  # beats.enabled: plan "beat_opt_in"
     bad += [f"effects.{fmt}.pace" for fmt in ("long", "short") if isinstance(g.get("effects", {}).get(fmt), dict)
             and "pace" not in g["effects"][fmt]]  # without it static stretches stay static (critic C1)
     for rx, name in g.get("icons", {}).items():  # a missing .svg would stop gfx/render.mjs for every graphic of the project

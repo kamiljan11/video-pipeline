@@ -54,6 +54,15 @@ class FaceTargetYTest(unittest.TestCase):
         self.assertTrue(edl_guard.chain_ok(grade, edl_guard.VIDEO))
         self.assertNotIn("grade", self.edl(vertical=True))  # no key: assemble.py's default grade
 
+    def test_punch_headroom_reaches_the_edl_and_is_checked(self):  # face_track.py reads it (brow-only head box)
+        self.assertEqual(self.edl(punch_headroom="face")["punch_headroom"], "face")
+        self.assertNotIn("punch_headroom", self.edl())  # no key: face_track keeps the hair
+        for bad in ("brow", True, 0.12):
+            with self.subTest(bad=bad):
+                r = self.build(punch_headroom=bad)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("punch_headroom", r.stderr)
+
     def test_a_bad_value_is_a_named_error(self):
         for bad in (0.1, 0.9, "0.47", True, None):
             with self.subTest(bad=bad):

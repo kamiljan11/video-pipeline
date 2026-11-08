@@ -26,7 +26,7 @@ from itertools import pairwise
 from pathlib import Path
 
 import edges
-from gfx_types import SIDE_BOX
+from gfx_types import SIDE_BOX, beside
 
 args = sys.argv[1:]; plan_p = args[0]; FIX = "--fix" in args
 video = args[args.index("--video") + 1] if "--video" in args else None
@@ -74,7 +74,8 @@ acc = 0.0
 for s in segs:
     d = s["out"] - s["in"]; z = s["zoom"]
     for o in ov:
-        if specs.get(o["id"], {}).get("type") not in SIDE_BOX or specs.get(o["id"], {}).get("canvas") == "v": continue
+        sp = specs.get(o["id"], {})
+        if sp.get("type") not in SIDE_BOX or sp.get("canvas") == "v" or beside(sp): continue  # beside the head: zoom allowed
         a0, a1 = max(acc, o["at"]), min(acc + d, o["at"] + o["dur"])  # overlap window in output time
         if a1 <= a0: continue
         if isinstance(z, dict):  # zoom value only during the overlap: a before t0, rising to b after
@@ -151,7 +152,7 @@ if BEATS:
     autos = [e for e in P.get("emph", []) if e.get("auto")]
     if autos: add("C10", "info", f"{len(autos)} akcentów bez momentu (auto) — pomijane przez gramatykę montażu")
     for r in E.get("beat_fx", []):
-        if r.get("gfx") in ("kw", "list", "chap", "slide", "cta") and r["fx"] not in ("off", "cut") and \
+        if r.get("gfx") in ("kw", "list", "chap", "slide", "cta", "define", "note") and r["fx"] not in ("off", "cut") and \
                 not any(o["at"] - 4 <= r["at"] <= o["at"] + o["dur"] + 1 for o in ov):
             add("C10", "info", f"moment {r['type']} @{r['at']:.1f}s „{W[r['word']]['text'].strip()}”: sugerowana grafika {r['gfx']}", at=r["at"], word=r["word"])
 # C11 stock b-roll (plan has "broll"): clips build_edl.py could not place (cut word, under a graphic, missing file)
