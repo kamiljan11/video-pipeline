@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, cutProblems, drawProblems, hiddenProblems, MIN_TEXT_PX, readProblems, window_ } from '../scene_check.mjs';
+import { clashes, cutProblems, drawProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, readProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -107,4 +107,10 @@ test('a piece the camera hides for the whole card is named (s14 "AI", 2026-11-08
   const sp = { id: 's14', els: [{ k: 'say', id: 'h' }, { k: 'node', id: 'ai' }] };
   assert.deepEqual(hiddenProblems(sp, [1]), ['s14: ai (node) is never on screen: no camera stop shows it whole, so it hides for the whole card']);
   assert.deepEqual(hiddenProblems(sp, []), []);
+});
+
+test('a piece the camera fades out while it is being read is named; before it comes in or after it was read it may hide (s03 2026-11-08)', () => {
+  const sp = { id: 's03', dur: 10, els: [{ k: 'say', id: 'l1', at: 2 }] };
+  assert.match(hiddenWhileRead(sp, [{ i: 0, t: 3 }]).join('\n'), /s03: l1 \(say\) is hidden by the camera at 3\.0 s, while it is being read/);
+  assert.deepEqual(hiddenWhileRead(sp, [{ i: 0, t: 1 }, { i: 0, t: 4.5 }]), []);
 });

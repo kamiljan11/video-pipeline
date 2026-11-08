@@ -2,7 +2,7 @@
 // S14 camera stops; all opt-in: a spec without the keys draws byte for byte as before, motion.test.mjs keeps that golden)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CANVAS_ZOOM, ITEM_HOLD, camKeyframes, checkScene, resolveExtends, scene, sceneFit, shiftPiece, zoomStops } from '../scene_lib.mjs';
+import { CANVAS_ZOOM, ITEM_HOLD, camKeyframes, checkScene, resolveExtends, scene, sceneFit, shiftPiece, soloKeys, zoomStops } from '../scene_lib.mjs';
 import { countFrom } from '../count_lib.mjs';
 import { markTimes, motion } from '../webshot_lib.mjs';
 import { ALL } from './motion_fixture.mjs';
@@ -130,4 +130,24 @@ test('S11 count card "from": one start for all numbers or one per number; none =
   assert.deepEqual(countFrom({ id: 'c', from: 3 }, 2), [3, 3]);
   assert.deepEqual(countFrom({ id: 'c', from: [3, 40] }, 2), [3, 40]);
   for (const from of [-1, [1], 'x', [1, NaN]]) assert.throws(() => countFrom({ id: 'c', from }, 2), /"c": count "from"/, JSON.stringify(from));
+});
+
+test('canvas_zoom is capped so its box (the piece + what is still being read) stays in view, and skipped below 1.03', () => {
+  const base = [{ t: 0, x: 0, y: 0, z: 1 }], view = { x: 0, y: 0, w: 1000, h: 1000 };
+  // box 400..600 around centre 500: room to 1000 = 500 / half 100 -> up to 5x, so the asked 1.25 stays
+  const roomy = zoomStops(base, [{ t: 1, d: 0.4, k: 1.25, cx: 500, cy: 500, box: [400, 400, 600, 600], keep: [2] }], view);
+  assert.ok(Math.abs(roomy[1].z - 1.25) < 1e-9);
+  assert.deepEqual(roomy[1].keep, [2]);  // the stop carries what it frames, soloKeys never fades it
+  // box 20..980: half 480, room 500 -> 500 / 480 x 0.97 = 1.01 < 1.03: no zoom at all rather than cut a word
+  assert.equal(zoomStops(base, [{ t: 1, d: 0.4, k: 1.25, cx: 500, cy: 500, box: [20, 20, 980, 980] }], view).length, 1);
+  // box 300..700: half 200 -> 500 / 200 x 0.97 = 2.43 > 1.25, and a 1.6 ask on box 250..750 -> 1.94; a wide box caps it
+  const capped = zoomStops(base, [{ t: 1, d: 0.4, k: 1.6, cx: 500, cy: 500, box: [150, 150, 850, 850] }], view);
+  assert.ok(Math.abs(capped[1].z - (500 / 350) * 0.97) < 1e-9);
+});
+
+test('soloKeys: a piece a stop frames ("keep") never fades, even when the fit test says it is outside', () => {
+  const safe = { x: 0, y: 0, w: 500, h: 500 }, far = { x: 900, y: 0, w: 200, h: 100 };
+  const stops = [{ t: 0, x: 0, y: 0, z: 1 }, { t: 3, x: 0, y: 0, z: 1, move: 0.9 }];
+  assert.ok(soloKeys([far], stops, 5, safe)[0]);  // outside the safe area at both stops: hidden
+  assert.equal(soloKeys([far], stops.map(s => ({ ...s, keep: [0] })), 5, safe)[0], null);  // kept: never hidden
 });

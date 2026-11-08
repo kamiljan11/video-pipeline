@@ -139,6 +139,19 @@ export function cutProblems(sp, cuts) {
   return out;
 }
 
+// hid = [{i, t}]: a piece faded out by the camera (soloKeys) at t. Hidden while it is being read (READ_S from 0.5 s after it
+// comes in) = the viewer never reads it (stills 2026-11-08: s02 and s03 stood empty while their lines were said)
+export function hiddenWhileRead(sp, hid) {
+  const out = [], seen = new Set();
+  for (const { i, t } of hid) {
+    const [a0, a1] = window_(sp.els[i], sp.dur);
+    if (t < a0 + 0.5 || t > Math.min(a1, a0 + 0.5 + READ_S) || seen.has(i)) continue;
+    seen.add(i);
+    out.push(`${sp.id}: ${sp.els[i]?.id ?? `#${i}`} (${sp.els[i]?.k}) is hidden by the camera at ${t.toFixed(1)} s, while it is being read`);
+  }
+  return out;
+}
+
 // hidden = drawn indexes of pieces the camera hides for the whole card (a 9:16 piece no camera stop shows whole fades out for
 // every stop, scene_lib soloKeys): drawn but never seen (s14 "AI", s12 its chat line, 2026-11-08)
 export function hiddenProblems(sp, hidden) {
@@ -164,7 +177,7 @@ async function main() {
       await page.evaluate(([fit, kf, safe, solo, zoom, follow]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow); },
         [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString()]);
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
-      const { rects, texts, cam, cuts, hidden } = await page.evaluate(dur => {
+      const { rects, texts, cam, cuts, hidden, hid } = await page.evaluate(dur => {
         const world = document.querySelector('.scene .world');
         // the camera: the world's own animation, sampled every 0.1 s -> [t, scale] (1 = no camera move)
         const camAnims = document.getAnimations().filter(a => a.effect?.target === world), cam = [];
@@ -191,10 +204,11 @@ async function main() {
             lines.push({ i, n, el, clips });
           }
         });
-        const cuts = [];
+        const cuts = [], hid = [], soloEls = soloAnims.map(a => a.effect.target);
         let prev = null;
         for (let t = 0; t <= dur + 1e-6; t += 0.1) {
           for (const a of [...camAnims, ...soloAnims]) { a.pause(); a.currentTime = t * 1000; }
+          soloEls.forEach(el => { const i = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].indexOf(el); if (i >= 0 && +getComputedStyle(el).opacity < 0.05) hid.push({ i, t: +t.toFixed(2) }); });
           const tf = getComputedStyle(world).transform, rest = prev !== null && tf === prev;
           prev = tf;
           if (!rest) continue;
@@ -236,12 +250,12 @@ async function main() {
             for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, node, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
           }
         });
-        return { rects, texts, cam, cuts, hidden };
+        return { rects, texts, cam, cuts, hidden, hid };
       }, sp.dur);
       // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
       const all = { ...sp, els: drawnEls(sp).els };
       bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts));
-      bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...hiddenProblems(all, hidden));
+      bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...hiddenProblems(all, hidden), ...(hidden.length ? [] : hiddenWhileRead(all, hid)));
       await page.close();
     }
   } finally { await browser.close(); }

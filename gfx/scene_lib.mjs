@@ -90,14 +90,23 @@ export function camKeyframes(cam, dur) {
 // one more camera stop: from the framing in effect at t, d seconds to the same framing k times closer, the centre staying
 // where it is on screen ((c - x') z k = (c - x) z). The next stop of "cam" moves on from there. Self-contained: render.mjs
 // ships its source into the page like camKeyframes.
-export function zoomStops(stops, zooms) {
+// view (optional, the visible area in scene px) and z.box ([x0, y0, x1, y1] of the pieces it frames): k stops where those pieces
+// would leave the view (a push-in on a wide line cut it at both edges, stills 2026-11-08); a zoom left under 1.03 is skipped.
+// z.keep (piece indexes) goes on the stop: soloKeys never hides the pieces a stop frames.
+export function zoomStops(stops, zooms, view) {
   const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
   const out = [...stops];
   for (const z of zooms) {
     let i = 0;
     out.forEach((s, j) => { if (num(s.t, 0) <= z.t) i = j; });
     const b = out[i], bz = num(b.z, 1), bx = num(b.x, 0), by = num(b.y, 0);
-    out.splice(i + 1, 0, { t: z.t + z.d, move: z.d, z: bz * z.k, x: z.cx - (z.cx - bx) / z.k, y: z.cy - (z.cy - by) / z.k, zoom: true });
+    let k = z.k;
+    if (view && z.box) {
+      const sx = (z.cx - bx) * bz, sy = (z.cy - by) * bz, hw = ((z.box[2] - z.box[0]) / 2) * bz, hh = ((z.box[3] - z.box[1]) / 2) * bz;
+      k = Math.min(k, (Math.min(sx - view.x, view.x + view.w - sx) / hw) * 0.97, (Math.min(sy - view.y, view.y + view.h - sy) / hh) * 0.97);
+      if (!(k >= 1.03)) continue;
+    }
+    out.splice(i + 1, 0, { t: z.t + z.d, move: z.d, z: bz * k, x: z.cx - (z.cx - bx) / k, y: z.cy - (z.cy - by) / k, zoom: true, keep: z.keep });
   }
   return out;
 }
@@ -113,8 +122,8 @@ export function soloKeys(pieces, stops, dur, safe, tol = 24, keepCut = false) {
     const z = num(s.z, 1), x0 = (p.x - num(s.x, 0)) * z, y0 = (p.y - num(s.y, 0)) * z;
     return x0 >= safe.x - tol && y0 >= safe.y - tol && x0 + p.w * z <= safe.x + safe.w + tol && y0 + p.h * z <= safe.y + safe.h + tol;
   };
-  return pieces.map(p => {
-    const vis = stops.map(s => fits(p, s));
+  return pieces.map((p, i) => {
+    const vis = stops.map(s => (Array.isArray(s.keep) && s.keep.includes(i)) || fits(p, s));  // a stop never hides what it frames
     if (vis.every(Boolean) || (keepCut && !vis.some(Boolean))) return null;  // keepCut (16:9, board): never whole stays, scene_check names it
     const keys = [[0, vis[0] ? 1 : 0]];
     for (let i = 1; i < stops.length; i++) {
@@ -399,7 +408,9 @@ function piece(e, esc, icon, m = MOTION.legacy) {
   if (e.out_at !== undefined) outs.push(`${m.out} ${f2(e.out_at)}s forwards`);
   if (e.dim !== undefined) outs.push(`scdim .4s ease-out ${f2(e.dim)}s forwards`);
   if (e.gone !== undefined) outs.push(`${m.gone} ${f2(e.gone)}s forwards`);
-  return `<div class="p ${e.k}"${idAttr(e, esc)} style="${style}"><div class="pi" style="animation:${outs.join(',')}">${inner}</div></div>`;
+  // data-at / data-gone: when it comes in and leaves, so the camera (sceneFit) keeps a piece in the picture while it is read
+  const when = ` data-at="${f2(pieceAt(e))}"${typeof e.gone === 'number' ? ` data-gone="${f2(e.gone)}"` : ''}`;
+  return `<div class="p ${e.k}"${idAttr(e, esc)}${when} style="${style}"><div class="pi" style="animation:${outs.join(',')}">${inner}</div></div>`;
 }
 
 // S11 "extends": a scene that goes on from an earlier one ("extends": "<its id>") starts with that scene's pieces still on at its
@@ -498,8 +509,14 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
       if (n !== el) continue;
       x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + d.offsetWidth); y1 = Math.max(y1, y + d.offsetHeight);
     }
-    return { id: el.dataset.id, x: el.offsetLeft + x0, y: el.offsetTop + y0, w: x1 - x0, h: y1 - y0 };
+    const at = el.dataset.at === undefined ? undefined : +el.dataset.at, gone = el.dataset.gone === undefined ? undefined : +el.dataset.gone;
+    return { id: el.dataset.id, x: el.offsetLeft + x0, y: el.offsetTop + y0, w: x1 - x0, h: y1 - y0, at, gone };
   });
+  // the pieces being read at t (in for less than READ_HOLD s, not gone): a stop frames them too, so the camera does not cut
+  // or hide a line the viewer is still reading when it moves on to the next piece (64 such pieces, 2026-11-08)
+  // (+ the 0.9 s move: the camera leaves the old framing when its move to t starts)
+  const READ_HOLD = 2.0, MOVE = 0.9;
+  const reading = t => pieces.filter(p => !p.ln && p.at !== undefined && p.at <= t + 0.6 && p.at >= t - MOVE - READ_HOLD && !(p.gone <= t - MOVE));
   // what the viewer sees, in the scene's own px: the frame, or a side scene's board (its clip-path inset)
   const sc = world.parentElement, view = (() => {  // null outside a page (a test's stand-in world): no closure, no 16:9 solo
     if (!sc || typeof sc.getBoundingClientRect !== 'function' || typeof getComputedStyle !== 'function') return null;
@@ -519,7 +536,7 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
   // still cut then hides for that stop (soloKeys)
   const frame = s => {
     const want = s.on === undefined || s.on === '*' ? null : [].concat(s.on);
-    let got = pieces.filter(p => !want || want.includes(p.id)), st = fit(got, s);
+    let got = pieces.filter(p => !want || want.includes(p.id) || reading(s.t ?? 0).includes(p)), st = fit(got, s);
     const z0 = st.z;
     for (let k = 0; view && k < 6; k++) {
       const v0 = st.x + view.x / st.z, v1 = st.x + (view.x + view.w) / st.z, w0 = st.y + view.y / st.z, w1 = st.y + (view.y + view.h) / st.z;
@@ -530,7 +547,7 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
       if (wider.z < z0 * 0.85) break;
       got = [...got, ...cut]; st = wider;
     }
-    return st;
+    return { ...st, keep: got.map(p => pieces.indexOf(p)) };
   };
   const col = world.parentElement && world.parentElement.classList.contains('col');
   if (col && !followSrc) throw new Error('side column: sceneFit needs the source of colFollow');
@@ -539,12 +556,12 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
   if (world.dataset.zoom) {  // L17 canvas_zoom: one more stop per zoom, onto the centre of the pieces it names (zoomStops)
     if (!zoomSrc) throw new Error('canvas_zoom: sceneFit needs the source of zoomStops');
     const zoomStops = new Function(`return ${zoomSrc}`)();
-    const centre = on => {
-      const want = on === '*' ? null : [].concat(on), got = pieces.filter(p => !want || want.includes(p.id));
-      return { cx: (Math.min(...got.map(p => p.x)) + Math.max(...got.map(p => p.x + p.w))) / 2,
-        cy: (Math.min(...got.map(p => p.y)) + Math.max(...got.map(p => p.y + p.h))) / 2 };
+    const centre = (on, t) => {
+      const want = on === '*' ? null : [].concat(on), got = pieces.filter(p => !want || want.includes(p.id) || reading(t).includes(p));
+      const box = [Math.min(...got.map(p => p.x)), Math.min(...got.map(p => p.y)), Math.max(...got.map(p => p.x + p.w)), Math.max(...got.map(p => p.y + p.h))];
+      return { cx: (box[0] + box[2]) / 2, cy: (box[1] + box[3]) / 2, box, keep: got.map(p => pieces.indexOf(p)) };
     };
-    stops = zoomStops(stops, JSON.parse(world.dataset.zoom).map(z => ({ ...z, ...centre(z.on) })));
+    stops = zoomStops(stops, JSON.parse(world.dataset.zoom).map(z => ({ ...z, ...centre(z.on, z.t + (z.d ?? 0)) })), view);
   }
   const st = document.createElement('style');
   st.textContent = `@keyframes cam_fit{${camKeyframes(stops, dur)}}`;
