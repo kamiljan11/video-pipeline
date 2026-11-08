@@ -168,7 +168,7 @@ def stems(args_json: Path) -> tuple[np.ndarray, np.ndarray] | None:
         out = ["-ac", "1", "-ar", str(SR), "-f", "f32le"]
         try:
             subprocess.run([*cmd[:i], "-filter_complex", graph, "-map", "[vm]", *out, v, "-map", "[bg]", *out, bg],
-                           capture_output=True, check=True, timeout=1800)
+                           capture_output=True, check=True, preexec_fn=low_priority, timeout=1800)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
             print(f"words_check: stems of {args_json} failed: {e}", file=sys.stderr); return None
         a, b = np.fromfile(v, np.float32), np.fromfile(bg, np.float32)
