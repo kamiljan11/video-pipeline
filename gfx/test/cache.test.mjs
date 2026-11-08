@@ -21,7 +21,14 @@ test('a changed scene renders again, the same scene does not', { skip: !fs.exist
   assert.equal(render(sc), first, 'the same spec was rendered again');
   const third = render({ ...sc, els: [{ ...sc.els[0], at: 0.1 }] });
   assert.notEqual(third, first, 'a retimed scene kept its old .mov');
-  assert.equal(render({ ...sc, els: [{ ...sc.els[0], at: 0.1 }], behind: { edl: 'x.json' } }), third, '"behind" alone re-rendered the front card');
+});
+
+// a "behind" spec needs matte/.venv (render.mjs exits without it); CI has no model venv and tests matting in its own step
+const MATTE = '/home/kamil-jan/video-pipeline/matte/.venv/bin/python';
+test('"behind" alone does not re-render the front card', { skip: (!fs.existsSync('/usr/bin/google-chrome') && 'no Chrome') || (!fs.existsSync(MATTE) && 'no matte/.venv') }, () => {
+  const sc = { id: 's2', type: 'scene', dur: 0.4, cam: 'none', pip: false, els: [{ k: 'text', x: 100, y: 100, t: 'raz', at: 0.1 }] };
+  const front = render(sc);
+  assert.equal(render({ ...sc, behind: { edl: 'x.json' } }), front, '"behind" alone re-rendered the front card');
 });
 
 test('a scene is rendered again when scene_lib.mjs changes (its source is in the key)', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
