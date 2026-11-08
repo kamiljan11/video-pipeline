@@ -489,41 +489,15 @@ export function colFollow(cam) {
   });
 }
 
-// in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
-// turns every "on" stop into x, y, z that put those pieces in the middle of the free area, and starts the camera animation.
-// Self-contained: its source is evaluated in the page with camKeyframes' source as the second argument.
-export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
-  const camKeyframes = new Function(`return ${kfSrc}`)();
-  const world = document.querySelector('.scene .world');
-  if (!world || !world.dataset.cam) return null;
-  const cam = JSON.parse(world.dataset.cam), dur = +world.dataset.dur;
-  const pieces = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map(el => {
-    if (el.dataset.bb) { const [x, y, w, h] = el.dataset.bb.split(' ').map(Number); return { id: el.dataset.id, x, y, w, h, ln: true }; }
-    // with what sticks out of it (a node's label is wider than its icon: "Księgarnia" was cut, 2026-11-08); offset geometry,
-    // so an entrance animation's transform does not move the box
-    let x0 = 0, y0 = 0, x1 = el.offsetWidth, y1 = el.offsetHeight;
-    for (const d of el.querySelectorAll ? el.querySelectorAll('*') : []) {
-      if (!(d.offsetWidth > 0 && d.offsetHeight > 0)) continue;
-      let x = 0, y = 0, n = d;
-      for (; n && n !== el; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
-      if (n !== el) continue;
-      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + d.offsetWidth); y1 = Math.max(y1, y + d.offsetHeight);
-    }
-    const at = el.dataset.at === undefined ? undefined : +el.dataset.at, gone = el.dataset.gone === undefined ? undefined : +el.dataset.gone;
-    return { id: el.dataset.id, x: el.offsetLeft + x0, y: el.offsetTop + y0, w: x1 - x0, h: y1 - y0, at, gone };
-  });
+// the framing of the camera stops from the measured pieces [{id, x, y, w, h, ln?, at?, gone?}] (world px), safe = the free area,
+// view = the visible part in scene px or null; -> {frame(stop) -> {t, move, z, x, y, keep}, centre(on, t)}. Pure: sceneFit runs
+// it in the page from its source, tests run it in Node.
+export function frameStops(pieces, safe, view) {
   // the pieces being read at t (in for less than READ_HOLD s, not gone): a stop frames them too, so the camera does not cut
   // or hide a line the viewer is still reading when it moves on to the next piece (64 such pieces, 2026-11-08)
   // (+ the 0.9 s move: the camera leaves the old framing when its move to t starts)
   const READ_HOLD = 2.0, MOVE = 0.9;
   const reading = t => pieces.filter(p => !p.ln && p.at !== undefined && p.at <= t + 0.6 && p.at >= t - MOVE - READ_HOLD && !(p.gone <= t - MOVE));
-  // what the viewer sees, in the scene's own px: the frame, or a side scene's board (its clip-path inset)
-  const sc = world.parentElement, view = (() => {  // null outside a page (a test's stand-in world): no closure, no 16:9 solo
-    if (!sc || typeof sc.getBoundingClientRect !== 'function' || typeof getComputedStyle !== 'function') return null;
-    const sr = sc.getBoundingClientRect(), ins = (getComputedStyle(sc).clipPath.match(/inset\(([^)]*)\)/) || [])[1];
-    const [it, ir, ib, il] = ins ? ins.split('round')[0].trim().split(/\s+/).map(parseFloat) : [0, 0, 0, 0];
-    return { x: il, y: it, w: sr.width - il - ir, h: sr.height - it - ib };
-  })();
   const fit = (got, s) => {
     const x0 = Math.min(...got.map(p => p.x)), y0 = Math.min(...got.map(p => p.y));
     const x1 = Math.max(...got.map(p => p.x + p.w)), y1 = Math.max(...got.map(p => p.y + p.h));
@@ -549,19 +523,56 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
     }
     return { ...st, keep: got.map(p => pieces.indexOf(p)) };
   };
+  // canvas_zoom's target: the centre and box of the pieces it names plus those still being read at t
+  const centre = (on, t) => {
+    const want = on === '*' ? null : [].concat(on), got = pieces.filter(p => !want || want.includes(p.id) || reading(t).includes(p));
+    const box = [Math.min(...got.map(p => p.x)), Math.min(...got.map(p => p.y)), Math.max(...got.map(p => p.x + p.w)), Math.max(...got.map(p => p.y + p.h))];
+    return { cx: (box[0] + box[2]) / 2, cy: (box[1] + box[3]) / 2, box, keep: got.map(p => pieces.indexOf(p)) };
+  };
+  return { frame, centre };
+}
+
+// in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
+// turns every "on" stop into x, y, z that put those pieces in the middle of the free area, and starts the camera animation.
+// Self-contained: its source is evaluated in the page with the sources of camKeyframes, soloKeys, zoomStops, colFollow and
+// frameStops as arguments (render.mjs, scene_check.mjs).
+export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc, fitSrc) {
+  if (!fitSrc) throw new Error('sceneFit needs the source of frameStops');  // before any page access: a missing source never frames silently
+  const camKeyframes = new Function(`return ${kfSrc}`)();
+  const world = document.querySelector('.scene .world');
+  if (!world || !world.dataset.cam) return null;
+  const cam = JSON.parse(world.dataset.cam), dur = +world.dataset.dur;
+  const pieces = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map(el => {
+    if (el.dataset.bb) { const [x, y, w, h] = el.dataset.bb.split(' ').map(Number); return { id: el.dataset.id, x, y, w, h, ln: true }; }
+    // with what sticks out of it (a node's label is wider than its icon: "Księgarnia" was cut, 2026-11-08); offset geometry,
+    // so an entrance animation's transform does not move the box
+    let x0 = 0, y0 = 0, x1 = el.offsetWidth, y1 = el.offsetHeight;
+    for (const d of el.querySelectorAll ? el.querySelectorAll('*') : []) {
+      if (!(d.offsetWidth > 0 && d.offsetHeight > 0)) continue;
+      let x = 0, y = 0, n = d;
+      for (; n && n !== el; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+      if (n !== el) continue;
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + d.offsetWidth); y1 = Math.max(y1, y + d.offsetHeight);
+    }
+    const at = el.dataset.at === undefined ? undefined : +el.dataset.at, gone = el.dataset.gone === undefined ? undefined : +el.dataset.gone;
+    return { id: el.dataset.id, x: el.offsetLeft + x0, y: el.offsetTop + y0, w: x1 - x0, h: y1 - y0, at, gone };
+  });
+  // what the viewer sees, in the scene's own px: the frame, or a side scene's board (its clip-path inset)
+  const sc = world.parentElement, view = (() => {  // null outside a page (a test's stand-in world): no closure, no 16:9 solo
+    if (!sc || typeof sc.getBoundingClientRect !== 'function' || typeof getComputedStyle !== 'function') return null;
+    const sr = sc.getBoundingClientRect(), ins = (getComputedStyle(sc).clipPath.match(/inset\(([^)]*)\)/) || [])[1];
+    const [it, ir, ib, il] = ins ? ins.split('round')[0].trim().split(/\s+/).map(parseFloat) : [0, 0, 0, 0];
+    return { x: il, y: it, w: sr.width - il - ir, h: sr.height - it - ib };
+  })();
   const col = world.parentElement && world.parentElement.classList.contains('col');
   if (col && !followSrc) throw new Error('side column: sceneFit needs the source of colFollow');
   const follow = col ? new Function(`return ${followSrc}`)()(cam) : cam;
-  let stops = follow.map(s => (s.on !== undefined || (s.x === undefined && s.y === undefined) ? frame(s) : s));
+  const fr = new Function(`return ${fitSrc}`)()(pieces, safe, view);
+  let stops = follow.map(s => (s.on !== undefined || (s.x === undefined && s.y === undefined) ? fr.frame(s) : s));
   if (world.dataset.zoom) {  // L17 canvas_zoom: one more stop per zoom, onto the centre of the pieces it names (zoomStops)
     if (!zoomSrc) throw new Error('canvas_zoom: sceneFit needs the source of zoomStops');
     const zoomStops = new Function(`return ${zoomSrc}`)();
-    const centre = (on, t) => {
-      const want = on === '*' ? null : [].concat(on), got = pieces.filter(p => !want || want.includes(p.id) || reading(t).includes(p));
-      const box = [Math.min(...got.map(p => p.x)), Math.min(...got.map(p => p.y)), Math.max(...got.map(p => p.x + p.w)), Math.max(...got.map(p => p.y + p.h))];
-      return { cx: (box[0] + box[2]) / 2, cy: (box[1] + box[3]) / 2, box, keep: got.map(p => pieces.indexOf(p)) };
-    };
-    stops = zoomStops(stops, JSON.parse(world.dataset.zoom).map(z => ({ ...z, ...centre(z.on, z.t + (z.d ?? 0)) })), view);
+    stops = zoomStops(stops, JSON.parse(world.dataset.zoom).map(z => ({ ...z, ...fr.centre(z.on, z.t + (z.d ?? 0)) })), view);
   }
   const st = document.createElement('style');
   st.textContent = `@keyframes cam_fit{${camKeyframes(stops, dur)}}`;

@@ -6,7 +6,7 @@
 // stagger step over 12 frames. Cards without it keep the timings from before tokens and are only counted.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
-import { camKeyframes, colFollow, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { camKeyframes, colFollow, frameStops, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
@@ -158,6 +158,99 @@ export function hiddenProblems(sp, hidden) {
   return hidden.map(i => `${sp.id}: ${sp.els[i]?.id ?? `#${i}`} (${sp.els[i]?.k}) is never on screen: no camera stop shows it whole, so it hides for the whole card`);
 }
 
+// in the page: the camera sampled every 0.1 s -> [[t, scale]]; every animation but the camera and the solo fades is cancelled
+function sampleCamera(dur) {
+  const world = document.querySelector('.scene .world');
+  // the camera: the world's own animation, sampled every 0.1 s -> [t, scale] (1 = no camera move)
+  const camAnims = document.getAnimations().filter(a => a.effect?.target === world), cam = [];
+  // a piece the camera cuts hides for that stop (scene_lib soloKeys): those fades stay, every other animation goes
+  const soloAnims = document.getAnimations().filter(a => String(a.animationName ?? '').startsWith('solo_'));
+  for (const a of document.getAnimations()) if (!camAnims.includes(a) && !soloAnims.includes(a)) a.cancel();
+  for (let t = 0; t <= dur + 1e-6; t += 0.1) {
+    for (const a of camAnims) { a.pause(); a.currentTime = t * 1000; }
+    const tf = getComputedStyle(world).transform;
+    cam.push([+t.toFixed(2), tf && tf !== 'none' ? new DOMMatrixReadOnly(tf).a : 1]);
+  }
+  return cam;
+}
+
+// in the page, after sampleCamera: words the frame or board cuts while the camera rests (cuts), pieces a solo stop has faded
+// at t (hid), pieces hidden for the whole card (hidden); then the camera and the fades are cancelled too
+function sampleView(dur) {
+  const world = document.querySelector('.scene .world');
+  const camAnims = document.getAnimations().filter(a => a.effect?.target === world);
+  const soloAnims = document.getAnimations().filter(a => String(a.animationName ?? '').startsWith('solo_'));
+  // words partly inside the visible area while the camera rests (cutProblems): the frame, or a side scene's board
+  const sc = document.querySelector('.scene'), vr = sc.getBoundingClientRect(), ins = (getComputedStyle(sc).clipPath.match(/inset\(([^)]*)\)/) || [])[1];
+  const [top, right, bottom, left] = ins ? ins.split('round')[0].trim().split(/\s+/).map(parseFloat).concat([0, 0, 0, 0]).slice(0, 4) : [0, 0, 0, 0];
+  const vis = { x0: vr.left + (ins ? left : 0), y0: vr.top + (ins ? top : 0), x1: vr.right - (ins ? right : 0), y1: vr.bottom - (ins ? bottom : 0) };
+  const lines = [];
+  [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
+    if (el.tagName.toLowerCase() === 'svg') return;
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const clips = [];  // a box inside the piece that clips its own text (a title with an ellipsis): not the camera's cut
+      for (let a = n.parentElement; a && a !== world; a = a.parentElement) if (getComputedStyle(a).overflow !== 'visible') clips.push(a);
+      lines.push({ i, n, el, clips });
+    }
+  });
+  const cuts = [], hid = [], soloEls = soloAnims.map(a => a.effect.target);
+  let prev = null;
+  for (let t = 0; t <= dur + 1e-6; t += 0.1) {
+    for (const a of [...camAnims, ...soloAnims]) { a.pause(); a.currentTime = t * 1000; }
+    soloEls.forEach(el => { const i = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].indexOf(el); if (i >= 0 && +getComputedStyle(el).opacity < 0.05) hid.push({ i, t: +t.toFixed(2) }); });
+    const tf = getComputedStyle(world).transform, rest = prev !== null && tf === prev;
+    prev = tf;
+    if (!rest) continue;
+    for (const { i, n, el, clips } of lines) {
+      if (+getComputedStyle(el).opacity < 0.05) continue;  // hidden for this stop
+      const rg = document.createRange(); rg.selectNodeContents(n);
+      const own = clips.map(a => a.getBoundingClientRect());
+      for (const q of rg.getClientRects()) {
+        const r = { left: Math.max(q.left, ...own.map(o => o.left)), right: Math.min(q.right, ...own.map(o => o.right)),
+          top: Math.max(q.top, ...own.map(o => o.top)), bottom: Math.min(q.bottom, ...own.map(o => o.bottom)) };
+        const rw = r.right - r.left, rh = r.bottom - r.top;
+        if (rw <= 2 || rh <= 2) continue;
+        const w = Math.max(0, Math.min(r.right, vis.x1) - Math.max(r.left, vis.x0)), h = Math.max(0, Math.min(r.bottom, vis.y1) - Math.max(r.top, vis.y0));
+        const frac = (w * h) / (rw * rh);
+        if (frac > 0.02 && frac < 0.97) cuts.push({ i, t: +t.toFixed(2), s: n.textContent.trim(), frac: +frac.toFixed(3) });
+      }
+    }
+  }
+  const pieceEls = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')];
+  // a piece hidden for the whole card is reported once (hiddenProblems); hiddenWhileRead still checks every other piece
+  const hidden = soloAnims.filter(a => a.effect.getKeyframes().every(k => +k.opacity === 0)).map(a => pieceEls.indexOf(a.effect.target)).filter(i => i >= 0);
+  for (const a of [...camAnims, ...soloAnims]) a.cancel();
+  return { cuts, hidden, hid };
+}
+
+// in the page, after sampleCamera: each piece's box with what sticks out of it, and one rect per drawn line of words
+function measurePieces() {
+  const world = document.querySelector('.scene .world');
+  const wr = world.getBoundingClientRect();
+  const rects = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map((el, i) => {
+    if (el.tagName.toLowerCase() === 'svg') return null;
+    const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+    if (!boxes.length) return null;
+    const x0 = Math.min(...boxes.map(r => r.left)), y0 = Math.min(...boxes.map(r => r.top));
+    const x1 = Math.max(...boxes.map(r => r.right)), y1 = Math.max(...boxes.map(r => r.bottom));
+    return { i, x: x0 - wr.left, y: y0 - wr.top, w: x1 - x0, h: y1 - y0 };
+  }).filter(Boolean);
+  // one rect per drawn line of words, per piece (ranges over its text nodes)
+  const texts = [];
+  [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
+    if (el.tagName.toLowerCase() === 'svg') return;
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(), node = 0; n; n = walk.nextNode(), node++) {
+      if (!n.textContent.trim()) continue;
+      const rg = document.createRange(); rg.selectNodeContents(n);
+      for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, node, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
+    }
+  });
+  return { rects, texts };
+}
+
 async function main() {
   const [specFile, ...only] = process.argv.slice(2);
   if (!specFile) { console.error('usage: node gfx/scene_check.mjs <specs.json> [id ...]'); process.exit(2); }
@@ -174,85 +267,12 @@ async function main() {
       await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, scene(sp, esc, icon));
       await page.evaluate(() => document.fonts.ready);
       // the camera as render.mjs builds it (sceneFit: stops "on" pieces -> one move, the side column fitted into its board)
-      await page.evaluate(([fit, kf, safe, solo, zoom, follow]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow); },
-        [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString()]);
+      await page.evaluate(([fit, kf, safe, solo, zoom, follow, frames]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow, frames); },
+        [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString(), frameStops.toString()]);
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
-      const { rects, texts, cam, cuts, hidden, hid } = await page.evaluate(dur => {
-        const world = document.querySelector('.scene .world');
-        // the camera: the world's own animation, sampled every 0.1 s -> [t, scale] (1 = no camera move)
-        const camAnims = document.getAnimations().filter(a => a.effect?.target === world), cam = [];
-        // a piece the camera cuts hides for that stop (scene_lib soloKeys): those fades stay, every other animation goes
-        const soloAnims = document.getAnimations().filter(a => String(a.animationName ?? '').startsWith('solo_'));
-        for (const a of document.getAnimations()) if (!camAnims.includes(a) && !soloAnims.includes(a)) a.cancel();
-        for (let t = 0; t <= dur + 1e-6; t += 0.1) {
-          for (const a of camAnims) { a.pause(); a.currentTime = t * 1000; }
-          const tf = getComputedStyle(world).transform;
-          cam.push([+t.toFixed(2), tf && tf !== 'none' ? new DOMMatrixReadOnly(tf).a : 1]);
-        }
-        // words partly inside the visible area while the camera rests (cutProblems): the frame, or a side scene's board
-        const sc = document.querySelector('.scene'), vr = sc.getBoundingClientRect(), ins = (getComputedStyle(sc).clipPath.match(/inset\(([^)]*)\)/) || [])[1];
-        const [top, right, bottom, left] = ins ? ins.split('round')[0].trim().split(/\s+/).map(parseFloat).concat([0, 0, 0, 0]).slice(0, 4) : [0, 0, 0, 0];
-        const vis = { x0: vr.left + (ins ? left : 0), y0: vr.top + (ins ? top : 0), x1: vr.right - (ins ? right : 0), y1: vr.bottom - (ins ? bottom : 0) };
-        const lines = [];
-        [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
-          if (el.tagName.toLowerCase() === 'svg') return;
-          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-            if (!n.textContent.trim()) continue;
-            const clips = [];  // a box inside the piece that clips its own text (a title with an ellipsis): not the camera's cut
-            for (let a = n.parentElement; a && a !== world; a = a.parentElement) if (getComputedStyle(a).overflow !== 'visible') clips.push(a);
-            lines.push({ i, n, el, clips });
-          }
-        });
-        const cuts = [], hid = [], soloEls = soloAnims.map(a => a.effect.target);
-        let prev = null;
-        for (let t = 0; t <= dur + 1e-6; t += 0.1) {
-          for (const a of [...camAnims, ...soloAnims]) { a.pause(); a.currentTime = t * 1000; }
-          soloEls.forEach(el => { const i = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].indexOf(el); if (i >= 0 && +getComputedStyle(el).opacity < 0.05) hid.push({ i, t: +t.toFixed(2) }); });
-          const tf = getComputedStyle(world).transform, rest = prev !== null && tf === prev;
-          prev = tf;
-          if (!rest) continue;
-          for (const { i, n, el, clips } of lines) {
-            if (+getComputedStyle(el).opacity < 0.05) continue;  // hidden for this stop
-            const rg = document.createRange(); rg.selectNodeContents(n);
-            const own = clips.map(a => a.getBoundingClientRect());
-            for (const q of rg.getClientRects()) {
-              const r = { left: Math.max(q.left, ...own.map(o => o.left)), right: Math.min(q.right, ...own.map(o => o.right)),
-                top: Math.max(q.top, ...own.map(o => o.top)), bottom: Math.min(q.bottom, ...own.map(o => o.bottom)) };
-              const rw = r.right - r.left, rh = r.bottom - r.top;
-              if (rw <= 2 || rh <= 2) continue;
-              const w = Math.max(0, Math.min(r.right, vis.x1) - Math.max(r.left, vis.x0)), h = Math.max(0, Math.min(r.bottom, vis.y1) - Math.max(r.top, vis.y0));
-              const frac = (w * h) / (rw * rh);
-              if (frac > 0.02 && frac < 0.97) cuts.push({ i, t: +t.toFixed(2), s: n.textContent.trim(), frac: +frac.toFixed(3) });
-            }
-          }
-        }
-        const pieceEls = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')];
-        // a piece hidden for the whole card is reported once (hiddenProblems); hiddenWhileRead still checks every other piece
-        const hidden = soloAnims.filter(a => a.effect.getKeyframes().every(k => +k.opacity === 0)).map(a => pieceEls.indexOf(a.effect.target)).filter(i => i >= 0);
-        for (const a of [...camAnims, ...soloAnims]) a.cancel();
-        const wr = world.getBoundingClientRect();
-        const rects = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map((el, i) => {
-          if (el.tagName.toLowerCase() === 'svg') return null;
-          const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
-          if (!boxes.length) return null;
-          const x0 = Math.min(...boxes.map(r => r.left)), y0 = Math.min(...boxes.map(r => r.top));
-          const x1 = Math.max(...boxes.map(r => r.right)), y1 = Math.max(...boxes.map(r => r.bottom));
-          return { i, x: x0 - wr.left, y: y0 - wr.top, w: x1 - x0, h: y1 - y0 };
-        }).filter(Boolean);
-        // one rect per drawn line of words, per piece (ranges over its text nodes)
-        const texts = [];
-        [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
-          if (el.tagName.toLowerCase() === 'svg') return;
-          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-          for (let n = walk.nextNode(), node = 0; n; n = walk.nextNode(), node++) {
-            if (!n.textContent.trim()) continue;
-            const rg = document.createRange(); rg.selectNodeContents(n);
-            for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, node, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
-          }
-        });
-        return { rects, texts, cam, cuts, hidden, hid };
-      }, sp.dur);
+      const cam = await page.evaluate(sampleCamera, sp.dur);
+      const { cuts, hidden, hid } = await page.evaluate(sampleView, sp.dur);
+      const { rects, texts } = await page.evaluate(measurePieces);
       // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
       const all = { ...sp, els: drawnEls(sp).els };
       bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts));

@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   ("scene" card: explainer canvas with a camera, the face in the PiP circle)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PIP_ZONE, camKeyframes, checkScene, scene, sceneFit, sceneSafe, soloKeys } from '../scene_lib.mjs';
+import { PIP_ZONE, camKeyframes, checkScene, frameStops, scene, sceneFit, sceneSafe, soloKeys } from '../scene_lib.mjs';
 
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const icon = n => `<svg data-i="${n}"></svg>`;
@@ -173,7 +173,7 @@ test('sceneFit takes a piece the framing would cut into the framing, down to 0.8
       parentElement: { classList: { contains: () => false }, getBoundingClientRect: () => ({ width: 2560, height: 1440 }) } };
     globalThis.document = { querySelector: () => world, createElement: () => ({ textContent: '' }), head: { appendChild: s => head.push(s) } };
     globalThis.getComputedStyle = () => ({ clipPath: 'none' });
-    try { return [sceneFit({ x: 110, y: 100, w: 1800, h: 1240 }, camKeyframes.toString(), soloKeys.toString()), head, pieces]; }
+    try { return [sceneFit({ x: 110, y: 100, w: 1800, h: 1240 }, camKeyframes.toString(), soloKeys.toString(), null, null, frameStops.toString()), head, pieces]; }
     finally { delete globalThis.document; delete globalThis.getComputedStyle; }
   };
   // framing "b" alone at 1.8 shows world x 1039..2461: "c" at 2350..2550 would be cut, so the camera takes it in (z 1800/1150)
@@ -193,8 +193,17 @@ test('sceneFit measures a piece with the label that sticks out of it (node "KsiÄ
   const world = { dataset: { cam: JSON.stringify([{ t: 0, on: ['n'], zmax: 1, pad: 0 }]), dur: '4' }, querySelectorAll: () => [node], style: {} };
   globalThis.document = { querySelector: () => world, createElement: () => ({ textContent: '' }), head: { appendChild: () => {} } };
   try {
-    const safe = { x: 0, y: 0, w: 2560, h: 1440 }, [st] = sceneFit(safe, camKeyframes.toString(), null);
+    const safe = { x: 0, y: 0, w: 2560, h: 1440 }, [st] = sceneFit(safe, camKeyframes.toString(), null, null, null, frameStops.toString());
     assert.equal(st.x, 1000 - 90 + 300 / 2 - 1280);  // centred on icon + label (910..1210), not the icon alone (1000..1120)
     assert.equal(st.y, 500 + 180 / 2 - 720);
   } finally { delete globalThis.document; }
+});
+
+test('frameStops in Node: a stop frames its piece plus the one still being read; a piece read 3 s ago drops out; sceneFit without its source throws', () => {
+  const pieces = [{ id: 'a', x: 0, y: 0, w: 200, h: 100, at: 1 }, { id: 'b', x: 1000, y: 0, w: 200, h: 100, at: 2.5 }, { id: 'c', x: 0, y: 600, w: 200, h: 100, at: 6 }];
+  const { frame, centre } = frameStops(pieces, { x: 0, y: 0, w: 1920, h: 1080 }, null);
+  assert.deepEqual(frame({ t: 3, on: ['b'] }).keep, [0, 1]);  // a came in 2 s before: still being read, stays framed
+  assert.deepEqual(frame({ t: 6.5, on: ['c'] }).keep, [2]);   // a and b came in > 2.9 s before: the camera may leave them
+  assert.deepEqual(centre(['c'], 6.5).box, [0, 600, 200, 700]);
+  assert.throws(() => sceneFit({ x: 0, y: 0, w: 10, h: 10 }, camKeyframes.toString(), null), /frameStops/);
 });

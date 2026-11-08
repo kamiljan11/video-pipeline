@@ -11,7 +11,7 @@ import { PER_CARD, keyOf, markTimes, motion, vZoom } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countFrom, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
-import { camKeyframes, colFollow, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { camKeyframes, colFollow, frameStops, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { esc, icon, prose } from './html_lib.mjs';
 import { chapHtml, checkCard, listHtml, lowerHtml, noteHtml, usesCardsLib } from './cards_lib.mjs';
 const [specFile, outDir, mode, ...only] = process.argv.slice(2);
@@ -277,8 +277,8 @@ async function one(sp) {
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
   // "scene": pieces measured as laid out, camera stops ("on": piece ids) turned into a camera move (gfx/scene_lib.mjs)
-  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe, solo, zoom, follow]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow); },
-    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString()]);  // zoom: L17 canvas_zoom
+  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe, solo, zoom, follow, frames]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow, frames); },
+    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString(), frameStops.toString()]);  // zoom: L17 canvas_zoom
   // images (end card logo, web capture) loaded before the first frame; one that cannot load stops the render with its name
   const broken = await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().then(() => null, () => i.src))));
   if (broken.some(Boolean)) { console.error(`FAILED gfx ${sp.id}: image not loaded ${broken.filter(Boolean).join(', ')}`); process.exit(1); }

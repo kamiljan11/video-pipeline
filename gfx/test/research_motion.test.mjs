@@ -2,7 +2,7 @@
 // S14 camera stops; all opt-in: a spec without the keys draws byte for byte as before, motion.test.mjs keeps that golden)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CANVAS_ZOOM, ITEM_HOLD, camKeyframes, checkScene, resolveExtends, scene, sceneFit, shiftPiece, soloKeys, zoomStops } from '../scene_lib.mjs';
+import { CANVAS_ZOOM, ITEM_HOLD, camKeyframes, checkScene, frameStops, resolveExtends, scene, sceneFit, shiftPiece, soloKeys, zoomStops } from '../scene_lib.mjs';
 import { countFrom } from '../count_lib.mjs';
 import { markTimes, motion } from '../webshot_lib.mjs';
 import { ALL } from './motion_fixture.mjs';
@@ -69,13 +69,13 @@ test('L17 canvas_zoom: sceneFit measures the piece and adds the stop (render.mjs
   globalThis.document = { querySelector: () => world, createElement: () => ({ textContent: '' }), head: { appendChild: s => head.push(s) } };
   try {
     const safe = { x: 110, y: 100, w: 1800, h: 1240 };
-    const stops = sceneFit(safe, camKeyframes.toString(), null, zoomStops.toString());
+    const stops = sceneFit(safe, camKeyframes.toString(), null, zoomStops.toString(), null, frameStops.toString());
     assert.equal(stops.length, 2);
     assert.equal(stops[1].t, 3.4);
     const c = [1600, 950], s0 = stops[0], s1 = stops[1];  // centre of "b"
     assert.ok(Math.abs((c[0] - s1.x) * s1.z - (c[0] - s0.x) * s0.z) < 1e-6 && Math.abs(s1.z / s0.z - 1.25) < 1e-9);
     assert.match(head[0].textContent, /^@keyframes cam_fit\{/);
-    assert.throws(() => sceneFit(safe, camKeyframes.toString(), null), /zoomStops/);  // a zoom never silently dropped
+    assert.throws(() => sceneFit(safe, camKeyframes.toString(), null, null, null, frameStops.toString()), /zoomStops/);  // a zoom never silently dropped
   } finally { delete globalThis.document; }
 });
 
