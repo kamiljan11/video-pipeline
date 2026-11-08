@@ -29,6 +29,9 @@ def has_pip(spec: dict) -> bool:
 # 9:16 "web" or "meme" card, layout "split" (gfx/render.mjs WIN_V draws the card in the top part): the face box under it (assemble.py,
 # x, y, w, h and the corner radius in px of 1080x1920) and the middle of the captions in the gap between them (build_edl.py)
 SPLIT = {"face_box": (130, 1240, 820, 680), "radius": 40, "caption_y": 1150}
+# layout "split_full" (ledger S19, A/B on 1-2 shorts; the default stays SPLIT): the face over the whole bottom half, the card in
+# the top 1080x960 (render.mjs WIN_V / MEME_BOX "split_full"), the captions on the seam between them
+SPLIT_FULL = {"face_box": (0, 960, 1080, 960), "caption_y": 960}
 # 9:16 "float" with layout "corner": the face in a circle in the bottom-left corner (left: the right edge holds the app buttons),
 # x, y = top-left of the circle, size = its diameter, ring = accent border in px; the captions go above it
 CORNER = {"x": 530, "y": 1300, "size": 460, "ring": 10, "caption_y": 1215, "halo": 1.7, "fill": 0.45}  # bottom right (Kamil 2026-10-31), 120 px in from the edge for the app buttons;
