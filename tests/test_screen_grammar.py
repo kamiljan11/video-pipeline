@@ -54,6 +54,14 @@ class ScreenPassTest(unittest.TestCase):
         self.assertLessEqual(out["s0"]["dur"], 12 - 0.5)  # taken from the 12 s scene, which keeps its own 6 s
         self.assertGreaterEqual(out["s0"]["dur"], 6.0)
 
+    def test_a_shift_does_not_cut_the_last_piece_of_the_scene_before(self):
+        # s39 2026-11-08: the float after it took 0.6 s and its last line was up 2.1 s of the 2.4 s it needs
+        s0 = {"id": "s0", "type": "scene", "dur": 12.0, "els": [{"k": "chip", "text": "a", "at": 1.0},
+              {"k": "text", "t": "ponad 8 na 10 zmian ktoś ogląda", "at": 9.6}]}  # read at 9.6 + 2.35 = 11.95
+        kw = {"id": "k1", "type": "kw", "dur": 2.0, "text": "jedno dwa trzy cztery pięć sześć"}
+        out, _, _ = self.run_pass([(0.0, s0), (12.05, kw), (16.1, scene("s9", 9, 8))])
+        self.assertGreaterEqual(out["s0"]["dur"], 11.95 - 1e-6)
+
     def test_a_map_with_no_room_is_dropped_and_close_screens_join(self):
         cards = [(0.0, scene("s1", 9, 10)), (10.5, scene("m1_mapa", 9, 2.0)), (12.5, scene("s2", 9, 10)), (24.0, scene("s3", 9, 6))]
         out, _, logs = self.run_pass(cards, drop={"s3": "said twice"})
@@ -84,3 +92,22 @@ class ScreenPassTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PieceNeedTest(unittest.TestCase):
+    def test_words_of_text_rows_and_chat_count_ids_and_tones_do_not(self):
+        self.assertEqual(G.piece_words({"k": "stamp", "id": "_e3", "text": "TYLKO NA PAPIERZE", "tone": "bad", "icon": "ban"}), 3)
+        self.assertEqual(G.piece_words({"k": "file", "name": "a.md", "rows": [{"t": "jeden dwa", "mark": "ok"}, {"t": "trzy"}]}), 4)
+        self.assertEqual(G.piece_words({"k": "chat", "msgs": [{"who": "ai", "text": "gotowe, wszystko działa"}]}), 3)
+        self.assertEqual(G.piece_words({"k": "say", "words": [["Mój", 3.3], ["kod", 3.6]]}), 2)
+        self.assertAlmostEqual(G.piece_need({"k": "stamp", "text": "TYLKO NA PAPIERZE"}), 1.35)
+        self.assertAlmostEqual(G.piece_need({"k": "chip", "text": "OK"}), 1.2)  # the floor
+        self.assertAlmostEqual(G.piece_need({"k": "node"}), 1.2)
+
+    def test_read_floor_is_the_last_piece_read_and_a_shift_does_not_cut_it(self):
+        sc = {"id": "s39", "type": "scene", "dur": 12.39, "els": [{"k": "bar", "label": "dziś", "at": 1.89},
+              {"k": "text", "t": "ponad 8 na 10 zmian ktoś ogląda", "at": 10.25}, {"k": "chat", "msgs": [{"t": "a b", "at": 2}], "gone": 3}]}
+        self.assertAlmostEqual(G.read_floor(sc), 10.25 + 0.6 + 0.25 * 7)
+        self.assertEqual(G.read_floor({"id": "k", "type": "kw"}), 0.0)
+        self.assertEqual(G.piece_start({"k": "say", "words": [["a", 2.5], ["b", 3.0]]}), 2.5)
+        self.assertEqual(G.piece_start({"k": "node"}), 0.0)

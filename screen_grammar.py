@@ -37,6 +37,42 @@ def _style() -> tuple[int, float, str, float]:
 # SIDE_MAX_ELS: a scene of this many pieces or fewer is drawn beside him (layout "side"); SHIFT_MAX: a card with no room after
 # it may start this much earlier; SPEAKER_BACK: between two separate screens he is back this long, or the two become one block
 SIDE_MAX_ELS, SHIFT_MAX, RECAP, SPEAKER_BACK = _style()
+# a piece of words stays on screen long enough to be read: 0.6 s + 0.25 s a word, at least 1.2 s (the same rule as
+# gfx/scene_check.mjs readProblems READ_MIN_S; 2026-11-08 the s08 punch line "TYLKO NA PAPIERZE" came in 0.8 s before its card ended)
+PIECE_READ_MIN, PIECE_READ_BASE, PIECE_READ_WORD = 1.2, 0.6, 0.25
+_TEXT_KEYS = {"text", "words", "t", "rows", "label", "title", "name", "sub", "head", "suf", "out", "cmd", "value", "pre", "lines", "msgs", "items"}
+_NOT_TEXT = {"k", "id", "tone", "icon", "anim", "mark", "who", "on", "owner", "extends"}
+
+
+def piece_words(e) -> int:
+    """the words a viewer reads in one scene piece (its text, rows, lines, chat messages ...; not its id, tone or icon)"""
+    def strings(x, inside):
+        if isinstance(x, str): return [x] if inside else []
+        if isinstance(x, dict): return [w for k, v in x.items() if k not in _NOT_TEXT for w in strings(v, inside or k in _TEXT_KEYS)]
+        if isinstance(x, (list, tuple)): return [w for v in x for w in strings(v, inside)]
+        return []
+    return sum(len(s.split()) for s in strings(e, False))
+
+
+def piece_need(e) -> float:
+    """seconds a scene piece must stay on screen to be read"""
+    return max(PIECE_READ_MIN, PIECE_READ_BASE + PIECE_READ_WORD * piece_words(e))
+
+
+def piece_start(e: dict) -> float:
+    """seconds into a resolved card when a piece comes in (scene_check.mjs window_: its at, first word, message or item)"""
+    ts = [e.get("at"), *(w[1] for w in e.get("words") or [] if isinstance(w, (list, tuple)) and len(w) > 1),
+          *(m.get("at") for m in e.get("msgs") or [] if isinstance(m, dict)), *(m.get("at") for m in e.get("items") or [] if isinstance(m, dict))]
+    ts = [t for t in ts if isinstance(t, (int, float))]
+    return min(ts) if ts else 0.0
+
+
+def read_floor(sp: dict) -> float:
+    """seconds into a resolved card (times in seconds) when its last piece of words has been read; a piece that leaves
+    ("gone") is not held by the card's length. 0 for a card without pieces"""
+    return max([0.0] + [piece_start(e) + piece_need(e) for e in sp.get("els") or [] if not isinstance(e.get("gone"), (int, float))])
+
+
 TIED = ("line", "cursor", "ring", "stamp", "check")  # scene_lib.mjs TIED: pieces placed on another piece, not stackable in a column
 SHIFTABLE = ("kw", "count", "sticker", "float")  # cards whose inner timing is only a top-level "at" list (or none)
 # RECAP: id prefix of a recap map (plan builders name them m1_mapa, m2_…), dropped when it has no room to be read
@@ -102,7 +138,7 @@ def screen_pass(cards: list[tuple[float, dict]], drop: dict[str, str] | None = N
             d = min(need - sp["dur"], SHIFT_MAX)
             if sp["type"] in SHIFTABLE and d > room_before(sp) and keep and blocks(sp, keep[-1]):
                 prev = keep[-1]  # take it from the card before when that one has more than its own reading time
-                cut = min(d - max(room_before(sp), 0.0), prev["dur"] - reading_need(prev))
+                cut = min(d - max(room_before(sp), 0.0), prev["dur"] - max(reading_need(prev), read_floor(prev)))  # nor its last piece (s39 2026-11-08)
                 if cut > 0: prev["dur"] = round(prev["dur"] - cut, 2)
             d = min(d, room_before(sp))
             if d > 0.05 and sp["type"] in SHIFTABLE:

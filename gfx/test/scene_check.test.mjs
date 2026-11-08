@@ -79,3 +79,15 @@ test('phone readability: a line under 40 px on the 1440 frame (30 px on 9:16) af
   const late = Array.from({ length: 101 }, (_, j) => [j / 10, j / 10 < 2.5 ? 1 : 0.4]);  // pulls back before it is read
   assert.equal(readProblems(sp, texts, late).length, 1);
 });
+
+test('reading time: a piece of words is up 0.6 s + 0.25 s a word, at least 1.2 s; a wrapped line counts its words once (s08 2026-11-08)', () => {
+  const big = k => Array.from({ length: 201 }, (_, j) => [j / 10, k]);
+  const stamp = { k: 'chip', id: '_e3', at: 17.5 }, line = (y, node = 0) => ({ i: 0, node, x: 0, y, w: 500, h: 80, s: 'TYLKO NA PAPIERZE' });
+  const late = { id: 's08', dur: 18.3, els: [stamp] };
+  assert.match(readProblems(late, [line(0)], big(1)).join('\n'), /_e3 \(chip, 3 words\) is on screen 0\.8 s, it needs 1\.4 s to be read/);
+  assert.deepEqual(readProblems({ ...late, dur: 18.9 }, [line(0)], big(1)), []);
+  // the same text node wrapped onto 2 lines = 2 rects with the whole node's text: still 3 words, not 6
+  assert.match(readProblems(late, [line(0), line(90)], big(1)).join('\n'), /3 words/);
+  // a piece that leaves ("gone") is read until it leaves; a one-word node still needs the 1.2 s floor
+  assert.match(readProblems({ id: 'x', dur: 20, els: [{ k: 'node', at: 1, gone: 2 }] }, [{ ...line(0), s: 'Ja' }], big(1)).join('\n'), /1 words\) is on screen 1\.0 s, it needs 1\.2 s/);
+});

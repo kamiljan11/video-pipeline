@@ -94,9 +94,21 @@ export function drawProblems(sp, rects, texts) {
 // screen (the camera may pull back later, once it is read). A phone shows a 16:9 frame held sideways over its short side
 // (1440 px) and a 9:16 frame upright over the same side (1080 px), so the same size there is 40 * 1080 / 1440 = 30 px.
 // cam = [[t, scale]] sampled in the page; texts carry s = the words, for the message.
-export const MIN_TEXT_PX = { h: 40, v: 30 }, READ_S = 1.5;
+export const MIN_TEXT_PX = { h: 40, v: 30 }, READ_S = 1.5, READ_MIN_S = 1.2;  // READ_MIN_S: the shortest time a piece of words is up
 export function readProblems(sp, texts, cam) {
   const min = MIN_TEXT_PX[sp.canvas === 'v' ? 'v' : 'h'], out = [], seen = new Set();
+  // and long enough on screen to be read: a punch line that comes in 0.8 s before the card ends cannot be (s08 2026-11-08)
+  // a text node that wraps gives one rect per line, each with the whole node's words: count a node once (T.node)
+  const words = new Map(), counted = new Set();
+  for (const T of texts) {
+    const key = `${T.i}:${T.node ?? counted.size}`;
+    if (counted.has(key)) continue;
+    counted.add(key); words.set(T.i, (words.get(T.i) ?? 0) + String(T.s ?? '').split(/\s+/).filter(Boolean).length);
+  }
+  for (const [i, n] of words) {
+    const [a0, a1] = window_(sp.els[i], sp.dur), need = Math.max(READ_MIN_S, 0.6 + 0.25 * n);
+    if (a1 - a0 < need - 1e-6) out.push(`${sp.id}: ${sp.els[i].id ?? `#${i}`} (${sp.els[i].k}, ${n} words) is on screen ${(a1 - a0).toFixed(1)} s, it needs ${need.toFixed(1)} s to be read: earlier, or a longer card`);
+  }
   for (const T of texts) {
     const [a0, a1] = window_(sp.els[T.i], sp.dur), from = a0 + 0.5, to = Math.min(a1, a0 + 0.5 + READ_S);
     const got = cam.filter(([t]) => t >= from - 1e-6 && t <= to + 1e-6).map(c => c[1]);
@@ -154,10 +166,10 @@ async function main() {
         [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
           if (el.tagName.toLowerCase() === 'svg') return;
           const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          for (let n = walk.nextNode(), node = 0; n; n = walk.nextNode(), node++) {
             if (!n.textContent.trim()) continue;
             const rg = document.createRange(); rg.selectNodeContents(n);
-            for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
+            for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, node, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
           }
         });
         return { rects, texts, cam };
