@@ -67,8 +67,13 @@ class TitleTest(unittest.TestCase):
             self.assertEqual(T.main([]), 2)
 
 
-def warn(title: str) -> list[str]:
-    return T.warnings(f"## Tytuły\n\n| wariant | kąt | tytuł | znaki | źródło |\n|---|---|---|---|---|\n| A | x | {title} | 0 | s |\n")
+def table(*titles: str) -> str:
+    rows = "".join(f"| {'ABC'[i]} | x | {t} | 0 | s |\n" for i, t in enumerate(titles))
+    return f"## Tytuły\n\n| wariant | kąt | tytuł | znaki | źródło |\n|---|---|---|---|---|\n{rows}"
+
+
+def warn(title: str) -> list[str]:  # one title alone; the set rule TI9 (one variant with a qualifier) has its own test
+    return [w for w in T.warnings(table(title)) if not w.startswith("no title ends in a (qualifier)")]
 
 
 class TitleWarnTest(unittest.TestCase):
@@ -142,3 +147,12 @@ class TitleLintFileTest(unittest.TestCase):
         with mock.patch.object(T, "lint_lists", side_effect=ValueError("bad json")):
             got = T.warnings("## Tytuły\n| A | Jakiś tytuł o AI | x |\n")
         self.assertTrue(len(got) == 1 and "cannot be read" in got[0], got)
+
+
+class QualifierTest(unittest.TestCase):  # round 2 TI9: one of A/B/C is "verb + object + (who / condition)" within 60
+    def test_one_qualified_variant_is_enough(self):
+        ti9 = lambda *t: [w for w in T.warnings(table(*t)) if w.startswith("no title ends in a (qualifier)")]
+        self.assertEqual(len(ti9("Claude Code dla firm: wdrożenie w 20 minut", "Jak pisać kod z AI krok po kroku")), 1)
+        self.assertEqual(ti9("Claude Code dla firm: wdrożenie w 20 minut", "Zbuduj aplikację z AI (bez programowania)"), [])
+        self.assertFalse(T.qualified("ZBUDUJ APLIKACJĘ Z AI TERAZ (bez programowania)"))  # > 2 caps words
+        self.assertFalse(T.qualified("Zbuduj aplikację z AI, która sama pisze testy i dokumentację (bez kodu)"))  # > 60

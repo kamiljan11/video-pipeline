@@ -124,6 +124,15 @@ def warnings(md: str, lint: dict | None = None) -> list[str]:
         return [f"style/title_lint.json cannot be read, title warnings skipped: {e!r}"]
 
 
+QUALIFIER = re.compile(r"\([^()]{3,40}\)\s*$")
+
+
+def qualified(title: str) -> bool:
+    """round 2 TI9: <= 60 characters, at most 2 all-caps words, ends in a parenthesis naming who it is for or the condition"""
+    caps = sum(1 for w in re.findall(r"[^\W\d_]{2,}", title) if w.isupper())
+    return len(title) <= 60 and caps <= 2 and bool(QUALIFIER.search(title))
+
+
 def _warnings(md: str, lint: dict) -> list[str]:
     out: list[str] = []
     for r in titles(md):
@@ -145,6 +154,9 @@ def _warnings(md: str, lint: dict) -> list[str]:
             out.append(f"{v}: series prefix {t.split(':', 1)[0].strip()!r} (spend those characters on the promise)")
         if any(sep in t for sep in lint["brand_separators"]):
             out.append(f"{v}: brand tag after '|' (the channel name is already under the title)")
+    if not any(qualified(r["title"]) for r in titles(md)):  # round 2 TI9 (Szewczyk, PL bank): verb + object + (who / condition)
+        out.append("no title ends in a (qualifier) within 60 characters and <= 2 caps words, e.g. '... (bez programowania)': "
+                   "make one A/B/C variant 'verb + object + (who it is for / the condition)'")
     asks = [r["variant"] for r in titles(md) if r["title"].rstrip().endswith("?")]
     if len(asks) > 1:
         out.append(f"{', '.join(asks)}: {len(asks)} titles end in '?' (question titles 0.82x the median in the study): keep at most one")

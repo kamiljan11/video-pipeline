@@ -246,7 +246,7 @@ class AgentFieldsTest(unittest.TestCase):  # the EDL fields of the round 2 optio
         self.assertTrue(film({"overlays": [], "options_used": {"hook_pos": "mid", "caption_emph": "key"}}, vertical=True).short_options()[0])
 
 
-class CardUseTest(unittest.TestCase):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new cards are measured in the film, not only drawn
+class FilmFixture(unittest.TestCase):  # a film from overlays, specs and (time, word) pairs; no tests of its own
     def setUp(self):
         self.d = Path(tempfile.mkdtemp(prefix="fc-cu-")); self.addCleanup(shutil.rmtree, self.d, True)
 
@@ -258,6 +258,8 @@ class CardUseTest(unittest.TestCase):  # round 2 L8 L9 L12 L17 L21 S11 S14: the 
         (self.d / "plan_x.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json"}))
         return film_check.Film(self.d, "x")
 
+
+class CardUseTest(FilmFixture):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new cards are measured in the film, not only drawn
     def test_lists_on_their_words_and_stacked(self):
         sp = [{"id": "a", "type": "list", "items": ["x", "y", "z"]}, {"id": "b", "type": "list", "items": ["q"]}]
         ok, detail = self.film([{"id": "a", "at": 10, "dur": 8}, {"id": "b", "at": 50, "dur": 4}], sp).list_said()
@@ -288,3 +290,11 @@ class CardUseTest(unittest.TestCase):  # round 2 L8 L9 L12 L17 L21 S11 S14: the 
         self.assertTrue(f.scene_zoom()[0]); self.assertTrue(f.panel_moves()[0])
         self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 3], [3, 8]]}], sp).list_items()[0])
         self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 4.5], [4.5, 8]]}], sp).list_items()[0])
+
+
+class WpmTest(FilmFixture):  # round 2 P0.6: wpm reported, no threshold
+    def test_words_per_min_is_info(self):
+        f = self.film([], [], [(i * 0.4, "słowo") for i in range(150)])
+        ok, detail = f.words_per_min()
+        self.assertTrue(ok); self.assertIn("wpm of the speech", detail)
+        self.assertFalse(self.film([], []).words_per_min()[0])

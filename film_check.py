@@ -591,6 +591,15 @@ class Film:
             if (g := max(b - a for a, b in itertools.pairwise(ts))) > every: bad.append(f"{o['id']} still {g:.1f} s")
         return not bad, "; ".join(bad[:6]) or "every panel moves"
 
+    def words_per_min(self):
+        """round 2 P0.6 (info, no threshold): kept words per minute of the cut and of the speech (gaps > 1 s out); the PL
+        band is set from our own films first (REF-shorts-top PL 166 [156; 174] wpm, n=5), never copied from EN 180-250"""
+        fw = self.film_words()
+        if len(fw) < 2: return False, "no words"
+        ts = [t for t, _ in fw]
+        speech = sum(min(b - a, 1.0) for a, b in itertools.pairwise(ts)) or 1e-9
+        return True, f"{len(fw) / max(self.len / 60, 1e-9):.0f} wpm of the cut, {(len(fw) - 1) / (speech / 60):.0f} wpm of the speech"
+
     def opening_pace(self):
         """L24 (info, no threshold): words in the first 30 s and words per minute of the hook vs the body (PL 65-104 words
         in 30 s, KS, KO)"""

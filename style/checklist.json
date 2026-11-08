@@ -531,6 +531,14 @@
    "why": "Round 2 S14: a panel >= 4 s moves at least every 3 s (scroll, cursor, typing, camera)"
   },
   {
+   "id": "short.wpm",
+   "fmt": "short",
+   "metric": "words_per_min",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 P0.6 (info): words per minute of the cut and of the speech, the PL band measured on our shorts before any threshold (PL top 166 wpm, EN bands do not carry over)"
+  },
+  {
    "id": "out.long",
    "fmt": "out",
    "metric": "out_long",
