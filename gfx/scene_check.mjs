@@ -228,6 +228,7 @@ async function main() {
           }
         }
         const pieceEls = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')];
+        // a piece hidden for the whole card is reported once (hiddenProblems); hiddenWhileRead still checks every other piece
         const hidden = soloAnims.filter(a => a.effect.getKeyframes().every(k => +k.opacity === 0)).map(a => pieceEls.indexOf(a.effect.target)).filter(i => i >= 0);
         for (const a of [...camAnims, ...soloAnims]) a.cancel();
         const wr = world.getBoundingClientRect();
@@ -255,7 +256,7 @@ async function main() {
       // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
       const all = { ...sp, els: drawnEls(sp).els };
       bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts));
-      bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...hiddenProblems(all, hidden), ...(hidden.length ? [] : hiddenWhileRead(all, hid)));
+      bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...hiddenProblems(all, hidden), ...hiddenWhileRead(all, hid.filter(h => !hidden.includes(h.i))));
       await page.close();
     }
   } finally { await browser.close(); }
