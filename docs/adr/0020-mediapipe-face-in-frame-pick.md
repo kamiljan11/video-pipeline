@@ -13,8 +13,8 @@ w oku, białko po obu stronach tęczówki, odblask) nie odróżniły dobrych kla
 |---|---|---|
 | model | MediaPipe Face Landmarker (Google, PyPI `mediapipe==1.2.2`, model `face_landmarker.task` float16/1, 3,7 MB) | `frame_pick.expression_reader` |
 | miary | blendshapes: wzrok poziomo/pionowo, mrugnięcie, dziubek, wciągnięte usta, otwarta szczęka; pozycja głowy z macierzy (yaw, pitch, roll) | `frame_pick.expression` |
-| bramka | wzrok w bok > 0,25, w dół < −0,3, w górę > 0,35, mrugnięcie > 0,35, dziubek > 0,3, wciągnięte usta > 0,5, głowa > 12° / 12° / 9° = nie kandydat | `frame_pick.odd_face` |
-| progi | z 20 klatek obejrzanych z bliska (patrzy w kamerę: wzrok ≤ 0,16, głowa ≤ 9°; w bok 0,36-0,44; odwrócona 15-20°) | stałe na górze `frame_pick.py` |
+| bramka | wzrok w bok > 0,2, w dół < −0,3, w górę > 0,35, mrugnięcie > 0,35, dziubek > 0,3, wciągnięte usta > 0,5, głowa > 10° / 12° / 9° = nie kandydat | `frame_pick.odd_face` |
+| progi | z 20 klatek obejrzanych z bliska (patrzy w kamerę: wzrok ≤ 0,18, głowa ≤ 9°; drugi wybór s05 przy 11° i s15 przy 0,25 widać było obok; w bok 0,36-0,44; odwrócona 15-20°) | stałe na górze `frame_pick.py` |
 | środowisko | osobny venv `~/.local/share/vp-face-venv` (`--system-site-packages`), bo pip w systemowym Pythonie jest zablokowany (PEP 668); import tylko w funkcji, reszta repo go nie potrzebuje | README › Frame pick |
 | bez mediapipe | `frame_pick` staje z komendą do uruchomienia, bez cichego powrotu do starych miar | `expression_reader` |
 

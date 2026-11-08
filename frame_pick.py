@@ -43,13 +43,13 @@ VENV_PY = Path.home() / ".local/share/vp-face-venv/bin/python"  # python3 -m ven
 FPS = 10           # samples per second in the window
 WIDTH = 1280       # samples are scaled to this width (2560 recordings: half)
 WEIGHTS = {"sharp": 0.2, "eyes": 0.1, "look": 0.25, "mouth": 0.2, "still": 0.15, "front": 0.1}
-# blendshape limits (0..1), from the 20 frames of film 2026-11-04 checked by eye: at the camera |gaze_h| <= 0.16, a side
-# glance 0.36-0.44; eyes down -0.77 with blink 0.51 (s06); a pursed mouth pucker 0.61 (s12)
-GAZE_H, GAZE_DOWN, GAZE_UP = 0.25, -0.3, 0.35
+# blendshape limits (0..1), from the 20 frames of film 2026-11-04 checked by eye: at the camera |gaze_h| <= 0.18, a side
+# glance 0.36-0.44, a slight one 0.25 (s15 second pick, seen aside); eyes down -0.77 with blink 0.51 (s06); a pursed mouth pucker 0.61 (s12)
+GAZE_H, GAZE_DOWN, GAZE_UP = 0.2, -0.3, 0.35
 BLINK_MAX, PUCKER_MAX, JAW_OPEN, LIPS_IN_MAX = 0.35, 0.3, 0.4, 0.5
 # head pose (degrees, MediaPipe face transformation matrix): s03 cover 427.0 s turned 20 deg and 425.5 s 15 deg, frames at
-# the camera <= 9 deg; 415.0 s lips rolled in (mouthRollLower 0.93)
-HEAD_YAW, HEAD_PITCH, HEAD_ROLL = 12.0, 12.0, 9.0
+# the camera <= 9 deg (s05 second pick at 11 deg looked up and aside); 415.0 s lips rolled in (mouthRollLower 0.93)
+HEAD_YAW, HEAD_PITCH, HEAD_ROLL = 10.0, 12.0, 9.0
 EYES_MIN, SHARP_MIN = 0.7, 0.6  # of the window's best: below = not a candidate (shut eyes, blur)
 BEST_PCT = 90      # percentile of the window that counts as its best (scores above it are capped at 1)
 MIN_GAP = 0.5      # s between two candidates of the top list (not 6 copies of one moment)

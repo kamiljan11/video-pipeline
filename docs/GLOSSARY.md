@@ -58,4 +58,4 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | `note` | mała karta z ikoną lucide i jednym zdaniem (L21), np. „Link do repozytorium w opisie” |
 | nie kandydat (`odd_face`) | klatka, której `frame_pick.py` w ogóle nie bierze na miniaturę ani okładkę: wzrok w bok, w dół lub w górę, przymknięte oczy, dziubek, wciągnięte usta, głowa odwrócona lub przechylona (MediaPipe, ADR-0020) |
 | blendshapes | 52 liczby 0..1 z MediaPipe Face Landmarker opisujące ruch twarzy (np. `eyeLookOutLeft`, `eyeBlinkLeft`, `mouthPucker`, `jawOpen`); `frame_pick.expression` liczy z nich wzrok i minę |
-| yaw / pitch / roll | obrót głowy w stopniach: w bok / góra-dół / przechył (macierz MediaPipe); okładka: najwyżej 12° / 12° / 9° |
+| yaw / pitch / roll | obrót głowy w stopniach: w bok / góra-dół / przechył (macierz MediaPipe); okładka: najwyżej 10° / 12° / 9° |
