@@ -143,3 +143,52 @@ class OutResearchTest(unittest.TestCase):
         o = self.out("## Źródła\n- 92%: https://example.org/raport\n", ovs=ovs, specs=specs, verified_claims=["s92"],
                      sources={"s92": "https://example.org/raport"})
         self.assertTrue(o.sources_listed()[0])
+
+
+WORDS = ["92%", "zmian", "idzie", "bez", "przeglądu.", *["słowo"] * 30, "Dlatego", "te", "92%", "bolą."]
+
+
+class ShortResearchTest(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp(prefix="fc-r2s-"))
+        self.addCleanup(shutil.rmtree, self.d, True)
+
+    def short(self, sentence_words, ovs=(), specs=(), tail=0.0, **plan):
+        """a 40 s short, one word a second: sentence_words = the words in order (with their . ? !)"""
+        ws = [{"offsets": {"from": i * 1000, "to": i * 1000 + 400}, "text": f" {w}"} for i, w in enumerate(sentence_words)]
+        n = len(sentence_words)
+        (self.d / "w.json").write_text(json.dumps({"transcription": ws}))
+        (self.d / "specs.json").write_text(json.dumps(list(specs)))
+        (self.d / "edl_s1.json").write_text(json.dumps({"segments": [{"in": 0.0, "out": float(n)}], "overlays": list(ovs), "tail": tail}))
+        (self.d / "plan_s1.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json", "vertical": True, **plan}))
+        return film_check.Film(self.d, "s1")
+
+    def test_s4_hook_that_repeats_the_first_sentence(self):
+        ok, detail = self.short(WORDS, hook_text="92% zmian bez przeglądu").hook_echo()
+        self.assertFalse(ok); self.assertIn("first sentence", detail)
+        self.assertTrue(self.short(WORDS, hook_text="Kto to sprawdza?").hook_echo()[0])
+
+    def test_s5_end_hold_only_on_a_scene_or_maxim(self):
+        n = len(WORDS)
+        ok, _ = self.short(WORDS, [{"id": "m", "at": n - 3, "dur": 4.2}], [{"id": "m", "type": "maxim"}], tail=1.2, end_hold=1.2).ends_on_the_last_word(0.6)
+        self.assertTrue(ok)
+        ok, detail = self.short(WORDS, [{"id": "c", "at": n - 3, "dur": 4.2}], [{"id": "c", "type": "cta"}], tail=1.2, end_hold=1.2).ends_on_the_last_word(0.6)
+        self.assertFalse(ok); self.assertIn("want scene/maxim", detail)
+        self.assertFalse(self.short(WORDS, tail=1.2).ends_on_the_last_word(0.6)[0])  # no end_hold: the old 0.6 s rule
+
+    def test_s6_the_end_comes_back_to_the_hook(self):
+        self.assertTrue(self.short(WORDS).callback_end()[0])
+        self.assertFalse(self.short([*WORDS[:-4], "Tak", "to", "wygląda", "zawsze."]).callback_end()[0])
+
+    def test_s7_changes_per_minute(self):
+        ovs = [{"id": f"k{i}", "at": i * 5, "dur": 2} for i in range(8)]
+        v, _ = self.short(WORDS, ovs, [{"id": f"k{i}", "type": "kw"} for i in range(8)]).changes_per_min()
+        self.assertAlmostEqual(v, round(8 / (len(WORDS) / 60), 1))
+        v, detail = self.short(WORDS, [{"id": "s", "at": 0, "dur": 30}], [{"id": "s", "type": "scene"}]).changes_per_min()
+        self.assertEqual(v, 99.0); self.assertIn("not counted", detail)
+
+    def test_s15_last_sentence_on_the_face(self):
+        n = len(WORDS)
+        self.assertTrue(self.short(WORDS).last_line_on_face()[0])
+        ok, detail = self.short(WORDS, [{"id": "w", "at": n - 3, "dur": 3}], [{"id": "w", "type": "web"}]).last_line_on_face()
+        self.assertFalse(ok); self.assertIn("w", detail)

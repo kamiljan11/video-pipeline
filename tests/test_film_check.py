@@ -626,7 +626,7 @@ class FilmCheckTest(unittest.TestCase):
         sys.path.insert(0, str(ROOT))
         import film_check
         f = film_check.Film.__new__(film_check.Film)
-        f.specs, f.ovs, f.edl = {"e": {"type": "end"}}, [], {"tail": 0}
+        f.specs, f.ovs, f.edl, f.plan = {"e": {"type": "end"}}, [], {"tail": 0}, {}
         self.assertTrue(f.ends_on_the_last_word(tail_max=0.6)[0])
         f.edl = {"tail": 0.6}
         self.assertTrue(f.ends_on_the_last_word(tail_max=0.6)[0])  # the bound itself passes

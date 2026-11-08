@@ -70,7 +70,10 @@ def problems(hook: str, on_screen: bool | None = None, wl: dict | None = None) -
     if not words: return ["empty hook", *no_text]
     if len(words) > wl["max_words"]: bad.append(f"{len(words)} words (max {wl['max_words']})")
     if g := _starts(low, wl["greeting"]): bad.append(f"greeting: starts with {g[0]!r}")
-    if re.match(r"\d+\s", low) and _has(words[1:2], words[1], wl["listicle"]) and not _saves_list(words, low, wl): bad.append(f"title, not a hook: {' '.join(words[:2])!r} is a list opener")
+    # a list opener: "5 porad", also "#1 sposób", "nr 1", "numer 1" (round 2 S1: those passed while "1 sposób" was flagged)
+    lw = words[1:] if re.match(r"(nr|numer)\b", low) else words
+    if re.match(r"(#\s*|nr\.?\s*|numer\s+)?\d+\s", low) and len(lw) > 1 and _has(lw[1:2], lw[1], wl["listicle"]) and not _saves_list(lw, low, wl):
+        bad.append(f"title, not a hook: {' '.join(lw[:2])!r} is a list opener")
     if f := _starts(low, wl["filler_start"]): bad.append(f"filler: starts with {f[0]!r}, start at the first interesting word")
     if (v := _has(words, low, wl["vague"])) and not anchored(hook): bad.append(f"vague: {v[0]!r} with no number, acronym, quote or name")
     if len(h := _has(words, low, wl["hype"])) >= 2: bad.append(f"vague: hype adjectives {h}")

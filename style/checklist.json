@@ -415,7 +415,40 @@
    "args": {
     "tail_max": 0.6
    },
-   "why": "Top shorts end 0.23 s after the last word with no end board (style/REF-shorts-top.md T8, 30/30): the viewer swipes away on a board, a clean end loops"
+   "why": "Top shorts end 0.23 s after the last word with no end board (style/REF-shorts-top.md T8, 30/30): the viewer swipes away on a board, a clean end loops. Round 2 S5: plan \"end_hold\" 1.0-1.6 s is allowed only when the tail holds a scene or maxim (never a CTA)"
+  },
+  {
+   "id": "short.hook_echo",
+   "fmt": "short",
+   "metric": "hook_echo",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S4 (replaces PLAN 5.2): the hook text on screen shares < 50 % of its content words with the short's title and its first sentence (it adds, it does not repeat)"
+  },
+  {
+   "id": "short.callback",
+   "fmt": "short",
+   "metric": "callback_end",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S6 (Sinek 3/3): the last sentence comes back to the hook (a number or noun of the first sentence or the hook); shorts.py scores it +1.5 when choosing clips"
+  },
+  {
+   "id": "short.changes",
+   "fmt": "short",
+   "metric": "changes_per_min",
+   "op": ">=",
+   "value": 8,
+   "level": "warn",
+   "why": "Round 2 S7: >= 8 picture changes a minute (punch-ins + framing jumps + card starts); a short >= 50 % scene is not counted (motion inside the scene)"
+  },
+  {
+   "id": "short.last_face",
+   "fmt": "short",
+   "metric": "last_line_on_face",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S15: the last sentence on the face, no full-screen card or split over it (skip when end_hold)"
   },
   {
    "id": "out.long",

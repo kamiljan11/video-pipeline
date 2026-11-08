@@ -53,6 +53,12 @@ class KillerTest(unittest.TestCase):
         self.assertEqual(H.problems("3 błędy kosztowały mnie 40 tys."), [])
         self.assertEqual(H.problems("3 błędy, przez które straciłem klientów"), [])  # "straci*": stracić, straciłem, stracisz
 
+    def test_a_list_opener_with_hash_nr_or_numer_is_a_title_too(self):  # round 2 S1: "#1 sposób" passed, "1 sposób" not
+        for hook in ("#1 sposób na AI", "# 1 sposób na AI", "nr 1 sposób na AI", "nr. 1 sposób na AI", "Numer 1 sposób na AI"):
+            with self.subTest(hook):
+                self.assertTrue(any(b.startswith("title, not a hook") for b in H.problems(hook)), H.problems(hook))
+        self.assertEqual(H.problems("#1 błąd kosztował mnie 40 tys."), [])
+
     def test_a_vague_word_with_an_anchor_is_not_vague(self):  # "trik" next to a number or an acronym says something concrete
         self.assertFalse(any(b.startswith("vague") for b in H.problems("Jeden trik w CLAUDE.md zamiast 40 zasad")))
 

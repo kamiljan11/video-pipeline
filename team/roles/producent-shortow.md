@@ -4,7 +4,7 @@
 - `hook_text` na ekranie od 0 s (pierwsza zmiana obrazu <= 1 s); długość 30-55 s.
 - Zmiana obrazu co 2-4 s (max 8 s bez zmiany): `layout` split / corner (`face_corner`, `face_box`), `web`, `meme`, sceny.
 - `caption_pop: true`, `caption_case`, `caption_ahead`.
-- Punch-in >= 3/min, ostatnie zdanie wraca do hooka (pętla).
+- Punch-in >= 3/min, ostatnie zdanie wraca do hooka (liczba albo rzeczownik z 1. zdania, `shorts.py` callback +1,5) LUB odpowiada na obietnicę tytułu (round 2 S6, Sinek 3/3).
 - Upscale cropa: lanczos + lekkie wyostrzenie (`grade` unsharp), bez AI upscalera.
 - `music_palette` ustawione.
 

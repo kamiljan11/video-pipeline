@@ -146,6 +146,14 @@
    "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
   },
   {
+   "id": "mech-viewer-question",
+   "type": "question",
+   "text": "„[Pytanie widza o temat]?” Nie [X], tylko [Y].",
+   "source": "Round 2 S18 (shorts creators answering a viewer's question): the question on screen <= 1.5 s, the answer starts with a reversal",
+   "result": null,
+   "why": "a mechanism to remix: the viewer's question as a caption for <= 1.5 s, then the answer opens with 'nie X, tylko Y'"
+  },
+  {
    "id": "mech-confession",
    "type": "confession",
    "text": "Przez [czas] robiłem [błąd]. Kosztowało mnie [strata].",

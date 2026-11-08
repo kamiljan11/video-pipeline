@@ -559,6 +559,11 @@ class Film:
         """a short stops right after its last word and loops: no end card, no end screen (REF-shorts-top T8: 30/30 top shorts
         end 0.23 s after the last word, none shows an end board)"""
         tail = float(self.edl.get("tail", 0) or 0)
+        hold = self.plan.get("end_hold")
+        if hold is not None:  # round 2 S5: a 1.0-1.6 s hold only on a scene or maxim in the tail, never a CTA
+            last = [self.typ(o) for o in self.ovs if o["at"] + o["dur"] >= self.len + tail - 0.1]
+            ok = isinstance(hold, (int, float)) and 1.0 <= hold <= 1.6 and tail <= hold + 0.05 and bool(last) and all(t in ("scene", "maxim") for t in last)
+            return ok and not self.has_end_card(), f"end_hold {hold}, tail {tail:.1f} s, cards in the tail {last or 'none'} (want scene/maxim, hold 1.0-1.6 s)"
         return (tail <= tail_max and not self.has_end_card()), f"tail {tail:.1f} s, end card {self.has_end_card()}"
     def hook_text(self):  # the hook line from the plan (ASS) or a card on screen from the first half second
         return bool(str(self.plan.get("hook_text", "")).strip()) or any(o["at"] <= 0.5 for o in self.ovs)
@@ -572,6 +577,59 @@ class Film:
             text = " ".join(str(spec.get(k, "")) for k in ("text", "sub")).strip()
         bad = hook_check.problems(text, on_screen=bool(text))
         return not bad, f"{text!r}: " + "; ".join(bad) if bad else text
+
+    def first_sentence(self) -> str:
+        out = []
+        for _, w in self.film_words():
+            out.append(w)
+            if re.search(r"[.?!…]$", w): break
+        return " ".join(out)
+
+    def last_sentence_at(self) -> float | None:
+        fw = self.film_words()
+        if not fw: return None
+        k = max((i for i in range(len(fw) - 1) if re.search(r"[.?!…]$", fw[i][1])), default=-1)
+        return fw[k + 1][0]
+
+    def hook_echo(self, share: float = 0.5):
+        """round 2 S4: the hook on screen says something the title and the first sentence do not: under 50 % of its content
+        words shared with the short's title (clips.json title_work) or with its first spoken sentence (WARN)"""
+        hook = str(self.plan.get("hook_text", "")).strip()
+        if not hook: return True, "no hook_text"
+        clips = self.work / "clips.json"
+        title = next((str(c.get("title_work", "")) for c in (load(clips, "clips.json").get("items", []) if clips.exists() else []) if c.get("id") == self.name), "")
+        key = lambda t: {norm_word(w)[:5] for w in t.split() if len(norm_word(w)) >= 4 or any(ch.isdigit() for ch in w)}
+        hk = key(hook)
+        if not hk: return True, "hook without content words"
+        bad = [f"{name} {len(hk & key(t)) / len(hk):.0%}" for name, t in (("title", title), ("first sentence", self.first_sentence())) if t and len(hk & key(t)) / len(hk) >= share]
+        return not bad, f"the hook repeats the {', '.join(bad)} of its words" if bad else "the hook adds to the title and first sentence"
+
+    def callback_end(self):
+        """round 2 S6 (Sinek 3/3): the last sentence comes back to the hook: a number or content word of the first sentence
+        (shorts.callback, which also scores the clip choice) or of the hook text (WARN)"""
+        import shorts  # the clip scout's own rule, one definition
+        fw = self.film_words(); at = self.last_sentence_at()
+        if at is None: return False, "no words"
+        last = " ".join(w for t, w in fw if t >= at)
+        ok = shorts.callback(self.first_sentence() + " " + str(self.plan.get("hook_text", "")), last)
+        return ok, "the end comes back to the hook" if ok else f"the last sentence {last[:60]!r} does not come back to the hook"
+
+    def changes_per_min(self, scene_share: float = 0.5):
+        """round 2 S7: picture changes a minute (punch-ins + framing jumps + card starts); a short that is >= 50 % scene
+        moves inside the scene and is not counted (refutes "never > 6 s of face")"""
+        sc = sum(o["dur"] for o in self.ovs if self.typ(o) == "scene") / max(self.len, 1e-9)
+        n = len(punches(self.edl)) + len(zoom_steps(self.edl)) + len(self.ovs)
+        v = round(n / max(self.len / 60, 1e-9), 1)
+        return (v if sc < scene_share else 99.0), f"{n} changes in {self.len:.0f} s" + (f", scene {sc:.0%} (not counted)" if sc >= scene_share else "")
+
+    def last_line_on_face(self):
+        """round 2 S15: the last sentence is said on the face: no full-screen card or split over it (skip: end_hold)"""
+        if self.plan.get("end_hold") is not None: return True, "end_hold: the tail holds a card"
+        at = self.last_sentence_at()
+        if at is None: return False, "no words"
+        over = [o["id"] for o in self.ovs if o["at"] + o["dur"] > at + 0.2 and (gfx_types.is_full(self.specs.get(o["id"], {})) or
+                self.specs.get(o["id"], {}).get("layout") == "split" or o.get("split"))]
+        return not over, f"cards over the last sentence ({at:.1f} s): {', '.join(over)}" if over else "the last sentence on the face"
 
     def first_overlay_at(self): return 0.0 if self.hook_text() else round(min((o["at"] for o in self.ovs), default=self.len), 2)
     def caption_pop(self): return self.plan.get("caption_pop") is True
