@@ -56,3 +56,6 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | `roadmap` / `part_tag` | `chap_style` karty `chap` (L9): `roadmap` = cała mapa części (zrobione / bieżąca / następne), `part_tag` = mała plakietka części w lewym górnym rogu, mówca zostaje |
 | definicja (`define`) | karta `lower` z `define: true` (L12): termin w kolorze akcentu i definicja do 20 słów |
 | `note` | mała karta z ikoną lucide i jednym zdaniem (L21), np. „Link do repozytorium w opisie” |
+| nie kandydat (`odd_face`) | klatka, której `frame_pick.py` w ogóle nie bierze na miniaturę ani okładkę: wzrok w bok, w dół lub w górę, przymknięte oczy, dziubek, wciągnięte usta, głowa odwrócona lub przechylona (MediaPipe, ADR-0020) |
+| blendshapes | 52 liczby 0..1 z MediaPipe Face Landmarker opisujące ruch twarzy (np. `eyeLookOutLeft`, `eyeBlinkLeft`, `mouthPucker`, `jawOpen`); `frame_pick.expression` liczy z nich wzrok i minę |
+| yaw / pitch / roll | obrót głowy w stopniach: w bok / góra-dół / przechył (macierz MediaPipe); okładka: najwyżej 12° / 12° / 9° |

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """frame_pick: the best still of the speaker in a time window, for thumbnails, Short covers and post pictures.
 
-    python3 frame_pick.py <video> <t0> <t1> [--crop W:H:X:Y] [--top 6] [--sheet sheet.jpg] [--out best.png] [--json]
+    ~/.local/share/vp-face-venv/bin/python frame_pick.py <video> <t0> <t1> [--crop W:H:X:Y] [--top 6] [--sheet sheet.jpg]
+        [--out best.png] [--json]                              (the venv python: mediapipe, ADR-0020)
 
 Kamil 2026-11-08: "na thumbaile i screeny wybierasz bardzo nie korzystne zdjecia ... brzydkie czasami rozmazane",
 "glupie miny wybierasz". build_pack_v2.py took ONE frame (a word start + 0.15 s): long A had the mouth round mid-word,
@@ -24,6 +25,7 @@ YuNet finds (5 landmarks: eyes, nose tip, mouth corners):
 Each measure is scaled to the window (its BEST_PCT percentile = 1, capped), a sample below EYES_MIN or SHARP_MIN of the window's best is
 dropped, the rest ranked by WEIGHTS. --sheet writes the top N side by side with their scores: look at it before use.
 """
+import hashlib
 import importlib
 import json
 import subprocess
@@ -36,6 +38,7 @@ import numpy as np
 
 FACE_MODEL = Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"
 LANDMARK_MODEL = Path(__file__).resolve().parent / "models" / "face_landmarker.task"  # MediaPipe Face Landmarker (float16/1)
+LANDMARK_SHA = "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"  # storage.googleapis.com/mediapipe-models
 VENV_PY = Path.home() / ".local/share/vp-face-venv/bin/python"  # python3 -m venv --system-site-packages + pip mediapipe
 FPS = 10           # samples per second in the window
 WIDTH = 1280       # samples are scaled to this width (2560 recordings: half)
@@ -129,6 +132,8 @@ def expression_reader():
     except ImportError as e:
         raise RuntimeError(f"frame_pick needs mediapipe for gaze and expression: run it with {VENV_PY} (README › Frame pick)") from e
     if not LANDMARK_MODEL.is_file(): raise FileNotFoundError(f"face landmark model missing: {LANDMARK_MODEL} (README › Frame pick)")
+    if (got := hashlib.sha256(LANDMARK_MODEL.read_bytes()).hexdigest()) != LANDMARK_SHA:
+        raise ValueError(f"{LANDMARK_MODEL}: sha256 {got}, want {LANDMARK_SHA} (a cut or other download; README › Frame pick)")
     lm = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
         base_options=mpt.BaseOptions(model_asset_path=str(LANDMARK_MODEL)), output_face_blendshapes=True,
         output_facial_transformation_matrixes=True, num_faces=1))

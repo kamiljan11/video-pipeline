@@ -1,4 +1,5 @@
 """frame_pick.py: no blurred frame, shut eyes or mid-word mouth on a thumbnail (Kamil 2026-11-08 "glupie miny wybierasz")."""
+import importlib.util
 import unittest
 from unittest import mock
 
@@ -83,6 +84,11 @@ class FramePickTest(unittest.TestCase):
     def test_without_mediapipe_it_names_the_python_to_use(self):
         with mock.patch.dict("sys.modules", {"mediapipe": None}), self.assertRaisesRegex(RuntimeError, "vp-face-venv"):
             fp.expression_reader()
+
+    @unittest.skipUnless(importlib.util.find_spec("mediapipe") and fp.LANDMARK_MODEL.is_file(), "run with the vp-face-venv python")
+    def test_real_mediapipe_reads_a_frame(self):  # the real API (model sha, task options, detect) under VENV_PY
+        read = fp.expression_reader()
+        self.assertIsNone(read(np.full((480, 360, 3), 128, np.uint8)))  # no face: None, not a crash
 
     def test_no_face_no_candidates(self):
         self.assertEqual(self.run_pick([None, None]), [])
