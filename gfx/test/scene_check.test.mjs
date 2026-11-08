@@ -31,3 +31,11 @@ test('two chips with words overlapping a little still clash (Kamil 2026-11-05: "
   const out = clashes(s, [{ i: 0, x: 580, y: 780, w: 540, h: 102 }, { i: 1, x: 1080, y: 780, w: 760, h: 102 }]);
   assert.equal(out.length, 1); assert.match(out[0], /b \(chip "drugi sprawdza"\) covers c/);
 });
+
+test('a stamp on another piece\'s words clashes; a stamp on its card does not (2026-11-08 s22, s28)', () => {
+  const s = { id: 'x', dur: 6, els: [{ k: 'text', t: 'bez czerwonego okienka', at: 0 }, { k: 'stamp', text: 'BLOKOWANE', at: 2 }] };
+  const out = clashes(s, [{ i: 0, x: 0, y: 300, w: 700, h: 40 }, { i: 1, x: 640, y: 250, w: 520, h: 110 }]);
+  assert.equal(out.length, 1); assert.match(out[0], /a stamp on words/);
+  const onCard = { id: 'y', dur: 6, els: [{ k: 'file', at: 0 }, { k: 'stamp', at: 2 }] };
+  assert.deepEqual(clashes(onCard, [{ i: 0, x: 0, y: 0, w: 700, h: 300 }, { i: 1, x: 100, y: 100, w: 400, h: 100 }]), []);
+});

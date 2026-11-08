@@ -35,11 +35,15 @@ export function clashes(sp, rects, share = 0.12) {
   const name = i => `${sp.els[i].id ?? `#${i}`} (${sp.els[i].k}${sp.els[i].text || sp.els[i].t ? ` "${String(sp.els[i].text ?? sp.els[i].t).slice(0, 24)}"` : ''})`;
   for (let a = 0; a < rects.length; a++) for (let b = a + 1; b < rects.length; b++) {
     const A = rects[a], B = rects[b], ea = sp.els[A.i], eb = sp.els[B.i];
-    if (OVERLAY_KINDS.has(ea.k) || OVERLAY_KINDS.has(eb.k)) continue;
     const [a0, a1] = window_(ea, sp.dur), [b0, b1] = window_(eb, sp.dur);
     if (a1 <= b0 || b1 <= a0) continue;
     const ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
     if (ix <= 0 || iy <= 0) continue;
+    // a stamp lands on its card, but never on another piece's words (2026-11-08: BLOKOWANE over "okienka", NIE PRZEMYCISZ
+    // over the risk chip, both missed because every overlay was skipped)
+    const stampOnWords = (ea.k === 'stamp' && TEXT_KINDS.has(eb.k)) || (eb.k === 'stamp' && TEXT_KINDS.has(ea.k));
+    if (stampOnWords && ix > TOUCH && iy > TOUCH) { out.push(`${sp.id}: ${name(A.i)} covers ${name(B.i)} (${Math.round(ix)}x${Math.round(iy)} px, a stamp on words)`); continue; }
+    if (OVERLAY_KINDS.has(ea.k) || OVERLAY_KINDS.has(eb.k)) continue;
     const small = Math.min(A.w * A.h, B.w * B.h);
     // two pieces with words: any overlap cuts a word (Kamil 2026-11-05: "nałożyły się na siebie elementy", a chip 5 % over
     // the next one, under the share rule)
