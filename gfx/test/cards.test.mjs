@@ -5,16 +5,16 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'child_process';
 import fs from 'fs'; import os from 'os'; import path from 'path';
 import { chapHtml, checkCard, lineCount, listHtml, lowerHtml, noteHtml, usesCardsLib } from '../cards_lib.mjs';
-import { esc, icon } from '../html_lib.mjs';
+import { icon, prose } from '../html_lib.mjs';
 
 const GFX = path.resolve(import.meta.dirname, '..');
 const anims = html => [...html.matchAll(/class="i[^"]*" style="animation:([^"]*)"/g)].map(m => m[1]);
 
-test('legacy list, chap and lower specs give the markup of before (same .mov keys, same stills)', () => {
+test('legacy list, chap and lower specs give the markup of before, words through prose() (no-break spaces, 2026-11-08)', () => {
   const list = { id: 'l', type: 'list', text: 'Trzy rzeczy', items: ['a', 'b <c>'], icons: [null, 'check'], delays: [0.2, 1.5], dur: 5 };
-  const old = `<div class="list"><div class="h">${esc(list.text)}</div>${list.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(list.delays||[])[i]??i}s both">${(list.icons||[])[i]?`<span class="li">${icon(list.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
+  const old = `<div class="list"><div class="h">${prose(list.text)}</div>${list.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(list.delays||[])[i]??i}s both">${(list.icons||[])[i]?`<span class="li">${icon(list.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${prose(x)}</span></div>`).join('')}</div>`;
   assert.equal(listHtml(list), old);
-  assert.equal(chapHtml({ type: 'chap', text: 'Pamięć', sub: 'CZĘŚĆ 2' }), '<div class="chap"><div class="no">CZĘŚĆ 2</div><div class="t">Pamięć</div></div>');
+  assert.equal(chapHtml({ type: 'chap', text: 'Pamięć', sub: 'CZĘŚĆ 2' }), '<div class="chap"><div class="no">CZĘŚĆ\u00a02</div><div class="t">Pamięć</div></div>');
   assert.equal(lowerHtml({ type: 'lower', text: 'Kamil', sub: 'MAS' }), '<div class="lower"><div class="acc"></div><div class="box"><div class="n">Kamil</div><div class="r">MAS</div></div></div>');
   for (const sp of [list, { type: 'chap' }, { type: 'lower' }, { type: 'kw' }]) assert.equal(usesCardsLib(sp), false);
 });
@@ -92,7 +92,7 @@ test('L21 note: <= 14 words / 3 lines, bottom left (away from the face circle), 
   const sp = { id: 'n', type: 'note', text: 'Link do repozytorium\nw opisie filmu', icon: 'link', dur: 5 };
   const html = noteHtml(sp);
   assert.match(html, /\.note\{position:absolute;left:110px;bottom:120px/);
-  assert.match(html, /<div class="t">Link do repozytorium<br>w opisie filmu<\/div>/);
+  assert.match(html, /<div class="t">Link do\u00a0repozytorium<br>w\u00a0opisie filmu<\/div>/);
   assert.match(html, /<span class="ni">\s*<svg/);
   assert.ok(usesCardsLib(sp));
   assert.throws(() => checkCard({ ...sp, text: Array(15).fill('raz').join(' ') }), /1..14 words, got 15/);

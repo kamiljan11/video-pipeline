@@ -12,7 +12,7 @@ import { COUNT_DELAY, FADE_OUT, countFrom, countParts, countSeconds, fmtNum, num
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
 import { camKeyframes, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
-import { esc, icon } from './html_lib.mjs';
+import { esc, icon, prose } from './html_lib.mjs';
 import { chapHtml, checkCard, listHtml, lowerHtml, noteHtml, usesCardsLib } from './cards_lib.mjs';
 const [specFile, outDir, mode, ...only] = process.argv.slice(2);
 const STILLS = mode === '--stills';
@@ -45,7 +45,7 @@ const endBrand = sp => {
   return `<div class="brand"><img src="${pathToFileURL(f).href.replace(/"/g, '%22')}"${sp.logo_h ? ` style="height:${+sp.logo_h}px"` : ''}>${sp.logo_sub ? `<div class="u">${esc(sp.logo_sub)}</div>` : ''}</div>`;
 };
 const html = sp => {
-  if (sp.type === 'kw') return kwBox(sp, esc(sp.text));
+  if (sp.type === 'kw') return kwBox(sp, prose(sp.text));
   if (sp.type === 'count') {  // "from" (S11, count_lib countFrom): the start of each number; without it 0 and the same html as before
     const parts = countParts(sp.text), fr = countFrom(sp, parts.filter(p => typeof p !== 'string').length); let k = 0;
     return kwBox(sp, parts.map(p => { if (typeof p === 'string') return esc(p); const f = fr[k++];
@@ -54,8 +54,8 @@ const html = sp => {
   if (sp.type === 'lower') return lowerHtml(sp);  // "define": true = term + definition (gfx/cards_lib.mjs, ledger plan2:L12)
   if (sp.type === 'list') return listHtml(sp);  // "upto" / "dim_done": one stacked list (cards_lib, plan2:L8)
   if (sp.type === 'note') return noteHtml(sp);  // caveat / pointer in the corner away from the face (cards_lib, plan2:L21)
-  if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div>${endBrand(sp)}</div>`;
-  if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
+  if (sp.type === 'end') return `<div class="endc"><div class="t">${prose(sp.text)}</div><div class="bar"></div><div class="s">${prose(sp.sub)}</div>${endBrand(sp)}</div>`;
+  if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${prose(sp.text)}</div><div class="s">${prose(sp.sub)}</div></div>`;
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
   if (sp.type === 'meme') return meme(sp);
@@ -199,7 +199,7 @@ function sticker(sp) {
     const [cx, cy, cw, ch] = crops[Math.min(i, crops.length - 1)], pw = cw * m.width, ph = ch * m.height;
     const s = Math.min(B.w / pw, (B.h - chipH) / ph), w = Math.round(pw * s), h = Math.round(ph * s);
     const t0 = ats[i] ?? 0.15 + (sp.dur / n) * i, t1 = i < n - 1 ? (ats[i + 1] ?? 0.15 + (sp.dur / n) * (i + 1)) - 0.05 : sp.dur - 0.35;
-    const say = texts[i] ? `<div class="say" style="animation-delay:${(t0 + 0.25).toFixed(2)}s">${esc(texts[i])}</div>` : '';
+    const say = texts[i] ? `<div class="say" style="animation-delay:${(t0 + 0.25).toFixed(2)}s">${prose(texts[i])}</div>` : '';
     return `<div class="stk" style="left:${Math.round(B.x + (B.w - w) / 2)}px;top:${B.y}px;width:${w}px;animation:stkin .5s cubic-bezier(.2,1.5,.4,1) ${t0.toFixed(2)}s both,stkout .25s ease-in ${t1.toFixed(2)}s forwards">`
       + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${t0.toFixed(2)}s infinite alternate"><div class="pic" style="width:${w}px;height:${h}px">`
       + `<img src="${pathToFileURL(`${MEMES}/${m.img}`).href}" style="width:${(m.width * s).toFixed(1)}px;margin-left:${(-cx * m.width * s).toFixed(1)}px;margin-top:${(-cy * m.height * s).toFixed(1)}px"></div></div>${say}</div>`;

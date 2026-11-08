@@ -10,7 +10,7 @@
 // Out: grafika.png and grafika.txt (its words), which post_check.py looks for in the picture by OCR.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
-import { esc } from './html_lib.mjs';
+import { esc, prose } from './html_lib.mjs';
 import { readTheme } from './theme_lib.mjs';
 import { isMain } from './cli.mjs';
 
@@ -105,26 +105,26 @@ html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;font-family:M,sans
 const titleSize = t => (t.length <= 22 ? 104 : t.length <= 40 ? 88 : t.length <= 60 ? 74 : 62);
 
 function body(g) {
-  if (g.type === 'list') return g.items.map((it, i) => `<div class="li"><div class="num">${i + 1}</div><div><div class="h">${esc(it.h)}</div>${it.t ? `<div class="t">${esc(it.t)}</div>` : ''}</div></div>`).join('');
+  if (g.type === 'list') return g.items.map((it, i) => `<div class="li"><div class="num">${i + 1}</div><div><div class="h">${prose(it.h)}</div>${it.t ? `<div class="t">${prose(it.t)}</div>` : ''}</div></div>`).join('');
   if (g.type === 'bars') {
     const top = Math.max(...g.items.map(it => it.value)) || 1;
     // a short bar carries its number outside, right of the fill: inside it would be cut at the left edge (18 % of 920 px)
     return g.items.map(it => {
       const pct = Math.max(3, (100 * it.value) / top), v = esc(`${it.value}${g.unit ?? ''}`), out = pct < 45;
-      return `<div class="bar"><div class="bl">${esc(it.label)}</div><div class="track"><div class="fill ${esc(it.tone ?? 'good')}" style="width:${pct}%">${out ? '' : v}</div>${out ? `<div class="val" style="left:${pct}%">${v}</div>` : ''}</div></div>`;
+      return `<div class="bar"><div class="bl">${prose(it.label)}</div><div class="track"><div class="fill ${esc(it.tone ?? 'good')}" style="width:${pct}%">${out ? '' : v}</div>${out ? `<div class="val" style="left:${pct}%">${v}</div>` : ''}</div></div>`;
     }).join('');
   }
-  if (g.type === 'split') return `<div class="cols">${g.cols.map(c => `<div class="col ${esc(c.tone ?? '')}"><div class="ch">${esc(c.head)}</div>${c.lines.map(l => `<div class="cl">${esc(l)}</div>`).join('')}</div>`).join('')}</div>`;
+  if (g.type === 'split') return `<div class="cols">${g.cols.map(c => `<div class="col ${esc(c.tone ?? '')}"><div class="ch">${prose(c.head)}</div>${c.lines.map(l => `<div class="cl">${prose(l)}</div>`).join('')}</div>`).join('')}</div>`;
   if (g.type === 'table') {
     const ramp = g.rows.map((_, i) => `color-mix(in srgb, var(--alert) ${Math.round((100 * i) / Math.max(1, g.rows.length - 1))}%, var(--acc))`);
-    return `<table class="tb"><tr>${g.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr>${g.rows.map((r, i) => `<tr style="--c:${ramp[i]}"><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table>`;
+    return `<table class="tb"><tr>${g.head.map(h => `<th>${prose(h)}</th>`).join('')}</tr>${g.rows.map((r, i) => `<tr style="--c:${ramp[i]}"><td>${prose(r[0])}</td><td>${prose(r[1])}</td></tr>`).join('')}</table>`;
   }
-  return `<div class="q">${esc(g.quote)}</div>${g.items.map(it => `<div class="qi"><div class="h">${esc(it.h)}</div><div class="t">${esc(it.t)}</div></div>`).join('')}`;
+  return `<div class="q">${prose(g.quote)}</div>${g.items.map(it => `<div class="qi"><div class="h">${prose(it.h)}</div><div class="t">${prose(it.t)}</div></div>`).join('')}`;
 }
 
 export const postHtml = (g) => `<style>${css(g.theme ?? 'cetus')}</style>
-<div class="pg">${g.kicker ? `<div class="kick">${esc(g.kicker)}</div>` : ''}<div class="title" style="font-size:${titleSize(g.title)}px">${esc(g.title)}</div>
-<div class="rule"></div><div class="body">${body(g)}</div>${g.note ? `<div class="note">${esc(g.note)}</div>` : ''}</div>
+<div class="pg">${g.kicker ? `<div class="kick">${prose(g.kicker)}</div>` : ''}<div class="title" style="font-size:${titleSize(g.title)}px">${prose(g.title)}</div>
+<div class="rule"></div><div class="body">${body(g)}</div>${g.note ? `<div class="note">${prose(g.note)}</div>` : ''}</div>
 <div class="foot"><span>${esc(g.author ?? 'Kamil Jan')}</span><i></i></div>`;
 
 // measured in the browser: words cut at a box edge, content running into the footer, or a picture that is half empty

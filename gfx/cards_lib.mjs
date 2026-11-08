@@ -8,7 +8,7 @@
 // card's key (render.mjs MEME_CODE), so a new rule there would re-render and un-accept every meme.
 // The 16:9 face circle (assemble.py PiP) sits bottom right: a note takes the other bottom corner (ledger wf2 cole-medin:3),
 // a part tag the top left (codie-sanchez:2); all four are 16:9 only (Long items; 9:16 has captions and app buttons there).
-import { esc, icon, ICON_NAME } from './html_lib.mjs';
+import { icon, ICON_NAME, prose } from './html_lib.mjs';
 
 // min_dur = gfx_types.py NOTE / DEFINE (build_edl.py adds the reading time there); here the card alone is checked
 export const NOTE = { max_words: 14, max_lines: 3, line_chars: 38, min_dur: 4 };
@@ -74,7 +74,7 @@ const listDefault = (sp, i) => (sp.upto === undefined ? i : 0.3);
 
 export function listHtml(sp) {
   // legacy list: the exact markup of before (its .mov keys and stills stay valid)
-  if (sp.upto === undefined && sp.dim_done === undefined) return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
+  if (sp.upto === undefined && sp.dim_done === undefined) return `<div class="list"><div class="h">${prose(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${prose(x)}</span></div>`).join('')}</div>`;
   checkList(sp);
   const n = sp.upto ?? sp.items.length, stacked = sp.upto === undefined, d = sp.delays ?? [];
   const at = i => d[i] ?? listDefault(sp, i);  // = build_edl.py list_timing
@@ -82,9 +82,9 @@ export function listHtml(sp) {
     const old = !stacked && i < n - 1, done = sp.dim_done && old;
     // an earlier item of an "upto" card stands still ("animation:none" also beats template.html's nth-child delays)
     const anim = old ? 'none' : [`slide .45s ${at(i)}s both`, ...(sp.dim_done && stacked && i < n - 1 ? [`ldim .3s ${at(i + 1)}s forwards`] : [])].join(',');
-    return `<div class="i${done ? ' done' : ''}" style="animation:${anim}">${(sp.icons || [])[i] ? `<span class="li">${icon(sp.icons[i])}</span>` : `<b>${i + 1}</b>`}<span>${esc(x)}</span></div>`;
+    return `<div class="i${done ? ' done' : ''}" style="animation:${anim}">${(sp.icons || [])[i] ? `<span class="li">${icon(sp.icons[i])}</span>` : `<b>${i + 1}</b>`}<span>${prose(x)}</span></div>`;
   }).join('');
-  return `<style>.list .i.done{opacity:.42}@keyframes ldim{to{opacity:.42}}</style><div class="list"><div class="h">${esc(sp.text)}</div>${rows}</div>`;
+  return `<style>.list .i.done{opacity:.42}@keyframes ldim{to{opacity:.42}}</style><div class="list"><div class="h">${prose(sp.text)}</div>${rows}</div>`;
 }
 
 // ---- L9 chapter card styles. "parts" = every part title (the same list on each card of the film: one drawing, build_edl
@@ -114,21 +114,21 @@ const TAG_CSS = '<style>.ptag{position:absolute;left:70px;top:60px;display:flex;
   + '.ptag b{padding:6px 20px;border-radius:999px;background:var(--acc);color:var(--ink);font-weight:900;font-size:38px}</style>';
 
 export function chapHtml(sp) {
-  if (sp.chap_style === undefined) return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;  // legacy
+  if (sp.chap_style === undefined) return `<div class="chap"><div class="no">${prose(sp.sub)}</div><div class="t">${prose(sp.text)}</div></div>`;  // legacy
   checkChap(sp);
   const n = sp.parts.length, k = sp.current;
-  if (sp.chap_style === 'part_tag') return `${TAG_CSS}<div class="ptag"><b>${k}/${n}</b><span>${esc(sp.text ?? sp.parts[k - 1])}</span></div>`;
+  if (sp.chap_style === 'part_tag') return `${TAG_CSS}<div class="ptag"><b>${k}/${n}</b><span>${prose(sp.text ?? sp.parts[k - 1])}</span></div>`;
   // roadmap: every row in place from the first frame (the same drawing on every card); the opening (current 0) brings the
   // rows in one by one, a part card lifts only its current row
   const rows = sp.parts.map((t, i) => {
     const state = i + 1 < k ? 'done' : i + 1 === k ? 'cur' : 'next';
     const anim = k === 0 ? `slide .45s ${(0.25 + 0.2 * i).toFixed(2)}s both` : state === 'cur' ? 'rmcur .5s .3s cubic-bezier(.16,1,.3,1) both' : 'none';
-    return `<div class="r ${state}" style="animation:${anim}"><b>${state === 'done' ? icon('check') : i + 1}</b><span>${esc(t)}</span></div>`;
+    return `<div class="r ${state}" style="animation:${anim}"><b>${state === 'done' ? icon('check') : i + 1}</b><span>${prose(t)}</span></div>`;
   }).join('');
   const label = sp.sub ?? (k ? `${k}/${n}` : '');
   const two = n > ROADMAP.one_column;  // 6-10 parts: two columns, first half on the left (rows top to bottom)
   const rm = two ? `<div class="rm two" style="--rows:${Math.ceil(n / 2)}">` : '<div class="rm">';
-  return `${ROADMAP_CSS}<div class="chap roadmap">${label ? `<div class="no">${esc(label)}</div>` : ''}${sp.text ? `<div class="h">${esc(sp.text)}</div>` : ''}${rm}${rows}</div></div>`;
+  return `${ROADMAP_CSS}<div class="chap roadmap">${label ? `<div class="no">${prose(label)}</div>` : ''}${sp.text ? `<div class="h">${prose(sp.text)}</div>` : ''}${rm}${rows}</div></div>`;
 }
 
 // ---- L12 "define": the lower third with the term (accent) on top and its definition under it
@@ -145,9 +145,9 @@ const DEFINE_CSS = '<style>.lower.define .box{max-width:1100px}.lower.define .n{
   + '.lower.define .r{font-size:42px;line-height:1.28;margin-top:12px;animation:fade .45s .35s both}</style>';
 
 export function lowerHtml(sp) {
-  if (sp.define === undefined) return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;  // legacy
+  if (sp.define === undefined) return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${prose(sp.text)}</div><div class="r">${prose(sp.sub)}</div></div></div>`;  // legacy
   checkDefine(sp);
-  return `${DEFINE_CSS}<div class="lower define"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
+  return `${DEFINE_CSS}<div class="lower define"><div class="acc"></div><div class="box"><div class="n">${prose(sp.text)}</div><div class="r">${prose(sp.sub)}</div></div></div>`;
 }
 
 // ---- L21 "note": a short caveat or pointer, bottom left (the face circle is bottom right), no sound of its own
@@ -166,6 +166,6 @@ const NOTE_CSS = '<style>.note{position:absolute;left:110px;bottom:120px;max-wid
 
 export function noteHtml(sp) {
   checkNote(sp);
-  const text = String(sp.text).split('\n').map(l => esc(l.trim())).join('<br>');
+  const text = String(sp.text).split('\n').map(l => prose(l.trim())).join('<br>');
   return `${NOTE_CSS}<div class="note">${sp.icon ? `<span class="ni">${icon(sp.icon)}</span>` : ''}<div class="t">${text}</div></div>`;
 }

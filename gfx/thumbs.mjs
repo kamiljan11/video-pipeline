@@ -17,7 +17,9 @@
 // Out: long_<id>.jpg (1280x720, the upload) + long_<id>_2560.png, <short id>_cover.jpg (1080x1920).
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
-import { esc, icon } from './html_lib.mjs';
+import { esc, icon, keepTogether, prose } from './html_lib.mjs';
+
+export { keepTogether };
 import { isMain } from './cli.mjs';
 
 const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
@@ -37,10 +39,6 @@ const BIG_FLOOR = 100, BIG_STEP = 4;
 const NOT_TEXT = new Set(['ic', 'obj', 'panel', 'arrow']), SOLID = new Set(['obj', 'panel']), WORDS = new Set(['big', 'sub', 'tag', 'ic']);
 // Polish typesetting: no one-letter word (a, i, o, u, w, z) at a line end and no short last word (<= 3 letters) alone on the
 // last line (2026-11-08: "KAŻDĄ ZMIANĘ OD / AI", "1 zdanie do / AI"); a no-break space keeps it with its neighbour
-// Polish typography: a one-letter word, a short preposition or "nie" never ends a line (2026-11-08: "BEZ" alone on the blog cover)
-const GLUE = /(?<=^|\s)(a|i|o|u|w|z|od|do|na|po|za|we|ze|ku|bez|dla|nad|pod|nie)\s+/giu;
-export const keepTogether = (t) => String(t ?? '').replace(GLUE, '$1\u00a0').replace(/\s+(\S{1,3})$/u, '\u00a0$1');
-const words = (t) => esc(keepTogether(t));
 const list = (o) => (o === undefined ? [] : Array.isArray(o) ? o : [o]);
 const isObj = (o) => o !== null && typeof o === 'object' && !Array.isArray(o);
 
@@ -172,8 +170,8 @@ html,body{width:1280px;height:720px}
 .pn{width:90px;height:90px;border-radius:50%;background:var(--acc);color:var(--ink);font-weight:900;font-size:56px;display:flex;align-items:center;justify-content:center}
 .pbar{flex:1;width:60%;display:flex;align-items:flex-end}.pv{width:100%;background:var(--acc);border-radius:10px 10px 0 0}
 .pl{max-width:100%;overflow:hidden;white-space:nowrap;font-weight:900;font-size:50px;color:#fff;line-height:1.1}</style>
-<div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${words(v.big)}</div>
-${v.sub ? `<div class="sub">${words(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${words(v.tag)}</div>` : ''}</div>
+<div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${prose(v.big)}</div>
+${v.sub ? `<div class="sub">${prose(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${prose(v.tag)}</div>` : ''}</div>
 ${obj.length ? `<div class="objs">${obj.map(one).join('')}</div>` : ''}${p ? `<div class="panel">${items.map(item).join('')}</div>` : ''}${v.arrow ? arrowHtml(`.obj:nth-child(${(v.arrow.i ?? 0) + 1})`, 'text') : ''}`;
 };
 
@@ -188,8 +186,8 @@ html,body{width:1280px;height:720px}
 .txt{position:absolute;${left ? 'left' : 'right'}:60px;top:${v.icon ? 70 : 110}px;width:640px;text-align:${left ? 'left' : 'right'}}
 .big{font-size:${v.big.length > 9 ? 150 : v.big.length > 5 ? 190 : 240}px}.sub{font-size:60px;margin-top:22px}.tag{font-size:48px;margin-top:26px}
 .ic{width:150px;height:150px;margin-bottom:26px}</style>
-<div class="bg"></div><div class="sh"></div><div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${words(v.big)}</div>
-${v.sub ? `<div class="sub">${words(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${words(v.tag)}</div>` : ''}</div>${v.arrow ? arrowHtml('.ic', left ? 768 : 512) : ''}`;
+<div class="bg"></div><div class="sh"></div><div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${prose(v.big)}</div>
+${v.sub ? `<div class="sub">${prose(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${prose(v.tag)}</div>` : ''}</div>${v.arrow ? arrowHtml('.ic', left ? 768 : 512) : ''}`;
 };
 
 // short cover: the words above the head. The Shorts shelf crops covers to about 2:3 (~150 px lost at the top and the bottom,
@@ -199,7 +197,7 @@ html,body{width:1080px;height:1920px}
 .bg{background-image:url(${pathToFileURL(path.resolve(base, v.frame)).href});background-size:1080px 1920px;background-position:0 ${v.dy ?? 200}px}
 .sh{position:absolute;left:0;right:0;top:0;height:900px;background:linear-gradient(rgba(var(--panel-rgb),1) 0%,rgba(var(--panel-rgb),1) 40%,rgba(var(--panel-rgb),.6) 70%,rgba(var(--panel-rgb),0))}
 .txt{position:absolute;left:60px;right:60px;top:${SAFE_TOP}px;text-align:center}.big{font-size:${v.big.length > 6 ? 140 : 190}px}.sub{font-size:62px;margin-top:22px}</style>
-<div class="bg"></div><div class="sh"></div><div class="txt"><div class="big">${words(v.big)}</div>${v.sub ? `<div class="sub">${words(v.sub)}</div>` : ''}</div>`;
+<div class="bg"></div><div class="sh"></div><div class="txt"><div class="big">${prose(v.big)}</div>${v.sub ? `<div class="sub">${prose(v.sub)}</div>` : ''}</div>`;
 
 // words that do not fit their thumbnail, measured in the browser: a headline wider than its column is cut at the frame
 // edge and a block that runs past the bottom loses its last line (film 2, long_A and long_B, 2026-11-04). m.boxes

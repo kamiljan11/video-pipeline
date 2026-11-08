@@ -74,3 +74,9 @@ test('a render writes grafika.png and grafika.txt; an overfull list stops with t
   assert.notEqual(r2.status, 0); assert.match(r2.stderr, /into the footer/);
   assert.ok(!fs.existsSync(path.join(full, 'grafika.png')));
 });
+
+test('html: a one-letter word or a short preposition never ends a line (keepTogether, 2026-11-08 "z / instrukcjami")', () => {
+  const h = postHtml({ type: 'split', title: 'Tabliczka nikogo nie zatrzyma', note: 'Ludzie nie widzą siebie nawzajem',
+    cols: [{ head: 'Tabliczka', lines: ['Zasady w pliku z instrukcjami'] }, { head: 'Szlaban', lines: ['Sprawdzenie w systemie'] }] });
+  assert.match(h, /pliku z instrukcjami/); assert.match(h, /w systemie/); assert.match(h, /nie zatrzyma/);
+});
