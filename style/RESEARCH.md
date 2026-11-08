@@ -189,3 +189,10 @@ Kolumna "Status": SRC = liczba w źródle, HEUR = blogi/vendorzy bez metody, PRO
 - [NIEPEWNE] **Progress bar i end screen:** brak źródeł o wpływie na retencję; end screen - wymóg YouTube dotyczący długości (5-20 s) znam z pamięci, nie z tego researchu.
 - [NIEPEWNE] **SFX (S19):** poziomy i dobór wynikają z blogów producentów dźwięków; dobór "ding na liczbę" to konwencja, nie dowód skuteczności.
 - **Luka metodologiczna:** nie istnieje w pobranych źródłach niezależny pomiar (A/B) wpływu zoomu/punch-in/SFX na retencję. Wszystkie liczby w kolumnie PROP traktować jako hipotezy; mierzyć na własnych filmach (np. 2 warianty tego samego szkicu, retention curve per segment).
+
+## Round 2 long: what we do NOT copy (PLAN2 L11, 2026-11-08)
+
+- **Huberman (0 graphics, face 99 %)** held 1.4-3.3M-view films with `face_full` 0.57-0.99: a counter-example, not a model. His audience comes for the person and the science; ours for the screen and the result. Kamil's thresholds stay: `long.face_full <= 0.35`, `long.screen_share <= 0.5`.
+- **The niche "screen + face circle" (AF, CM, GI, NH, KS, KO, RS, 7/7) runs 83-100 % screen.** Measured, not copied: Kamil's rule 5.11 (screen share <= 0.5) wins over the niche median. The missing share goes into cards BESIDE the face (float, kw, sticker), not into full screens (plan 1 1.1).
+- **A "teach block" exempt from `screen_share`** (long stretches of screen while teaching) was proposed and REJECTED: it would undo the 5.11 rule through a side door.
+- Source: creator-study/round2/SYNTH2-long.md (16/16 raw JSON, niche separate). The checklist `why` lines of long.screen_share / long.face_full cite this section.

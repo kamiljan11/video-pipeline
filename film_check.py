@@ -742,6 +742,18 @@ class Out:
         bad = manifest.check(self.out)
         return not bad, f"{len(bad)} part(s): " + "; ".join(bad[:6]) if bad else "every part stamped by the current code"
 
+    def short_titles(self, need: int = 2):
+        """plan1 5.3: every short that is made has >= 2 title variants (A/B in its `## Tytuły` table, title_check rows), each
+        <= 60 characters; WARN when none follows "Claude Code + <business thing> = <result>" (the niche's best pattern)"""
+        bad = []
+        for c in self.made("clips.json"):
+            p = self.out / "youtube" / "shorts" / f"{c}.md"
+            rows = title_check.titles(p.read_text(encoding="utf-8")) if p.exists() else []
+            if len(rows) < need: bad.append(f"{c}: {len(rows)} title variants (want >= {need} in ## Tytuły)"); continue
+            bad += [f"{c} {r['variant']}: {len(r['title'])} characters" for r in rows if len(r["title"]) > title_check.MAX_LEN]
+            if not any(re.search(r"\+.+=", r["title"]) for r in rows): self.warns.append(("out.short_titles", f"{c}: no variant \"<tool> + <thing> = <result>\""))
+        return not bad, "; ".join(bad[:6]) or "every short has A/B titles"
+
     def long_film(self) -> Film | None:
         """the long as film_check reads it before the render (plan_long.json + its EDL), None when not there"""
         p = self.work / "plan_long.json"

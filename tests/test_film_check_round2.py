@@ -192,3 +192,15 @@ class ShortResearchTest(unittest.TestCase):
         self.assertTrue(self.short(WORDS).last_line_on_face()[0])
         ok, detail = self.short(WORDS, [{"id": "w", "at": n - 3, "dur": 3}], [{"id": "w", "type": "web"}]).last_line_on_face()
         self.assertFalse(ok); self.assertIn("w", detail)
+
+
+class ShortTitlesTest(unittest.TestCase):  # plan 1 5.3
+    def test_each_short_needs_ab_titles(self):
+        d = Path(tempfile.mkdtemp(prefix="fc-st-")); self.addCleanup(shutil.rmtree, d, True)
+        (d / "clips.json").write_text(json.dumps({"items": [{"id": "s1", "make": True}, {"id": "s2", "make": True}]}))
+        sh = d / "out" / "youtube" / "shorts"; sh.mkdir(parents=True)
+        (sh / "s1.md").write_text("## Tytuły\n| A | Kto sprawdza kod z AI? |\n| B | Claude Code + recenzent = 0 wpadek |\n")
+        (sh / "s2.md").write_text("## Tytuły\n| A | Jeden tytuł |\n")
+        o = film_check.Out(d, d / "out")
+        ok, detail = o.short_titles()
+        self.assertFalse(ok); self.assertIn("s2: 1 title variants", detail); self.assertNotIn("s1", detail)

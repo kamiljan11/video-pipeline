@@ -126,7 +126,7 @@
    "metric": "full_screen_share",
    "op": "<=",
    "value": 0.5,
-   "why": "Kamil 5.11: 'nie wszystko pokazywać na ekranie takim, że jestem w prawym dolnym rogu… zagospodarować przestrzeń dookoła mnie' (v2 68 %). Negacz has 65 %, Kamil's rule wins: the rest goes beside him (sticker, float, kw)"
+   "why": "Kamil 5.11: 'nie wszystko pokazywać na ekranie takim, że jestem w prawym dolnym rogu… zagospodarować przestrzeń dookoła mnie' (v2 68 %). Negacz has 65 %, Kamil's rule wins: the rest goes beside him (sticker, float, kw). Round 2 L11: Huberman (0 graphics) and the niche (83-100 % screen) are measured, not copied: style/RESEARCH.md \"Round 2 long\""
   },
   {
    "id": "long.face_full",
@@ -135,7 +135,7 @@
    "op": "<=",
    "value": 0.35,
    "level": "warn",
-   "why": "Share of the long with the bare face: no card, float, sticker, scene, lower third or b-roll from the EDL. Value from the course author study (Skool CCC, n=1: 18-26 % of a lesson); to be revised after the wider creator study (creator-study/PLAN.md 1.1, 0.4). Reconciles screen_share <= 0.5: the missing >= 15 pp goes into cards beside him (float, kw, sticker), not into full screens. Level warn: n=1, advice until the wider study confirms it (review 2026-11-07)"
+   "why": "Share of the long with the bare face: no card, float, sticker, scene, lower third or b-roll from the EDL. Value from the course author study (Skool CCC, n=1: 18-26 % of a lesson); to be revised after the wider creator study (creator-study/PLAN.md 1.1, 0.4). Reconciles screen_share <= 0.5: the missing >= 15 pp goes into cards beside him (float, kw, sticker), not into full screens. Level warn: n=1, advice until the wider study confirms it (review 2026-11-07). Round 2 L11: Huberman (0 graphics) and the niche (83-100 % screen) are measured, not copied: style/RESEARCH.md \"Round 2 long\""
   },
   {
    "id": "long.reading",
@@ -498,6 +498,13 @@
    "metric": "out_titles",
    "op": "true",
    "why": "Skool CCC So3/So4/C5/C10: each A/B/C title <= 60 characters, a word of ## Fraza kluczowa in its first 3 words, a filled zrodlo column (the niche title it started from), and its promise heard in the long's first 30 s (title_check.py)"
+  },
+  {
+   "id": "out.short_titles",
+   "fmt": "out",
+   "metric": "short_titles",
+   "op": "true",
+   "why": "Plan 1 5.3: 2-3 A/B titles per short (## Tytuły table like the long's), each <= 60 characters; WARN when none follows \"Claude Code + <business thing> = <result>\""
   },
   {
    "id": "out.hooks",
