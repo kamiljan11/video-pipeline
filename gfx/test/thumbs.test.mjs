@@ -177,10 +177,14 @@ test('a long "big" shrinks to its column down to the floor; past the floor it st
   fs.rmSync(w, { recursive: true, force: true });
 });
 
-test('no orphan: a one-letter word or a short last word stays with its neighbour (no-break space)', () => {
+test('no orphan: a one-letter word, a short preposition, "nie" or a short last word stays with its neighbour (no-break space)', () => {
   assert.equal(keepTogether('każdą zmianę od AI'), 'każdą zmianę od\u00a0AI');
   assert.equal(keepTogether('1 zdanie do AI'), '1 zdanie do\u00a0AI');
-  assert.equal(keepTogether('AI mówi „gotowe”, a nic nie działa'), 'AI mówi „gotowe”, a\u00a0nic nie działa');
+  assert.equal(keepTogether('zmian od AI bez przeglądu'), 'zmian od\u00a0AI bez\u00a0przeglądu');
+  assert.equal(keepTogether('a nic nie działa'), 'a\u00a0nic nie\u00a0działa');
+  assert.equal(keepTogether('Nad i pod'), 'Nad\u00a0i\u00a0pod');
+  assert.equal(keepTogether('dobrze'), 'dobrze');
+  assert.equal(keepTogether('AI mówi „gotowe”, a nic nie działa'), 'AI mówi „gotowe”, a\u00a0nic nie\u00a0działa');
   assert.equal(keepTogether('w szybę'), 'w\u00a0szybę');
   assert.equal(keepTogether('Kto sprawdza?'), 'Kto sprawdza?');  // a long last word: nothing to keep
   assert.equal(keepTogether(undefined), '');

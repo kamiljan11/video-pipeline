@@ -37,7 +37,9 @@ const BIG_FLOOR = 100, BIG_STEP = 4;
 const NOT_TEXT = new Set(['ic', 'obj', 'panel', 'arrow']), SOLID = new Set(['obj', 'panel']), WORDS = new Set(['big', 'sub', 'tag', 'ic']);
 // Polish typesetting: no one-letter word (a, i, o, u, w, z) at a line end and no short last word (<= 3 letters) alone on the
 // last line (2026-11-08: "KAŻDĄ ZMIANĘ OD / AI", "1 zdanie do / AI"); a no-break space keeps it with its neighbour
-export const keepTogether = (t) => String(t ?? '').replace(/(^|\s)([aiouwzAIOUWZ])\s+/g, '$1$2\u00a0').replace(/\s+(\S{1,3})$/u, '\u00a0$1');
+// Polish typography: a one-letter word, a short preposition or "nie" never ends a line (2026-11-08: "BEZ" alone on the blog cover)
+const GLUE = /(?<=^|\s)(a|i|o|u|w|z|od|do|na|po|za|we|ze|ku|bez|dla|nad|pod|nie)\s+/giu;
+export const keepTogether = (t) => String(t ?? '').replace(GLUE, '$1\u00a0').replace(/\s+(\S{1,3})$/u, '\u00a0$1');
 const words = (t) => esc(keepTogether(t));
 const list = (o) => (o === undefined ? [] : Array.isArray(o) ? o : [o]);
 const isObj = (o) => o !== null && typeof o === 'object' && !Array.isArray(o);
