@@ -59,13 +59,21 @@ test('L9 roadmap: every part in the same place, done / current / next styled apa
   assert.ok(!opening.includes('class="no"'));
 });
 
+test('L9 roadmap of 6-10 parts: two columns (5 rows fit 1080 px), first half on the left', () => {
+  const parts = Array.from({ length: 10 }, (_, i) => `Część ${i + 1}`);
+  const html = chapHtml({ id: 'c7', type: 'chap', chap_style: 'roadmap', parts, current: 7, dur: 4 });
+  assert.match(html, /<div class="rm two" style="--rows:5">/);
+  assert.equal((html.match(/class="r /g) ?? []).length, 10);
+  assert.ok(!chapHtml({ id: 'c', type: 'chap', chap_style: 'roadmap', parts: parts.slice(0, 5), current: 1, dur: 4 }).includes('rm two'));
+});
+
 test('L9 part_tag: a small corner tag with the part number and title, not a full screen', () => {
   const html = chapHtml({ id: 't2', type: 'chap', chap_style: 'part_tag', parts: ['A b', 'Narzędzia'], current: 2, dur: 4 });
   assert.match(html, /<div class="ptag"><b>2\/2<\/b><span>Narzędzia<\/span><\/div>/);
   assert.match(html, /\.ptag\{position:absolute;left:70px;top:60px/, 'top left: the face circle (PiP) is bottom right');
   assert.ok(!html.includes('class="chap'));
   for (const [patch, msg] of [[{ chap_style: 'map' }, /"chap_style" = "roadmap" or "part_tag"/], [{ current: 0 }, /"current" = the part that starts here, 1..2/],
-    [{ parts: ['jedna'] }, /"parts" = 2..8 part titles/], [{ parts: ['x'.repeat(41), 'b'] }, /at most 40 characters/]])
+    [{ parts: ['jedna'] }, /"parts" = 2..10 part titles/], [{ parts: Array.from({ length: 11 }, (_, i) => `p${i}`) }, /"parts" = 2..10/], [{ parts: ['x'.repeat(41), 'b'] }, /at most 40 characters/]])
     assert.throws(() => checkCard({ id: 't', type: 'chap', chap_style: 'part_tag', parts: ['a', 'b'], current: 1, dur: 3, ...patch }), msg);
 });
 

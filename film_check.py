@@ -25,6 +25,7 @@ from typing import NoReturn
 import article_check  # the kamiljan.com blog article made from the film
 import count_check  # the count he says is the count on the card
 import desc_check  # the YouTube descriptions (round 2 Y0-Y5, S2-S3)
+import gfx_events  # when a piece comes in inside a scene (prompt_shown_at)
 import gfx_types  # next to this script: which card types are a separate screen
 import hook_check  # the 6 hook killers
 import ig_check  # the Instagram carousels and Reel captions (round 2 IG1-IG6)
@@ -503,6 +504,17 @@ class Film:
         hit = [o["id"] for o in last if sig(o) in first or self.specs.get(o["id"], {}).get("bookend") in first]
         return bool(hit), f"bookend {hit[0]}" if hit else f"no card of the first {span:.0f} s comes back in the last {span:.0f} s"
 
+    def prompt_shown_at(self) -> list[float]:
+        """film times a command / prompt comes on screen: a kw or slide card, or a scene's win / term / chat piece (the
+        prompt written out where it is used, gfx_events.piece_at)"""
+        out = []
+        for o in self.ovs:
+            if self.typ(o) in ("kw", "slide"): out.append(o["at"])
+            elif self.typ(o) == "scene":
+                out += [o["at"] + gfx_events.piece_at(e) for e in self.specs.get(o["id"], {}).get("els", [])
+                        if isinstance(e, dict) and e.get("k") in ("win", "term", "chat")]
+        return out
+
     def action_words_shown(self, near: float = 2):
         """L23: a story part's "action_word" (where the command / prompt to try is said) has a kw or slide card within 2 s"""
         bad, n = [], 0
@@ -510,7 +522,7 @@ class Film:
             if not isinstance(p, dict) or "action_word" not in p: continue
             n += 1; t = self.word_at(p["action_word"])
             if t is None: bad.append(f"{p.get('id')}: action_word {p['action_word']} cut out"); continue
-            if not any(self.typ(o) in ("kw", "slide") and abs(o["at"] - t) <= near for o in self.ovs): bad.append(f"{p.get('id')}: no kw/slide card at {t:.0f} s")
+            if not any(abs(a - t) <= near for a in self.prompt_shown_at()): bad.append(f"{p.get('id')}: no kw/slide card or prompt piece at {t:.0f} s")
         return n > 0 and not bad, "; ".join(bad) or (f"{n} action words shown" if n else "no part has an \"action_word\"")
 
     def framing_changes(self, max_still: float = 45):

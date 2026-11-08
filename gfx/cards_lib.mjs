@@ -13,7 +13,7 @@ import { esc, icon } from './html_lib.mjs';
 // min_dur = gfx_types.py NOTE / DEFINE (build_edl.py adds the reading time there); here the card alone is checked
 export const NOTE = { max_words: 14, max_lines: 3, line_chars: 38, min_dur: 4 };
 export const DEFINE = { max_words: 20, max_lines: 3, line_chars: 40, term_words: 4, min_dur: 6 };
-export const ROADMAP = { min_parts: 2, max_parts: 8, title_chars: 40 };
+export const ROADMAP = { min_parts: 2, max_parts: 10, title_chars: 40, one_column: 5 };  // > one_column parts: two columns (1080 px fits 5 rows)
 export const CHAP_STYLES = ['roadmap', 'part_tag'];
 
 export const words = s => String(s ?? '').trim().split(/\s+/).filter(Boolean);
@@ -105,6 +105,8 @@ const ROADMAP_CSS = '<style>.chap.roadmap .no{margin-bottom:10px}.chap.roadmap .
   + '.rm .r.done{color:var(--mute-2)}.rm .r.done b{background:var(--acc-dim);border-color:var(--acc-dim)}.rm .r.done b svg{width:54px;height:54px;stroke:var(--ink);stroke-width:3}'
   + '.rm .r.next{color:var(--mute)}.rm .r.next b{border-color:var(--line);color:var(--mute)}'
   + '.rm .r.cur{background:rgba(var(--acc-rgb),.16);color:#fff;font-weight:900}.rm .r.cur b{background:var(--acc);color:var(--ink)}'
+  + '.rm.two{display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--rows),auto);column-gap:70px;row-gap:18px;min-width:1720px}'
+  + '.rm.two .r{font-size:50px;padding:14px 28px;gap:28px}.rm.two .r b{width:76px;height:76px;font-size:42px}'
   + '@keyframes rmcur{from{background:transparent;transform:scale(1)}60%{transform:scale(1.04)}to{background:rgba(var(--acc-rgb),.16);transform:scale(1)}}</style>';
 const TAG_CSS = '<style>.ptag{position:absolute;left:70px;top:60px;display:flex;align-items:center;gap:22px;padding:16px 30px 16px 16px;border-radius:999px;'
   + 'background:rgba(var(--panel-rgb),.84);font-weight:800;font-size:44px;color:#fff;animation:slide .5s cubic-bezier(.16,1,.3,1) both}'
@@ -123,7 +125,9 @@ export function chapHtml(sp) {
     return `<div class="r ${state}" style="animation:${anim}"><b>${state === 'done' ? icon('check') : i + 1}</b><span>${esc(t)}</span></div>`;
   }).join('');
   const label = sp.sub ?? (k ? `${k}/${n}` : '');
-  return `${ROADMAP_CSS}<div class="chap roadmap">${label ? `<div class="no">${esc(label)}</div>` : ''}${sp.text ? `<div class="h">${esc(sp.text)}</div>` : ''}<div class="rm">${rows}</div></div>`;
+  const two = n > ROADMAP.one_column;  // 6-10 parts: two columns, first half on the left (rows top to bottom)
+  const rm = two ? `<div class="rm two" style="--rows:${Math.ceil(n / 2)}">` : '<div class="rm">';
+  return `${ROADMAP_CSS}<div class="chap roadmap">${label ? `<div class="no">${esc(label)}</div>` : ''}${sp.text ? `<div class="h">${esc(sp.text)}</div>` : ''}${rm}${rows}</div></div>`;
 }
 
 // ---- L12 "define": the lower third with the term (accent) on top and its definition under it

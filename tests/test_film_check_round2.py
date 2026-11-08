@@ -298,3 +298,13 @@ class WpmTest(FilmFixture):  # round 2 P0.6: wpm reported, no threshold
         ok, detail = f.words_per_min()
         self.assertTrue(ok); self.assertIn("wpm of the speech", detail)
         self.assertFalse(self.film([], []).words_per_min()[0])
+
+
+class ActionWordTest(FilmFixture):  # round 2 L23: the prompt shown where it is said (a kw/slide card, or a scene's window)
+    def test_a_scene_window_shows_the_prompt(self):
+        story = {"parts": [{"id": "p0", "title": "a", "start_word": 0}, {"id": "p1", "title": "b", "start_word": 1, "action_word": 1}]}
+        (self.d / "story.json").write_text(json.dumps(story))
+        sp = [{"id": "s", "type": "scene", "els": [{"k": "win", "at": 1.0, "rows": ["Każdy raport kończ słowem"]}]}]
+        words = [(0.0, "To"), (20.0, "dopisz")]
+        self.assertFalse(self.film([{"id": "s", "at": 30, "dur": 8}], sp, words).action_words_shown()[0])
+        self.assertTrue(self.film([{"id": "s", "at": 19.5, "dur": 8}], sp, words).action_words_shown()[0])
