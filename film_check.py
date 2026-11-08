@@ -119,6 +119,14 @@ def word_times(words_file: Path) -> list[float]:
     return [w["offsets"]["from"] / 1000 for w in d["transcription"]]
 
 
+NUMBER_WORDS = {"dwa": 2, "dwie": 2, "dwóch": 2, "trzy": 3, "trzech": 3, "cztery": 4, "czterech": 4, "pięć": 5, "pięciu": 5,
+                "sześć": 6, "sześciu": 6, "siedem": 7, "siedmiu": 7, "osiem": 8, "ośmiu": 8, **{str(i): i for i in range(2, 11)}}
+
+
+def norm_word(w: str) -> str:
+    return re.sub(r"[^\w]", "", w.lower())
+
+
 def src2out(segments: list[dict], t: float, exact: bool = False) -> float:
     """source time -> film time (timeline.py: whole-frame pieces with seg_exact); a time inside a cut maps to the start
     of the next kept piece"""
@@ -369,6 +377,146 @@ class Film:
     def music_moods(self): return len(self.plan.get("music_moods") or [])
     def sfx_style_v2(self): return self.plan.get("sfx_style") == "v2"
     def has_end_card(self): return any(self.typ(o) == "end" for o in self.ovs)
+
+    # ---- round 2 long research (creator-study/round2/PLAN2.md L1-L24); each item names its ledger id ----
+    def film_words(self) -> list[tuple[float, str]]:
+        """(film time, word) of every word the cut keeps (its start inside a kept piece)"""
+        if not hasattr(self, "_fw"):
+            raw = load(self.work / self.plan["words"], "words")["transcription"] if self.plan.get("words") else []
+            segs, ex = self.edl["segments"], exact(self.edl)
+            kept = lambda t: any(sg["in"] <= t <= sg["out"] for sg in segs)
+            self._fw = [(src2out(segs, w["offsets"]["from"] / 1000, ex), w["text"].strip()) for w in raw
+                        if w.get("text", "").strip() and kept(w["offsets"]["from"] / 1000)]
+        return self._fw
+
+    def story(self) -> dict:
+        p = self.work / "story.json"
+        return load(p, "story.json") if p.exists() else {}
+
+    def word_at(self, i: int) -> float | None:
+        """film time of source word index i (None when cut out or out of range)"""
+        raw = load(self.work / self.plan["words"], "words")["transcription"] if self.plan.get("words") else []
+        if not (isinstance(i, int) and 0 <= i < len(raw)): return None
+        t = raw[i]["offsets"]["from"] / 1000
+        return src2out(self.edl["segments"], t, exact(self.edl)) if any(sg["in"] <= t <= sg["out"] for sg in self.edl["segments"]) else None
+
+    def pace_flat(self, block_s: float = 300, drift: float = 0.15, pause_s: float = 1.5):
+        """L2: no 5-minute block more than 15 % off the film's median words per minute, no pause over 1.5 s with nothing on
+        screen (cards, b-roll, punches). No absolute threshold: Polish creators 114-164 wpm (KS, KO, RS), only a reference"""
+        fw = self.film_words()
+        if len(fw) < 20: return False, "no words of the film (plan \"words\")"
+        blocks = [sum(1 for t, _ in fw if k * block_s <= t < (k + 1) * block_s) / (min(block_s, self.len - k * block_s) / 60)
+                  for k in range(int(self.len // block_s) + (self.len % block_s > 60))]
+        med = sorted(blocks)[len(blocks) // 2] if blocks else 0
+        bad = [f"block {k * block_s / 60:.0f}-{(k + 1) * block_s / 60:.0f} min {b:.0f} wpm vs median {med:.0f}" for k, b in enumerate(blocks)
+               if med and abs(b - med) / med > drift]
+        spans = cover_spans(self.edl) + [(t, t + 0.6) for t in punches(self.edl)]
+        for (a, _), (b, _) in itertools.pairwise(fw):
+            if b - a > pause_s and not any(x <= a + 0.3 and y >= b - 0.3 for x, y in spans):
+                bad.append(f"pause {b - a:.1f} s at {a:.0f} s with nothing on screen")
+        return not bad, "; ".join(bad[:6]) or f"{len(blocks)} blocks around {med:.0f} wpm"
+
+    def content_parts(self) -> list[tuple[str, float, float]]:
+        free = self.no_chap()
+        return [p for p in self.parts() if p[0] not in free]
+
+    def roadmap_in_opening(self, within: float = 50):
+        """L3: in the first 50 s the number of parts is said and a list card shows that many items (Hormozi, Graham:
+        the viewer knows the road)"""
+        n = len(self.content_parts())
+        if n < 2: return False, f"{n} content parts in story.json"
+        said = {NUMBER_WORDS.get(norm_word(w), -1) for t, w in self.film_words() if t <= within}
+        lists = [len(self.specs[o["id"]].get("items", [])) for o in self.ovs if o["at"] <= within and self.typ(o) == "list"]
+        bad = ([f"the number {n} is not said in the first {within:.0f} s"] if n not in said else []) + \
+              ([f"no list card with {n} items in the first {within:.0f} s (got {lists or 'none'})"] if n not in lists else [])
+        return not bad, "; ".join(bad) or f"{n} parts said and listed"
+
+    def first_part_at(self):
+        """L4: film time where the first content part starts (the bridge sentence ending the intro = its start_word)"""
+        cp = self.content_parts()
+        return round(cp[0][1], 1) if cp else self.len
+
+    def end_ok(self):
+        """L5: plan "end": "platform" = no full card in the last 20 s, tail <= 1 s, the next film named in the last 30 s and
+        plan "next_video"; without the key: an end card, as before (long.end)"""
+        if self.plan.get("end") != "platform": return self.has_end_card(), "end card" if self.has_end_card() else "no end card"
+        full = [o["id"] for o in self.ovs if o["at"] + o["dur"] > self.len - 20 and gfx_types.is_full(self.specs.get(o["id"], {}))]
+        tail = float(self.edl.get("tail", 0) or 0)
+        said = " ".join(w.lower() for t, w in self.film_words() if t >= self.len - 30)
+        bad = ([f"full cards in the last 20 s: {', '.join(full)}"] if full else []) + ([f"tail {tail:.1f} s > 1"] if tail > 1 else []) + \
+              ([] if re.search(r"następn\w* (film|odcin)|kolejn\w* (film|odcin)", said) else ["the next film is not named in the last 30 s"]) + \
+              ([] if str(self.plan.get("next_video", "")).strip() else ['no plan "next_video"'])
+        return not bad, "; ".join(bad) or "platform end"
+
+    def mid_cta(self, lo: float = 0.15, hi: float = 0.85, max_s: float = 45, chap_gap: float = 3):
+        """L6: at most one offer CTA in the middle (15-85 % of the film, <= 45 s, carried by a lower card with a URL, ends
+        >= 3 s before the next chap card); story.json "cta_after_part": k asks for one right after part k"""
+        mids = [o for o in self.ovs if self.typ(o) == "cta" or self.specs.get(o["id"], {}).get("cta")]
+        mids = [o for o in mids if lo * self.len <= o["at"] <= hi * self.len]
+        want = self.story().get("cta_after_part")
+        bad = [f"{len(mids)} offer CTAs in the middle (max 1)"] if len(mids) > 1 else []
+        chaps = sorted(o["at"] for o in self.ovs if self.typ(o) == "chap")
+        for o in mids:
+            sp, end = self.specs.get(o["id"], {}), o["at"] + o["dur"]
+            if o["dur"] > max_s: bad.append(f"{o['id']} {o['dur']:.0f} s > {max_s:.0f}")
+            if not re.search(r"https?://|\w+\.(pl|com|dev|io)\b", json.dumps(sp, ensure_ascii=False)): bad.append(f"{o['id']} has no URL")
+            nxt = next((c for c in chaps if c > o["at"]), None)
+            if nxt is not None and nxt - end < chap_gap: bad.append(f"{o['id']} ends {nxt - end:.1f} s before a chapter")
+        if want is not None:
+            cp = self.content_parts()
+            if not mids: bad.append(f"story.json cta_after_part {want}: no CTA in the middle")
+            elif isinstance(want, int) and 0 <= want < len(cp) and not cp[want][2] - 5 <= mids[0]["at"] <= cp[want][2] + 60:
+                bad.append(f"{mids[0]['id']} not right after part {want} ({cp[want][0]})")
+        return not bad, "; ".join(bad) or f"{len(mids)} mid CTA"
+
+    def recap(self, max_s: float = 10):
+        """L7: a recap before the end: a story part of kind "recap"/"combine", or a card with "recap": true (the opening map
+        with every item lit, <= 10 s) in the last fifth"""
+        if any(isinstance(p, dict) and p.get("kind") in ("recap", "combine") for p in self.story().get("parts", [])): return True, "recap part"
+        rc = [o for o in self.ovs if self.specs.get(o["id"], {}).get("recap") and o["at"] >= 0.8 * self.len]
+        if not rc: return False, "no recap part or recap card in the last fifth"
+        long_ = [o["id"] for o in rc if o["dur"] > max_s]
+        return not long_, f"recap cards over {max_s:.0f} s: {', '.join(long_)}" if long_ else f"recap card {rc[0]['id']}"
+
+    def proof_early(self, within: float = 15):
+        """L15: the first proof (a web shot, scene, slide or b-roll from the film's own material) within 15 s"""
+        ev = [o["at"] for o in self.ovs if self.typ(o) in ("web", "scene", "slide")] + [b.get("at", 1e9) for b in self.edl.get("broll", [])]
+        first = min(ev, default=None)
+        return first is not None and first <= within, f"first proof at {first:.1f} s" if first is not None else "no web/scene/slide/b-roll"
+
+    def web_marked(self, min_s: float = 6):
+        """L16a: a web card on screen >= 6 s marks what to look at (spec "find": the text the marker underlines)"""
+        bad = [o["id"] for o in self.ovs if self.typ(o) == "web" and o["dur"] >= min_s and not self.specs[o["id"]].get("find")]
+        return not bad, f"web cards >= {min_s:.0f} s without \"find\": {', '.join(bad[:6])}" if bad else "web cards marked"
+
+    def end_bookend(self, span: float = 30):
+        """L18: the end shows again a picture from the first 30 s (same card, or a spec "bookend": <first card id>)"""
+        def sig(o: dict) -> str:
+            sp = self.specs.get(o["id"], {})
+            return sp.get("src") or sp.get("img") or sp.get("shot") or sp.get("url") or o["id"]
+        first = {sig(o) for o in self.ovs if o["at"] < span} | {o["id"] for o in self.ovs if o["at"] < span}
+        last = [o for o in self.ovs if o["at"] >= self.len - span]
+        hit = [o["id"] for o in last if sig(o) in first or self.specs.get(o["id"], {}).get("bookend") in first]
+        return bool(hit), f"bookend {hit[0]}" if hit else f"no card of the first {span:.0f} s comes back in the last {span:.0f} s"
+
+    def action_words_shown(self, near: float = 2):
+        """L23: a story part's "action_word" (where the command / prompt to try is said) has a kw or slide card within 2 s"""
+        bad, n = [], 0
+        for p in self.story().get("parts", []):
+            if not isinstance(p, dict) or "action_word" not in p: continue
+            n += 1; t = self.word_at(p["action_word"])
+            if t is None: bad.append(f"{p.get('id')}: action_word {p['action_word']} cut out"); continue
+            if not any(self.typ(o) in ("kw", "slide") and abs(o["at"] - t) <= near for o in self.ovs): bad.append(f"{p.get('id')}: no kw/slide card at {t:.0f} s")
+        return n > 0 and not bad, "; ".join(bad) or (f"{n} action words shown" if n else "no part has an \"action_word\"")
+
+    def opening_pace(self):
+        """L24 (info, no threshold): words in the first 30 s and words per minute of the hook vs the body (PL 65-104 words
+        in 30 s, KS, KO)"""
+        fw = self.film_words()
+        if not fw: return False, "no words"
+        w30 = sum(1 for t, _ in fw if t < 30)
+        body = sum(1 for t, _ in fw if t >= 30) / max((self.len - 30) / 60, 1e-9)
+        return True, f"{w30} words in the first 30 s ({w30 * 2} wpm), body {body:.0f} wpm"
 
     def filler_cards(self):
         """text cards that say nothing: one word, no sub line, no number, no name (Kamil 2026-11-08 on the card

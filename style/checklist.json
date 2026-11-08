@@ -199,9 +199,89 @@
   {
    "id": "long.end",
    "fmt": "long",
-   "metric": "has_end_card",
+   "metric": "end_ok",
    "op": "true",
-   "why": "End card with what to watch next"
+   "why": "End card with what to watch next. Round 2 L5: plan \"end\": \"platform\" = no full card in the last 20 s, tail <= 1 s, the next film named in the last 30 s + plan \"next_video\" (YouTube end screen instead of our card)"
+  },
+  {
+   "id": "long.pace_flat",
+   "fmt": "long",
+   "metric": "pace_flat",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L2 (KS, KO, RS; Hormozi max pause): no 5-min block > 15 % off the film's median wpm, no pause > 1.5 s with nothing on screen; Polish 114-164 wpm is a reference only, no absolute threshold"
+  },
+  {
+   "id": "long.roadmap",
+   "fmt": "long",
+   "metric": "roadmap_in_opening",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L3 (Hormozi, Graham Stephan): in the first 50 s the number of parts is said and a list card shows that many items"
+  },
+  {
+   "id": "long.first_part_by",
+   "fmt": "long",
+   "metric": "first_part_at",
+   "op": "<=",
+   "value": 90,
+   "level": "warn",
+   "why": "Round 2 L4 (14/16 creators: part 1 by ~60-90 s): the intro ends with a bridge sentence = start_word of part 1"
+  },
+  {
+   "id": "long.cta_place",
+   "fmt": "long",
+   "metric": "mid_cta",
+   "op": "true",
+   "why": "Round 2 L6 (KO 15-19 %, CM 3-8 min, AF 19 %): at most 1 offer CTA in the middle, 15-85 % of the film, <= 45 s, a URL on it, ends >= 3 s before the next chapter; story.json cta_after_part: k puts it right after part k"
+  },
+  {
+   "id": "long.recap",
+   "fmt": "long",
+   "metric": "recap",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L7 (Huberman, Hormozi): a recap before the end: a story part of kind recap/combine or the opening map with every item lit (card \"recap\": true, <= 10 s) in the last fifth; skip with a reason when the film does not need one"
+  },
+  {
+   "id": "long.proof_early",
+   "fmt": "long",
+   "metric": "proof_early",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L15 (Nate Herk: the payoff first): the first web shot / scene / slide / b-roll from the film's own material within 15 s"
+  },
+  {
+   "id": "long.web_marked",
+   "fmt": "long",
+   "metric": "web_marked",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L16a: a web card held >= 6 s marks what to read (spec \"find\")"
+  },
+  {
+   "id": "long.end_bookend",
+   "fmt": "long",
+   "metric": "end_bookend",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L18 (Nate Herk): the last 30 s show again a picture from the first 30 s (same card or spec \"bookend\": <id>)"
+  },
+  {
+   "id": "long.action_word",
+   "fmt": "long",
+   "metric": "action_words_shown",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L23 (Hormozi): a part's \"action_word\" (the command / prompt to try) gets a kw or slide card within 2 s"
+  },
+  {
+   "id": "long.opening_pace",
+   "fmt": "long",
+   "metric": "opening_pace",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L24 (info, no threshold): words in the first 30 s and hook vs body wpm, PL 65-104 words / 30 s (KS, KO); joins P0.6"
   },
   {
    "id": "short.hook",
