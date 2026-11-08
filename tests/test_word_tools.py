@@ -42,6 +42,14 @@ class WordsCheckTest(unittest.TestCase):
     def test_identical_text_passes(self):
         self.assertEqual(C.judge("sound", self.EXP, list(self.EXP)), ([], []))
 
+    def test_the_same_letters_split_another_way_is_not_lost(self):  # 2026-11-08 s04: "nie sprawdzone" heard "niesprawdzone"
+        exp = C.norm("to jest kod nie sprawdzone i jest też napisane dalej")
+        heard = C.norm("to jest kod niesprawdzone i jest też napisane dalej")
+        self.assertEqual(C.judge("cut", exp, heard), ([], []))
+        self.assertEqual(C.judge("cut", heard, exp), ([], []))  # and joined in the plan, split by whisper
+        lost = C.norm("to jest kod sprawdzone i jest też napisane dalej")  # a real loss still fails
+        self.assertTrue(C.judge("sound", exp, lost)[0])  # "nie" really gone inside the film: still a FAIL
+
 
 class WordTimesTest(unittest.TestCase):
     def test_dtw_start_reads_the_first_real_token(self):

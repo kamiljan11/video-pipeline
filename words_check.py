@@ -59,6 +59,9 @@ def missing(expected: list[str], heard: list[str]) -> list[tuple[int, list[str],
     """(index in expected, missing words, what was heard there instead) for every gap"""
     out = []
     for op, a1, a2, b1, b2 in difflib.SequenceMatcher(None, expected, heard, autojunk=False).get_opcodes():
+        # the same letters split another way ("nie sprawdzone" / "niesprawdzone", 2026-11-08 s04) is not a lost word
+        if op == "replace" and "".join(expected[a1:a2]) == "".join(heard[b1:b2]):
+            continue
         if op == "delete" or (op == "replace" and a2 - a1 > b2 - b1):
             out.append((a1, expected[a1:a2], heard[b1:b2]))
     return out
