@@ -297,9 +297,11 @@ class Film:
         """punches a minute of face on screen with nothing over it: a punch is never made under a card or b-roll
         (build_edl skips emph there), so a short that is 74 % cards (2026-11-08 s09: 34 of 46 s) is judged on the
         12 s it shows the face. Under 10 s of face there is nothing to punch into: the card rules judge it."""
-        face = self.len - covered(cover_spans(self.edl), self.len)
+        spans = cover_spans(self.edl)
+        face = self.len - covered(spans, self.len)
         if face < 10.0: return 99.0
-        return round(len(punches(self.edl)) / (face / 60), 2)
+        on_face = [t for t in punches(self.edl) if not any(a <= t < b for a, b in spans)]  # a canvas zoom inside a card is not one
+        return round(len(on_face) / (face / 60), 2)
     def behind_cards(self): return sum(1 for o in self.ovs if "behind" in self.specs.get(o["id"], {}))
 
     def behind_cover_max(self):
