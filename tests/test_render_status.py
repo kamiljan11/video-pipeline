@@ -83,14 +83,14 @@ class Materials(unittest.TestCase):
     def test_counts_what_is_in_the_out_dir(self):
         d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
         for f in ("thumbnails/long_A.jpg", "thumbnails/long_B.jpg", "thumbnails/s01_cover.jpg", "posts/p01/post.md",
-                  "posts/p02/grafika.png", "instagram/p01/1.png", "instagram/reels/s01.json", "youtube/long.md",
+                  "posts/p02/grafika.png", "instagram/p01/1.png", "instagram/p02/caption.txt", "instagram/reels/s01.json", "youtube/long.md",
                   "youtube/shorts/s02.md", "blog/a/article.json"):
             (d / f).parent.mkdir(parents=True, exist_ok=True); (d / f).write_text("x")
         rows = {r["name"]: (r["done"], r["total"]) for r in R.materials(d, ["s01", "s02"])}
         self.assertEqual(rows["Miniatury longa (A/B…)"], (2, 2))
         self.assertEqual(rows["Okładki shortów"], (1, 2))
         self.assertEqual(rows["Posty LinkedIn"], (1, 2))  # p02 has no post.md yet
-        self.assertEqual(rows["Karuzele Instagram"], (1, 1))
+        self.assertEqual(rows["Karuzele Instagram"], (1, 2))  # p02 has no picture yet
         self.assertEqual(rows["Opisy reels Instagram"], (1, 2))
         self.assertEqual(rows["Artykuł na bloga"], (1, 1))
         self.assertEqual(rows["Opisy YouTube"], (2, 3))
