@@ -22,6 +22,9 @@ WARN lines do not fail the check: problems() returns only the failures, check() 
 
 film_check.py runs it as out.thumbs_read (Out.out_thumbs_read); alone:
   python3 thumb_check.py <thumbs.json> <out dir>   (out dir = the one with thumbnails/ and youtube/long.md)
+Before thumbs.mjs (TH4), once per film:
+  python3 thumb_check.py --place <thumbs.json>   writes fx/fy (+ "placed": {cx, cy}) into the long variants without "fx",
+  so the face YuNet finds in the frame lands at x PLACE_CX (0.72 text left / 0.28 text right); other fields stay as they are
 """
 from __future__ import annotations
 
@@ -53,6 +56,11 @@ try:  # named in check(), never a traceback at import (film_check imports this m
 except (OSError, ValueError, AttributeError) as e:
     TOOLS, TOOLS_ERROR = set(), f"style/title_lint.json cannot be read ({e!r}): tool names count as topic labels"
 TIMEOUT = 120
+# TH4 --place (wf2:thumbs-a:1, c:1): the face centre in the outer third, away from the text column: x 0.72 when the text
+# is on the left, 0.28 when it is on the right; y a bit above the middle so the chin stays clear of the bottom edge
+PLACE_CX = {"left": 0.72, "right": 0.28}
+PLACE_CY = 0.42
+THUMB_W, THUMB_H, FW = 1280, 720, 1600  # the long thumbnail and thumbs.mjs's default "fw" (longHtml)
 PASSES = ("format=gray", "format=gray,lutyuv=y='if(gt(val,110),0,255)'")  # grey; black letters on white (light text on dark)
 
 
@@ -87,8 +95,9 @@ def face_height(img: Path) -> float:
     return face_info(img)[0]
 
 
-def face_info(img: Path) -> tuple[float, float, int]:
-    """(height share, centre x share, number of faces) of the tallest YuNet face; (0.0, 0.0, 0) = no face"""
+def face_box(img: Path) -> tuple[float, float, float, int, int, int]:
+    """(centre x, centre y, height) as shares of the picture for the tallest YuNet face, the number of faces, and the
+    picture's own width and height in px; no face = (0.0, 0.0, 0.0, 0, w, h)"""
     import cv2  # only here: OpenCV is needed for this one check
     if not FACE_MODEL.is_file(): raise RuntimeError(f"no face model {FACE_MODEL}")
     im = cv2.imread(str(img))
@@ -98,9 +107,16 @@ def face_info(img: Path) -> tuple[float, float, int]:
         _, faces = cv2.FaceDetectorYN.create(str(FACE_MODEL), "", size, 0.7).detect(cv2.resize(im, size))
     except cv2.error as e:  # not a RuntimeError: a broken model file (an LFS pointer) would be a traceback in film_check
         raise RuntimeError(f"face detector on {img.name}: {e}") from e
-    if faces is None or len(faces) == 0: return 0.0, 0.0, 0
+    if faces is None or len(faces) == 0: return 0.0, 0.0, 0.0, 0, im.shape[1], im.shape[0]
     top = max(faces, key=lambda f: float(f[3]))  # row = x, y, w, h, landmarks, score; the picture was resized to size
-    return float(top[3]) / size[1], (float(top[0]) + float(top[2]) / 2) / size[0], len(faces)
+    return ((float(top[0]) + float(top[2]) / 2) / size[0], (float(top[1]) + float(top[3]) / 2) / size[1], float(top[3]) / size[1],
+            len(faces), im.shape[1], im.shape[0])
+
+
+def face_info(img: Path) -> tuple[float, float, int]:
+    """(height share, centre x share, number of faces) of the tallest YuNet face; (0.0, 0.0, 0) = no face"""
+    cx, _, h, n, _, _ = face_box(img)
+    return h, cx, n
 
 
 def tone(img: Path) -> tuple[float, float, int]:
@@ -161,14 +177,23 @@ def text_warns(name: str, v: dict) -> list[str]:
     return w
 
 
+def thumb_words(v: dict) -> str:
+    """the words on a long thumbnail: big + sub + tag, and the labels of a TH8 panel (wf2:thumbs-c:7: the viewer reads them,
+    so they count toward WORDS_FAIL and the title share)"""
+    panel = v.get("panel")
+    items = panel.get("items", []) if isinstance(panel, dict) and isinstance(panel.get("items"), list) else []
+    labels = [str(it.get("label", "")) if isinstance(it, dict) else str(it) for it in items]
+    return " ".join([str(v.get(k, "")) for k in ("big", "sub", "tag")] + labels)
+
+
 def pick_problems(spec: dict) -> list[str]:
     """every frame with the speaker came from frame_pick.py ("pick": {"t", "score"}); a frame without him says
     "no_face": true. Kamil 2026-11-08 "glupie miny wybierasz", "rozmazane": one frame at a word start had a mid-word
-    mouth, half-shut eyes, a blurred hand"""
+    mouth, half-shut eyes, a blurred hand. A TH8 layout "object" variant has no frame at all, so nothing to pick."""
     bad = []
     for kind, name in (("long", "long_{}"), ("shorts", "{}_cover")):
         for v in spec.get(kind, []):
-            if v.get("no_face"): continue
+            if v.get("no_face") or (kind == "long" and v.get("layout") == "object"): continue
             pk = v.get("pick")
             if not (isinstance(pk, dict) and isinstance(pk.get("t"), (int, float)) and isinstance(pk.get("score"), (int, float))):
                 bad.append(f"{name.format(v.get('id'))}: frame not chosen by frame_pick.py (want \"pick\": {{t, score}}, or \"no_face\": true)")
@@ -194,7 +219,7 @@ def check(spec: dict, out: Path, titles: list[str], phrase: str = "") -> tuple[l
         sd, mean, cols = tone(img)
         if sd < TONE_STD or mean < TONE_MEAN: warn.append(f"long_{v['id']}: flat tone (grey std {sd:.2f}, mean {mean:.2f}; want std >= {TONE_STD}, mean >= {TONE_MEAN})")
         if cols == 0 or cols >= COLOURS_MAX: warn.append(f"long_{v['id']}: {cols} colour groups (want 1-{COLOURS_MAX - 1})")
-        words = " ".join(str(v.get(k, "")) for k in ("big", "sub", "tag"))
+        words = thumb_words(v)
         n = len(content_words(words))
         if n > WORDS_FAIL: bad.append(f"long_{v['id']}: {n} words of text (big + sub + tag), want <= {WORDS_FAIL}: shorten sub, drop tag")
         elif n > WORDS_WARN: warn.append(f"long_{v['id']}: {n} words of text (big + sub + tag), better <= {WORDS_WARN}")
@@ -212,7 +237,53 @@ def problems(spec: dict, out: Path, titles: list[str], phrase: str = "") -> list
     return check(spec, out, titles, phrase)[0]
 
 
+def placement(cx: float, cy: float, img_w: int, img_h: int, side: str, fw: float = FW, fy: float | None = None) -> tuple[int, int, float, float]:
+    """thumbs.mjs background-position (fx, fy) that puts a face centred at (cx, cy) of the frame at PLACE_CX[side],
+    PLACE_CY of the thumbnail, for a frame drawn fw px wide. Then clamped so the frame still reaches the edge on the face
+    side and covers the full height (the text side is under the dark band, an uncovered strip there does not show).
+    A given fy is kept. -> (fx, fy, cx, cy reached in the thumbnail)"""
+    fh = fw * img_h / img_w
+    x = PLACE_CX[side] * THUMB_W - cx * fw
+    x = max(x, THUMB_W - fw) if side == "left" else min(x, 0.0)
+    y = PLACE_CY * THUMB_H - cy * fh if fy is None else fy
+    if fy is None: y = min(0.0, max(y, THUMB_H - fh))
+    fx, fy_ = round(x), round(y)
+    return fx, fy_, (fx + cx * fw) / THUMB_W, (fy_ + cy * fh) / THUMB_H
+
+
+def place(spec: dict, base: Path, detect=None) -> list[str]:
+    """TH4: fx/fy for every long variant without "fx", from the face YuNet finds in its frame (detect(path) -> face_box()
+    tuple); writes "placed": {cx, cy} next to them so a checker can tell a placed variant from a hand-set one. A variant
+    with "fx", "no_face", layout "object" or no face found is left as it is. -> one line per variant"""
+    detect = detect or face_box
+    out = []
+    for v in spec.get("long", []):
+        name = f"long_{v.get('id')}"
+        if "fx" in v: out.append(f"{name}: has fx {v['fx']}, left as it is"); continue
+        if v.get("no_face") or v.get("layout") == "object": out.append(f"{name}: no face (no_face / layout object), left as it is"); continue
+        side = v.get("side", "left")
+        if side not in PLACE_CX or not isinstance(v.get("frame"), str): out.append(f"{name}: needs \"frame\" and side left/right, left as it is"); continue
+        cx, cy, h, _, iw, ih = detect(base / v["frame"])
+        if h <= 0: out.append(f"{name}: YuNet finds no face in {v['frame']}, left as it is"); continue
+        fx, fy, gx, gy = placement(cx, cy, iw, ih, side, float(v.get("fw", FW)), v.get("fy"))
+        v["fx"], v["fy"], v["placed"] = fx, fy, {"cx": round(gx, 3), "cy": round(gy, 3)}
+        far = "" if abs(gx - PLACE_CX[side]) < 0.02 else f" (want {PLACE_CX[side]}: the frame edge stops it; a bigger \"fw\" helps)"
+        out.append(f"{name}: fx {fx}, fy {fy}: face centre at x {gx:.2f}, y {gy:.2f}{far}")
+    return out
+
+
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["--place"]:
+        if len(argv) != 2: print(__doc__, file=sys.stderr); return 2
+        f = Path(argv[1])
+        try:
+            spec = json.loads(f.read_text())
+            lines = place(spec, f.resolve().parent)
+        except (RuntimeError, OSError, ValueError, ImportError) as e:
+            print(f"FAILED thumb_check --place: {e}", file=sys.stderr); return 1
+        f.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n")
+        print("\n".join(lines) or "no long variants")
+        return 0
     if len(argv) != 2: print(__doc__, file=sys.stderr); return 2
     out, md = Path(argv[1]), Path(argv[1]) / "youtube" / "long.md"
     text = md.read_text() if md.is_file() else ""

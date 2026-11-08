@@ -199,6 +199,85 @@ class PickTest(unittest.TestCase):  # frame_pick.py must choose every frame with
                 "shorts": [{"id": "s1", "pick": {"t": 3}}]}
         self.assertEqual([b.split(":")[0] for b in T.pick_problems(spec)], ["long_B", "s1_cover"])
 
+    def test_a_layout_object_variant_has_no_frame_to_pick(self):  # TH8: flat background, no speaker
+        self.assertEqual(T.pick_problems({"long": [{"id": "A", "layout": "object", "panel": {"kind": "steps", "items": ["a", "b", "c"]}}]}), [])
+
+
+class PanelWordsTest(unittest.TestCase):  # TH8 (wf2:thumbs-c:7): panel labels are read, so they are words
+    def test_panel_labels_count(self):
+        v = {"big": "3 kroki", "panel": {"kind": "chart", "items": [{"label": "92%", "value": 92}, "40%", {"label": "18%", "value": 18}]}}
+        self.assertEqual(T.content_words(T.thumb_words(v)), ["3", "kroki", "92%", "40%", "18%"])
+        self.assertEqual(T.thumb_words({"big": "A", "sub": "b c"}).split(), ["A", "b", "c"])  # no panel: big + sub + tag as before
+
+
+ROOT_FRAME = ROOT / "gfx" / "test_kw.jpg"  # a 960x540 frame with Kamil's face (in git)
+
+
+class PlaceTest(unittest.TestCase):  # TH4: --place puts the face at x 0.72 (text left) / 0.28 (text right)
+    def test_placement_math(self):
+        fx, fy, cx, cy = T.placement(0.5, 0.4, 1920, 1080, "left")  # fw 1600 -> the frame is 900 px high
+        self.assertEqual((fx, fy), (122, -58))
+        self.assertAlmostEqual(cx, 0.72, places=2); self.assertAlmostEqual(cy, 0.42, places=2)
+        fx, _, cx, _ = T.placement(0.5, 0.4, 1920, 1080, "right")
+        self.assertAlmostEqual(cx, 0.28, places=2); self.assertLessEqual(fx, 0)
+        fx, fy, cx, _ = T.placement(0.95, 0.9, 1920, 1080, "left")  # face at the frame edge: the frame still reaches x 1280
+        self.assertEqual(fx, 1280 - 1600); self.assertAlmostEqual(cx, 0.9375); self.assertGreaterEqual(fy + 900, 720)
+        self.assertEqual(T.placement(0.5, 0.4, 1920, 1080, "left", fy=-150)[1], -150)  # a hand-set fy is kept
+
+    def test_only_variants_without_fx_and_every_other_field_kept(self):
+        spec = {"theme": "cetus", "long": [
+            {"id": "A", "frame": "a.png", "big": "18%", "pick": {"t": 1.5, "score": 0.9}},
+            {"id": "B", "frame": "a.png", "big": "x", "fx": -300},
+            {"id": "C", "frame": "c.png", "big": "x", "no_face": True},
+            {"id": "D", "layout": "object", "big": "x"},
+            {"id": "E", "frame": "a.png", "big": "x", "side": "right", "fw": 1800},
+            {"id": "F", "frame": "empty.png", "big": "x"}],
+            "shorts": [{"id": "s1", "frame": "a.png", "big": "x"}]}
+        seen = []
+        def detect(p: Path):
+            seen.append(p.name)
+            return (0.0, 0.0, 0.0, 0, 1920, 1080) if p.name == "empty.png" else (0.5, 0.4, 0.5, 1, 1920, 1080)
+        lines = T.place(spec, Path("/x"), detect)
+        a, b, c, d, e, f = spec["long"]
+        self.assertEqual((a["fx"], a["fy"], a["placed"]), (122, -58, {"cx": 0.72, "cy": 0.419}))  # whole px: 302/720
+        self.assertEqual(a["pick"], {"t": 1.5, "score": 0.9})
+        self.assertEqual(b, {"id": "B", "frame": "a.png", "big": "x", "fx": -300})
+        self.assertNotIn("fx", c); self.assertNotIn("fx", d); self.assertNotIn("fx", f); self.assertTrue(c["no_face"])
+        self.assertAlmostEqual(e["placed"]["cx"], 0.28, places=2)
+        self.assertNotIn("fx", spec["shorts"][0])  # covers keep their own "dy"
+        self.assertEqual(seen, ["a.png", "a.png", "empty.png"])
+        self.assertTrue(any("long_F: YuNet finds no face" in x for x in lines), lines)
+
+    def test_cli_writes_the_file(self):
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / "thumbs.json"
+            f.write_text('{"long": [{"id": "A", "frame": "a.png", "big": "Błąd", "no_face": false}, {"id": "B", "frame": "a.png", "big": "x", "fx": 5}]}')
+            real = T.face_box
+            try:
+                T.face_box = lambda p: (0.5, 0.4, 0.5, 1, 1920, 1080)
+                self.assertEqual(T.main(["--place", str(f)]), 0)
+            finally:
+                T.face_box = real
+            text = f.read_text()
+            self.assertIn("Błąd", text)  # not \\u escaped
+            a, b = T.json.loads(text)["long"]
+            self.assertEqual((a["fx"], a["fy"], a["no_face"]), (122, -58, False)); self.assertEqual(b["fx"], 5)
+        self.assertEqual(T.main(["--place"]), 2)
+
+    @unittest.skipUnless(T.FACE_MODEL.is_file() and shutil.which("node") and Path("/usr/bin/google-chrome").exists()
+                         and (ROOT / "node_modules" / "playwright-core").exists(), "needs the face model, node, chrome, playwright-core")
+    def test_placed_face_lands_at_0_72_in_the_render(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t); shutil.copy(ROOT_FRAME, d / "f.jpg")
+            spec = {"long": [{"id": "A", "frame": "f.jpg", "big": "18%"}, {"id": "B", "frame": "f.jpg", "big": "18%", "side": "right"}]}
+            (d / "thumbs.json").write_text(T.json.dumps(spec))
+            self.assertEqual(T.main(["--place", str(d / "thumbs.json")]), 0)
+            subprocess.run(["node", str(ROOT / "gfx" / "thumbs.mjs"), str(d / "thumbs.json"), str(d / "out")], check=True, capture_output=True, timeout=120)
+            for name, want in (("long_A.jpg", 0.72), ("long_B.jpg", 0.28)):
+                h, cx, _ = T.face_info(d / "out" / name)
+                self.assertGreater(h, 0, name)
+                self.assertAlmostEqual(cx, want, delta=0.05, msg=name)
+
 
 if __name__ == "__main__":
     unittest.main()
