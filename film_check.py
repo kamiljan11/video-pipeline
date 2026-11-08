@@ -684,6 +684,59 @@ class Out:
         bad = manifest.check(self.out)
         return not bad, f"{len(bad)} part(s): " + "; ".join(bad[:6]) if bad else "every part stamped by the current code"
 
+    def long_film(self) -> Film | None:
+        """the long as film_check reads it before the render (plan_long.json + its EDL), None when not there"""
+        p = self.work / "plan_long.json"
+        if not p.exists(): return None
+        try: return Film(self.work, "long")
+        except SystemExit: return None
+
+    def long_md(self) -> str:
+        p = self.out / "youtube" / "long.md"
+        return p.read_text(encoding="utf-8") if p.exists() else ""
+
+    def chapters_match(self, near: float = 3.0, max_len: int = 60):
+        """L1 (Huberman, KO, GI): the description's chapters are the film's chap cards: same count (a 0:00 intro row
+        allowed), each card's text in a chapter title starting within 3 s of the card. WARN: a title > 60 characters or
+        one that starts with a call to action"""
+        f, md = self.long_film(), self.long_md()
+        if f is None or not md: return False, "no plan_long.json / out/youtube/long.md"
+        desc = md[md.find("Rozdziały:"):] if "Rozdziały:" in md else ""
+        rows = [(desc_check.seconds(m), md_line.split(None, 1)[1].strip() if len(md_line.split(None, 1)) > 1 else "")
+                for md_line in desc.splitlines() if (m := desc_check.CHAPTER.match(md_line))]
+        chaps = sorted((o["at"], str(f.specs[o["id"]].get("text", ""))) for o in f.ovs if f.typ(o) == "chap")
+        if not rows: return False, "no Rozdziały: block"
+        body = [r for r in rows if r[0] > 0] if len(rows) == len(chaps) + 1 else rows
+        bad = [f"{len(rows)} chapters vs {len(chaps)} chap cards"] if len(body) != len(chaps) else []
+        for (at, text), (t, title) in zip(chaps, body, strict=False):
+            if abs(at - t) > near: bad.append(f"chapter {title!r} at {t} s, its card at {at:.0f} s")
+            if norm_word(text)[:12] not in norm_word(title): bad.append(f"chapter {title!r} is not the card text {text!r}")
+        for _, title in rows:
+            if len(title) > max_len: self.warns.append(("out.chapters", f"chapter {title!r}: {len(title)} characters > {max_len}"))
+            if re.match(r"(?i)(subskrybuj|kliknij|zapisz|sprawdź|zobacz|obserwuj)\b", title): self.warns.append(("out.chapters", f"chapter {title!r} starts with a call to action"))
+        return not bad, "; ".join(bad[:6]) or f"{len(chaps)} chapters = chap cards"
+
+    def resources_given(self):
+        """L19 (Nate Herk): when the long says "w opisie" / "do opisu", long.md has `## Zasoby` or `## Prompty` with a link or code"""
+        f, md = self.long_film(), self.long_md()
+        if f is None or not md: return False, "no plan_long.json / out/youtube/long.md"
+        said = " ".join(w.lower() for _, w in f.film_words())
+        if not re.search(r"\b(w|do) opisu\b|\bw opisie\b", said): return True, "the film promises nothing in the description"
+        sec = desc_check.section(md, "Zasoby") or desc_check.section(md, "Prompty") or ""
+        ok = bool(re.search(r"https?://|```", sec))
+        return ok, "## Zasoby with a link or code" if ok else 'the film says "w opisie": long.md needs ## Zasoby / ## Prompty with a link or code'
+
+    def sources_listed(self):
+        """L20: every verified claim of the long (plan_long.json "verified_claims") has a source URL in plan "sources"
+        {id: url} and that URL is in long.md `## Źródła`"""
+        f, md = self.long_film(), self.long_md()
+        if f is None or not md: return False, "no plan_long.json / out/youtube/long.md"
+        claims = [c for c in f.plan.get("verified_claims", []) if any(o["id"] == c for o in f.ovs)]
+        if not claims: return True, "no verified claims on screen"
+        src, sec = f.plan.get("sources") or {}, desc_check.section(md, "Źródła") or ""
+        bad = [c for c in claims if not (isinstance(src.get(c), str) and src[c].startswith("http") and src[c] in sec)]
+        return not bad, f"claims without a source in ## Źródła: {', '.join(bad[:6])}" if bad else f"{len(claims)} claims sourced"
+
     def long_words(self) -> Path | None:
         """the long's whisper words file (plan_long.json "words"), None when it is not named or missing"""
         plan = self.work / "plan_long.json"

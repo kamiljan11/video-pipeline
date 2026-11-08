@@ -439,6 +439,27 @@
    "why": "Kamil 4.11: 'nie widzę plików z tytułami opisami per platforma': youtube/long.md with titles A/B/C, description, chapters from 0:00, tags; one file per short"
   },
   {
+   "id": "out.chapters",
+   "fmt": "out",
+   "metric": "chapters_match",
+   "op": "true",
+   "why": "Round 2 L1 (Huberman, KO, GI): the description's chapters are the film's chap cards (count, text, time within 3 s); WARN > 60 characters or a call-to-action title"
+  },
+  {
+   "id": "out.resources",
+   "fmt": "out",
+   "metric": "resources_given",
+   "op": "true",
+   "why": "Round 2 L19 (Nate Herk): the long says \"w opisie\" -> long.md ## Zasoby / ## Prompty with a link or code"
+  },
+  {
+   "id": "out.sources",
+   "fmt": "out",
+   "metric": "sources_listed",
+   "op": "true",
+   "why": "Round 2 L20: every verified claim on screen has its source (plan_long.json \"sources\" {id: url}) in long.md ## Źródła"
+  },
+  {
    "id": "out.titles",
    "fmt": "out",
    "metric": "out_titles",

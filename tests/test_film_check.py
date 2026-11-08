@@ -502,6 +502,13 @@ class FilmCheckTest(unittest.TestCase):
         opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
         r, rep = self.run_check("--out", str(out))
+        self.assertIn("3 chapters vs 0 chap cards", rep["out.chapters"]["detail"])  # L1: the description's chapters = the chap cards
+        edl = json.loads((self.d / "edl_long.json").read_text())
+        edl["overlays"] = [{"id": "cb", "at": 60, "dur": 3}, {"id": "cc", "at": 120, "dur": 3}]
+        (self.d / "edl_long.json").write_text(json.dumps(edl))
+        (self.d / "specs_long.json").write_text(json.dumps([{"id": "cb", "type": "chap", "text": "b"}, {"id": "cc", "type": "chap", "text": "c"}]))
+        (self.d / "plan_long.json").write_text(json.dumps({**json.loads((self.d / "plan_long.json").read_text()), "gfx_specs": "specs_long.json"}))
+        r, rep = self.run_check("--out", str(out))
         self.assertIn("long/film.mp4: no stamp", rep["out.manifest"]["detail"])  # made outside run_v4 / manifest.py
         stamp_out(out)
         r, rep = self.run_check("--out", str(out))

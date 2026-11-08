@@ -103,3 +103,43 @@ class LongResearchTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OutResearchTest(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp(prefix="fc-r2o-"))
+        self.addCleanup(shutil.rmtree, self.d, True)
+        (self.d / "out" / "youtube").mkdir(parents=True)
+
+    def out(self, md, said=None, ovs=(), specs=(), **plan):
+        said = said or {}
+        ws = [{"offsets": {"from": i * 1000, "to": i * 1000 + 400}, "text": f" {said.get(i, 'słowo')}"} for i in range(300)]
+        (self.d / "w.json").write_text(json.dumps({"transcription": ws}))
+        (self.d / "specs.json").write_text(json.dumps(list(specs)))
+        (self.d / "edl_long.json").write_text(json.dumps({"segments": [{"in": 0.0, "out": 300.0}], "overlays": list(ovs)}))
+        (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json", **plan}))
+        (self.d / "out" / "youtube" / "long.md").write_text(md)
+        return film_check.Out(self.d, self.d / "out")
+
+    def test_l1_chapters_are_the_chap_cards(self):
+        ovs, specs = [{"id": "c1", "at": 60, "dur": 3}], [{"id": "c1", "type": "chap", "text": "Szlaban zamiast tabliczki"}]
+        ok = self.out("## Opis\nRozdziały:\n0:00 Wstęp\n1:01 Szlaban zamiast tabliczki\n", ovs=ovs, specs=specs).chapters_match()
+        self.assertTrue(ok[0], ok)
+        o = self.out("## Opis\nRozdziały:\n0:00 Wstęp\n1:30 Subskrybuj kanał teraz\n", ovs=ovs, specs=specs)
+        ok, detail = o.chapters_match()
+        self.assertFalse(ok); self.assertIn("at 90 s, its card at 60 s", detail); self.assertIn("is not the card text", detail)
+        self.assertIn("call to action", o.warns[0][1])
+
+    def test_l19_said_in_the_description_needs_resources(self):
+        said = {100: "link", 101: "w", 102: "opisie"}
+        self.assertTrue(self.out("## Opis\nx\n").resources_given()[0])
+        self.assertFalse(self.out("## Opis\nx\n", said=said).resources_given()[0])
+        self.assertTrue(self.out("## Zasoby\nhttps://github.com/x/y\n", said=said).resources_given()[0])
+
+    def test_l20_verified_claims_have_sources(self):
+        ovs, specs = [{"id": "s92", "at": 10, "dur": 4}], [{"id": "s92", "type": "kw", "title": "92%"}]
+        o = self.out("## Źródła\n- https://example.org/raport\n", ovs=ovs, specs=specs, verified_claims=["s92"])
+        self.assertFalse(o.sources_listed()[0])
+        o = self.out("## Źródła\n- 92%: https://example.org/raport\n", ovs=ovs, specs=specs, verified_claims=["s92"],
+                     sources={"s92": "https://example.org/raport"})
+        self.assertTrue(o.sources_listed()[0])
