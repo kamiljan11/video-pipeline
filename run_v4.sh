@@ -62,8 +62,10 @@ for n in "$@"; do
   case "$f" in ""|*/*|.*) echo "FAILED out_name $n" >> "$R/render.log"; failed="$failed $n"; continue;; esac
   rm -f "$R/$n/rough.mkv"
   # av_check: no voice dropped, sound in step with the cut before graphics (film 2026-11-04: 0.65 s lost in long + 4 shorts)
+  # sync_check: every piece of the cut where build_edl timed its cards and subtitles (timeline.py; 2026-11-04: up to 287 ms off)
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" >> "$R/render.log" 2>&1 \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
+    && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
     && mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; then
     echo "DONE $n" >> "$R/render.log"
     # editing-grammar metric per render (ADR-0002); EDLs get overwritten

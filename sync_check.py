@@ -19,18 +19,16 @@ from pathlib import Path
 
 import numpy as np
 
+import timeline
+
 SR = 1000  # envelope rate: 1 ms
 SEARCH = 0.6  # s each side of the planned time
 MIN_LEN = 0.8  # s of sound needed to measure a piece
 
 
 def planned_starts(edl: dict) -> list[float]:
-    """where build_edl.src2out() puts each piece: the sum of the EDL lengths before it (what cards and subs use)"""
-    acc, out = 0.0, []
-    for s in edl["segments"]:
-        out.append(acc)
-        acc += s["out"] - s["in"]
-    return out
+    """where build_edl.src2out() puts each piece (timeline.py: whole frames with seg_exact), what cards and subs use"""
+    return timeline.starts(edl["segments"], bool(edl.get("seg_exact")))
 
 
 def envelope(path: str, ss: float | None = None, t: float | None = None) -> np.ndarray:

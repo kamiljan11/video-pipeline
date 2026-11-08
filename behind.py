@@ -33,6 +33,7 @@ from pathlib import Path
 
 import numpy as np
 
+import timeline  # next to this script: frames of each seg_exact piece
 from cpu_budget import heavy_threads, low_priority  # next to this script
 from edl_guard import (  # next to this script, as in assemble.py
     framing_ok,
@@ -90,7 +91,7 @@ def framing(edl: dict):
 
 def seg_frames(edl: dict) -> list[int]:
     """frames each segment gets in the film: assemble.py's seg_exact cuts exactly round(d*30)"""
-    return [max(1, round((s["out"] - s["in"]) * FPS)) for s in edl["segments"]]
+    return [timeline.piece_frames(s) for s in edl["segments"]]
 
 
 def film_frames(edl: dict, first: int, n: int, vf_for, size: tuple[int, int]) -> Iterator[np.ndarray]:

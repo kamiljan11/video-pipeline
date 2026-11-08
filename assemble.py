@@ -16,6 +16,7 @@ from pathlib import Path
 import edl_guard  # next to this script: what an EDL may carry into an ffmpeg command line
 import gfx_types  # next to this script: where a 9:16 split card puts the face box
 import themes  # next to this script (sys.path[0])
+import timeline  # next to this script: film length of each piece (seg_exact = whole frames)
 
 edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]
 try:
@@ -146,8 +147,7 @@ HAIR = gfx_types.HEADROOM[edl.get("punch_headroom", "hair")]  # the room face_tr
 
 
 def seg_len(s):
-    d = s["out"] - s["in"]
-    return max(1, round(d * 30)) / 30 if EXACT else d
+    return timeline.piece_len(s, EXACT)
 
 
 starts = [0.0]
@@ -208,7 +208,7 @@ corner_track = head_track("corner", [(o["at"], o["at"] + o["dur"]) for o in corn
 inputs = ["-i", rough]; fc = []
 grade = edl.get("grade", "eq=contrast=1.04:saturation=1.07:gamma=0.98,unsharp=5:5:0.35")
 tail = edl.get("tail", 0)
-body = sum(sg["out"] - sg["in"] for sg in edl["segments"])
+body = timeline.total(edl["segments"], EXACT)
 THEME = edl.get("theme")  # build_edl from work/theme.json (themes.py): accent of the progress bar and the PiP frame
 # "progress": "fill" = a bar that fills with the film time. true = the old drawbox bar, kept for old EDLs (video-pipeline-panel tests/test_pipeline_compat.py):
 # drawbox evaluates its w once, so that bar stands full width from the first frame

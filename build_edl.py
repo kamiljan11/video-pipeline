@@ -10,6 +10,7 @@ from pathlib import Path
 import edges
 import edl_guard
 import themes
+import timeline
 from gfx_types import CORNER, SIDE_BOX, SPLIT, beside, has_pip
 
 # keys of the face box under a 9:16 card (assemble.py): caption line y in px, face point in the box height, picture scale
@@ -91,14 +92,10 @@ zs = P.get("zooms", [1.0, 1.15]); zi = 0; out = []; prev_end = None
 for s0, s1, kind in segs:
     if prev_end is not None and (s0 - prev_end > 0.8 or P.get("zoom_every_cut")): zi = (zi + 1) % len(zs)
     out.append({"src": "A", "in": round(s0, 3), "out": round(s1, 3), "zoom": zs[zi]}); prev_end = s1
+EXACT = bool(P.get("seg_exact"))  # assemble.py cuts whole frames then: film times come from timeline.py, never from EDL lengths
 def src2out(t):
-    acc = 0.0
-    for s in out:
-        if t < s["in"]: return acc
-        if t <= s["out"]: return acc + t - s["in"]
-        acc += s["out"] - s["in"]
-    return acc
-total = sum(s["out"] - s["in"] for s in out)
+    return timeline.src2out(t, out, EXACT)
+total = timeline.total(out, EXACT)
 specs = {s["id"]: s for s in json.loads(Path(P["gfx_specs"]).read_text())} if P.get("gfx_specs") else {}
 ovs = []
 def side_box(gid):  # a 16:9 side box covers the face, so no zoom under it; a 9:16 top card (canvas "v") sits above the face
@@ -159,7 +156,7 @@ for g in P.get("gfx", []):
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
 for sg in out:
-    d = sg["out"] - sg["in"]
+    d = timeline.piece_len(sg, EXACT)
     for o in ovs:
         if side_box(o["id"]) and acc < o["at"] + o["dur"] and acc + d > o["at"]:
             sg["zoom"] = 1.0
@@ -171,14 +168,14 @@ if "beats" in P:  # intent grammar (style/grammar.json): every punch comes from 
     EMPH, BEAT_FX = plan_beat_fx(P, W, out, ovs, specs, src2out)
 boxed = set(); acc = 0.0
 for k, sg in enumerate(out):
-    d = sg["out"] - sg["in"]
+    d = timeline.piece_len(sg, EXACT)
     for o in ovs:
         if side_box(o["id"]) and acc < o["at"] + o["dur"] and acc + d > o["at"]:
             boxed.add(k)
     acc += d
 DRIFT = P.get("drift", 0.05); flip = 0
 for k, sg in enumerate(out):
-    d = sg["out"] - sg["in"]; base = sg["zoom"]
+    d = timeline.piece_len(sg, EXACT); base = sg["zoom"]
     if k in boxed or d < 3.0 or DRIFT <= 0: continue
     a, b = (base, base + DRIFT) if flip % 2 == 0 else (base + DRIFT, base)
     sg["zoom"] = {"a": round(a, 3), "b": round(b, 3), "t0": 0.0, "t1": round(d, 3)}; flip += 1
@@ -191,7 +188,7 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
     acc_e = 0.0
     for k, sg in enumerate(out):
         if sg["in"] <= t_src <= sg["out"]:
-            t_out = acc_e + t_src - sg["in"]; seg_end = acc_e + sg["out"] - sg["in"]
+            t_out = acc_e + t_src - sg["in"]; seg_end = acc_e + timeline.piece_len(sg, EXACT)
             hit = [o["id"] for o in ovs if side_box(o["id"]) and o["at"] < seg_end and o["at"] + o["dur"] > t_out - 0.2]
             if hit: print("emph skipped (box on screen)", em.get("find", em.get("word")), hit); break
             base = sg["zoom"]["a"] if isinstance(sg["zoom"], dict) else sg["zoom"]
@@ -205,7 +202,7 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
             sg["zoom"] = {"a": base, "b": round(min(base + em.get("amt", 0.2), 1.38), 3), "t0": round(t0, 3), "t1": round(t0 + em.get("speed", 0.3), 3)}
             PUNCHED.add(k)
             print("emph", em.get("find", em.get("word")), "seg", k, *([em["beat"]] if "beat" in em else [])); break
-        acc_e += sg["out"] - sg["in"]
+        acc_e += timeline.piece_len(sg, EXACT)
 # manual per-segment zoom from the editing panel: {"<source in, 2 decimals>": zoom}; face_track still clamps to zmax
 for sg in out:
     ov = P.get("seg_zoom", {}).get(f"{sg['in']:.2f}")
