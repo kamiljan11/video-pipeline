@@ -114,6 +114,17 @@ export function motion(meta, viewH, dur) {
   return { target, start, scroll, mark };
 }
 
+// when each line of the quote gets its mark: 0.25 s apart from mo.mark (as before), or L16b (research ledger) "read_along":
+// [t, ...] card seconds, one per line, from the words he says, so the line lights up as it is read out (a list shorter than
+// the quote: the rest follow 0.25 s apart). Each mark comes after the scroll and 1.4 s before the card ends (motion()).
+export function markTimes(mo, n, readAlong, dur) {
+  if (readAlong === undefined) return Array.from({ length: n }, (_, i) => mo.mark + i * 0.25);
+  const ra = readAlong, from = mo.start + mo.scroll;
+  if (!Array.isArray(ra) || !ra.length || ra.length > n || !ra.every((t, i) => typeof t === 'number' && t >= from && t + 0.6 <= dur - 0.8 && (!i || t > ra[i - 1])))
+    throw new Error(`"read_along" = up to ${n} seconds (one per quote line), forward in time, from ${from.toFixed(2)} s (after the scroll) to ${(dur - 1.4).toFixed(2)} s, got ${JSON.stringify(ra)}`);
+  return Array.from({ length: n }, (_, i) => (i < ra.length ? ra[i] : Math.min(ra.at(-1) + (i - ra.length + 1) * 0.25, dur - 1.4)));
+}
+
 // 9:16 "web" card (shorts): a whole 1200 px page in a 960 px card would leave 13 px letters on a phone, so the card shows a
 // window of the capture around the quote, at least V_MIN_WIN of its width (480 of 1200 CSS px: 16 px text -> 32 px) and
 // wide enough for the quote lines plus 5 % on each side; never wider than the capture. Returns the scale, the window's

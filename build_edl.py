@@ -10,6 +10,7 @@ from pathlib import Path
 import edges
 import edl_guard
 import framing
+import gfx_events
 import themes
 import timeline
 import title_check  # its STOP words: the caption key word (S9) is never one of them
@@ -173,6 +174,11 @@ for g in P.get("gfx", []):
     if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
     if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
     if vert and sp.get("type") in ("float", "scene", "meme") and sp.get("layout") == "corner": o["corner"] = True
+    # what happens inside the card, in film seconds (gfx_events.py): "zooms" (L17), "moves" (S14), "read_along" (L16b), "items"
+    # (S11); a plan gfx entry naming the words of its cues ("read_along" / "items": word indexes) is held to them here
+    o.update(gfx_events.overlay_fields(sp, o["at"]))
+    cue = gfx_events.cue_problems(g, sp, o["at"], lambda w: src2out(W[w][0]), len(W))
+    if cue: sys.exit(f"{g['id']}: " + "; ".join(cue))
     ovs.append(o)
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0

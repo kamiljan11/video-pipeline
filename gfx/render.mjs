@@ -7,15 +7,16 @@
 // every card of a film. STILLS=off renders anyway (WARN in the log).
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
-import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
-import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
+import { PER_CARD, keyOf, markTimes, motion, vZoom } from './webshot_lib.mjs';
+import { COUNT_DELAY, FADE_OUT, countFrom, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
-import { camKeyframes, scene, sceneFit, sceneSafe, soloKeys } from './scene_lib.mjs';
+import { camKeyframes, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { esc, icon } from './html_lib.mjs';
 const [specFile, outDir, mode, ...only] = process.argv.slice(2);
 const STILLS = mode === '--stills';
-const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(sp => !STILLS || !only.length || only.includes(sp.id));
+// a scene's "extends" (S11) is resolved on the whole file, before the stills filter: the scene it goes on from may not be drawn
+const specs = resolveExtends(JSON.parse(fs.readFileSync(specFile, 'utf8'))).filter(sp => !STILLS || !only.length || only.includes(sp.id));
 const ACCEPTED = `${outDir}/stills/accepted.json`;
 const SCOPE = `${outDir}/stills/scope.json`;
 const accepted = !STILLS && fs.existsSync(SCOPE) ? (fs.existsSync(ACCEPTED) ? JSON.parse(fs.readFileSync(ACCEPTED, 'utf8')) : {}) : null;
@@ -44,8 +45,11 @@ const endBrand = sp => {
 };
 const html = sp => {
   if (sp.type === 'kw') return kwBox(sp, esc(sp.text));
-  if (sp.type === 'count') return kwBox(sp, countParts(sp.text).map(p => typeof p === 'string' ? esc(p)
-    : `<span class="num" data-to="${p.value}" data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(0, p.dec, p.group)}</span>`).join(''), 'kw count');
+  if (sp.type === 'count') {  // "from" (S11, count_lib countFrom): the start of each number; without it 0 and the same html as before
+    const parts = countParts(sp.text), fr = countFrom(sp, parts.filter(p => typeof p !== 'string').length); let k = 0;
+    return kwBox(sp, parts.map(p => { if (typeof p === 'string') return esc(p); const f = fr[k++];
+      return `<span class="num" data-to="${p.value}"${sp.from !== undefined ? ` data-from="${f}"` : ''} data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(f, p.dec, p.group)}</span>`; }).join(''), 'kw count');
+  }
   if (sp.type === 'lower') return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
   if (sp.type === 'list') return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
   if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div>${endBrand(sp)}</div>`;
@@ -85,7 +89,8 @@ function web(sp) {
   const shown = v ? z : { height: m.height * z.s, rects: m.rects.map(([x, y, w, h]) => [x * z.s, y * z.s, w * z.s, h * z.s]) };
   const mo = motion(shown, W.view, sp.dur), id = sp.id.replace(/[^\w-]/g, '_');
   const anim = mo.scroll ? `animation:ws_${id} ${mo.scroll}s cubic-bezier(.45,0,.2,1) ${mo.start}s both` : '';
-  const marks = shown.rects.map(([x, y, w, h], i) => `<div class="hl" style="left:${x - 6}px;top:${y - 4}px;width:${w + 12}px;height:${h + 8}px;animation:hl .5s ${(mo.mark + i * 0.25).toFixed(2)}s ease-out both"></div>`).join('');
+  let markAt; try { markAt = markTimes(mo, shown.rects.length, sp.read_along, sp.dur); } catch (e) { throw new Error(`"${sp.id}": ${e.message}`); }  // L16b
+  const marks = shown.rects.map(([x, y, w, h], i) => `<div class="hl" style="left:${x - 6}px;top:${y - 4}px;width:${w + 12}px;height:${h + 8}px;animation:hl .5s ${markAt[i].toFixed(2)}s ease-out both"></div>`).join('');
   const day = new Date(m.captured).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const addr = m.final_url ? m.final_url.replace(/^https:\/\//, '') : (m.host || '');
   const src = sp.src || `Źródło: ${m.host || m.title}${m.title && m.host ? ` · ${m.title}` : ''}${m.kind === 'pdf' ? ` · str. ${m.page}` : ''}`;
@@ -264,8 +269,8 @@ async function one(sp) {
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
   // "scene": pieces measured as laid out, camera stops ("on": piece ids) turned into a camera move (gfx/scene_lib.mjs)
-  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe, solo]) => { new Function(`return ${fit}`)()(safe, kf, solo); },
-    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString()]);
+  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe, solo, zoom]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom); },
+    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString()]);  // zoom: L17 canvas_zoom
   // images (end card logo, web capture) loaded before the first frame; one that cannot load stops the render with its name
   const broken = await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().then(() => null, () => i.src))));
   if (broken.some(Boolean)) { console.error(`FAILED gfx ${sp.id}: image not loaded ${broken.filter(Boolean).join(', ')}`); process.exit(1); }
@@ -274,7 +279,7 @@ async function one(sp) {
     await page.addScriptTag({ path: GSAP });
     await page.evaluate(([cd, delay, fmt]) => {
       const f = new Function(`return ${fmt}`)(), tl = gsap.timeline({ paused: true });
-      const nums = [...document.querySelectorAll('.num')].map(el => ({ el, o: { v: 0 } }));
+      const nums = [...document.querySelectorAll('.num')].map(el => ({ el, o: { v: el.dataset.from ? +el.dataset.from : 0 } }));
       nums.forEach(({ o, el }) => tl.to(o, { v: +el.dataset.to, duration: cd, ease: 'power2.out' }, delay));
       window.__seek = t => { tl.seek(t, true); nums.forEach(({ el, o }) => {
         el.textContent = cd <= 0 || t >= delay + cd ? el.dataset.final : f(o.v, +el.dataset.dec, !!el.dataset.group); }); };
