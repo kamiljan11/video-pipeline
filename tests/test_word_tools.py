@@ -1,5 +1,6 @@
 """words_check (lost words) and word_times (word starts on the voice): the pure parts, no whisper run.
 Film 2026-11-04: "Przez" and "I" lost in the long; whisper word starts up to 1.07 s off the voice."""
+import json
 import shutil
 import subprocess
 import sys
@@ -141,6 +142,56 @@ class ConfirmKeptTest(unittest.TestCase):
             C.transcribe = real
         self.assertEqual(kept, [])
         self.assertIn("not measured", still[0])
+
+
+class ConfirmAudibleTest(unittest.TestCase):
+    """sound mode confirms a word whisper heard in the cut but not in the film against assemble's own audio graph
+    rendered as voice and bed stems (2026-11-08 s02 "no" 20 dB over the music, s04 English words 24 dB: mishearings)"""
+
+    def test_locate_spans_the_shared_words_around_the_gap(self):
+        plan = ["coś", "jest", "nie", "tak", "no", "to", "zatrzymuje"]
+        times = [(10.0 + 0.3 * k, 10.2 + 0.3 * k) for k in range(len(plan))]  # all inside piece 1 (film 0-2 s)
+        heard_cut = ["coś", "jest", "nie", "tak", "mhm", "to", "zatrzymuje"]  # whisper's words of the cut, misheard
+        span = C.locate(heard_cut, 4, 1, plan, times, list(SEGS))
+        assert span is not None
+        self.assertAlmostEqual(span[0], 0.9); self.assertAlmostEqual(span[1], 1.5 + 0.3)  # "tak" start .. "to" start
+        self.assertIsNone(C.locate(heard_cut, 0, 1, plan, times, list(SEGS)))  # nothing shared before it
+        self.assertIsNone(C.locate(heard_cut, 4, 1, plan, times[:-1], list(SEGS)))  # tokens do not line up
+
+    def test_voice_over_bed_reads_speech_windows_only(self):
+        sr = C.SR; t = np.arange(3 * sr) / sr
+        voice = np.where((t > 1) & (t < 2), 0.3 * np.sin(2 * np.pi * 200 * t), 0.0).astype(np.float32)
+        quiet, loud = (0.003 * np.sin(2 * np.pi * 900 * t)).astype(np.float32), (0.3 * np.sin(2 * np.pi * 900 * t)).astype(np.float32)
+        clear, masked = C.voice_over_bed(voice, quiet, 1.0, 2.0), C.voice_over_bed(voice, loud, 1.0, 2.0)
+        assert clear is not None and masked is not None
+        self.assertGreater(clear, C.MASK_DB); self.assertLess(masked, C.MASK_DB)
+        self.assertIsNone(C.voice_over_bed(voice, quiet, 2.2, 2.9))  # no speech there
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
+    def test_a_word_under_loud_music_stays_a_problem(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        mk = lambda name, src: subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", src, str(d / name)], check=True)
+        mk("rough.wav", "sine=f=200:d=5"); mk("sfx.wav", "anullsrc=r=44100:cl=mono:d=5")
+        exp = ["aa", "bb", "cc", "dd", "ee", "ff", "gg"]
+        plan_toks, times = exp, [(10.0 + 0.25 * k, 10.2 + 0.25 * k) for k in range(len(exp))]
+        loc = {"toks": plan_toks, "times": times, "segments": list(SEGS)}
+        bad = [f"missing: {C.context(exp, 3, 1)} | heard: -"]
+        heard = [x for x in exp if x != "dd"]
+        for music_db, want in (("-30dB", "whisper did not hear it"), ("0dB", "music within")):
+            mk(f"music{music_db}.wav", "sine=f=900:d=5")
+            graph = (f"[0:a]asplit=2[vm][vsc];[1:a]volume={music_db}[mu];[mu][vsc]sidechaincompress=threshold=0.5:ratio=1.1[mud];"
+                     "[2:a]anull[sx];[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[a]")
+            args = d / "assemble.audio.args.json"
+            args.write_text(json.dumps({"audio": ["ffmpeg", "-v", "error", "-y", "-i", str(d / "rough.wav"), "-i",
+                                                  str(d / f"music{music_db}.wav"), "-i", str(d / "sfx.wav"),
+                                                  "-filter_complex", graph, "-map", "[a]", str(d / "out.m4a")]}))
+            still, kept = C.confirm_audible(bad, exp, heard, loc, args)
+            self.assertIn(want, (kept or still)[0], (music_db, still, kept))
+            self.assertEqual(len(still) + len(kept), 1)
+
+    def test_no_stems_keeps_the_problem(self):
+        bad = ["missing: a b c [[dd]] e f g | heard: -"]
+        self.assertEqual(C.confirm_audible(bad, [], [], {}, Path("/nonexistent/assemble.audio.args.json")), (bad, []))
 
 
 if __name__ == "__main__":

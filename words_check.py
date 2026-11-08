@@ -11,7 +11,8 @@ gate); verify_cut.py flagged only runs of 2+ words and ran by hand. Here:
   cut   (plan text vs whisper of rough.mkv): whisper also mishears, so FAIL = a run of >= 2 missing words or one
         missing word of >= 4 letters; shorter single words = WARN
   sound (whisper of rough vs whisper of final, the same model on nearly the same sound): FAIL = any missing word
-        that whisper heard in the cut, except the 3 words at either end of the film
+        that whisper heard in the cut, except the 3 words at either end of the film, unless assemble's audio graph
+        rendered as two stems shows the voice MASK_DB over music+sfx at that word (then WARN: whisper misheard)
 """
 import difflib
 import json
@@ -22,11 +23,15 @@ import sys
 import tempfile
 from pathlib import Path
 
+import numpy as np
+
 import timeline
 from cpu_budget import heavy_threads, low_priority
 
 W = "/home/kamil-jan/video-pipeline"
 SPEECH_DB = -40.0  # mean level of a said word in rough.mkv (speech measured -15..-25 dB, the cut-out pauses -51..-61 dB)
+MASK_DB = 10.0  # voice over music+sfx at a said word; the misheard words of 2026-11-08 s02/s04 sat 25-38 dB above the bed
+SR = 16000
 WORD = re.compile(r"[a-ząćęłńóśźż0-9%]+")
 
 
@@ -145,23 +150,121 @@ def confirm_kept(bad: list[str], expected: list[str], times: list[tuple[float, f
     return still, kept
 
 
+def stems(args_json: Path) -> tuple[np.ndarray, np.ndarray] | None:
+    """the voice and the bed (ducked music + sfx) of the finished film, rendered apart by assemble's own audio graph
+    (assemble.audio.args.json): the mix is exactly voice + bed, so their ratio says if a word is still audible.
+    None when the graph is not the known shape or ffmpeg fails (then nothing is confirmed)."""
+    try:
+        cmd = json.loads(args_json.read_text(encoding="utf-8"))["audio"]
+        i = cmd.index("-filter_complex")
+    except (OSError, ValueError, KeyError) as e:
+        print(f"words_check: no audio graph in {args_json}: {e}", file=sys.stderr); return None
+    head, _, tail = cmd[i + 1].rpartition(";")
+    if not tail.startswith("[vm][mud][sx]amix"):
+        print(f"words_check: unknown mix in {args_json}: {tail[:60]}", file=sys.stderr); return None
+    graph = head + ";[mud][sx]amix=inputs=2:normalize=0:duration=first[bg]"
+    with tempfile.TemporaryDirectory() as tmp:
+        v, bg = os.path.join(tmp, "v.raw"), os.path.join(tmp, "b.raw")
+        out = ["-ac", "1", "-ar", str(SR), "-f", "f32le"]
+        try:
+            subprocess.run([*cmd[:i], "-filter_complex", graph, "-map", "[vm]", *out, v, "-map", "[bg]", *out, bg],
+                           capture_output=True, check=True, timeout=1800)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+            print(f"words_check: stems of {args_json} failed: {e}", file=sys.stderr); return None
+        a, b = np.fromfile(v, np.float32), np.fromfile(bg, np.float32)
+    n = min(len(a), len(b))
+    return a[:n], b[:n]
+
+
+def _db(x: np.ndarray) -> float:
+    return float(10 * np.log10(np.mean(x.astype(np.float64) ** 2) + 1e-12))
+
+
+def voice_over_bed(voice: np.ndarray, bed: np.ndarray, t0: float, t1: float) -> float | None:
+    """lowest voice-minus-bed level (dB) over the 0.3 s windows of [t0, t1] that hold speech; None when none do"""
+    w, h, lows = int(0.3 * SR), int(0.05 * SR), []
+    for s in range(int(t0 * SR), max(int(t1 * SR) - w, int(t0 * SR)) + 1, h):
+        vv, bb = voice[s:s + w], bed[s:s + w]
+        if len(vv) == w and _db(vv) > -35:
+            lows.append(_db(vv) - _db(bb))
+    return min(lows) if lows else None
+
+
+def locate(expected: list[str], i: int, n: int, plan_toks: list[str], times: list[tuple[float, float]],
+           segments: list[dict]) -> tuple[float, float] | None:
+    """film time span of expected[i:i+n] (whisper's words of the cut, no times): from the start of the nearest word
+    before it that the plan text shares to the start of the nearest shared word after it; None when unsure"""
+    if len(times) != len(plan_toks):
+        return None
+    pairs = [(a + k, b + k) for a, b, size in difflib.SequenceMatcher(None, expected, plan_toks, autojunk=False).get_matching_blocks()
+             for k in range(size)]
+    before = [p for e, p in pairs if e < i]
+    after = [p for e, p in pairs if e >= i + n]
+    if not before or not after:
+        return None
+    t0, t1 = film_time(segments, times[before[-1]][0]), film_time(segments, times[after[0]][0])
+    if t0 is None or t1 is None or not 0 < t1 - t0 <= 6.0:
+        return None
+    return t0, t1 + 0.3
+
+
+def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: dict, args_json: Path
+                    ) -> tuple[list[str], list[str]]:
+    """sound mode: a word whisper heard in the cut but not in the film is kept when the voice there is MASK_DB over the
+    music and sfx (2026-11-08 s02 "no" 28 dB over the bed, s04 English words 25 dB: mishearings, not losses).
+    Problems that stay: no place on the timeline, no stems, or a bed within MASK_DB of the voice."""
+    st = stems(args_json)
+    if st is None:
+        return bad, []
+    still, kept = [], []
+    for i, gone, _ in missing(expected, heard):
+        line = next((x for x in bad if x.startswith(f"missing: {context(expected, i, len(gone))} ")), None)
+        if line is None:
+            continue
+        span = locate(expected, i, len(gone), loc["toks"], loc["times"], loc["segments"])
+        snr = voice_over_bed(*st, *span) if span else None
+        if span is None or snr is None:
+            still.append(line + " (no place on the timeline to measure)")
+        elif snr >= MASK_DB:
+            kept.append(f"{line} (whisper did not hear it; voice {snr:.1f} dB over the music at {span[0]:.2f} s)")
+        else:
+            still.append(line + f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)")
+    return still, kept
+
+
+def plan_times(edl_txt: Path) -> dict | None:
+    """plan tokens, their source times and the EDL pieces next to edl_<n>.txt; None when a file is missing"""
+    edl_json = edl_txt.with_suffix(".json")
+    plan_p = edl_json.with_name(edl_json.name.replace("edl_", "plan_", 1))
+    if not (edl_txt.exists() and edl_json.exists() and plan_p.exists()):
+        return None
+    plan = json.loads(plan_p.read_text(encoding="utf-8"))
+    words = json.loads((plan_p.parent / plan["words"]).read_text(encoding="utf-8"))["transcription"]
+    return {"toks": norm(edl_txt.read_text(encoding="utf-8")), "times": token_times(plan, words),
+            "segments": json.loads(edl_json.read_text(encoding="utf-8"))["segments"]}
+
+
 def main(argv: list[str]) -> int:
     out = None
+    edl = None
     if "--json" in argv: i = argv.index("--json"); out = argv[i + 1]; argv = argv[:i] + argv[i + 2:]
+    if "--edl" in argv: i = argv.index("--edl"); edl = argv[i + 1]; argv = argv[:i] + argv[i + 2:]
     if len(argv) != 3 or argv[0] not in ("cut", "sound"):
-        print("usage: words_check.py cut <edl.txt> <rough.mkv> | sound <rough.mkv> <final.mp4> [--json out.json]", file=sys.stderr); return 2
+        print("usage: words_check.py cut <edl.txt> <rough.mkv> | sound <rough.mkv> <final.mp4> [--edl edl_<n>.txt] [--json out.json]",
+              file=sys.stderr); return 2
     mode, a, b = argv
     expected = norm(Path(a).read_text(encoding="utf-8")) if mode == "cut" else transcribe(a)
     heard = transcribe(b)
     bad, warn = judge(mode, expected, heard)
-    edl_json = Path(a).with_suffix(".json")
-    if mode == "cut" and bad and edl_json.exists():  # confirm against the sound: the plan says which source words are kept
-        edl = json.loads(edl_json.read_text(encoding="utf-8"))
-        plan_p = edl_json.with_name(edl_json.name.replace("edl_", "plan_", 1))
-        if plan_p.exists():
-            plan = json.loads(plan_p.read_text(encoding="utf-8"))
-            words = json.loads((plan_p.parent / plan["words"]).read_text(encoding="utf-8"))["transcription"]
-            bad, kept = confirm_kept(bad, expected, token_times(plan, words), edl["segments"], b)
+    if mode == "cut" and bad:  # confirm against the sound: the plan says which source words are kept
+        loc = plan_times(Path(a))
+        if loc:
+            bad, kept = confirm_kept(bad, expected, loc["times"], loc["segments"], b)
+            warn += kept
+    if mode == "sound" and bad:  # confirm against the mix: run_v4 runs in the work dir next to edl_<n>.txt
+        loc = plan_times(Path(edl or f"edl_{Path(a).parent.name}.txt"))
+        if loc:
+            bad, kept = confirm_audible(bad, expected, heard, loc, Path(b).parent / "assemble.audio.args.json")
             warn += kept
     if out: Path(out).write_text(json.dumps({"mode": mode, "expected": len(expected), "heard": len(heard), "problems": bad, "warnings": warn}, ensure_ascii=False, indent=1), encoding="utf-8")
     for x in bad: print(x)
