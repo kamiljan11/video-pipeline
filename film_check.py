@@ -151,8 +151,11 @@ def punches(edl: dict) -> list[float]:
     out = []
     for s, acc in zip(edl["segments"], timeline.starts(edl["segments"], exact(edl)), strict=True):
         z = s.get("zoom")
-        if isinstance(z, dict) and z.get("t0", 0) > 0.01 and z.get("b", 0) > z.get("a", 0) + 0.1:
-            out.append(acc + z["t0"])
+        # inside the piece, or a fast punch right on its cut (build_edl emph on a word that opens the piece: t0 = 0,
+        # 0.3 s; 2026-11-08 s09 counted 1 of its 3 punches); a slow drift over the whole piece is not a punch
+        if isinstance(z, dict) and z.get("b", 0) > z.get("a", 0) + 0.1 and (
+                z.get("t0", 0) > 0.01 or z.get("t1", 1e9) - z.get("t0", 0) <= 1.0):
+            out.append(acc + z.get("t0", 0))
     out += [r["at"] for r in edl.get("beat_fx", []) if r.get("fx") == "punch"]
     out += [t for o in edl.get("overlays", []) for t in o.get("zooms", [])]  # round 2 L17: a canvas zoom inside a scene is a punch
     return sorted(out)
@@ -209,6 +212,16 @@ def cover_spans(edl: dict) -> list[tuple[float, float]]:
     """(start, end) of everything the EDL puts over the face: overlays and b-roll"""
     spans = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", [])]
     return spans + [(b["at"], b["at"] + b.get("dur", 0)) for b in edl.get("broll", []) if "at" in b]
+
+
+def covered(spans: list[tuple[float, float]], end: float) -> float:
+    """seconds of [0, end] under the union of spans"""
+    tot, t = 0.0, 0.0
+    for a, b in sorted(spans):
+        a, b = max(a, t), min(b, end)
+        if b > a: tot += b - a
+        t = max(t, b)
+    return tot
 
 
 def max_gap(edl: dict, end: float) -> float:
@@ -279,6 +292,14 @@ class Film:
         return sum(0 <= t < 60 for t in ev)
 
     def punches_per_min(self): return round(len(punches(self.edl)) / max(self.len / 60, 1e-9), 2)
+
+    def punches_per_face_min(self):
+        """punches a minute of face on screen with nothing over it: a punch is never made under a card or b-roll
+        (build_edl skips emph there), so a short that is 74 % cards (2026-11-08 s09: 34 of 46 s) is judged on the
+        12 s it shows the face. Under 10 s of face there is nothing to punch into: the card rules judge it."""
+        face = self.len - covered(cover_spans(self.edl), self.len)
+        if face < 10.0: return 99.0
+        return round(len(punches(self.edl)) / (face / 60), 2)
     def behind_cards(self): return sum(1 for o in self.ovs if "behind" in self.specs.get(o["id"], {}))
 
     def behind_cover_max(self):

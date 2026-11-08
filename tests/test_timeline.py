@@ -45,6 +45,28 @@ class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with 
         self.assertAlmostEqual(film_check.src2out(segs, 4.5, True), 2.5)
         self.assertAlmostEqual(film_check.body_len({"segments": segs}), 3.032)
 
+    def test_a_punch_on_the_cut_counts_a_drift_does_not(self):  # 2026-11-08 s09: 2 of 3 punches opened their piece
+        import film_check
+        segs = [{"in": 0.0, "out": 1.0, "zoom": {"a": 1.0, "b": 1.2, "t0": 0.0, "t1": 0.3}},
+                {"in": 2.0, "out": 6.0, "zoom": {"a": 1.0, "b": 1.15, "t0": 0.0, "t1": 4.0}},  # slow: a drift
+                {"in": 7.0, "out": 11.0, "zoom": {"a": 1.0, "b": 1.05, "t0": 0.0, "t1": 4.0}}]
+        self.assertEqual(film_check.punches({"segments": segs, "seg_exact": True}), [0.0])
+
+    def test_covered_is_the_union_of_spans(self):
+        import film_check
+        self.assertAlmostEqual(film_check.covered([(5.7, 12.2), (13.8, 27.5), (27.5, 41.6), (40.0, 50.0)], 46.4), 6.5 + 32.6)
+
+    def test_short_punch_is_judged_on_the_face_time(self):  # 2026-11-08 s09: 1 punch, 34 of 46 s under cards
+        import film_check
+        ovs = [{"at": 5.7, "dur": 6.5}, {"at": 13.8, "dur": 13.7}, {"at": 27.5, "dur": 14.1}]
+        segs = [{"in": 0.0, "out": 46.4, "zoom": {"a": 1.0, "b": 1.12, "t0": 42.0, "t1": 42.3}}]
+        f = film_check.Film.__new__(film_check.Film)  # only len and edl are read
+        f.len, f.edl = 46.4, {"segments": segs, "overlays": ovs, "seg_exact": True}
+        self.assertEqual(f.punches_per_face_min(), round(1 / ((46.4 - 34.3) / 60), 2))  # ~5 a face minute
+        self.assertLess(f.punches_per_min(), 3)  # the old measure: 1.29 a film minute
+        f.edl["overlays"] = [{"at": 0.0, "dur": 40.0}]
+        self.assertEqual(f.punches_per_face_min(), 99.0)  # 6.4 s of face: the card rules judge it
+
 
 class ConcatListTest(unittest.TestCase):
     def test_list_has_each_exact_length_and_none_leaves_it_out(self):

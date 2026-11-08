@@ -443,7 +443,7 @@
   {
    "id": "short.punch",
    "fmt": "short",
-   "metric": "punches_per_min",
+   "metric": "punches_per_face_min",
    "op": ">=",
    "value": 3,
    "why": "Zoom on the key words"
