@@ -91,9 +91,6 @@ class WordTimesTest(unittest.TestCase):
             self.assertEqual((e["n"], e["over_150ms_pct"]), (2, 50.0))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 
 SEGS = ({"in": 10.0, "out": 12.0}, {"in": 20.0, "out": 22.0}, {"in": 30.0, "out": 31.0})  # film 0-2, 2-4, 4-5 s
@@ -130,3 +127,21 @@ class ConfirmKeptTest(unittest.TestCase):
                 self.assertEqual(len(still) + len(kept), 1)
         finally:
             C.transcribe = real
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
+    def test_no_measurement_is_a_problem_not_a_fake_level(self):  # ffmpeg failed: never "silence at -99 dB"
+        self.assertIsNone(C.mean_db("/nonexistent/rough.mkv", 1.0, 0.5))
+        exp = ["aa", "bb"]
+        real = C.transcribe
+        try:
+            C.transcribe = lambda m: ["aa"]
+            still, kept = C.confirm_kept([f"missing: {C.context(exp, 1, 1)} | heard: -"], exp, [(10.2, 10.4), (10.8, 11.0)],
+                                         list(SEGS), "/nonexistent/rough.mkv")
+        finally:
+            C.transcribe = real
+        self.assertEqual(kept, [])
+        self.assertIn("not measured", still[0])
+
+
+if __name__ == "__main__":
+    unittest.main()

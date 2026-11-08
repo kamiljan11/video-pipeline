@@ -103,11 +103,18 @@ def film_time(segments: list[dict], t: float) -> float | None:
     return None
 
 
-def mean_db(media: str, t0: float, d: float) -> float:
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{t0:.3f}", "-t", f"{d:.3f}", "-i", media, "-vn",
-                        "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, check=False, timeout=120)
+def mean_db(media: str, t0: float, d: float) -> float | None:
+    """mean level of media over [t0, t0+d]; None when ffmpeg gave no measurement (the caller keeps the word a problem)"""
+    try:
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{t0:.3f}", "-t", f"{d:.3f}", "-i", media, "-vn",
+                            "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, check=False, timeout=120)
+    except (subprocess.TimeoutExpired, OSError) as e:  # hung or missing ffmpeg: no measurement, never a fake level
+        print(f"words_check: volumedetect on {media} at {t0:.2f} s failed: {e}", file=sys.stderr)
+        return None
     m = re.search(r"mean_volume: (-?[\d.]+) dB", r.stderr)
-    return float(m.group(1)) if m else -99.0
+    if not m:
+        print(f"words_check: no volumedetect on {media} at {t0:.2f} s: {r.stderr.strip().splitlines()[-1:]}", file=sys.stderr)
+    return float(m.group(1)) if m else None
 
 
 def confirm_kept(bad: list[str], expected: list[str], times: list[tuple[float, float]], segments: list[dict], rough: str
@@ -125,11 +132,16 @@ def confirm_kept(bad: list[str], expected: list[str], times: list[tuple[float, f
         # word starts only: the transcript's end times run late (2026-11-08 "Claude." ended 0.1 s after its piece, the
         # cut-out pause after it was silence, -60 dB)
         f0, f1 = film_time(segments, times[i][0]), film_time(segments, times[i + len(gone) - 1][0])
-        db = mean_db(rough, f0, max(f1 - f0, 0.0) + 0.3) if f0 is not None and f1 is not None else None
-        if db is not None and db > SPEECH_DB:
+        if f0 is None or f1 is None:
+            still.append(line + " (cut out)")
+            continue
+        db = mean_db(rough, f0, max(f1 - f0, 0.0) + 0.3)
+        if db is None:
+            still.append(line + f" (level at {f0:.2f} s not measured, see the ffmpeg line above)")
+        elif db > SPEECH_DB:
             kept.append(f"{line} (whisper did not hear it; kept in the cut at {f0:.2f} s, speech {db:.1f} dB)")
         else:
-            still.append(line + (" (cut out)" if db is None else f" (silence at {f0:.2f} s: {db:.1f} dB)"))
+            still.append(line + f" (silence at {f0:.2f} s: {db:.1f} dB)")
     return still, kept
 
 

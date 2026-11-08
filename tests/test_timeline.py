@@ -32,9 +32,6 @@ class TimelineTest(unittest.TestCase):
         self.assertAlmostEqual(T.src2out(5.5, SEGS, False), 1.01 + 0.5)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with raw piece lengths (up to 287 ms off on 2026-11-04)
     def test_film_times_follow_whole_frame_pieces(self):
@@ -82,3 +79,7 @@ class ConcatKeepsFrameTimeTest(unittest.TestCase):
         exact = (40 * 44 - 1) / 30
         self.assertAlmostEqual(last_pts(T.concat_list(files, [44 / 30] * 40)), exact, delta=0.002)
         self.assertGreater(abs(last_pts("".join(f"file '{f}'\n" for f in files)) - exact), 0.015)  # control: the old drift
+
+
+if __name__ == "__main__":
+    unittest.main()
