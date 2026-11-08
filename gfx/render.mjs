@@ -72,7 +72,8 @@ function maxim(sp) {
 const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right
 // 9:16 (shorts): "split" (default) = the card in the top part over a light background; assemble.py puts the face in a box under
 // it (gfx_types.SPLIT) and build_edl.py moves the captions into the gap; "full" = the card alone on the dark background
-const WIN_V = { split: { x: 60, y: 110, w: 960, view: 760 }, full: { x: 50, y: 230, w: 980, view: 780 } };
+// "split_full" (ledger S19, gfx_types.SPLIT_FULL): the card in the top 1080x960, its source line ending above the captions on the seam at y 960
+const WIN_V = { split: { x: 60, y: 110, w: 960, view: 760 }, split_full: { x: 60, y: 100, w: 960, view: 600 }, full: { x: 50, y: 230, w: 980, view: 780 } };
 const CHROME = 122;  // tab row 64 + address bar 58 (template.html .web .top/.addr)
 function web(sp) {
   const base = `${outDir}/web/${keyOf(specFile, sp)}`;
@@ -101,7 +102,7 @@ function web(sp) {
 const MEMES = process.env.VP_MEMES ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'render', 'memes');  // VP_MEMES: tests
 // 9:16 split ends above the captions (gfx_types.SPLIT); 16:9 "long" keeps the bottom-right corner free for the face PiP
 // 9:16 corner: above the captions and the face circle (the free field of a corner scene, scene_lib sceneSafe)
-const MEME_BOX = { split: { x: 60, w: 960, y: 120, h: 880 }, full: { x: 60, w: 960, y: 260, h: 1240 }, corner: { x: 60, w: 960, y: 130, h: 1010 }, long: { x: 140, w: 1700, y: 150, h: 1140 } };
+const MEME_BOX = { split: { x: 60, w: 960, y: 120, h: 880 }, split_full: { x: 60, w: 960, y: 110, h: 740 }, full: { x: 60, w: 960, y: 260, h: 1240 }, corner: { x: 60, w: 960, y: 130, h: 1010 }, long: { x: 140, w: 1700, y: 150, h: 1140 } };
 // 16:9 "sticker": the free field beside the speaker (his head sits at x 0.29-0.61 of the frame in film 2), px of the 2560x1440 card
 const STICKER_BOX = { right: { x: 1620, y: 150, w: 820, h: 960 }, left: { x: 90, y: 150, w: 620, h: 960 } };
 const CATALOGUE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'style', 'memes.json');
