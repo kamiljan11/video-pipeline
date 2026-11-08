@@ -67,6 +67,9 @@ class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with 
         f.edl["overlays"] = [{**ovs[0], "zooms": [7.0, 9.0]}, *ovs[1:]]  # zooms inside a card: not on the face
         self.assertEqual(f.punches_per_face_min(), round(1 / ((46.4 - 34.3) / 60), 2))
         f.edl["overlays"] = [{"at": 0.0, "dur": 40.0}]
+        self.assertEqual(f.punches_per_face_min(), 99.0)
+        f.edl["overlays"] = ovs
+        f.edl["segments"] = [{**segs[0], "zmax": 1.0}]  # the head fills the frame: no punch fits (2026-11-08 s17)
         self.assertEqual(f.punches_per_face_min(), 99.0)  # 6.4 s of face: the card rules judge it
 
 

@@ -214,6 +214,9 @@ def cover_spans(edl: dict) -> list[tuple[float, float]]:
     return spans + [(b["at"], b["at"] + b.get("dur", 0)) for b in edl.get("broll", []) if "at" in b]
 
 
+PUNCH_ROOM = 1.08  # face_track zmax at or under this: no visible punch fits under the head limit
+
+
 def covered(spans: list[tuple[float, float]], end: float) -> float:
     """seconds of [0, end] under the union of spans"""
     tot, t = 0.0, 0.0
@@ -296,9 +299,16 @@ class Film:
     def punches_per_face_min(self):
         """punches a minute of face on screen with nothing over it: a punch is never made under a card or b-roll
         (build_edl skips emph there), so a short that is 74 % cards (2026-11-08 s09: 34 of 46 s) is judged on the
-        12 s it shows the face. Under 10 s of face there is nothing to punch into: the card rules judge it."""
+        12 s it shows the face. Only shots with room for a punch count: face_track's head limit zmax <= PUNCH_ROOM
+        means a zoom would cut the head (ADR-0012; 2026-11-08 s17: every shot at zmax 1.0). Under 10 s of such face
+        there is nothing to punch into: the card rules judge it."""
         spans = cover_spans(self.edl)
-        face = self.len - covered(spans, self.len)
+        face = 0.0
+        for sg, st in zip(self.edl["segments"], timeline.starts(self.edl["segments"], exact(self.edl)), strict=True):
+            if sg.get("zmax", 1.38) <= PUNCH_ROOM:
+                continue
+            end = st + timeline.piece_len(sg, exact(self.edl))
+            face += (end - st) - covered([(max(a, st) - st, min(b, end) - st) for a, b in spans if b > st and a < end], end - st)
         if face < 10.0: return 99.0
         on_face = [t for t in punches(self.edl) if not any(a <= t < b for a, b in spans)]  # a canvas zoom inside a card is not one
         return round(len(on_face) / (face / 60), 2)
