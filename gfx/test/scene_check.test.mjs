@@ -123,4 +123,10 @@ test('a stamp sits on or right against a piece on screen with it; one alone in e
   const far = stampProblems(sp, [file, { i: 1, x: 100, y: 820, w: 400, h: 100 }, chip]);             // the chip near it is gone by then
   assert.equal(far.length, 1);
   assert.match(far[0], /BLOKOWANE.*floats 520 px/);
+  const alone = stampProblems({ id: 'a', dur: 5, els: [{ k: 'stamp', text: 'X', at: 0 }] }, [{ i: 0, x: 0, y: 0, w: 10, h: 10 }]);
+  assert.match(alone[0], /has no piece on screen with it/);
+  const touch = { id: 't', dur: 6, els: [{ k: 'file', at: 0, gone: 2 }, { k: 'stamp', text: 'X', at: 2 }] };   // file leaves as the stamp lands
+  assert.equal(stampProblems(touch, [file, { i: 1, x: 100, y: 200, w: 400, h: 100 }]).length, 1);
+  const ring = { id: 'r', dur: 6, els: [{ k: 'ring', at: 0 }, { k: 'stamp', text: 'X', at: 2 }] };              // an overlay does not host a stamp
+  assert.equal(stampProblems(ring, [{ i: 0, x: 0, y: 0, w: 800, h: 300 }, { i: 1, x: 100, y: 200, w: 400, h: 100 }]).length, 1);
 });

@@ -62,9 +62,10 @@ export function stampProblems(sp, rects) {
     const gaps = rects.filter(r => r !== S && !OVERLAY_KINDS.has(sp.els[r.i]?.k)).filter(r => {
       const [r0, r1] = window_(sp.els[r.i], sp.dur);
       return r0 < s1 && s0 < r1;
+    // box gap = the larger per-axis gap, 0 when the boxes overlap (lenient at corners: 40/40 diagonal reads 40, not 57)
     }).map(r => Math.max(r.x - (S.x + S.w), S.x - (r.x + r.w), r.y - (S.y + S.h), S.y - (r.y + r.h), 0));
     const gap = gaps.length ? Math.min(...gaps) : Infinity;
-    if (gap > NEAR) out.push(`${sp.id}: stamp "${String(sp.els[S.i].text ?? '').slice(0, 24)}" floats ${Number.isFinite(gap) ? Math.round(gap) + ' px' : ''} from every piece: put it on the piece it judges`);
+    if (gap > NEAR) out.push(`${sp.id}: stamp "${String(sp.els[S.i].text ?? '').slice(0, 24)}" ${Number.isFinite(gap) ? `floats ${Math.round(gap)} px from every piece` : 'has no piece on screen with it'}: put it on the piece it judges`);
   }
   return out;
 }
