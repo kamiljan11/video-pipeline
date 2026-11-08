@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """build_edl.py plan.json -> edl.json
 plan: {"words": "x.cw.json", "sil": "x.sil", "src": "/path.mp4", "keeps": [[w0, w1, {"t0":opt,"t1":opt}], ...],
-       "gfx": [{"id":..., "word": idx, "lead": 0.0}], "gfx_lead": -0.12, "gfx_dir": "...", "gfx_specs": "...", "face": [x,y], "zooms": [1.0, 1.15]}"""
+       "gfx": [{"id":..., "word": idx, "lead": 0.0}], "gfx_lead": -0.12, "gfx_dir": "...", "gfx_specs": "...", "face": [x,y], "zooms": [1.0, 1.15]}
+plan2 cards (gfx/cards_lib.mjs, all opt-in): a gfx entry's "item_words" [idx, ...] times a "list" card's items (L8: overlay
+delays / items_said / item_lead); "note", "lower" + "define", "chap" + "chap_style" are held to their rules here (L9, L12,
+L21); each such overlay gets "variant" (roadmap | part_tag | define | note | upto | stack). Beats: plan "beat_opt_in" (beats.py)."""
+import itertools
 import json
 import re
 import sys
@@ -14,7 +18,7 @@ import gfx_events
 import themes
 import timeline
 import title_check  # its STOP words: the caption key word (S9) is never one of them
-from gfx_types import CORNER, SIDE_BOX, SPLIT, SPLIT_FULL, beside, has_pip
+from gfx_types import CORNER, DEFINE, NOTE, SIDE_BOX, SPLIT, SPLIT_FULL, beside, has_pip
 
 # keys of the face box under a 9:16 card (assemble.py): caption line y in px, face point in the box height, picture scale
 # (< 1 = smaller picture on its blurred copy; 0 divides by zero in assemble.py, film 2 review 2026-11-04)
@@ -123,6 +127,54 @@ if P.get("gfx") and not (P.get("gfx_specs") and P.get("gfx_dir")):
 _lead = P.get("gfx_lead", 0.0)  # seconds a graphic enters before its word; film_check wants -0.5..-0.1
 if isinstance(_lead, bool) or not isinstance(_lead, (int, float)) or not -2 <= _lead <= 0:
     sys.exit(f"gfx_lead: seconds before the word, -2..0 (film_check wants -0.5..-0.1), got {_lead!r}")
+ITEM_EARLY, ITEM_LATE, ITEM_HOLD = 0.05, 0.3, 1.5  # s: an item never shows before it is said (+ lead); later than 0.3 s = WARN
+
+
+def list_timing(g, sp, at, lead):
+    """plan gfx "item_words" (ledger plan2:L8): the word that names each item shown on a "list" card -> when each item
+    may come in. The card's .mov is drawn before this step (run_v4.sh), so the spec's "delays" must already say it: an
+    item on screen before its word (+ the card's lead) stops the build with the delays to put in gfx_specs.json"""
+    gid, iw, items = g["id"], g["item_words"], sp.get("items")
+    if sp.get("type") != "list": sys.exit(f"{gid}: item_words is for a \"list\" card, this one is {sp.get('type')!r}")
+    if not (isinstance(items, list) and items): sys.exit(f"{gid}: a list with item_words needs \"items\"")
+    n = sp.get("upto", len(items)); stacked = "upto" not in sp
+    if type(n) is not int or not 1 <= n <= len(items): sys.exit(f"{gid}: upto = a whole number 1..{len(items)}, got {n!r}")
+    d = sp.get("delays") or []
+    if not (isinstance(d, list) and all(v is None or (type(v) in (int, float) and v >= 0) for v in d)):
+        sys.exit(f"{gid}: delays = seconds >= 0 or null per item, got {d!r}")
+    kept = {i for k in P["keeps"] for i in range(k[0], k[1] + 1)}
+    if not (isinstance(iw, list) and len(iw) == n and all(type(i) is int and i in kept for i in iw) and iw == sorted(iw)):
+        sys.exit(f"{gid}: item_words = {n} kept word indexes in order (one per item shown), got {iw!r}")
+    said = [src2out(W[i][0]) for i in iw]
+    need = [max(0.0, t + lead - at) for t in said]  # earliest delay of each item
+    first = 0 if stacked else n - 1  # an "upto" card: the earlier items stand still from its start
+    if any(t + lead > at + ITEM_EARLY for t in said[:first]):
+        sys.exit(f"{gid}: \"upto\" {n}: items 1..{n - 1} are on the card from its start, so their words come before it")
+    # the delay the renderer uses (gfx/cards_lib.mjs listHtml): the spec's, else i s in a stack, 0.3 s for an "upto" card
+    moving = range(first, n)
+    timed = {i: float(d[i]) if i < len(d) and d[i] is not None else float(i if stacked else 0.3) for i in moving}
+    want = [None] * first + [round(need[i] + 0.02, 2) for i in moving]
+    early = [i + 1 for i in moving if timed[i] < need[i] - ITEM_EARLY]
+    if early:
+        sys.exit(f"{gid}: item(s) {early} on screen before they are said; set \"delays\": {json.dumps(want)} in {P['gfx_specs']} and render the card again")
+    late = [i + 1 for i in moving if timed[i] > need[i] + ITEM_LATE]
+    if late: print(f"WARN {gid}: item(s) {late} come in more than {ITEM_LATE} s after their word; delays from item_words: {json.dumps(want)}")
+    if sp["dur"] < timed[n - 1] + ITEM_HOLD:
+        sys.exit(f"{gid}: dur {sp['dur']} s: the last item needs {ITEM_HOLD} s on screen (dur >= {timed[n - 1] + ITEM_HOLD:.2f})")
+    return {"delays": [timed.get(i) for i in range(n)], "items_said": [round(t, 3) for t in said], "item_lead": lead}
+
+
+def card_variant(sp):
+    """the plan2 card a spec draws (gfx/cards_lib.mjs), written to the EDL so a checker sees which features a film uses"""
+    t = sp.get("type")
+    if t == "chap" and sp.get("chap_style") in ("roadmap", "part_tag"): return sp["chap_style"]
+    if t == "lower" and sp.get("define") is True: return "define"
+    if t == "note": return "note"
+    if t == "list" and "upto" in sp: return "upto"
+    if t == "list" and "dim_done" in sp: return "stack"
+    return None
+
+
 for g in P.get("gfx", []):
     if g.get("id") not in specs: sys.exit(f"gfx {g.get('id')!r}: no such card in {P['gfx_specs']}")
     if "find" in g:
@@ -174,12 +226,34 @@ for g in P.get("gfx", []):
     if vert and sp.get("face_corner") and not o.get("split"): o["corner"] = True  # full card (web "full" or float): face in the corner circle
     if sp.get("no_fade_out"): o["no_fade_out"] = True  # cut, not faded: the face box/circle stays to the last frame too
     if vert and sp.get("type") in ("float", "scene", "meme") and sp.get("layout") == "corner": o["corner"] = True
+    if (variant := card_variant(sp)) is not None:
+        if vert or P.get("vertical"): sys.exit(f"{g['id']}: a {variant} card is 16:9 only (a Long feature), not in a vertical film")
+        o["variant"] = variant
+    if "item_words" in g: o.update(list_timing(g, sp, at, g.get("lead", _lead)))
     # what happens inside the card, in film seconds (gfx_events.py): "zooms" (L17), "moves" (S14), "read_along" (L16b), "items"
     # (S11); a plan gfx entry naming the words of its cues ("read_along" / "items": word indexes) is held to them here
     o.update(gfx_events.overlay_fields(sp, o["at"]))
     cue = gfx_events.cue_problems(g, sp, o["at"], lambda w: src2out(W[w][0]), len(W))
     if cue: sys.exit(f"{g['id']}: " + "; ".join(cue))
     ovs.append(o)
+# plan2 cards held to their time (gfx_types NOTE / DEFINE): reading time (film_check.reading_need, the one rule) or the
+# minimum; one note per NOTE["every"] s, so it stays a pointer and not a caption track; a note and a lower third share the
+# bottom-left corner, so never both at once; every roadmap card of a film is one drawing (the same "parts")
+_timed = [(o, specs[o["id"]]) for o in ovs if o.get("variant") in ("note", "define")]
+if _timed:  # film_check loaded only here: a film without these cards does not need the checker
+    from film_check import reading_need
+    for o, sp in _timed:
+        need = max(reading_need(sp), NOTE["min_dur"] if o["variant"] == "note" else DEFINE["min_dur"])
+        if sp["dur"] < need - 1e-6: sys.exit(f"{o['id']}: a {o['variant']} card needs {need:.1f} s on screen (reading time), dur is {sp['dur']}")
+_notes = sorted(o["at"] for o in ovs if o.get("variant") == "note")
+for _a, _b in itertools.pairwise(_notes):
+    if _b - _a < NOTE["every"]: sys.exit(f"notes at {_a:.1f} s and {_b:.1f} s: at most one note per {NOTE['every']:.0f} s")
+for o in ovs:
+    if o.get("variant") != "note": continue
+    hit = [q["id"] for q in ovs if specs[q["id"]].get("type") == "lower" and q["at"] < o["at"] + o["dur"] and o["at"] < q["at"] + q["dur"]]
+    if hit: sys.exit(f"{o['id']}: a note and the lower third {hit} share the bottom-left corner at once")
+_maps = {json.dumps(specs[o["id"]].get("parts"), ensure_ascii=False) for o in ovs if o.get("variant") in ("roadmap", "part_tag")}
+if len(_maps) > 1: sys.exit(f"roadmap / part_tag cards with different \"parts\" in one film ({len(_maps)} lists): one roadmap, one drawing")
 # no punch-in while a side box is on screen (box would cover the face)
 acc = 0.0
 for sg in out:

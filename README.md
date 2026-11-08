@@ -404,6 +404,31 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
 - Dźwięk: whoosh na wejście karty (`gfx_types.CARD_WHOOSH`, `make_beds.py`). Panel ma własną kopię `CARD_WHOOSH` w
   `timeline.sfx_events`: do dopisania tam „scene” przy następnej zmianie panelu.
 
+## Karty z badań plan2: lista narastająca, mapa części, definicja, dopisek (tylko 16:9)
+Wszystko opcjonalne: karta bez nowych pól wygląda jak przedtem. Rysuje `gfx/cards_lib.mjs` (test `gfx/test/cards.test.mjs`),
+czasy pilnuje `build_edl.py` (test `tests/test_plan2_cards.py`). Pozycje w rejestrze badań: plan2:L8, L9, L12, L21.
+```json
+{"id": "l3", "type": "list", "text": "Trzy kroki", "items": ["Zapisz", "Daj narzędzia", "Sprawdź"], "dim_done": true, "delays": [0, 2.4, 5.1], "dur": 8}
+{"id": "l3b", "type": "list", "text": "Trzy kroki", "items": ["Zapisz", "Daj narzędzia", "Sprawdź"], "upto": 2, "dim_done": true, "delays": [null, 0.3], "dur": 4}
+{"id": "m0", "type": "chap", "chap_style": "roadmap", "parts": ["Pamięć", "Narzędzia", "Koszty"], "current": 0, "text": "Plan", "dur": 6}
+{"id": "t2", "type": "chap", "chap_style": "part_tag", "parts": ["Pamięć", "Narzędzia", "Koszty"], "current": 2, "dur": 5}
+{"id": "d1", "type": "lower", "define": true, "text": "RAG", "sub": "model najpierw szuka w twoich dokumentach", "dur": 6}
+{"id": "n1", "type": "note", "icon": "link", "text": "Link do repozytorium w opisie", "dur": 6}
+```
+- **Lista (L8):** jedna karta, pozycje wchodzą na swoje słowa. W planie `{"id": "l3", "word": 120, "item_words": [120, 140, 171]}`:
+  `build_edl` liczy, kiedy każda pozycja pada, i zatrzymuje budowę, gdy `delays` pokazują pozycję, zanim padnie (podaje
+  właściwe `delays`). `upto: k` = pozycje 1..k, wcześniejsze stoją od początku (ich `delays` = `null`), wchodzi tylko k-ta.
+  `dim_done` wygasza pozycję, gdy wchodzi następna. `count_check` pilnuje, że widać nie więcej pozycji, niż padło.
+- **Mapa części (L9):** `roadmap` = ten sam rysunek na otwarciu (`current: 0`) i na starcie każdej części (zrobione /
+  bieżąca / następne); `part_tag` = mała plakietka w lewym górnym rogu (kółko z twarzą jest w prawym dolnym), mówca zostaje
+  na pełnym kadrze. Wszystkie karty filmu mają te same `parts`. Obie liczą się jako karta rozdziału.
+- **Definicja (L12):** `lower` + `define: true`, termin w kolorze akcentu, definicja do 20 słów / 3 linii, min.
+  max(czas czytania, 6 s). Gramatyka: moment `define` (wchodzi tylko z `"beat_opt_in": ["define"]` w planie).
+- **Dopisek (L21):** `note` do 14 słów / 3 linii w lewym dolnym rogu, min. max(czas czytania, 4 s), najwyżej 1 na 5 min,
+  nie razem z `lower`, bez dźwięku. Gramatyka: moment `note` („link w opisie”, zastrzeżenie) z `"beat_opt_in": ["note"]`.
+- W EDL każda taka karta ma `"variant"` (`roadmap`, `part_tag`, `define`, `note`, `upto`, `stack`), lista z `item_words`
+  także `delays`, `items_said`, `item_lead`.
+
 ## Tekst za postacią (`"behind"` w karcie)
 Duże słowo ZA głową mówiącego (głowa zasłania środek napisu). Karta dowolnego typu (zwykle `float` z własnym html) dostaje
 `"behind": {"edl": "edl_long.json"}`; `behind.py` wycina z jej kanału alfa postać, wyliczoną modelem Robust Video Matting na

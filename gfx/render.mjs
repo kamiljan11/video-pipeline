@@ -13,6 +13,7 @@ import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } fro
 import { loadTheme } from './theme_lib.mjs';
 import { camKeyframes, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { esc, icon } from './html_lib.mjs';
+import { chapHtml, checkCard, listHtml, lowerHtml, noteHtml, usesCardsLib } from './cards_lib.mjs';
 const [specFile, outDir, mode, ...only] = process.argv.slice(2);
 const STILLS = mode === '--stills';
 // a scene's "extends" (S11) is resolved on the whole file, before the stills filter: the scene it goes on from may not be drawn
@@ -50,8 +51,9 @@ const html = sp => {
     return kwBox(sp, parts.map(p => { if (typeof p === 'string') return esc(p); const f = fr[k++];
       return `<span class="num" data-to="${p.value}"${sp.from !== undefined ? ` data-from="${f}"` : ''} data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(f, p.dec, p.group)}</span>`; }).join(''), 'kw count');
   }
-  if (sp.type === 'lower') return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
-  if (sp.type === 'list') return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
+  if (sp.type === 'lower') return lowerHtml(sp);  // "define": true = term + definition (gfx/cards_lib.mjs, ledger plan2:L12)
+  if (sp.type === 'list') return listHtml(sp);  // "upto" / "dim_done": one stacked list (cards_lib, plan2:L8)
+  if (sp.type === 'note') return noteHtml(sp);  // caveat / pointer in the corner away from the face (cards_lib, plan2:L21)
   if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div>${endBrand(sp)}</div>`;
   if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
@@ -61,7 +63,7 @@ const html = sp => {
   if (sp.type === 'maxim') return maxim(sp);
   if (sp.type === 'scene') return scene(sp, esc, icon);  // explainer canvas, face in the PiP circle (gfx/scene_lib.mjs, README › Scena)
   if (sp.type === 'float') return `<div class="float">${sp.html}</div>`;  // illustration beside the speaker: the spec's own pieces (template.html › float)
-  if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
+  if (sp.type === 'chap') return chapHtml(sp);  // "chap_style": "roadmap" | "part_tag" (cards_lib, plan2:L9)
 };
 // "maxim": the sentence typed while it is said (gfx/maxim_lib.mjs); every letter is in the layout from the start (hidden) and the
 // caret takes no width, so the lines never re-wrap or shift while typing; window.__seek = maximSeek shows the state at time t
@@ -224,12 +226,18 @@ const TOKENS = crypto.createHash('sha1').update(fs.readFileSync(new URL('./motio
 // so they are part of a meme's key like SCENE_LIB for scenes (review r3 code-2, r4 code-1)
 const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(JSON.stringify(STICKER_BOX)).update(meme.toString()).update(sticker.toString()).update(memeLib.toString())
   .update(fs.readFileSync(new URL('./template.html', import.meta.url))).digest('hex').slice(0, 12);
-const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB, ...(sp.motion === 'tokens' ? { _tok: TOKENS } : {}) } : {}) })).digest('hex');
+// cards_lib.mjs only in the key of a card that uses its new fields (as TOKENS): a legacy list/chap/lower keeps its key
+const CARDS_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./cards_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB, ...(sp.motion === 'tokens' ? { _tok: TOKENS } : {}) } : {}),
+  ...(usesCardsLib(sp) ? { _cards: CARDS_LIB } : {}) })).digest('hex');
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
   const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
   return crypto.createHash('sha1').update(JSON.stringify([sp, keyOf(specFile, sp), captured])).digest('hex');
 }
+// a new-feature card with a bad field stops the run by name before any page opens (cards_lib checkCard)
+const badCards = specs.flatMap(sp => { try { checkCard(sp); return []; } catch (e) { return [`FAILED gfx ${sp.id}: ${e.message}`]; } });
+if (badCards.length) { badCards.forEach(m => console.error(m)); process.exit(1); }
 // "web" cards need their capture first (network): webshot.mjs skips the ones already captured, fails loudly otherwise
 if (specs.some(s => s.type === 'web')) {
   const limit = specs.filter(s => s.type === 'web').length * PER_CARD + 60000;  // webshot fails a card itself first
