@@ -184,6 +184,8 @@ test('no orphan: a one-letter word, a short preposition, "nie" or a short last w
   assert.equal(keepTogether('a nic nie działa'), 'a\u00a0nic nie\u00a0działa');
   assert.equal(keepTogether('Nad i pod'), 'Nad\u00a0i\u00a0pod');
   assert.equal(keepTogether('dobrze'), 'dobrze');
+  assert.equal(keepTogether('Szlaban tak.'), 'Szlaban\u00a0tak.');  // punctuation does not count (2026-11-08 post p02)
+  assert.equal(keepTogether('to działa.'), 'to działa.');
   assert.equal(keepTogether('AI mówi „gotowe”, a nic nie działa'), 'AI mówi „gotowe”, a\u00a0nic nie\u00a0działa');
   assert.equal(keepTogether('w szybę'), 'w\u00a0szybę');
   assert.equal(keepTogether('Kto sprawdza?'), 'Kto sprawdza?');  // a long last word: nothing to keep
