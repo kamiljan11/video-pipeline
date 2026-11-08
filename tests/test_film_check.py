@@ -482,7 +482,7 @@ class FilmCheckTest(unittest.TestCase):
                         "youtube/shorts/s1.md": "## Tytuł\n## Tytuły\n| A | Kto sprawdza kod z AI? |\n| B | Claude Code + recenzent = 0 wpadek |\n## Opis\nJedno zdanie.\nPełny film: {{LONG_URL}}\n## Powiązany film\nlong\n",
                         "youtube/long.md": LONG_MD}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
-        (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA", "pick": {"t": 1.0, "score": 0.9}}, {"id": "B", "big": "SZLABAN", "no_face": True}]}))
+        (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA", "pick": {"t": 1.0, "score": 0.9}, "placed": {"cx": 0.72}, "tone": "lift"}, {"id": "B", "big": "SZLABAN", "no_face": True, "layout": "object", "object": [{"icon": "shield"}]}]}))
         thumb(out / "thumbnails/long_A.jpg", "BLIZNA"); thumb(out / "thumbnails/long_B.jpg", "SZLABAN")
         import content_review  # the thumbnail words read by a stranger (content_review thumbs)
         content_review.main([str(self.d), "thumbs"])

@@ -738,6 +738,19 @@ class Out:
             return False, f"thumb_check failed: {e}"
         return not bad, "; ".join(bad[:8])
 
+    def thumbs_research(self):
+        """round 2 TH4/TH6/TH8 in the thumbnails: every face variant placed by `thumb_check.py --place` ("placed") or with
+        a hand "fx", tone "lift" on face variants, and the no-face variant built as layout "object" / a panel (a real object
+        at >= 40 % of the height), not a crop of a chart"""
+        spec = self.work / "thumbs.json"
+        if not spec.exists(): return False, "no thumbs.json"
+        longs = load(spec, "thumbs.json").get("long", [])
+        face = [v for v in longs if not v.get("no_face") and v.get("layout") != "object"]
+        bad = [f"long_{v['id']}: not placed (thumb_check.py --place)" for v in face if not (v.get("placed") or "fx" in v)]
+        bad += [f"long_{v['id']}: tone is not \"lift\"" for v in face if v.get("tone") != "lift"]
+        if not any(v.get("layout") == "object" or v.get("panel") for v in longs): bad.append("no variant with layout \"object\" or a panel (TH8)")
+        return not bad, "; ".join(bad[:6]) or f"{len(longs)} variants use TH4/TH6/TH8"
+
     def out_manifest(self):
         """every film and material folder made by the current pipeline code (manifest.py)"""
         if not self.out.is_dir(): return False, f"no out folder {self.out}"

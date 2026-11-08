@@ -528,6 +528,14 @@
    "why": "Skool CCC So5/So6/C4/Z6: at 320 px (a phone feed) OCR reads >= 80% of each big, one long variant without a face, a thumbnail shares < 50% of its words with every title (thumb_check.py); thumbs.mjs itself refuses letters under 12 px at 320, words in the timestamp corner and cover text outside y 220-1500"
   },
   {
+   "id": "out.thumbs_research",
+   "fmt": "out",
+   "metric": "thumbs_research",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 TH4 (face at cx 0.72/0.28, thumb_check.py --place), TH6 (tone lift), TH8 (the no-face variant = layout object or a 3-5 item panel): the thumbnails use what the study found, not only pass its limits"
+  },
+  {
    "id": "out.manifest",
    "fmt": "out",
    "metric": "out_manifest",

@@ -204,3 +204,16 @@ class ShortTitlesTest(unittest.TestCase):  # plan 1 5.3
         o = film_check.Out(d, d / "out")
         ok, detail = o.short_titles()
         self.assertFalse(ok); self.assertIn("s2: 1 title variants", detail); self.assertNotIn("s1", detail)
+
+
+class ThumbsResearchTest(unittest.TestCase):  # TH4 / TH6 / TH8 used in thumbs.json
+    def test_variants_use_place_lift_and_object(self):
+        d = Path(tempfile.mkdtemp(prefix="fc-th-")); self.addCleanup(shutil.rmtree, d, True)
+        (d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "frame": "a.png"}, {"id": "C", "no_face": True, "frame": "c.png"}]}))
+        ok, detail = film_check.Out(d, d / "out").thumbs_research()
+        self.assertFalse(ok)
+        for want in ("long_A: not placed", "long_A: tone is not", "no variant with layout"):
+            self.assertIn(want, detail)
+        (d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "frame": "a.png", "placed": {"cx": 0.72}, "tone": "lift"},
+                                                            {"id": "C", "layout": "object", "object": [{"icon": "shield"}]}]}))
+        self.assertTrue(film_check.Out(d, d / "out").thumbs_research()[0])
