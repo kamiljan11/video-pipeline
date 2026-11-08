@@ -219,6 +219,37 @@ class FilmCheckTest(unittest.TestCase):
         self.assertIn("### nw (kw, 0:23.0, 3.0 s) **FILLER?**", md)
         self.assertIn("- said: w23", md)
 
+    def test_thumbnail_words_are_read_by_a_stranger_before_use(self):  # 2026-11-08 "18% LECI NA SLEPO ... bez sensu"
+        import content_review
+        import film_check
+        spec = {"long": [{"id": "A", "big": "18%", "sub": "leci na ślepo", "pick": {"t": 1, "score": 0.9}}],
+                "shorts": [{"id": "s1", "big": "Kto sprawdza?", "sub": "AI", "pick": {"t": 2, "score": 0.8}}]}
+        (self.d / "thumbs.json").write_text(json.dumps(spec))
+        texts = film_check.thumb_texts(spec)
+        self.assertEqual(texts, {"long_A": {"big": "18%", "sub": "leci na ślepo"}, "cover_s1": {"big": "Kto sprawdza?", "sub": "AI"}})
+        f = self.d / "content_review_thumbs.json"
+        self.assertIn("no content_review_thumbs.json", film_check.review_problems(f, texts, "x")[0])
+        self.assertEqual(content_review.main([str(self.d), "thumbs"]), 0)
+        self.assertIn("long_A judged 'todo'", film_check.review_problems(f, texts, "x")[0])
+        self.assertIn("The stranger test", (self.d / "content_review_thumbs.md").read_text())
+        rev = json.loads(f.read_text())
+        for k in rev: rev[k].update(verdict="ok", why="a stranger reads: kto sprawdza zmiany AI")
+        f.write_text(json.dumps(rev))
+        self.assertEqual(film_check.review_problems(f, texts, "x"), [])
+        spec["long"][0]["big"] = "92%"
+        self.assertEqual(film_check.review_problems(f, film_check.thumb_texts(spec), "x"), ["long_A changed after the review"])
+
+    def test_blog_cover_is_not_a_youtube_thumbnail(self):
+        out = self.d / "out"; th = out / "thumbnails"; th.mkdir(parents=True)
+        (th / "long_A_2560.png").write_bytes(b"thumb-bytes")
+        art = out / "blog" / "a"; art.mkdir(parents=True)
+        test_article.article(art)
+        cover = art / json.loads((art / "article.json").read_text())["cover"]["src"]
+        cover.write_bytes(b"thumb-bytes")
+        if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
+        _, rep = self.run_check("--out", str(out))
+        self.assertIn("the cover is a copy of a YouTube thumbnail", rep["out.article"]["detail"])
+
     def test_face_windows_must_be_cut_around_the_head(self):  # Kamil 5.11: PiP "scentruj", corner "nie ultra zoomed twarz"
         ovs, specs, segs = self.full_long()
         self.project([*ovs, {"id": "w1", "at": 300, "dur": 6, "pip": True}], specs, segs)
@@ -451,6 +482,10 @@ class FilmCheckTest(unittest.TestCase):
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
         (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA", "pick": {"t": 1.0, "score": 0.9}}, {"id": "B", "big": "SZLABAN", "no_face": True}]}))
         thumb(out / "thumbnails/long_A.jpg", "BLIZNA"); thumb(out / "thumbnails/long_B.jpg", "SZLABAN")
+        import content_review  # the thumbnail words read by a stranger (content_review thumbs)
+        content_review.main([str(self.d), "thumbs"])
+        rv = json.loads((self.d / "content_review_thumbs.json").read_text())
+        (self.d / "content_review_thumbs.json").write_text(json.dumps({k: {**v, "verdict": "ok", "why": "a stranger reads a scar"} for k, v in rv.items()}))
         r, rep = self.run_check("--out", str(out))
         self.assertIn("numbers in the posts cannot be checked", rep["out.posts"]["detail"])  # no words of the long: never a silent skip
         self.assertIn("no grafika.png", rep["out.posts"]["detail"])  # a picture alone is not enough: the graphic that says it (post_check)

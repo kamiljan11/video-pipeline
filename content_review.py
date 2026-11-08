@@ -2,6 +2,8 @@
 """content_review: read every card of a film for meaning before the render (film_check items long/short.meaning).
 
     python3 content_review.py <work> <film>
+    python3 content_review.py <work> thumbs     the words on every long thumbnail and Short cover (thumbs.json) ->
+                                                work/content_review_thumbs.{md,json} (film_check out.thumbs_read)
         writes work/content_review_<film>.md (each card: its words + the sentence said under it) and adds a
         {"verdict": "todo"} entry to work/content_review_<film>.json for every card that is new or changed since its
         review (card_text_hash). Reviewed cards keep their verdict.
@@ -17,12 +19,35 @@ import sys
 from pathlib import Path
 
 import timeline
-from film_check import TEXT_CARDS, Film, card_text_hash, card_texts, says_nothing
+from film_check import (
+    TEXT_CARDS,
+    Film,
+    card_text_hash,
+    card_texts,
+    load,
+    says_nothing,
+    thumb_texts,
+)
 
 QUESTIONS = """For every card: "ok" + why (what it adds for a viewer who has not seen the film) or "cut".
 1. does it say something the viewer needs (a number, a name, a step, a contrast), not one filler word?
 2. does it make sense alone, without the sentence under it (who / what)?
 3. is it the right moment (the sentence under it is about the same thing)?"""
+
+THUMB_QUESTIONS = """For every thumbnail / cover: "ok" + why, or "cut" (and change the words in thumbs.json).
+The stranger test: someone scrolling who never heard of the film sees only this picture and these words.
+1. what do they understand, in one sentence of their own? (if "nothing" or "a number without a subject": cut)
+2. does it make them want the answer the film gives (a result, a question, a contrast), not just name a topic?
+3. is the promise in the film (the long / the short says it)? Kamil 2026-11-08: "18% LECI NA SLEPO ... bez sensu"."""
+
+
+def thumbs_sheet(work: Path) -> tuple[str, dict]:
+    spec = load(work / "thumbs.json", "thumbs.json")
+    texts = thumb_texts(spec)
+    frames = {f"long_{v['id']}": v for v in spec.get("long", [])} | {f"cover_{v['id']}": v for v in spec.get("shorts", [])}
+    rows = [f"### {i}\n- words: {' | '.join(t.values()) or '(no words)'}\n- frame: {frames[i].get('frame', '-')}"
+            f" (pick {frames[i].get('pick', {}).get('t', '-') if isinstance(frames[i].get('pick'), dict) else '-'})\n" for i, t in texts.items()]
+    return f"# Content review: thumbnails and covers\n\n{THUMB_QUESTIONS}\n\n" + "\n".join(rows), {i: card_text_hash(t) for i, t in texts.items()}
 
 
 def spoken(words: list[tuple[float, float, str]], t0: float, t1: float) -> str:
@@ -55,7 +80,7 @@ def sheet(work: Path, name: str) -> tuple[str, dict]:
 def main(argv: list[str]) -> int:
     if len(argv) != 2: print(__doc__, file=sys.stderr); return 2
     work, name = Path(argv[0]), argv[1]
-    md, hashes = sheet(work, name)
+    md, hashes = thumbs_sheet(work) if name == "thumbs" else sheet(work, name)
     (work / f"content_review_{name}.md").write_text(md, encoding="utf-8")
     jf = work / f"content_review_{name}.json"
     rev = json.loads(jf.read_text(encoding="utf-8")) if jf.exists() else {}

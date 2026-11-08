@@ -89,6 +89,30 @@ def card_text_hash(spec: dict) -> str:
     return hashlib.sha256("\n".join(card_texts(spec)).encode()).hexdigest()[:16]
 
 
+def review_problems(f: Path, specs: dict, how: str) -> list[str]:
+    """content_review.py verdicts in f for every spec: missing, changed after the review (card_text_hash), not "ok", or
+    "ok" without a reason = a problem. how = the content_review.py arguments that make the sheet"""
+    if not f.exists(): return [f"no {f.name}: read every text for meaning (python3 content_review.py {how})"]
+    rev, bad = load(f, f.name), []
+    for i, sp in specs.items():
+        r = rev.get(i) if isinstance(rev, dict) else None
+        if not isinstance(r, dict): bad.append(f"{i} not reviewed")
+        elif r.get("hash") != card_text_hash(sp): bad.append(f"{i} changed after the review")
+        elif r.get("verdict") != "ok": bad.append(f"{i} judged {r.get('verdict')!r}: {r.get('why', '')[:60]}")
+        elif len(str(r.get("why", "")).strip()) < SKIP_MIN: bad.append(f"{i} ok without a reason")
+    return bad
+
+
+THUMB_TEXT = ("big", "sub", "tag")
+
+
+def thumb_texts(spec: dict) -> dict:
+    """{"long_A": {big, sub, tag}, "cover_s01": {...}}: the words on every thumbnail and Short cover (content_review thumbs)"""
+    out = {f"long_{v['id']}": {k: v[k] for k in THUMB_TEXT if v.get(k)} for v in spec.get("long", [])}
+    out.update({f"cover_{v['id']}": {k: v[k] for k in THUMB_TEXT if v.get(k)} for v in spec.get("shorts", [])})
+    return out
+
+
 def word_times(words_file: Path) -> list[float]:
     d = load(words_file, "words")
     return [w["offsets"]["from"] / 1000 for w in d["transcription"]]
@@ -364,18 +388,9 @@ class Film:
         A card changed after the review (hash), missing, judged "cut" but still in the plan, or "ok" without a reason = FAIL.
         Why: Kamil 2026-11-08: "znajdz sobie wiecej takich bez sensownych nic nie wnoszacych rzeczy", the blog cover
         "18% LECI NA SLEPO" had no meaning without the film"""
-        f = self.work / f"content_review_{self.name}.json"
         ids = sorted({o["id"] for o in self.ovs if o.get("id") in self.specs})
         if not ids: return True, "no cards"
-        if not f.exists(): return False, f"no {f.name}: read every card for meaning (python3 content_review.py {self.work} {self.name})"
-        rev = load(f, f.name)
-        bad = []
-        for i in ids:
-            r = rev.get(i) if isinstance(rev, dict) else None
-            if not isinstance(r, dict): bad.append(f"{i} not reviewed")
-            elif r.get("hash") != card_text_hash(self.specs[i]): bad.append(f"{i} changed after the review")
-            elif r.get("verdict") != "ok": bad.append(f"{i} judged {r.get('verdict')!r}: {r.get('why', '')[:60]}")
-            elif len(str(r.get("why", "")).strip()) < SKIP_MIN: bad.append(f"{i} ok without a reason")
+        bad = review_problems(self.work / f"content_review_{self.name}.json", {i: self.specs[i] for i in ids}, f"{self.work} {self.name}")
         return not bad, (f"{len(bad)} of {len(ids)}: " + "; ".join(bad[:6])) if bad else f"{len(ids)} cards reviewed"
 
     def stills_accepted(self):
@@ -510,7 +525,7 @@ class Out:
         try:
             sp = load(spec, "thumbs.json")
             bad, warns = thumb_check.check(sp, self.out, titles, title_check.phrase(text))
-            bad = thumb_check.pick_problems(sp) + bad
+            bad = thumb_check.pick_problems(sp) + review_problems(self.work / "content_review_thumbs.json", thumb_texts(sp), f"{self.work} thumbs") + bad
             self.warns += [("out.thumbs_read", w) for w in warns]
         except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
             return False, f"thumb_check failed: {e}"
@@ -562,6 +577,12 @@ class Out:
         wf = self.long_words()
         if wf is None: return False, 'numbers in the article cannot be checked: plan_long.json names no "words" file that exists'
         bad = [f"{a.parent.name}: {p}" for a in arts for p in article_check.problems(a.parent, wf)]
+        # a YouTube thumbnail sells a click in the feed; on the blog its words mean nothing (Kamil 2026-11-08, cover
+        # "18% LECI NA SLEPO": "bardzo bez sensu i zdjecie i tekst na bloga"): the cover is made for the article
+        thumbs = {f.read_bytes() for f in (self.out / "thumbnails").glob("*") if f.is_file()} if (self.out / "thumbnails").is_dir() else set()
+        for a in arts:
+            cov = a.parent / str((load(a, a.name).get("cover") or {}).get("src", ""))
+            if cov.is_file() and cov.read_bytes() in thumbs: bad.append(f"{a.parent.name}: the cover is a copy of a YouTube thumbnail (make one for the article)")
         self.warns += [("out.article", f"{a.parent.name}: {w}") for a in arts for w in article_check.warnings(a.parent)]
         return not bad, "; ".join(bad[:8])
 
