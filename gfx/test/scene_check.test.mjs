@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, window_ } from '../scene_check.mjs';
+import { clashes, drawProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -38,4 +38,22 @@ test('a stamp on another piece\'s words clashes; a stamp on its card does not (2
   assert.equal(out.length, 1); assert.match(out[0], /a stamp on words/);
   const onCard = { id: 'y', dur: 6, els: [{ k: 'file', at: 0 }, { k: 'stamp', at: 2 }] };
   assert.deepEqual(clashes(onCard, [{ i: 0, x: 0, y: 0, w: 700, h: 300 }, { i: 1, x: 100, y: 100, w: 400, h: 100 }]), []);
+});
+
+test('ring: holds a whole line of words or stays off it; a ring around nothing is named (Kamil 2026-11-08 s28)', () => {
+  const sp = { id: 'r', dur: 6, els: [{ k: 'file', id: 'diff', at: 0 }, { k: 'ring', x: 980, y: 210, w: 820, h: 80, at: 2 }] };
+  const rects = [{ i: 0, x: 980, y: 140, w: 820, h: 254 }];
+  const texts = [{ i: 0, x: 1058, y: 160, w: 411, h: 44 }, { i: 0, x: 1012, y: 260, w: 324, h: 57 }];
+  const bad = drawProblems(sp, rects, texts);
+  assert.ok(bad.some(b => /cuts the words of diff/.test(b))); assert.ok(bad.some(b => /circles nothing/.test(b)));
+  assert.deepEqual(drawProblems({ ...sp, els: [sp.els[0], { k: 'ring', x: 994, y: 246, w: 356, h: 86, at: 2 }] }, rects, texts), []);
+});
+
+test('line: each end on a piece (<= 40 px); a "free" line (road, time axis) is not measured', () => {
+  const sp = { id: 'l', dur: 6, els: [{ k: 'node', at: 0 }, { k: 'line', from: [1610, 455], to: [1760, 455], at: 1 }, { k: 'chip', at: 0 }] };
+  const rects = [{ i: 0, x: 1320, y: 360, w: 213, h: 270 }, { i: 2, x: 1790, y: 418, w: 328, h: 106 }];
+  const bad = drawProblems(sp, rects, []);
+  assert.equal(bad.length, 1); assert.match(bad[0], /"from" 1610,455 ends 77 px/);
+  assert.deepEqual(drawProblems({ ...sp, els: [sp.els[0], { ...sp.els[1], from: [1530, 455] }, sp.els[2]] }, rects, []), []);
+  assert.deepEqual(drawProblems({ ...sp, els: [sp.els[0], { ...sp.els[1], free: true }, sp.els[2]] }, rects, []), []);
 });

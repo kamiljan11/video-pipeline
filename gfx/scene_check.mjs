@@ -53,6 +53,40 @@ export function clashes(sp, rects, share = 0.12) {
   return out;
 }
 
+// drawing accuracy (Kamil 2026-11-08: "nie w tym miejscu co trzeba rysujesz np te podkreslenie w kolku"): ring and line
+// boxes are typed by hand in the plan, so they are measured against the laid-out words. texts: [{i, x, y, w, h}] = one
+// rect per drawn line of words (world px). A ring either holds a line of words whole or stays off it, and holds something;
+// a line starts and ends on a piece, not in the air.
+const NEAR = 40, SLACK = 12;
+export function drawProblems(sp, rects, texts) {
+  const out = [], on = (e, f) => { const [a0, a1] = window_(e, sp.dur), [b0, b1] = window_(f, sp.dur); return a0 < b1 && b0 < a1; };
+  const label = i => `${sp.els[i].id ?? `#${i}`} (${sp.els[i].k})`;
+  sp.els.forEach((e, i) => {
+    if (e.k === 'ring') {
+      const R = { x: e.x - SLACK, y: e.y - SLACK, r: e.x + e.w + SLACK, b: e.y + e.h + SLACK };
+      let held = 0;
+      for (const T of texts) {
+        if (T.i === i || !on(e, sp.els[T.i])) continue;
+        const ix = Math.min(R.r, T.x + T.w) - Math.max(R.x, T.x), iy = Math.min(R.b, T.y + T.h) - Math.max(R.y, T.y);
+        if (ix <= TOUCH || iy <= TOUCH) continue;
+        if (T.x >= R.x && T.x + T.w <= R.r && T.y >= R.y && T.y + T.h <= R.b) held++;
+        else out.push(`${sp.id}: ring ${label(i)} cuts the words of ${label(T.i)} (${Math.round(ix)}x${Math.round(iy)} px): circle the whole line or move it`);
+      }
+      const box = rects.some(B => B.i !== i && !OVERLAY_KINDS.has(sp.els[B.i].k) && on(e, sp.els[B.i])
+        && B.x >= R.x && B.y >= R.y && B.x + B.w <= R.r && B.y + B.h <= R.b);
+      if (!held && !box) out.push(`${sp.id}: ring ${label(i)} circles nothing (no line of words, no piece inside ${e.x},${e.y} ${e.w}x${e.h})`);
+    }
+    if (e.k === 'line' && !e.free && Array.isArray(e.from) && Array.isArray(e.to)) {  // "free": a road or a time axis, not a link
+      for (const [end, P] of [['from', e.from], ['to', e.to]]) {
+        const d = Math.min(Infinity, ...rects.filter(B => B.i !== i && sp.els[B.i].k !== 'line' && on(e, sp.els[B.i]))
+          .map(B => Math.hypot(Math.max(0, B.x - P[0], P[0] - B.x - B.w), Math.max(0, B.y - P[1], P[1] - B.y - B.h))));
+        if (d > NEAR) out.push(`${sp.id}: line ${label(i)} "${end}" ${P.join(',')} ends ${d === Infinity ? 'with no piece on screen' : `${Math.round(d)} px from any piece`}: put it on its piece`);
+      }
+    }
+  });
+  return out;
+}
+
 async function main() {
   const [specFile, ...only] = process.argv.slice(2);
   if (!specFile) { console.error('usage: node gfx/scene_check.mjs <specs.json> [id ...]'); process.exit(2); }
@@ -69,10 +103,10 @@ async function main() {
       await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, scene(sp, esc, icon));
       await page.evaluate(() => document.fonts.ready);
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
-      const rects = await page.evaluate(() => {
+      const { rects, texts } = await page.evaluate(() => {
         for (const a of document.getAnimations()) a.cancel();
         const world = document.querySelector('.scene .world'), wr = world.getBoundingClientRect();
-        return [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map((el, i) => {
+        const rects = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map((el, i) => {
           if (el.tagName.toLowerCase() === 'svg') return null;
           const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
           if (!boxes.length) return null;
@@ -80,9 +114,22 @@ async function main() {
           const x1 = Math.max(...boxes.map(r => r.right)), y1 = Math.max(...boxes.map(r => r.bottom));
           return { i, x: x0 - wr.left, y: y0 - wr.top, w: x1 - x0, h: y1 - y0 };
         }).filter(Boolean);
+        // one rect per drawn line of words, per piece (ranges over its text nodes)
+        const texts = [];
+        [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
+          if (el.tagName.toLowerCase() === 'svg') return;
+          const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+            if (!n.textContent.trim()) continue;
+            const rg = document.createRange(); rg.selectNodeContents(n);
+            for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height });
+          }
+        });
+        return { rects, texts };
       });
       // kept pieces of an "extends" scene are drawn first (scene_lib scene()): the measured index runs over both lists
-      bad.push(...clashes(sp._held ? { ...sp, els: [...sp._held, ...sp.els] } : sp, rects));
+      const all = sp._held ? { ...sp, els: [...sp._held, ...sp.els] } : sp;
+      bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts));
       await page.close();
     }
   } finally { await browser.close(); }
