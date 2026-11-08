@@ -27,15 +27,55 @@ STAGES = (("assemble.py", "assemble"), ("render.mjs", "gfx"), ("behind.py", "beh
           ("out_gate.py", "finish"))
 
 
-def stage_of(cmdlines: list[list[str]]) -> tuple[str, str | None]:
-    """(stage, film) from the unit's command lines: the first known script wins in STAGES order; the film is the
-    edl_<name>.json / plan_<name>.json argument when there is one."""
+def film_of(args: list[str], films: tuple[str, ...] | list[str] = ()) -> str | None:
+    """the film a command works on: an edl_<name>.json / plan_<name>.json argument, a render/<name>/ path
+    (words_check, av_check) or a bare film name (film_check . <name>)"""
+    for a in args:
+        if m := re.search(r"(?:edl|plan)_(\w+)\.(?:json|txt)$", a):
+            return m.group(1)
+    for a in args:
+        if (m := re.search(r"/render/(\w+)/[^/]+$", a)) and (not films or m.group(1) in films):
+            return m.group(1)
+    return next((a for a in args[2:] if a in films), None)
+
+
+def stage_of(cmdlines: list[list[str]], films: tuple[str, ...] | list[str] = ()) -> tuple[str, str | None]:
+    """(stage, film) from the unit's command lines: the first known script wins in STAGES order (film_of)"""
     for script, stage in STAGES:
         for args in cmdlines:
             if any(a.endswith(script) for a in args):
-                film = next((m.group(1) for a in args if (m := re.search(r"(?:edl|plan)_([\w]+)\.json$", a))), None)
-                return stage, film
+                return stage, film_of(args, films)
     return "start", None
+
+
+STEP_PL = {"assemble.py": "składanie filmu", "render.mjs": "grafiki", "behind.py": "tekst za mówcą", "critic.py": "krytyk",
+           "build_edl.py": "montaż (EDL)", "film_check.py": "lista kontrolna", "research_gate.py": "bramka researchu",
+           "face_track.py": "kadrowanie twarzy", "av_check.py": "kontrola dźwięku", "sync_check.py": "kontrola synchronizacji",
+           "words_check.py": "kontrola słów", "manifest.py": "pieczątka", "out_gate.py": "out_gate"}
+
+
+def proc_rows(procs: dict[int, list[str]], unit_pids: set[int], films: list[str]) -> list[dict]:
+    """one row per pipeline step running anywhere (the render unit or by hand beside it, Kamil 2026-11-08 "na tym
+    widgecie to powinny wszystkie procesy leciec"): script, Polish step name (+ words_check mode), film, by_hand"""
+    rows = []
+    for pid, args in sorted(procs.items()):
+        script = next((sc for sc, _ in STAGES if any(a.endswith("/" + sc) or a == sc for a in args)), None)
+        if script is None:
+            continue
+        i = next(k for k, a in enumerate(args) if a.endswith(script))
+        run_by = os.path.basename(args[i - 1]) if i else ""  # python3 / node right before the script (a shell -c line is not a step)
+        if i and "python" not in run_by and run_by != "node":
+            continue
+        mode = args[i + 1] if script == "words_check.py" and i + 1 < len(args) else None
+        step = STEP_PL[script] + (f" ({'cięcie' if mode == 'cut' else 'dźwięk'})" if mode in ("cut", "sound") else "")
+        rows.append({"pid": pid, "script": script, "step": step, "film": film_of(args, films), "by_hand": pid not in unit_pids})
+    return rows
+
+
+def whisper_pct(text: str) -> float | None:
+    """the last "progress = NN%" of whisper-cli --print-progress"""
+    hits = re.findall(r"progress\s*=\s*(\d+)%", text)
+    return int(hits[-1]) / 100 if hits else None
 
 
 def stage2_pid(procs: dict[int, list[str]]) -> int | None:
@@ -47,7 +87,7 @@ def stage2_pid(procs: dict[int, list[str]]) -> int | None:
 
 
 def eta(films: list[str], done: list[str], current: str | None, frac: float | None, stage2_s: float | None,
-        short_times: list[float], rate: float | None = None) -> dict:
+        short_times: list[float], rate: float | None = None, film_age_s: float | None = None) -> dict:
     """Seconds left for the whole set. The current film: from `rate` (fraction of the film per second, measured by a
     caller that samples frac over time, the widget) when given, else from stage2_s (assemble.py's age: includes stage
     1, so it overstates) once stage 2 has moved (frac > 2 %); otherwise unknown (None). The films after it: the mean of
@@ -58,27 +98,40 @@ def eta(films: list[str], done: list[str], current: str | None, frac: float | No
         left_cur = (1 - frac) / rate
     elif frac is not None and stage2_s is not None and frac > 0.02:
         left_cur = stage2_s / frac * (1 - frac)
+    elif current and current != "long" and film_age_s is not None:  # checks, gfx, edl: no counter, a short takes per_short
+        left_cur = max(per_short - film_age_s, 0.1 * per_short)
     rest = [f for f in films if f not in done and f != current]
     total = None if (current and left_cur is None) else (left_cur or 0) + per_short * len(rest) + TAIL_S
     return {"current_left_s": left_cur, "rest_films": len(rest), "per_short_s": per_short, "total_left_s": total}
 
 
-def failed_films(films: list[str], done: list[str], current: str | None, finishing: bool) -> list[str]:
+def total_pct(elapsed_s: float | None, left_s: float | None) -> float | None:
+    """share of the whole set done by time: elapsed / (elapsed + left)"""
+    if not elapsed_s or left_s is None:
+        return None
+    return elapsed_s / (elapsed_s + left_s)
+
+
+def failed_films(films: list[str], done: list[str], current: str | None, finishing: bool,
+                 busy: tuple[str, ...] | set[str] = ()) -> list[str]:
     """films the run has gone past without a finished file (Kamil 2026-11-08 "nie pokazuje ze renderuje sie long": the
     long had failed a gate and stood as 0/1 like one still waiting): every film before the current one in render order
     (all of them once the run is in the finish step) that is not done"""
     upto = len(films) if finishing else (films.index(current) if current in films else 0)
-    return [f for f in films[:upto] if f not in done]
+    return [f for f in films[:upto] if f not in done and f not in busy]  # busy: still worked on by hand
 
 
-def queue(films: list[str], done: list[str], current: str | None, finishing: bool) -> list[dict]:
+def queue(films: list[str], done: list[str], current: str | None, finishing: bool,
+          busy: tuple[str, ...] | set[str] = ()) -> list[dict]:
     """One row per format for the window: long 0/1, shorts 3/18 (+ how many failed), the materials step (stamp + out_gate
     after the films; posts, blog, IG and thumbnails are built before the render, render_v4.sh only stamps and gates them)."""
     shorts = [f for f in films if f != "long"]
-    bad = failed_films(films, done, current, finishing)
-    rows = [{"name": "Long", "done": int("long" in done), "total": 1, "now": current == "long", "failed": int("long" in bad)},
+    bad = failed_films(films, done, current, finishing, busy)
+    rows = [{"name": "Long", "done": int("long" in done), "total": 1, "now": current == "long" or "long" in busy,
+             "failed": int("long" in bad)},
             {"name": "Shorty", "done": sum(f in done for f in shorts), "total": len(shorts),
-             "now": current is not None and current != "long", "failed": sum(f in bad for f in shorts)}]
+             "now": (current is not None and current != "long") or any(f in busy for f in shorts),
+             "failed": sum(f in bad for f in shorts)}]
     rows.append({"name": "Materiały (pieczątki + out_gate)", "done": 0, "total": 1, "now": finishing})
     return rows
 
@@ -140,6 +193,36 @@ def _procs(unit: str) -> dict[int, list[str]]:
     return out
 
 
+VP = "/home/kamil-jan/video-pipeline/"
+
+
+def _all_pipeline_procs() -> dict[int, list[str]]:
+    """every process on the machine running a pipeline script from VP (the unit and anything beside it)"""
+    out = {}
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            args = Path(f"/proc/{d}/cmdline").read_bytes().decode(errors="replace").split("\0")[:-1]
+        except OSError:
+            continue
+        if any(a.startswith(VP) and any(a.endswith(sc) for sc, _ in STAGES) for a in args):
+            out[int(d)] = args
+    return out
+
+
+def _whisper_progress(args: list[str]) -> float | None:
+    """words_check writes whisper's --print-progress next to the media it hears (<media>.whisper.progress)"""
+    for a in args:
+        f = Path(a + ".whisper.progress")
+        try:
+            if f.exists() and time.time() - f.stat().st_mtime < 600:
+                return whisper_pct(f.read_text(errors="replace")[-2000:])
+        except OSError:
+            continue
+    return None
+
+
 def _read_frac(pid: int) -> float | None:
     """How far ffmpeg has read rough.mkv: fd position / file size."""
     try:
@@ -196,8 +279,14 @@ def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float |
             done.append(name)
         st = [t for t, p in mp4s if p.parent.name == "shorts"]
         short_times = [b - a for a, b in itertools.pairwise(st)]
-    stage, film = stage_of(list(procs.values()))
-    bad = failed_films(films, done, film, stage == "finish")
+    stage, film = stage_of(list(procs.values()), films)
+    every = {**_all_pipeline_procs(), **procs}
+    rows = proc_rows(every, set(procs), films)
+    for r in rows:
+        r["age_s"] = _age(r["pid"])
+        r["pct"] = _whisper_progress(every[r["pid"]]) if r["script"] == "words_check.py" else None
+    busy = {r["film"] for r in rows if r["by_hand"] and r["film"]}
+    bad = failed_films(films, done, film, stage == "finish", busy)
     log = Path(src).resolve().parents[3] / "render.log" if src else None  # <VP>/render/montaz/<date>/work/render_v4.sh
     try:
         why = fail_reasons(log.read_text(errors="replace")[-400_000:], bad) if log and bad else {}
@@ -208,11 +297,13 @@ def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float |
     frac = _read_frac(pid) if pid else None
     # the rate from assemble.py's age: in windows a new ffmpeg starts every 2 min, so its own age says nothing
     apid = next((p for p, args in procs.items() if any(a.endswith("assemble.py") for a in args)), None)
-    e = eta(films, done, film, frac, _age(apid) if (pid and apid) else None, short_times, rate)
+    last = max([start or 0.0, *(p.stat().st_mtime for p in Path(out).glob("*/*.mp4") if start and p.stat().st_mtime > start)]) if out else 0.0
+    e = eta(films, done, film, frac, _age(apid) if (pid and apid) else None, short_times, rate,
+            time.time() - last if last else None)
+    elapsed = time.time() - start if start else None
     return {"unit": unit, "active": active, "stage": stage, "film": film, "frac": frac, "films": films, "done": done,
-            "queue": queue(films, done, film, stage == "finish") + (materials(out, shorts) if out else []),
-            "failed": fails,
-            "elapsed_s": time.time() - start if start else None, **e}
+            "queue": queue(films, done, film, stage == "finish", busy) + (materials(out, shorts) if out else []),
+            "failed": fails, "procs": rows, "elapsed_s": elapsed, **e, "total_pct": total_pct(elapsed, e["total_left_s"])}
 
 
 def main(argv: list[str]) -> int:

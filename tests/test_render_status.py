@@ -119,5 +119,39 @@ class Failed(unittest.TestCase):
         self.assertEqual(R.fail_reasons(log, ["long", "s02"]), {"long": "words_check cut", "s02": "film_check"})
 
 
+class Processes(unittest.TestCase):  # Kamil 2026-11-08 "na tym widgecie to powinny wszystkie procesy leciec ... ile %"
+    VP = "/home/kamil-jan/video-pipeline/"
+
+    def test_film_of_reads_edl_render_paths_and_bare_names(self):
+        self.assertEqual(R.film_of(["python3", "x/build_edl.py", "edl_s02.json"], FILMS), "s02")
+        self.assertEqual(R.film_of(["python3", "words_check.py", "sound", "/v/render/long/rough.mkv", "/v/render/long/f.mp4"], FILMS), "long")
+        self.assertEqual(R.film_of(["python3", "film_check.py", ".", "s03"], FILMS), "s03")
+        self.assertIsNone(R.film_of(["python3", "words_check.py", "sound", "/v/render/beds_s01/music.wav"], FILMS))
+
+    def test_rows_cover_the_unit_and_steps_run_by_hand(self):
+        procs = {10: ["python3", self.VP + "words_check.py", "sound", "/v/render/long/rough.mkv", "/v/render/long/f.mp4"],
+                 11: ["nice", "python3", self.VP + "assemble.py", "edl_s02.json", "/v/render/s02"],
+                 12: ["/bin/bash", "-c", "python3 " + self.VP + "words_check.py sound a b"],  # a shell around a step: not a row
+                 13: ["python3", self.VP + "critic.py", "plan_s01.json", "--video", "x.mp4"]}
+        rows = R.proc_rows(procs, {11}, FILMS)
+        self.assertEqual([(r["pid"], r["film"], r["by_hand"]) for r in rows], [(10, "long", True), (11, "s02", False), (13, "s01", True)])
+        self.assertEqual(rows[0]["step"], "kontrola słów (dźwięk)")
+        busy = {r["film"] for r in rows if r["by_hand"]}
+        self.assertEqual(R.failed_films(FILMS, ["s01"], "s02", False, busy), [])  # the long is checked by hand: not failed
+        self.assertTrue(R.queue(FILMS, [], "s02", False, busy)[0]["now"])
+
+    def test_whisper_pct_and_total_pct(self):
+        self.assertEqual(R.whisper_pct("whisper_print_progress_callback: progress =  5%\n... progress = 45%\n"), 0.45)
+        self.assertIsNone(R.whisper_pct("loading model"))
+        self.assertEqual(R.total_pct(600.0, 1800.0), 0.25)
+        self.assertIsNone(R.total_pct(600.0, None))
+
+    def test_eta_has_a_number_while_a_short_is_in_its_checks(self):  # no stage-2 counter there, the widget showed "?"
+        e = R.eta(FILMS, ["long", "s01"], "s02", None, None, [], film_age_s=60.0)
+        self.assertEqual(e["current_left_s"], R.SHORT_S - 60.0)
+        self.assertEqual(e["total_left_s"], R.SHORT_S - 60.0 + R.SHORT_S + R.TAIL_S)
+        self.assertIsNone(R.eta(FILMS, [], "long", None, None, [], film_age_s=60.0)["total_left_s"])  # the long: unknown
+
+
 if __name__ == "__main__":
     unittest.main()
