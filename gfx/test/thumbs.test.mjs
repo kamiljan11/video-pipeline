@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
-import { checkThumbs, fitProblems, keepTogether, longHtml, shortHtml } from '../thumbs.mjs';
+import { checkThumbs, fitProblems, longHtml, shortHtml } from '../thumbs.mjs';
+import { keepTogether } from '../html_lib.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-test-'));
 fs.writeFileSync(path.join(dir, 'f.png'), '');

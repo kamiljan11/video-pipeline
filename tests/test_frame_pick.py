@@ -60,6 +60,12 @@ class FramePickTest(unittest.TestCase):
                          ["looks to the side", "looks down", "looks up", "half-shut eyes", "pursed mouth", "lips rolled in",
                           "head turned", "head tilted", ""])
 
+    def test_the_thresholds_sit_where_adr_0020_says(self):
+        """gaze aside > 0.2 and head yaw > 10 deg are no candidates; 0.2 and 10 themselves still are (ADR-0020)"""
+        self.assertEqual((fp.GAZE_H, fp.HEAD_YAW), (0.2, 10))
+        self.assertEqual([fp.odd_face(x) for x in (e(gaze_h=0.2), e(gaze_h=0.21), e(yaw=10), e(yaw=-10.5))],
+                         ["", "looks to the side", "", "head turned"])
+
     def test_straighter_gaze_and_a_closed_jaw_win(self):
         got = self.run_pick([m(), m(), m()], [e(gaze_h=0.2), e(jaw=0.35), e()])
         self.assertEqual(got[0].t, 0.2)

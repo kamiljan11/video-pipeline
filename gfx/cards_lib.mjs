@@ -73,7 +73,7 @@ function checkList(sp) {
 const listDefault = (sp, i) => (sp.upto === undefined ? i : 0.3);
 
 export function listHtml(sp) {
-  // legacy list: the exact markup of before (its .mov keys and stills stay valid)
+  // legacy list: the markup of before, words through prose() (no-break spaces 2026-11-08: its .mov renders once anew)
   if (sp.upto === undefined && sp.dim_done === undefined) return `<div class="list"><div class="h">${prose(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${prose(x)}</span></div>`).join('')}</div>`;
   checkList(sp);
   const n = sp.upto ?? sp.items.length, stacked = sp.upto === undefined, d = sp.delays ?? [];

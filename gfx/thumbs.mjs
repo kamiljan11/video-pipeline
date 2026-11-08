@@ -17,9 +17,7 @@
 // Out: long_<id>.jpg (1280x720, the upload) + long_<id>_2560.png, <short id>_cover.jpg (1080x1920).
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
-import { esc, icon, keepTogether, prose } from './html_lib.mjs';
-
-export { keepTogether };
+import { esc, icon, prose } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
 
 const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';

@@ -5,5 +5,7 @@ import fs from 'fs'; import { fileURLToPath } from 'url';
 
 export const isMain = moduleUrl => {
   if (!process.argv[1]) return false;
-  try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(moduleUrl)); } catch { return false; }
+  try { return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(moduleUrl)); } catch (e) {
+    console.error(`isMain: cannot resolve ${process.argv[1]} (${e.message}): the script does nothing`); return false;  // never a silent no-op
+  }
 };
