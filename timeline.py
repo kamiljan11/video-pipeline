@@ -43,3 +43,20 @@ def src2out(t: float, segments: list[dict], exact: bool) -> float:
         if t <= s["out"]: return acc + min(t - s["in"], L)
         acc += L
     return acc
+
+
+def concat_list(files: list[str], seconds: list[float | None]) -> str:
+    """ffmpeg concat demuxer list with each file's exact length (`duration`). Without it the demuxer places the next file
+    at the end of the previous one as its container says, and .mkv says whole milliseconds: a 44-frame piece (1.466667 s)
+    reads 1.466 s. Over 275 pieces of the 2026-11-04 long the head track (picture only) ran 3+ frames ahead of rough.mkv
+    (picture + sound, rounded the other way) and the corner head moved its lips before the voice. None = no duration
+    (the last file, whose length nothing after it depends on)."""
+    if len(files) != len(seconds):
+        raise ValueError(f"concat_list: {len(files)} files, {len(seconds)} lengths")
+    out = []
+    for f, d in zip(files, seconds, strict=True):
+        if "'" in f or "\n" in f:
+            raise ValueError(f"concat_list: a quote or newline in {f!r}")
+        out.append(f"file '{f}'\n" + (f"duration {d:.6f}\n" if d is not None else ""))
+    return "".join(out)
+

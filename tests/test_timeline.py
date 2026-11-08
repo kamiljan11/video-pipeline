@@ -1,5 +1,9 @@
 """timeline: film times of seg_exact pieces are whole frames (film 2026-11-04: cards up to 287 ms off the words)"""
+import json
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -43,3 +47,38 @@ class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with 
         self.assertAlmostEqual(film_check.zoom_steps(edl)[0], 2.0)
         self.assertAlmostEqual(film_check.src2out(segs, 4.5, True), 2.5)
         self.assertAlmostEqual(film_check.body_len({"segments": segs}), 3.032)
+
+
+class ConcatListTest(unittest.TestCase):
+    def test_list_has_each_exact_length_and_none_leaves_it_out(self):
+        self.assertEqual(T.concat_list(["/a.mkv", "/b.mkv"], [44 / 30, None]), "file '/a.mkv'\nduration 1.466667\nfile '/b.mkv'\n")
+
+    def test_bad_input_is_refused(self):
+        with self.assertRaises(ValueError):
+            T.concat_list(["/a.mkv"], [])
+        with self.assertRaises(ValueError):
+            T.concat_list(["/it's.mkv"], [1.0])
+
+
+@unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
+class ConcatKeepsFrameTimeTest(unittest.TestCase):
+    """40 pieces of 44 frames in .mkv (assemble.py's head track): glued with the exact lengths every frame sits at k/30;
+    the old list (no lengths) loses up to 0.7 ms a piece: the 2026-11-04 corner head ran 3+ frames before the voice"""
+
+    def test_frames_stay_on_the_film_clock(self):
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
+        piece = f"{d}/p.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=64x64:r=30", "-frames:v", "44", "-c:v", "libx264",
+                        "-preset", "ultrafast", piece], check=True)
+        files = [piece] * 40
+
+        def last_pts(text):
+            lst = f"{d}/l.txt"; Path(lst).write_text(text); out = f"{d}/o.mkv"
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", out], check=True)
+            r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "packet=pts_time", "-of", "json", out],
+                               capture_output=True, text=True, check=True)
+            return max(float(p["pts_time"]) for p in json.loads(r.stdout)["packets"])
+
+        exact = (40 * 44 - 1) / 30
+        self.assertAlmostEqual(last_pts(T.concat_list(files, [44 / 30] * 40)), exact, delta=0.002)
+        self.assertGreater(abs(last_pts("".join(f"file '{f}'\n" for f in files)) - exact), 0.015)  # control: the old drift

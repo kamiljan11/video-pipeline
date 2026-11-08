@@ -126,7 +126,8 @@ def cut(i_s):
 with ThreadPoolExecutor(6) as ex:
     files = list(ex.map(cut, enumerate(edl["segments"])))
 lst = os.path.join(out, "concat.txt")
-Path(lst).write_text("".join(f"file '{os.path.abspath(p)}'\n" for p in files))
+# exact piece lengths in the list: .mkv keeps whole ms and the demuxer would add the rounding up piece by piece
+Path(lst).write_text(timeline.concat_list([os.path.abspath(p) for p in files], [timeline.piece_len(sg, EXACT) for sg in edl["segments"]]))
 rough = os.path.join(out, "rough.mkv")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", rough], check=True)
 
@@ -196,7 +197,7 @@ def head_track(name, wins, size, fill):
     with ThreadPoolExecutor(6) as ex:
         files = list(ex.map(cut, range(len(edl["segments"]))))
     lst = os.path.join(out, f"{name}_concat.txt")
-    Path(lst).write_text("".join(f"file '{os.path.abspath(p)}'\n" for p in files))
+    Path(lst).write_text(timeline.concat_list([os.path.abspath(p) for p in files], [seg_len(sg) for sg in edl["segments"]]))
     track = os.path.join(out, f"{name}.mkv")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", track], check=True)
     return track
@@ -382,7 +383,8 @@ def picture_in_windows():
     """The picture run in time windows (chunks.py). A window already made by the same command is kept, so a render
     stopped half-way goes on from there. Every window but the last must hold exactly its frames, or the join would shift
     the picture against the sound."""
-    wins = chunks.windows(round(body * chunks.FPS), float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)))
+    total = round(body * chunks.FPS)
+    wins = chunks.windows(total, float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)))
     cdir = os.path.join(out, "chunks"); os.makedirs(cdir, exist_ok=True)
     pad = f",tpad=stop_mode=clone:stop_duration={tail}" if tail else ""
     enc = ["-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p"]
@@ -395,17 +397,27 @@ def picture_in_windows():
             a[-1] = dst + ".part.mkv"
             subprocess.run(a, check=True)
             os.replace(a[-1], dst)
-        if w[1] is not None and (got := packets(dst)) != w[1] - w[0]:
+        got = packets(dst)
+        if w[1] is not None and got != w[1] - w[0]:
             sys.exit(f"assemble: window {n + 1} has {got} frames, not {w[1] - w[0]} ({dst})")
+        # the last window runs to the end of the graph: the rest of the film plus the tail pad (tpad may round by a frame)
+        want = total - w[0] + round(tail * chunks.FPS) if w[1] is None else got
+        if abs(got - want) > 1:
+            sys.exit(f"assemble: last window has {got} frames, not {want} (film {total} + tail) ({dst})")
         parts.append(dst)
     lst = os.path.join(cdir, "concat.txt")
-    Path(lst).write_text("".join(f"file '{os.path.abspath(p)}'\n" for p in parts))
+    lens = [(w[1] - w[0]) / chunks.FPS if w[1] is not None else None for w in wins]  # exact: .mkv rounds to whole ms
+    Path(lst).write_text(timeline.concat_list([os.path.abspath(p) for p in parts], lens))
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", vpart], check=True)
     if (got := packets(vpart)) != (want := sum(packets(p) for p in parts)):
         sys.exit(f"assemble: joined picture has {got} frames, the windows {want}")
+    for f in os.listdir(cdir):  # windows of an older command or input (other key) will not be used again
+        if f.endswith(".mkv") and os.path.join(cdir, f) not in parts:
+            os.remove(os.path.join(cdir, f))
 
 
 subprocess.run(aargs, check=True)
+# <out>/chunks/ keeps the windows of the last run (a rerun with the same inputs reuses them); deleting it is always safe.
 # one run when the film fits in one window or for a panel preview; VP_CHUNK_S=0 forces the one run (the old way)
 if PROXY or float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)) <= 0 or len(chunks.windows(round(body * chunks.FPS))) == 1:
     subprocess.run(args, check=True)

@@ -5,10 +5,11 @@ took 55-60 GB of anon memory in 30 s, thrashed under a 60 GB cap and was killed 
 cards on screen in it; every other card input becomes a 16x16 transparent frame, so input numbers and the filter
 graph stay exactly as assemble.py built them. Each window seeks rough.mkv (and the head tracks cut frame for frame
 with it) with -copyts, so every time in the graph (card offsets, enable=between(t,..), the progress bar) stays the
-film time. Windows land in <out>/chunks/ named by their command: a render killed half-way starts again where it
-stopped. Pure functions here, the run in assemble.py; tests/test_chunks.py."""
+film time. Windows land in <out>/chunks/ named by their command and input files (key): a render killed half-way
+starts again where it stopped, a changed input makes its windows again. Pure functions here, the run in assemble.py; tests/test_chunks.py."""
 import hashlib
 import json
+import os
 
 FPS = 30
 CHUNK_S = 120.0
@@ -67,5 +68,8 @@ def window_args(inputs: list[str], cards: list[tuple[int, float, float]], aligne
 
 
 def key(args: list[str]) -> str:
-    """Cache name of a window: its whole command (cards, times, graph, codec) minus the output path."""
-    return hashlib.sha256(json.dumps(args[:-1]).encode()).hexdigest()[:16]
+    """Cache name of a window: its whole command (cards, times, graph, codec) minus the output path, plus size and mtime
+    of every file it reads. rough.mkv and the cards are made again under the same names (run_v4.sh removes rough.mkv,
+    a correction round re-renders a card), so a key of the command alone would reuse a window of the old picture."""
+    files = [[a, st.st_size, st.st_mtime_ns] for a in args[:-1] if os.path.isfile(a) and (st := os.stat(a))]
+    return hashlib.sha256(json.dumps([args[:-1], files]).encode()).hexdigest()[:16]

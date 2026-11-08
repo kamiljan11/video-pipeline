@@ -81,6 +81,13 @@ class WindowArgs(unittest.TestCase):
         with self.assertRaises(ValueError):
             C.window_args(self.inputs, [], [1], self.fc, (0, None), "v2", "", [], "o.mkv")
 
+    def test_key_changes_when_an_input_file_is_made_again(self):
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
+        f = os.path.join(d, "card.mov"); Path(f).write_bytes(b"old")
+        k = C.key(["-i", f, "o.mkv"])
+        os.utime(f, ns=(1, 1)); Path(f).write_bytes(b"new!")  # same path, other picture (a correction round)
+        self.assertNotEqual(C.key(["-i", f, "o.mkv"]), k)
+
     def test_key_ignores_the_output_path_only(self):
         self.assertEqual(C.key(["a", "b", "x.mkv"]), C.key(["a", "b", "y.mkv"]))
         self.assertNotEqual(C.key(["a", "c", "x.mkv"]), C.key(["a", "b", "x.mkv"]))
