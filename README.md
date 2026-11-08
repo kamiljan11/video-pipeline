@@ -286,6 +286,9 @@ Wpis w `gfx_specs.json` (kotwica w planie jak każda grafika, `"gfx": [{"id": "w
   ```
   Paywall, który rozmywa tekst (np. Fortune), przechodzi przez zrzut bez błędu i daje kartę z rozmytym tekstem: obejrzyj
   `gfx/web/<klucz>.png` przed renderem; wtedy inne źródło albo własny zrzut (`img`).
+- `"read_along": [s, …]` (L16b, opcjonalnie): linia cytatu dostaje zaznaczenie w chwili, gdy ją czytasz (s od startu karty, po
+  jednej na linię; brakujące idą co 0,25 s). Każda chwila po przewinięciu i 1,4 s przed końcem karty, inaczej nazwany błąd. Bez
+  klucza: zaznaczenie po przewinięciu, linie co 0,25 s, jak dotąd (`webshot_lib.mjs` › `markTimes`).
 - Prawo cytatu: krótki fragment z podanym źródłem; nie pokazuj całych artykułów zza paywalla.
 
 ## Karta licznika `count` (liczba odliczana od 0)
@@ -298,6 +301,8 @@ ale każda liczba z `text` odlicza od 0 do swojej wartości (GSAP, `gfx/count_li
 - Nie liczy (zostaje jak napisane): liczby w słowie albo kodzie („B2B”, „Q3”, „v2.0”), godziny („15:30”), liczby z kropką
   („10.5”), zera wiodące („007”). Panel odrzuca kartę `count`, w której nie ma żadnej liczby do odliczania.
 - Odliczanie startuje po 0,35 s (gdy ramka już weszła) i trwa 40 % długości karty, maks. 1,6 s; kończy się przed wygaszeniem.
+- `"from"` (S11, opcjonalnie): start odliczania zamiast 0, jedna liczba dla wszystkich albo lista, po jednej na liczbę w `text`
+  (lista rośnie z 3 do 4 pozycji: `"text": "4 kroki", "from": 3`). Bez klucza: od 0, jak dotąd (`count_lib.mjs` › `countFrom`).
   Karta krótsza niż ok. 1 s pokazuje liczby od razu.
 - Dźwięk „pop” jak `kw`; pod kartą 16:9 nie ma najazdu (`gfx_types.SIDE_BOX`).
 - Wymaga `node_modules/gsap` (`npm ci`, krok 2 wyżej). Bez niego render kart kończy się `FAILED gfx` w `render.log`.
@@ -357,6 +362,23 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
     zmienia liczbę i dopełnia pasek w podanych chwilach.
 - **Wspólne chwile każdego elementu (s od startu karty):** `hl_at` podświetlenie za elementem, `strike_at` przekreślenie i
   przygaszenie, `pulse_at` (liczba albo lista) puls, `out_at` szybkie rozmycie i zniknięcie, `dim`, `gone` (wyżej).
+- **Badania (wszystko opcjonalne; scena bez tych kluczy rysuje się bajt w bajt jak dotąd):**
+  - `read_along: [[s, linia], …]` na `term` / `win` / `file` (L16b): linia (wyjście terminala, wiersz okna z tekstem, nie
+    szara kreska `~`) podświetla się w chwili, gdy ją mówisz, i gaśnie przy następnej; ostatnia świeci do końca.
+  - `item: n` na elemencie (S11): pozycja listy nr n; musi zostać na ekranie co najmniej 3 s (`ITEM_HOLD`), inaczej nazwany błąd.
+  - `"extends": "<id sceny>"` na scenie (S11): scena zaczyna z elementami tamtej, które były na ekranie na jej końcu (bez `gone`
+    i `out_at`), już w stanie końcowym (wpisane, zaznaczone, policzone, bez ponownego wejścia; także to, co tamta scena
+    pokazałaby dopiero po swoim końcu, np. późne wiadomości czatu), i dokłada swoje. Kamera własna
+    (może kadrować odziedziczone `id`); `canvas`, `layout`, `pip` też podaj sama (nie dziedziczą się).
+  - `"canvas_zoom": [{"t", "on", "k", "d"}]` na scenie (L17): w `t` kamera zbliża się `k` razy (domyślnie 1,25) na pudełko `on`
+    w `d` s (domyślnie 0,4), środek zostaje w miejscu; następny przystanek `cam` rusza z tego kadru. Nie w środku ruchu kamery
+    i nie przy `"cam": "none"`. Dwa zoomy bez przystanku `cam` między nimi mnożą się (1,25 × 1,25); w 9:16 element, który po
+    zbliżeniu wychodzi poza kadr, gaśnie jak przy każdym przystanku (`soloKeys`).
+  - `build_edl.py` wpisuje to do nakładki karty w EDL (s filmu, `gfx_events.py`): `zooms` (starty `canvas_zoom`), `moves` (każda
+    zmiana obrazu w karcie: ruch kamery między różnymi przystankami, `canvas_zoom`, ruszenie kursora, start pisania w terminalu,
+    krok `read_along`; S14), `read_along`, `items` ([wejście, wyjście] pozycji w kolejności `item`). W planie wpis `gfx` może
+    podać słowa wskazówek: `"read_along": [indeks słowa, …]`, `"items": [indeks liczebnika, …]`; `build_edl.py` odrzuca kartę,
+    której wskazówka jest dalej niż -0,15..+0,3 s od słowa, i podaje czas karty, który wpisać.
 - **Tło sceny `bg`:** brak = siatka kropek, `"dots"` to samo jawnie, `"blobs"` = trzy rozmyte plamy w kolorach motywu.
 - **Nowy rodzaj elementu:** wpis w `PIECES` (`gfx/scene_lib.mjs`: funkcja `(e, {esc, icon, at, tn})` → `{inner, style}` albo
   `{html}`, gdy element rysuje własne pudełko jak `line`), nazwa w `KINDS`, jego klucze w `checkScene`, opis tutaj, test w

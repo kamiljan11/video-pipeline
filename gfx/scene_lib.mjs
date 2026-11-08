@@ -36,6 +36,11 @@ const ANIMS = { pop: 'scpop .5s cubic-bezier(.2,1.4,.4,1)', up: 'scup .55s cubic
 const EASE_IN = 'cubic-bezier(.215,.61,.355,1)', EASE_MOVE = 'cubic-bezier(.45,0,.55,1)', EASE_POP = 'cubic-bezier(.34,1.56,.64,1)';
 export const BGS = ['dots', 'blobs'];
 const MOVE = 0.9;      // default seconds a camera move takes, ending at its stop's "t"
+// L17 (research ledger) "canvas_zoom": a punch-in inside the drawing, the camera closes 1.0 -> 1.25 onto a piece's box in 0.4 s,
+// so a long scene gets the emphasis beat a talking shot gets from a punch-in; build_edl.py lists its times (overlay "zooms")
+export const CANVAS_ZOOM = { k: 1.25, d: 0.4 };
+// S11 (research ledger): a list item ("item": n on a piece) stays at least this long, else it is gone before it is read
+export const ITEM_HOLD = 3;
 const TYPE_CPS = 28;   // terminal typing speed, characters per second
 const LINE_STEP = 0.09; // terminal output lines come in this far apart
 // how pieces move: "legacy" = the timings every card had before motion tokens (cards without "motion" draw byte for byte
@@ -57,6 +62,10 @@ export const MOTIONS = Object.keys(MOTION);
 const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const tone = t => TONES[t] ?? TONES.acc;
 const f2 = x => (+x).toFixed(2);
+// when a piece comes in: its "at", a kinetic line just before its first word, else the card start
+const pieceAt = e => num(e.at, e.k === 'say' && Array.isArray(e.words) && e.words.length ? Math.max(0, Math.min(...e.words.map(w => w[1])) - 0.05) : 0);
+// lines a "read_along" may point at: a terminal's output lines, a window's or file's rows
+const readLines = e => (e.k === 'term' ? (Array.isArray(e.out) ? e.out.length : 0) : (Array.isArray(e.rows) ? e.rows : ['~80', '~55', '~70']).length);
 
 // camera stops -> one keyframes rule over the whole card; each move eases in the "move" seconds before its stop's t
 // (self-contained: render.mjs ships its source into the page, where the stops are resolved)
@@ -74,6 +83,22 @@ export function camKeyframes(cam, dur) {
   put(dur, cam.at(-1));
   const tf = s => `transform:translate(${-num(s.x, 0) * num(s.z, 1)}px,${-num(s.y, 0) * num(s.z, 1)}px) scale(${num(s.z, 1)})`;
   return pts.map(([t, s]) => `${((t / dur) * 100).toFixed(3)}%{${tf(s)};animation-timing-function:cubic-bezier(.65,0,.35,1)}`).join('');
+}
+
+// L17 canvas_zoom: each zoom {t, d, k, cx, cy} (cx, cy = world centre of the pieces it frames, measured by sceneFit) becomes
+// one more camera stop: from the framing in effect at t, d seconds to the same framing k times closer, the centre staying
+// where it is on screen ((c - x') z k = (c - x) z). The next stop of "cam" moves on from there. Self-contained: render.mjs
+// ships its source into the page like camKeyframes.
+export function zoomStops(stops, zooms) {
+  const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+  const out = [...stops];
+  for (const z of zooms) {
+    let i = 0;
+    out.forEach((s, j) => { if (num(s.t, 0) <= z.t) i = j; });
+    const b = out[i], bz = num(b.z, 1), bx = num(b.x, 0), by = num(b.y, 0);
+    out.splice(i + 1, 0, { t: z.t + z.d, move: z.d, z: bz * z.k, x: z.cx - (z.cx - bx) / z.k, y: z.cy - (z.cy - by) / z.k, zoom: true });
+  }
+  return out;
 }
 
 // 9:16 "solo" (a short): a camera that frames the piece being said in a narrow frame cuts its wide neighbours at the edge
@@ -132,13 +157,32 @@ export function checkScene(sp) {
       if (!Array.isArray(e.steps) || !e.steps.length || !e.steps.every(s => Array.isArray(s) && s[0] >= 0 && s[0] < dur && Number.isInteger(s[1])))
         bad.push(`${n}: "steps" = [[seconds, number], ...]`);
     }
+    if (e.read_along !== undefined) {  // L16b: the line lights up when it is said
+      const lines = readLines(e);
+      if (!['term', 'win', 'file'].includes(e.k)) bad.push(`${n}: "read_along" only on a term, win or file (its lines)`);
+      else if (!Array.isArray(e.read_along) || !e.read_along.length || !e.read_along.every((s, j, a) => Array.isArray(s) && typeof s[0] === 'number'
+        && s[0] >= 0 && s[0] < dur && Number.isInteger(s[1]) && s[1] >= 0 && s[1] < lines && (!j || s[0] > a[j - 1][0])))
+        bad.push(`${n}: "read_along" = [[seconds, line], ...] forward in time, line 0..${lines - 1}, said inside the card`);
+      else if (e.k !== 'term') for (const [, i] of e.read_along) {  // a grey "~" line stands for text nobody reads
+        const r = (e.rows ?? ['~80', '~55', '~70'])[i], t = typeof r === 'string' ? r : r?.t;
+        if (typeof t !== 'string' || /^~\d*$/.test(t)) bad.push(`${n}: "read_along" row ${i} is a placeholder line, nothing to read`);
+      }
+    }
+    if (e.item !== undefined) {  // S11: a list item stays long enough to be read
+      if (!(Number.isInteger(e.item) && e.item > 0)) bad.push(`${n}: "item" = its number in the list (1, 2, ...)`);
+      else {
+        const on = Math.min(dur, ...[e.gone, e.out_at].filter(t => typeof t === 'number')) - pieceAt(e);
+        if (on < ITEM_HOLD - 1e-9) bad.push(`${n}: list item ${e.item} is on ${on.toFixed(2)} s, it needs ${ITEM_HOLD} s (S11)`);
+      }
+    }
     if (e.k === 'stat' && e.count !== undefined && !(e.count && Number.isFinite(e.count.to))) bad.push(`${n}: "count" = {"from", "to", "d"} numbers`);
     if (e.k === 'term' && typeof e.cmd !== 'string') bad.push(`${n}: "cmd" = the command, as it was typed`);
     if (e.k === 'term' && e.out !== undefined && !(Array.isArray(e.out) && e.out.every(l => typeof l === 'string'))) bad.push(`${n}: "out" = the real output, a list of lines`);
     if (e.tone !== undefined && !(e.tone in TONES)) bad.push(`${n}: "tone" one of ${Object.keys(TONES).join(', ')}`);
     if (e.anim !== undefined && !(e.anim in ANIMS)) bad.push(`${n}: "anim" one of ${Object.keys(ANIMS).join(', ')}`);
   });
-  const ids = new Set((sp.els || []).map(e => e && e.id).filter(Boolean));
+  // pieces kept from the scene it "extends" (resolveExtends) can be framed too
+  const ids = new Set([...(sp._held || []), ...(sp.els || [])].map(e => e && e.id).filter(Boolean));
   if (Array.isArray(sp.cam)) {
     if (!sp.cam.length) bad.push('"cam": a list of stops, "none" or nothing (frame the whole drawing)');
     sp.cam.forEach((s, i) => {
@@ -150,6 +194,28 @@ export function checkScene(sp) {
         if (!ids.has(on)) bad.push(`cam[${i}]: "on" names ${JSON.stringify(on)}, no piece has that "id"`);
     });
   } else if (sp.cam !== undefined && sp.cam !== 'none') bad.push('"cam": a list of stops, "none" or nothing (frame the whole drawing)');
+  if (sp.extends !== undefined && !(typeof sp.extends === 'string' && sp.extends && sp.extends !== sp.id))
+    bad.push('"extends" = the id of another scene, whose pieces still on at its end stay on here');
+  if (sp.canvas_zoom !== undefined) {  // L17
+    if (sp.cam === 'none') bad.push('"canvas_zoom" moves the camera, "cam": "none" has none');
+    if (!Array.isArray(sp.canvas_zoom) || !sp.canvas_zoom.length) bad.push('"canvas_zoom" = [{"t", "on", "k", "d"}, ...]');
+    else sp.canvas_zoom.forEach((z, i) => {
+      const d = num(z?.d, CANVAS_ZOOM.d), k = num(z?.k, CANVAS_ZOOM.k), prev = sp.canvas_zoom[i - 1];
+      if (!(typeof z?.t === 'number' && z.t >= 0 && z.t + d <= dur)) bad.push(`canvas_zoom[${i}]: "t" = seconds, the zoom (${d} s) ends inside the card`);
+      if (i && !(z?.t >= num(prev?.t, 0) + num(prev?.d, CANVAS_ZOOM.d))) bad.push(`canvas_zoom[${i}]: zooms go forward in time, one after the other`);
+      if (!(d >= 0.2 && d <= 1)) bad.push(`canvas_zoom[${i}]: "d" = seconds 0.2..1`);
+      if (!(k >= 1.05 && k <= 1.6)) bad.push(`canvas_zoom[${i}]: "k" = how much closer, 1.05..1.6`);
+      if (z?.on === undefined) bad.push(`canvas_zoom[${i}]: "on" = the piece id (or ids, or "*") to zoom onto`);
+      for (const on of z?.on === undefined || z.on === '*' ? [] : [].concat(z.on))
+        if (!ids.has(on)) bad.push(`canvas_zoom[${i}]: "on" names ${JSON.stringify(on)}, no piece has that "id"`);
+      // the zoom is one more camera stop (zoomStops): inside a move of "cam" the two would fight over the frame
+      if (typeof z?.t === 'number' && Array.isArray(sp.cam)) sp.cam.forEach((s, j) => {
+        if (!j || typeof s?.t !== 'number') return;
+        const m0 = Math.max(num(sp.cam[j - 1]?.t, 0), s.t - num(s.move, MOVE));
+        if (z.t < s.t && z.t + d > m0) bad.push(`canvas_zoom[${i}]: runs into the camera move to cam[${j}] (${m0.toFixed(2)}-${s.t.toFixed(2)} s)`);
+      });
+    });
+  }
   if (sp.bg !== undefined && !BGS.includes(sp.bg)) bad.push(`"bg" one of ${BGS.join(', ')}`);
   if (sp.motion !== undefined && sp.motion !== 'tokens') bad.push('"motion" = "tokens" (gfx/motion_tokens.mjs) or nothing (the timings before tokens)');
   if (sp.canvas === 'v' && sp.cam === 'none') bad.push('canvas "v": the camera frames the drawing above the face box, "cam": "none" has no place there');
@@ -178,6 +244,16 @@ function row(r, esc, icon, at, m = MOTION.legacy) {
   return `<div class="row">${hl}${body}${mk}</div>`;
 }
 
+// L16b read_along: [[t, line], ...] -> per line the [from, until] spans it is lit (until = the next step, null = to the end)
+const readSpans = e => {
+  const out = {};
+  (e.read_along ?? []).forEach(([t, i], j, a) => { (out[i] ??= []).push([t, a[j + 1]?.[0] ?? null]); });
+  return out;
+};
+// the band behind a line while it is said: grows in on the word, fades when the next line is said (motion tokens: land / leave)
+const readBand = spans => (spans ?? []).map(([t, u]) => `<span class="rhl rd" style="background:${TONES.acc};opacity:.34;animation:scgrow ${sec(F.fast)}s ${EASE.land} ${f2(t)}s both`
+  + `${u === null ? '' : `,scfadeout ${sec(F.fast)}s ${EASE.leave} ${f2(u)}s forwards`}"></span>`).join('');
+
 // a short stable id from a piece's spec (keyframes per piece need a unique name; same spec = same name, renders repeat)
 const uid = e => 'u' + Math.abs([...JSON.stringify(e)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7)).toString(36);
 const DEF_ANIM = { stamp: 'drop', line: 'fade', check: 'fade', cursor: 'fade', ring: 'fade', say: 'fade', steps: 'blur' };
@@ -190,7 +266,12 @@ const winFile = (e, { esc, icon, at, m }) => {
   const head = e.k === 'win'
     ? `<div class="tb"><i></i><i></i><i></i><span class="ti">${e.icon ? icon(e.icon) : ''}${esc(e.title ?? '')}</span></div>`
     : `<div class="tb fb">${icon(e.icon ?? 'file-text')}<span class="ti">${esc(e.name ?? e.title ?? '')}</span>${e.badge ? `<span class="bdg" style="color:${tone(e.badge.tone)};border-color:${tone(e.badge.tone)};animation:${m.mark} ${f2(num(e.badge.at, at + 0.5))}s both">${esc(e.badge.text)}</span>` : ''}</div>`;
-  const rows = (e.rows ?? ['~80', '~55', '~70']).map((r, i) => row(r, esc, icon, at + 0.15 + i * num(e.step, m.rowStep), m)).join('');
+  const rd = readSpans(e);
+  const rows = (e.rows ?? ['~80', '~55', '~70']).map((r, i) => {
+    const h = row(r, esc, icon, at + 0.15 + i * num(e.step, m.rowStep), m);
+    // no read_along on this row: drawn as before; a read row is a text row (checkScene), its band goes first in the row box
+    return rd[i] ? h.replace('<div class="row">', `<div class="row">${readBand(rd[i])}`) : h;
+  }).join('');
   return { inner: `${head}<div class="bd">${rows}</div>` };
 };
 const PIECES = {
@@ -198,8 +279,9 @@ const PIECES = {
   file: winFile,
   term: (e, { esc, at, tn, m }) => {
     const cmdAt = num(e.cmd_at, at + 0.5), typed = e.cmd.length / TYPE_CPS, outAt = num(e.out_at, cmdAt + typed + 0.35);
+    const rd = readSpans(e);
     const lines = (e.out ?? []).map((l, i) => `<div class="ol${(e.hl ?? []).includes(i) ? ' hot' : ''}" style="animation:${m.outLine} ${f2(outAt + i * m.lineStep)}s both">`
-      + `${(e.hl ?? []).includes(i) ? `<span class="rhl" style="background:${tn};animation:${m.hl} ${f2(num(e.hl_at, outAt + (e.out.length) * m.lineStep + 0.4))}s both"></span>` : ''}<span>${esc(l)}</span></div>`).join('');
+      + `${readBand(rd[i])}${(e.hl ?? []).includes(i) ? `<span class="rhl" style="background:${tn};animation:${m.hl} ${f2(num(e.hl_at, outAt + (e.out.length) * m.lineStep + 0.4))}s both"></span>` : ''}<span>${esc(l)}</span></div>`).join('');
     return { inner: `<div class="tb"><i></i><i></i><i></i><span class="ti">${esc(e.title ?? 'terminal')}</span></div>`
       + `<div class="bd"><div class="cl"><span class="ps">${esc(e.prompt ?? '$')}</span> <span class="cmd" style="--n:${e.cmd.length};animation:sctype ${f2(Math.max(typed, 0.1))}s steps(${Math.max(e.cmd.length, 1)}) ${f2(cmdAt)}s both">${esc(e.cmd)}</span></div>${lines}</div>` };
   },
@@ -265,7 +347,8 @@ const PIECES = {
       const mk = /^([*[~!])(.+)([*\]~!])$/.exec(w), cls = mk ? { '*': 'em', '[': 'pill', '~': 'strk', '!': 'bad' }[mk[1]] : '', txt = mk ? mk[2] : w;
       const extra = cls === 'pill' ? `<i class="hlp" style="background:${tn};animation:scgrow .4s ${EASE_IN} ${f2(t + 0.15)}s both"></i>`
         : cls === 'strk' ? `<i class="sk2" style="animation:scgrow .25s ${m.strike} ${f2(t + 0.35)}s both"></i>` : '';
-      return `<span class="w ${cls}" style="animation:scword .3s ${EASE_IN} ${f2(Math.max(0, t - 0.03))}s both">${extra}<span>${esc(txt)}</span></span>`;
+      // a word said before the card (a piece kept by "extends", t < 0) stays in the past, not clamped to 0 where it would come in again
+      return `<span class="w ${cls}" style="animation:scword .3s ${EASE_IN} ${f2(t >= 0 ? Math.max(0, t - 0.03) : t - 0.03)}s both">${extra}<span>${esc(txt)}</span></span>`;
     }).join(' '),
   }),
   toggle: (e, { esc, at, tn, m }) => {  // a switch flips on at on_at: knob slides with a little overshoot, the track takes the colour
@@ -300,7 +383,7 @@ const PIECES = {
 
 // the common box of a piece: place and size, then the drawer's inner HTML wrapped in its entrance and later moves
 function piece(e, esc, icon, m = MOTION.legacy) {
-  const at = num(e.at, e.k === 'say' ? Math.max(0, Math.min(...e.words.map(w => w[1])) - 0.05) : 0);
+  const at = pieceAt(e);
   const anim = m.anims[e.anim ?? DEF_ANIM[e.k] ?? 'up'];
   const tn = tone(e.tone);
   const drawn = PIECES[e.k]?.(e, { esc, icon, at, tn, m }) ?? { inner: '' };
@@ -318,8 +401,48 @@ function piece(e, esc, icon, m = MOTION.legacy) {
   return `<div class="p ${e.k}"${idAttr(e, esc)} style="${style}"><div class="pi" style="animation:${outs.join(',')}">${inner}</div></div>`;
 }
 
+// S11 "extends": a scene that goes on from an earlier one ("extends": "<its id>") starts with that scene's pieces still on at its
+// end, already in their final state (typed, marked, counted), and adds its own; so a list or a diagram grows over several
+// cards without coming in again each time. Every time of a kept piece is moved back by the earlier scene's "dur" plus PAST:
+// times derived from "at" (a command typing at + 0.5, chat messages, rows) are not in the spec, so a piece that came in late
+// must still land before 0; a seeked frame shows its final state. render.mjs and scene_check.mjs call this on the whole
+// specs file; a spec without "extends" comes back as the same object (drawn byte for byte as before).
+const PAST = 600;
+const TIME_KEYS = ['gone', 'dim', 'click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at', 'cmd_at'];
+export function shiftPiece(e, d) {
+  const add = v => (typeof v === 'number' ? +(v + d).toFixed(3) : v), s = JSON.parse(JSON.stringify(e));
+  s.at = +(pieceAt(e) + d).toFixed(3);
+  for (const k of TIME_KEYS) if (k in s) s[k] = add(s[k]);
+  if (s.pulse_at !== undefined) s.pulse_at = Array.isArray(s.pulse_at) ? s.pulse_at.map(add) : add(s.pulse_at);
+  if (Array.isArray(s.words)) s.words = s.words.map(w => (Array.isArray(w) ? [w[0], add(w[1])] : w));
+  for (const k of ['steps', 'read_along']) if (Array.isArray(s[k])) s[k] = s[k].map(x => (Array.isArray(x) ? [add(x[0]), x[1]] : x));
+  if (Array.isArray(s.msgs)) s.msgs = s.msgs.map(g => (g && typeof g.at === 'number' ? { ...g, at: add(g.at) } : g));
+  if (Array.isArray(s.rows)) s.rows = s.rows.map(r => (r && typeof r === 'object' ? { ...r, ...(typeof r.mark_at === 'number' ? { mark_at: add(r.mark_at) } : {}),
+    ...(typeof r.hl_at === 'number' ? { hl_at: add(r.hl_at) } : {}) } : r));
+  for (const k of ['badge', 'count']) if (s[k] && typeof s[k].at === 'number') s[k] = { ...s[k], at: add(s[k].at) };
+  return s;
+}
+export function resolveExtends(specs) {
+  const byId = new Map(specs.map(s => [s?.id, s])), done = new Map();
+  const resolve = (sp, seen) => {
+    if (sp?.type !== 'scene' || sp.extends === undefined) return sp;
+    if (done.has(sp.id)) return done.get(sp.id);
+    if (seen.includes(sp.id)) throw new Error(`"${sp.id}": scene: "extends" goes round in a circle (${[...seen, sp.id].join(' -> ')})`);
+    const p = byId.get(sp.extends);
+    if (!p || p.type !== 'scene' || !(p.dur > 0)) throw new Error(`"${sp.id}": scene: "extends" names ${JSON.stringify(sp.extends)}, no scene (with a "dur") has that "id"`);
+    const pr = resolve(p, [...seen, sp.id]);
+    // still on at its end: no "gone", no "out_at" (both take a piece off before the card ends)
+    const kept = [...(pr._held ?? []), ...(pr.els ?? [])].filter(e => e && e.gone === undefined && e.out_at === undefined);
+    const out = { ...sp, _held: kept.map(e => shiftPiece(e, -(pr.dur + PAST))) };
+    done.set(sp.id, out);
+    return out;
+  };
+  return specs.map(s => resolve(s, []));
+}
+
 export function scene(sp, esc, icon) {
   const bad = checkScene(sp);
+  if (sp.extends !== undefined && !Array.isArray(sp._held)) bad.push('"extends": run resolveExtends(specs) on the specs file first');
   if (bad.length) throw new Error(`"${sp.id}": scene: ${bad.join('; ')}`);
   const safeIcon = n => { try { return icon(n); } catch { throw new Error(`"${sp.id}": no icon "${n}" in lucide-static`); } };
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
@@ -327,18 +450,21 @@ export function scene(sp, esc, icon) {
   // beside the speaker the pieces stack in one column in reading order (top to bottom, then left to right), so the
   // camera fits a tall narrow block into the tall narrow board and the text stays big (Kamil 2026-11-05: on a phone held
   // sideways a wide drawing shrunk into the side field cannot be read; "większe i pionowo narysowane")
-  const col = side && sp.els.every(e => !TIED.includes(e.k));
-  const els = col ? [...sp.els].sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0)) : sp.els;
+  const all = [...(sp._held ?? []), ...sp.els];  // kept pieces first: under the new ones
+  const col = side && all.every(e => !TIED.includes(e.k));
+  const els = col ? [...all].sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0)) : all;
   const world = els.map(e => piece(e, esc, safeIcon, MOTION[sp.motion ?? 'legacy'])).join('');
   const bg = side ? `<div class="board" style="left:${SIDE.x}px;top:${SIDE.y}px;width:${SIDE.w}px;height:${SIDE.h}px"></div>`
     : sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
-  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}${col ? ' col' : ''}">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}` : ''}>${world}</div></div>`;
+  const zoom = sp.canvas_zoom ? ` data-zoom="${esc(JSON.stringify(sp.canvas_zoom.map(z => ({ t: z.t, on: z.on, k: num(z.k, CANVAS_ZOOM.k), d: num(z.d, CANVAS_ZOOM.d) }))))
+    .replace(/"/g, '&quot;')}"` : '';
+  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}${col ? ' col' : ''}">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}${zoom}` : ''}>${world}</div></div>`;
 }
 
 // in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
 // turns every "on" stop into x, y, z that put those pieces in the middle of the free area, and starts the camera animation.
 // Self-contained: its source is evaluated in the page with camKeyframes' source as the second argument.
-export function sceneFit(safe, kfSrc, soloSrc) {
+export function sceneFit(safe, kfSrc, soloSrc, zoomSrc) {
   const camKeyframes = new Function(`return ${kfSrc}`)();
   const world = document.querySelector('.scene .world');
   if (!world || !world.dataset.cam) return null;
@@ -356,7 +482,17 @@ export function sceneFit(safe, kfSrc, soloSrc) {
     const z = Math.min(safe.w / bw, safe.h / bh, s.zmax ?? 1.8);
     return { t: s.t, move: s.move, z, x: (x0 + x1) / 2 - (safe.x + safe.w / 2) / z, y: (y0 + y1) / 2 - (safe.y + safe.h / 2) / z };
   };
-  const stops = cam.map(s => (s.on !== undefined || (s.x === undefined && s.y === undefined) ? frame(s) : s));
+  let stops = cam.map(s => (s.on !== undefined || (s.x === undefined && s.y === undefined) ? frame(s) : s));
+  if (world.dataset.zoom) {  // L17 canvas_zoom: one more stop per zoom, onto the centre of the pieces it names (zoomStops)
+    if (!zoomSrc) throw new Error('canvas_zoom: sceneFit needs the source of zoomStops');
+    const zoomStops = new Function(`return ${zoomSrc}`)();
+    const centre = on => {
+      const want = on === '*' ? null : [].concat(on), got = pieces.filter(p => !want || want.includes(p.id));
+      return { cx: (Math.min(...got.map(p => p.x)) + Math.max(...got.map(p => p.x + p.w))) / 2,
+        cy: (Math.min(...got.map(p => p.y)) + Math.max(...got.map(p => p.y + p.h))) / 2 };
+    };
+    stops = zoomStops(stops, JSON.parse(world.dataset.zoom).map(z => ({ ...z, ...centre(z.on) })));
+  }
   const st = document.createElement('style');
   st.textContent = `@keyframes cam_fit{${camKeyframes(stops, dur)}}`;
   document.head.appendChild(st);

@@ -6,7 +6,7 @@
 // stagger step over 12 frames. Cards without it keep the timings from before tokens and are only counted.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
-import { scene } from './scene_lib.mjs';
+import { resolveExtends, scene } from './scene_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 
@@ -51,7 +51,8 @@ export function clashes(sp, rects, share = 0.12) {
 async function main() {
   const [specFile, ...only] = process.argv.slice(2);
   if (!specFile) { console.error('usage: node gfx/scene_check.mjs <specs.json> [id ...]'); process.exit(2); }
-  const specs = JSON.parse(fs.readFileSync(specFile, 'utf8')).filter(s => s.type === 'scene' && (!only.length || only.includes(s.id)));
+  // "extends" (S11) on the whole file first: the scene it goes on from may be filtered out by [id ...]
+  const specs = resolveExtends(JSON.parse(fs.readFileSync(specFile, 'utf8'))).filter(s => s.type === 'scene' && (!only.length || only.includes(s.id)));
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
   const bad = [], motion = specs.flatMap(motionLint), legacy = specs.filter(s => s.motion !== 'tokens').length;
   try {
@@ -75,7 +76,8 @@ async function main() {
           return { i, x: x0 - wr.left, y: y0 - wr.top, w: x1 - x0, h: y1 - y0 };
         }).filter(Boolean);
       });
-      bad.push(...clashes(sp, rects));
+      // kept pieces of an "extends" scene are drawn first (scene_lib scene()): the measured index runs over both lists
+      bad.push(...clashes(sp._held ? { ...sp, els: [...sp._held, ...sp.els] } : sp, rects));
       await page.close();
     }
   } finally { await browser.close(); }
