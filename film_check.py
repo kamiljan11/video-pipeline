@@ -151,6 +151,7 @@ def punches(edl: dict) -> list[float]:
         if isinstance(z, dict) and z.get("t0", 0) > 0.01 and z.get("b", 0) > z.get("a", 0) + 0.1:
             out.append(acc + z["t0"])
     out += [r["at"] for r in edl.get("beat_fx", []) if r.get("fx") == "punch"]
+    out += [t for o in edl.get("overlays", []) for t in o.get("zooms", [])]  # round 2 L17: a canvas zoom inside a scene is a punch
     return sorted(out)
 
 
@@ -209,7 +210,8 @@ def cover_spans(edl: dict) -> list[tuple[float, float]]:
 
 def max_gap(edl: dict, end: float) -> float:
     """longest stretch of the film with no card on screen, no punch-in, no b-roll and no framing jump"""
-    spans = cover_spans(edl) + [(t, t) for t in punches(edl) + zoom_steps(edl)]
+    moves = [t for o in edl.get("overlays", []) for t in o.get("moves", [])]  # round 2 S14: motion inside a panel (camera, cursor, typing)
+    spans = cover_spans(edl) + [(t, t) for t in punches(edl) + zoom_steps(edl) + moves]
     gap, t = 0.0, 0.0
     for a, b in sorted(spans):
         gap = max(gap, a - t); t = max(t, b)
@@ -511,6 +513,22 @@ class Film:
             if not any(self.typ(o) in ("kw", "slide") and abs(o["at"] - t) <= near for o in self.ovs): bad.append(f"{p.get('id')}: no kw/slide card at {t:.0f} s")
         return n > 0 and not bad, "; ".join(bad) or (f"{n} action words shown" if n else "no part has an \"action_word\"")
 
+    def framing_changes(self, max_still: float = 45):
+        """round 2 L10 ("a second camera from one"): plan zoom_every_s / part_framing used (build_edl edl.framing) and no
+        stretch longer than 45 s without a framing change, card or punch (the planned value; face_track may soften it)"""
+        used = self.edl.get("options_used", {})
+        if not ("zoom_every_s" in used or "part_framing" in used): return False, "plan has neither zoom_every_s nor part_framing"
+        fr = self.edl.get("framing", {})
+        ms = fr.get("max_still")
+        return (ms is None or ms <= max_still), f"{fr.get('changes', '?')} framing changes, longest still {ms} s"
+
+    def read_along_used(self):
+        """round 2 L16b: a scene that shows code (term / win / file pieces) lights the spoken line (overlay "read_along")"""
+        code = [o["id"] for o in self.ovs if self.typ(o) == "scene" and any(isinstance(e, dict) and e.get("k") in ("term", "win", "file")
+                for e in self.specs.get(o["id"], {}).get("els", []))]
+        bad = [i for i in code if not next((o for o in self.ovs if o["id"] == i), {}).get("read_along")]
+        return not bad, f"code scenes without read_along: {', '.join(bad[:6])}" if bad else f"{len(code)} code scenes read along"
+
     def opening_pace(self):
         """L24 (info, no threshold): words in the first 30 s and words per minute of the hook vs the body (PL 65-104 words
         in 30 s, KS, KO)"""
@@ -633,6 +651,16 @@ class Film:
                 self.specs.get(o["id"], {}).get("layout") == "split" or o.get("split"))]
         return not over, f"cards over the last sentence ({at:.1f} s): {', '.join(over)}" if over else "the last sentence on the face"
 
+    def short_options(self):
+        """round 2 S8 (hook in the middle band + a punch on its end), S9 (one key word a caption line), S16 (the hook's
+        nouns shown, or the producer told why not): the short's EDL options_used / plan hook_show_report"""
+        used = self.edl.get("options_used", {})
+        bad = ([] if used.get("hook_pos") == "mid" else ["hook_pos is not \"mid\" (S8)"]) + \
+              ([] if used.get("caption_emph") == "key" else ["caption_emph is not \"key\" (S9)"])
+        rep = self.plan.get("hook_show_report")
+        if rep and rep.get("missing"): bad.append(f"hook_show: no asset for {', '.join(map(str, rep['missing']))} (rewrite the hook or add hook_assets)")
+        return not bad, "; ".join(bad) or "S8, S9 used"
+
     def first_overlay_at(self): return 0.0 if self.hook_text() else round(min((o["at"] for o in self.ovs), default=self.len), 2)
     def caption_pop(self): return self.plan.get("caption_pop") is True
 
@@ -737,6 +765,11 @@ class Out:
         except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
             return False, f"thumb_check failed: {e}"
         return not bad, "; ".join(bad[:8])
+
+    def split_full_ab(self):
+        """round 2 S19: layout "split_full" tried on 1-2 shorts as an A/B (split_share observed, never a rule)"""
+        n = sum(1 for p in sorted(self.work.glob("edl_*.json")) if (load(p, p.name).get("options_used") or {}).get("split_full"))
+        return 1 <= n <= 2, f"{n} shorts with split_full (want 1-2 for the A/B)"
 
     def thumbs_research(self):
         """round 2 TH4/TH6/TH8 in the thumbnails: every face variant placed by `thumb_check.py --place` ("placed") or with

@@ -284,6 +284,22 @@
    "why": "Round 2 L24 (info, no threshold): words in the first 30 s and hook vs body wpm, PL 65-104 words / 30 s (KS, KO); joins P0.6"
   },
   {
+   "id": "long.framing",
+   "fmt": "long",
+   "metric": "framing_changes",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L10 (Graham Stephan, Huberman: a second camera from one): plan zoom_every_s / part_framing, no still stretch > 45 s (build_edl edl.framing; face_track may soften the levels on a close speaker)"
+  },
+  {
+   "id": "long.read_along",
+   "fmt": "long",
+   "metric": "read_along_used",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L16b (Nate Herk read-along): a scene showing code lights the spoken line (gfx_events overlay read_along)"
+  },
+  {
    "id": "short.hook",
    "fmt": "short",
    "metric": "hook_text",
@@ -451,6 +467,14 @@
    "why": "Round 2 S15: the last sentence on the face, no full-screen card or split over it (skip when end_hold)"
   },
   {
+   "id": "short.options",
+   "fmt": "short",
+   "metric": "short_options",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S8 (hook_pos mid + punch at its end), S9 (caption_emph key: one accent word a line), S16 (hook_show: the listed nouns get cards, or hook_show_report names the missing asset)"
+  },
+  {
    "id": "out.long",
    "fmt": "out",
    "metric": "out_long",
@@ -534,6 +558,14 @@
    "op": "true",
    "level": "warn",
    "why": "Round 2 TH4 (face at cx 0.72/0.28, thumb_check.py --place), TH6 (tone lift), TH8 (the no-face variant = layout object or a 3-5 item panel): the thumbnails use what the study found, not only pass its limits"
+  },
+  {
+   "id": "out.split_full",
+   "fmt": "out",
+   "metric": "split_full_ab",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S19: layout split_full on 1-2 shorts as an A/B test (split_share observed only)"
   },
   {
    "id": "out.manifest",

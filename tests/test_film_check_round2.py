@@ -217,3 +217,30 @@ class ThumbsResearchTest(unittest.TestCase):  # TH4 / TH6 / TH8 used in thumbs.j
         (d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "frame": "a.png", "placed": {"cx": 0.72}, "tone": "lift"},
                                                             {"id": "C", "layout": "object", "object": [{"icon": "shield"}]}]}))
         self.assertTrue(film_check.Out(d, d / "out").thumbs_research()[0])
+
+
+class AgentFieldsTest(unittest.TestCase):  # the EDL fields of the round 2 options (zooms, moves, framing, options_used)
+    def test_canvas_zooms_are_punches_and_moves_fill_the_gap(self):
+        edl = {"segments": [{"in": 0.0, "out": 60.0}], "overlays": [{"id": "s", "at": 0, "dur": 1, "zooms": [12.0]},
+                                                                    {"id": "t", "at": 1, "dur": 1, "moves": [20.0, 40.0]}]}
+        self.assertEqual(film_check.punches(edl), [12.0])
+        self.assertEqual(film_check.max_gap(edl, 60.0), 20.0)
+        self.assertEqual(film_check.max_gap({**edl, "overlays": edl["overlays"][:1]}, 60.0), 48.0)
+
+    def test_framing_read_along_and_short_options(self):
+        d = Path(tempfile.mkdtemp(prefix="fc-af-")); self.addCleanup(shutil.rmtree, d, True)
+        (d / "w.json").write_text(json.dumps({"transcription": []}))
+        (d / "specs.json").write_text(json.dumps([{"id": "c", "type": "scene", "els": [{"k": "term", "cmd": "ls"}]}]))
+        def film(edl, **plan):
+            (d / "edl_x.json").write_text(json.dumps({"segments": [{"in": 0.0, "out": 100.0}], **edl}))
+            (d / "plan_x.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json", **plan}))
+            return film_check.Film(d, "x")
+        self.assertFalse(film({"overlays": []}).framing_changes()[0])
+        self.assertTrue(film({"overlays": [], "options_used": {"zoom_every_s": 30}, "framing": {"changes": 4, "max_still": 30}}).framing_changes()[0])
+        self.assertFalse(film({"overlays": [{"id": "c", "at": 1, "dur": 8}]}).read_along_used()[0])
+        self.assertTrue(film({"overlays": [{"id": "c", "at": 1, "dur": 8, "read_along": [3.0]}]}).read_along_used()[0])
+        ok, detail = film({"overlays": []}, vertical=True, hook_show_report={"missing": ["Supabase"]}).short_options()
+        self.assertFalse(ok)
+        for want in ("hook_pos", "caption_emph", "Supabase"):
+            self.assertIn(want, detail)
+        self.assertTrue(film({"overlays": [], "options_used": {"hook_pos": "mid", "caption_emph": "key"}}, vertical=True).short_options()[0])
