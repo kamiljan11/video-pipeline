@@ -336,27 +336,39 @@ if edl.get("subs"):
     fc.append(f"[{last}]subtitles='{edl['subs']}':force_style='{edl.get('sub_style','')}'[vs]"); last = "vs"
 audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")
 va = f"[0:a]{audio},aresample=48000" + (f",apad=pad_dur={tail}" if tail else "")
+# the sound is mixed in its OWN ffmpeg run, not in the picture graph: in one run with ~100 card inputs ffmpeg 8 dropped
+# 0.65 s of the voice where the first card ended (film 2026-11-04 long, 3.09 s: one 0.676 s AAC packet, "Przez" gone,
+# and every player that plays samples in a row heard the voice 0.65 s before the lips; Kamil 2026-11-08). The sound
+# graph alone has no gap (checked); av_check.py proves it on every film after the mux.
+ainputs = ["-i", rough]; afc = []
 if edl.get("music"):
-    nin = sum(1 for a in inputs if a == "-i")
     mo = ["-ss", f"{edl['music_offset']:.3f}"] if edl.get("music_offset") else []  # preview of a slice: beds start mid-way
-    inputs += [*mo, "-i", edl["music"], *mo, "-i", edl["sfx"]]
-    fc.append(va + ",asplit=2[vm][vsc]")
-    fc.append(f"[{nin}:a]aresample=48000,volume={edl.get('music_db', -13)}dB[mu]")
+    ainputs += [*mo, "-i", edl["music"], *mo, "-i", edl["sfx"]]
+    afc.append(va + ",asplit=2[vm][vsc]")
+    afc.append(f"[1:a]aresample=48000,volume={edl.get('music_db', -13)}dB[mu]")
     duck = {"threshold": 0.015, "ratio": 6, **edl.get("music_duck", {})}  # how far the music dips under the voice (edl_guard checks)
-    fc.append(f"[mu][vsc]sidechaincompress=threshold={duck['threshold']:g}:ratio={duck['ratio']:g}:attack=30:release=500:makeup=1[mud]")
-    fc.append(f"[{nin+1}:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sx]")
-    fc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[a]")
+    afc.append(f"[mu][vsc]sidechaincompress=threshold={duck['threshold']:g}:ratio={duck['ratio']:g}:attack=30:release=500:makeup=1[mud]")
+    afc.append(f"[2:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sx]")
+    afc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[a]")
 else:
-    fc.append(va + "[a]")
+    afc.append(va + "[a]")
 if PROXY:
     fc.append(f"[{last}]scale={'360:640' if vertical else '640:360'}:flags=bilinear[vpx]"); last = "vpx"
 final = os.path.join(out, edl.get("out_name", "final.mp4"))
-args = ["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(fc), "-map", f"[{last}]", "-map", "[a]",
-        "-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "256k", "-ac", "2",
-        "-movflags", "+faststart", final]
-# the exact stage-2 command next to the film: a render killed for memory or time can be rerun and measured by hand
-Path(out, "assemble.args.json").write_text(json.dumps(args, ensure_ascii=False, indent=0))
+vpart, apart = final + ".video.mp4", final + ".audio.m4a"
+args = ["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", ";".join(fc), "-map", f"[{last}]", "-an",
+        "-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p", vpart]
+aargs = ["ffmpeg", "-v", "error", "-y", *ainputs, "-filter_complex", ";".join(afc), "-map", "[a]",
+         "-c:a", "aac", "-b:a", "256k", "-ac", "2", apart]
+margs = ["ffmpeg", "-v", "error", "-y", "-i", vpart, "-i", apart, "-map", "0:v", "-map", "1:a", "-c", "copy",
+         "-movflags", "+faststart", final]
+# the exact stage-2 commands next to the film: a render killed for memory or time can be rerun and measured by hand
+Path(out, "assemble.args.json").write_text(json.dumps(args, ensure_ascii=False, indent=0))  # the picture (heavy) run
+Path(out, "assemble.audio.args.json").write_text(json.dumps({"audio": aargs, "mux": margs}, ensure_ascii=False, indent=0))
+subprocess.run(aargs, check=True)
 subprocess.run(args, check=True)
+subprocess.run(margs, check=True)
+os.remove(vpart); os.remove(apart)
 if "master" in edl and not PROXY:  # the whole mix to its loudness and true peak (master_audio.py, plan "master", {} = defaults); previews stay quick
     import master_audio
     rep = master_audio.master_in_place(final, edl["master"])

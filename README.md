@@ -110,7 +110,8 @@ systemd-run --user --unit=vp-render --collect -p MemoryMax=60G -p MemorySwapMax=
   bash run_v4.sh <project>/work <project>/out long
 ```
 
-`assemble.py` writes the exact stage-2 ffmpeg command to `<out>/assemble.args.json`, so a killed render can be rerun
+`assemble.py` writes the exact stage-2 picture command to `<out>/assemble.args.json` (the sound mix and the mux go to
+`assemble.audio.args.json`: they run separately, see av_check.py), so a killed render can be rerun
 and measured by hand (`/usr/bin/time -v ffmpeg ...`). Why the card inputs carry `CARD_IN`: comment in `assemble.py`.
 
 ## Install with Claude Code

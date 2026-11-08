@@ -32,7 +32,7 @@ class RunV4GateTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
-                    "beatfx.py", "behind.py", "edl_guard.py", "film_check.py"):
+                    "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -140,6 +140,13 @@ class RunV4GateTest(unittest.TestCase):
         self.assertIn("FAILED film_check x", render)
         self.assertNotIn("make_beds.py", calls)
         self.assertNotIn("assemble.py", calls)
+
+    def test_dropped_voice_keeps_the_film_out_of_out(self):  # av_check after assemble (film 2026-11-04: 0.65 s of voice lost)
+        render, calls = self.run_v4(rc=1, FAIL_av_check="1")
+        self.assertEqual(calls[calls.index("assemble.py") + 1], "av_check.py")
+        self.assertIn("FAILED av_check x", render)
+        self.assertNotIn("DONE x", render)
+        self.assertFalse((self.out / "film.mp4").exists())
 
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")
