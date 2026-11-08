@@ -237,8 +237,14 @@ class AgentFieldsTest(unittest.TestCase):  # the EDL fields of the round 2 optio
             return film_check.Film(d, "x")
         self.assertFalse(film({"overlays": []}).framing_changes()[0])
         self.assertTrue(film({"overlays": [], "options_used": {"zoom_every_s": 30}, "framing": {"changes": 4, "max_still": 30}}).framing_changes()[0])
-        self.assertFalse(film({"overlays": [{"id": "c", "at": 1, "dur": 8}]}).read_along_used()[0])
+        self.assertTrue(film({"overlays": [{"id": "c", "at": 1, "dur": 8}]}).read_along_used()[0])  # nothing of it is said
+        (d / "specs.json").write_text(json.dumps([{"id": "c", "type": "scene", "els": [{"k": "win", "rows": ["~60", "Każdy raport kończ słowem"]}]}]))
+        (d / "w.json").write_text(json.dumps({"transcription": [{"text": w, "offsets": {"from": 2000 + 300 * k, "to": 2200 + 300 * k}}
+                                                               for k, w in enumerate(["każdy", "raport", "ma", "się"])]}))
+        ok, detail = film({"overlays": [{"id": "c", "at": 1, "dur": 8}]}).read_along_used()
+        self.assertFalse(ok); self.assertIn("Każdy raport", detail)
         self.assertTrue(film({"overlays": [{"id": "c", "at": 1, "dur": 8, "read_along": [3.0]}]}).read_along_used()[0])
+        self.assertTrue(film({"overlays": [{"id": "c", "at": 20, "dur": 8}]}).read_along_used()[0])  # said before the card
         ok, detail = film({"overlays": []}, vertical=True, hook_show_report={"missing": ["Supabase"]}).short_options()
         self.assertFalse(ok)
         for want in ("hook_pos", "caption_emph", "Supabase"):

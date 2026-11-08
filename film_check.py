@@ -534,12 +534,26 @@ class Film:
         ms = fr.get("max_still")
         return (ms is None or ms <= max_still), f"{fr.get('changes', '?')} framing changes, longest still {ms} s"
 
+    def said_rows(self, o: dict) -> list[str]:
+        """rows of a scene's term / win / file pieces that the speaker says while the card is up (>= 2 of the row's words
+        of >= 4 letters, or its only one): those are the lines a read-along lights"""
+        said = {norm_word(w) for t, w in self.film_words() if o["at"] <= t <= o["at"] + self.ov_dur(o)}
+        out = []
+        for e in self.specs.get(o["id"], {}).get("els", []):
+            if not (isinstance(e, dict) and e.get("k") in ("term", "win", "file")): continue
+            for r in [*(e.get("rows") or []), *(e.get("out") or [])]:
+                t = r.get("t") if isinstance(r, dict) else r
+                if not isinstance(t, str) or t.startswith("~"): continue
+                cw = {norm_word(w) for w in t.split() if len(norm_word(w)) >= 4}
+                if cw and len(cw & said) >= min(2, len(cw)): out.append(t)
+        return out
+
     def read_along_used(self):
-        """round 2 L16b: a scene that shows code (term / win / file pieces) lights the spoken line (overlay "read_along")"""
-        code = [o["id"] for o in self.ovs if self.typ(o) == "scene" and any(isinstance(e, dict) and e.get("k") in ("term", "win", "file")
-                for e in self.specs.get(o["id"], {}).get("els", []))]
-        bad = [i for i in code if not next((o for o in self.ovs if o["id"] == i), {}).get("read_along")]
-        return not bad, f"code scenes without read_along: {', '.join(bad[:6])}" if bad else f"{len(code)} code scenes read along"
+        """round 2 L16b: a code / window line the speaker reads out is lit when said (overlay "read_along"); lines nobody
+        says (placeholders, a window he only points at) need none"""
+        need = [o for o in self.ovs if self.typ(o) == "scene" and self.said_rows(o)]
+        bad = [f"{o['id']} ({self.said_rows(o)[0][:30]!r})" for o in need if not o.get("read_along")]
+        return not bad, f"lines said without read_along: {', '.join(bad[:6])}" if bad else f"{len(need)} scenes with said lines read along"
 
     def ov_dur(self, o: dict) -> float:
         return float(o.get("dur") or self.specs.get(o["id"], {}).get("dur") or 0)
