@@ -28,6 +28,7 @@ import desc_check  # the YouTube descriptions (round 2 Y0-Y5, S2-S3)
 import gfx_types  # next to this script: which card types are a separate screen
 import hook_check  # the 6 hook killers
 import ig_check  # the Instagram carousels and Reel captions (round 2 IG1-IG6)
+import manifest  # which pipeline commit made each film and material
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 import research_gate  # research for thumbnails must be in them
 import thumb_check  # the long thumbnails as the feed shows them
@@ -512,6 +513,12 @@ class Out:
         except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
             return False, f"thumb_check failed: {e}"
         return not bad, "; ".join(bad[:8])
+
+    def out_manifest(self):
+        """every film and material folder made by the current pipeline code (manifest.py)"""
+        if not self.out.is_dir(): return False, f"no out folder {self.out}"
+        bad = manifest.check(self.out)
+        return not bad, f"{len(bad)} part(s): " + "; ".join(bad[:6]) if bad else "every part stamped by the current code"
 
     def long_words(self) -> Path | None:
         """the long's whisper words file (plan_long.json "words"), None when it is not named or missing"""

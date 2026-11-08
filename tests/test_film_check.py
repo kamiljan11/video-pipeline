@@ -88,6 +88,15 @@ def post_graphic(d: Path) -> None:
     (d / "grafika.txt").write_text(" ".join(POST_LINES) + "\n")
 
 
+def stamp_out(out: Path) -> None:
+    """every film and folder of out stamped with HEAD as made by clean code (the test tree itself may be dirty)"""
+    head = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    e = {"commit": head, "dirty": False, "at": "test"}
+    for d in ("long", "shorts"):
+        if (out / d).is_dir(): (out / d / "manifest.json").write_text(json.dumps({f.name: e for f in (out / d).glob("*.mp4")}))
+    (out / "manifest.json").write_text(json.dumps({d.name: e for d in out.iterdir() if d.name not in ("long", "shorts", "manifest.json")}))
+
+
 class FilmCheckTest(unittest.TestCase):
     """a 10-minute long with three parts (words 0, 200, 400 = 0 s, 200 s, 400 s; no cuts, so source time = film time)"""
 
@@ -457,6 +466,9 @@ class FilmCheckTest(unittest.TestCase):
         test_ig_check.make(out)  # out/instagram/p01: one carousel that passes ig_check
         opening(self.d)
         if not (self.d / "plan_long.json").exists(): (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json"}))
+        r, rep = self.run_check("--out", str(out))
+        self.assertIn("long/film.mp4: no stamp", rep["out.manifest"]["detail"])  # made outside run_v4 / manifest.py
+        stamp_out(out)
         r, rep = self.run_check("--out", str(out))
         bad = {k: v for k, v in rep.items() if v["status"] != "OK" and (k not in ("out.posts", "out.thumbs_read") or shutil.which("tesseract"))
                and (k != "out.thumbs_read" or FACE_MODEL.is_file())}

@@ -33,7 +33,7 @@ class RunV4GateTest(unittest.TestCase):
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "words_check.py",
-                    "research_gate.py"):
+                    "research_gate.py", "manifest.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -179,6 +179,15 @@ class RunV4GateTest(unittest.TestCase):
         render, calls = self.run_v4(rc=1, RESEARCH_GATE="off", FAIL_research_gate="1", FAIL_build_edl="1")
         self.assertIn("RESEARCH_GATE=off: research_gate skipped for x (long)", render)
         self.assertNotIn("research_gate.py", calls)
+
+    def test_a_finished_film_is_stamped_with_the_pipeline_commit(self):  # manifest.py (out.manifest in film_check --out)
+        render, calls = self.run_v4(rc=0)
+        self.assertIn("DONE x", render)
+        self.assertLess(calls.index("assemble.py"), calls.index("manifest.py"))
+
+    def test_a_failed_stamp_fails_the_film(self):
+        render, _ = self.run_v4(rc=1, FAIL_manifest="1")
+        self.assertIn("FAILED manifest x", render)
 
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")

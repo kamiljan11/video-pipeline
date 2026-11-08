@@ -83,6 +83,9 @@ for n in "$@"; do
     && words_ok "$n" "$R/$n/$f" \
     && mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; then
     echo "DONE $n" >> "$R/render.log"
+    # manifest: the film names the pipeline commit that made it (film_check --out: out.manifest; Kamil 2026-11-08
+    # "inne materialy tez nowe logiki robiles czy wszystko po starych poszlo??")
+    python3 $VP/manifest.py stamp "$OUT" "$f" >> "$R/render.log" 2>&1 || { echo "FAILED manifest $n" >> "$R/render.log"; failed="$failed $n"; }
     # editing-grammar metric per render (ADR-0002); EDLs get overwritten
     python3 $VP/beatfx.py edl_$n.json >> "$R/beat_stats.log" 2>> "$R/render.log" || echo "WARN beat_stats $n" >> "$R/render.log"
   else
