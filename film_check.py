@@ -15,6 +15,7 @@ from __future__ import annotations
 import inspect
 import itertools
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,6 +29,7 @@ import gfx_types  # next to this script: which card types are a separate screen
 import hook_check  # the 6 hook killers
 import ig_check  # the Instagram carousels and Reel captions (round 2 IG1-IG6)
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
+import research_gate  # research for thumbnails must be in them
 import thumb_check  # the long thumbnails as the feed shows them
 import title_check  # the A/B/C titles of the long
 
@@ -479,8 +481,17 @@ class Out:
             return False, f"style/hook_bank.json or style/hook_lint.json cannot be read: {e!r}"
         return not bad, "; ".join(bad[:8]) or f"{len(items)} shorts"
 
+    @staticmethod
+    def research_open(form: str) -> list[str]:
+        """research_gate.problems for a form; RESEARCH_GATE=off (logged by run_v4) or no ledger on this computer = none"""
+        if os.environ.get("RESEARCH_GATE", "on") == "off" or not research_gate.LEDGER.exists(): return []
+        return research_gate.problems(research_gate.load(research_gate.LEDGER), form, research_gate.checklist_ids())
+
     def out_thumbnails(self):
         d = self.out / "thumbnails"
+        # research meant for thumbnails must be in them (research_gate.py; Kamil 2026-11-08 "dlaczego nic nie weszlo")
+        if rb := self.research_open("thumbs"):
+            return False, f"research_gate thumbs: {len(rb)} open: " + "; ".join(rb[:4])
         # one variant = long_<id>.jpg; thumbs.mjs also writes long_<id>_2560.png, which must not count as a second variant
         longs = {f.stem.removeprefix("long_") for f in d.glob("long_*.*") if f.suffix in (".jpg", ".png") and not f.stem.endswith("_2560")}
         miss = [c for c in self.made("clips.json") if not list(d.glob(f"{c}_cover.*"))]

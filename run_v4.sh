@@ -36,6 +36,12 @@ fi
 failed=""  # films with a FAILED step: the .otio below must not come from a stale long EDL; exit 1 at the end
 for n in "$@"; do
   L="$R/critic_$n.log"; : > "$L"
+  # research_gate: research meant for this form must be in the film (done = a film_check item measures it) before a render.
+  # Kamil 2026-11-08 "dlaczego nic nie weszlo!?" (0 of 24 Long items in the 2026-11-04 long). RESEARCH_GATE=off = logged
+  form=$(python3 -c "import json,sys; print('shorts' if json.load(open(sys.argv[1])).get('vertical') else 'long')" "plan_$n.json" 2>/dev/null || echo long)
+  if [ "${RESEARCH_GATE:-on}" = off ]; then echo "RESEARCH_GATE=off: research_gate skipped for $n ($form)" >> "$R/render.log"
+  else python3 $VP/research_gate.py "$form" >> "$R/render.log" 2>&1 || { echo "FAILED research_gate $form $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+  fi
   # a failed build_edl (e.g. a typo in style/grammar.json) or face_track must not render a stale/unclamped edl_$n.json: no DONE for this film
   python3 $VP/build_edl.py plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED build_edl $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   $PY $VP/face_track.py edl_$n.json >> "$L" 2>&1 || { echo "FAILED face_track $n" >> "$R/render.log"; failed="$failed $n"; continue; }

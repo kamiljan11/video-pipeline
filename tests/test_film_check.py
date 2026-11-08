@@ -94,6 +94,8 @@ class FilmCheckTest(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp(prefix="fcheck-"))
         self.addCleanup(shutil.rmtree, self.d, True)
+        # the research ledger of this computer has open items: the fixture films get an empty one (own test below)
+        self.research = self.d / "research.jsonl"; self.research.write_text("")
         (self.d / "w.json").write_text(json.dumps(words(600)))
         (self.d / "story.json").write_text(json.dumps({"parts": [
             {"id": "p1", "title": "Wstęp", "start_word": 0}, {"id": "p2", "title": "Szlaban", "start_word": 200},
@@ -119,6 +121,7 @@ class FilmCheckTest(unittest.TestCase):
 
     def run_check(self, *args):
         env_code = (f"import sys, film_check; film_check.LEDGER = __import__('pathlib').Path({str(self.ledger)!r}); "
+                    f"film_check.research_gate.LEDGER = __import__('pathlib').Path({str(self.research)!r}); "
                     f"sys.exit(film_check.main(sys.argv[1:]))")
         r = subprocess.run([sys.executable, "-c", env_code, str(self.d), *args, "--json"], cwd=ROOT, capture_output=True, text=True, check=False)
         rep = json.loads(r.stdout) if r.stdout.strip().startswith("[") else []
@@ -514,6 +517,16 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(rep["out.thumbs"]["status"], "FAIL")
         self.assertIn("1 long thumbnail variants", rep["out.thumbs"]["detail"])
 
+    def test_open_thumbnail_research_fails_the_thumbnails(self):  # research_gate thumbs (2026-11-08 "nic nie weszlo")
+        (self.d / "clips.json").write_text(json.dumps({"items": []}))
+        th = self.d / "out" / "thumbnails"; th.mkdir(parents=True)
+        for f in ("long_A.jpg", "long_B.jpg"): (th / f).write_text("")
+        _, rep = self.run_check("--out", str(self.d / "out"))
+        self.assertEqual(rep["out.thumbs"]["status"], "OK", rep["out.thumbs"])
+        self.research.write_text(json.dumps({"id": "TH4", "form": "Thumbs", "status": "todo", "ref": "", "rule": "twarz ostra"}) + "\n")
+        _, rep = self.run_check("--out", str(self.d / "out"))
+        self.assertEqual(rep["out.thumbs"]["status"], "FAIL")
+        self.assertIn("research_gate thumbs: 1 open: TH4 open (todo)", rep["out.thumbs"]["detail"])
 
     def test_checklist_args_that_do_not_fit_the_metric_name_the_item(self):
         sys.path.insert(0, str(ROOT))

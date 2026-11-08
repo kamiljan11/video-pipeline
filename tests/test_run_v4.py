@@ -32,7 +32,8 @@ class RunV4GateTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
-                    "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "words_check.py"):
+                    "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "words_check.py",
+                    "research_gate.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -162,6 +163,22 @@ class RunV4GateTest(unittest.TestCase):
         render, calls = self.run_v4(rc=0, WORDS_CHECK="off")
         self.assertIn("WORDS_CHECK=off: words_check skipped for x", render)
         self.assertIn("DONE x", render)
+
+    def test_open_research_renders_nothing(self):  # research_gate before build_edl (2026-11-08: 0/24 Long items in the long)
+        render, calls = self.run_v4(rc=1, FAIL_research_gate="1")
+        self.assertIn("FAILED research_gate long x", render)
+        self.assertNotIn("build_edl.py", calls)
+        self.assertNotIn("assemble.py", calls)
+
+    def test_a_vertical_plan_is_gated_as_shorts(self):
+        (self.work / "plan_x.json").write_text(json.dumps({"vertical": True}))
+        render, _ = self.run_v4(rc=1, FAIL_research_gate="1")
+        self.assertIn("FAILED research_gate shorts x", render)
+
+    def test_research_gate_off_is_logged_and_skipped(self):
+        render, calls = self.run_v4(rc=1, RESEARCH_GATE="off", FAIL_research_gate="1", FAIL_build_edl="1")
+        self.assertIn("RESEARCH_GATE=off: research_gate skipped for x (long)", render)
+        self.assertNotIn("research_gate.py", calls)
 
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")
