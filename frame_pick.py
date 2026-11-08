@@ -12,10 +12,19 @@ YuNet finds (5 landmarks: eyes, nose tip, mouth corners):
   eyes    contrast inside both eye boxes (an open eye has iris + white; a shut or squinting one is flat skin)
   mouth   closed or smiling: the dark share between the mouth corners (an open, talking mouth is dark) and the mouth
           width against the eye distance (a round "o" is narrow, a smile wide)
-  front   the nose tip between the eyes and level eyes (a turned or tilted head reads badly at feed size)
+  front   head pose from MediaPipe (yaw, pitch, roll; a turned or tilted head reads badly at feed size). YuNet's nose
+          between the eyes ("off", kept in raw) did not tell 20 deg from 3 deg in a 9:16 crop
+  look    where the eyes look and how the face moves, from MediaPipe Face Landmarker blendshapes (expression_reader): gaze
+          to the side (|gaze_h| > GAZE_H), down or up, half-shut lids (blink), a pursed "o" mouth (pucker), lips rolled in
+          and a head turned past HEAD_YAW or tilted past HEAD_PITCH / HEAD_ROLL are not
+          candidates at all; the rest score by how straight they look at the camera, and an open jaw lowers "mouth".
+          Kamil 2026-11-08 "glupie miny": YuNet's eye-box contrast scored nearly shut eyes 0.94 (lashes and brows have
+          contrast too) and a glance to the side passed every measure (covers s03, s05, s06, s14, s18).
+          It needs mediapipe: run with VENV_PY (README › Frame pick); without it frame_pick stops with that command.
 Each measure is scaled to the window (its BEST_PCT percentile = 1, capped), a sample below EYES_MIN or SHARP_MIN of the window's best is
 dropped, the rest ranked by WEIGHTS. --sheet writes the top N side by side with their scores: look at it before use.
 """
+import importlib
 import json
 import subprocess
 import sys
@@ -26,9 +35,18 @@ import cv2
 import numpy as np
 
 FACE_MODEL = Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"
+LANDMARK_MODEL = Path(__file__).resolve().parent / "models" / "face_landmarker.task"  # MediaPipe Face Landmarker (float16/1)
+VENV_PY = Path.home() / ".local/share/vp-face-venv/bin/python"  # python3 -m venv --system-site-packages + pip mediapipe
 FPS = 10           # samples per second in the window
 WIDTH = 1280       # samples are scaled to this width (2560 recordings: half)
-WEIGHTS = {"sharp": 0.25, "eyes": 0.3, "mouth": 0.2, "still": 0.15, "front": 0.1}
+WEIGHTS = {"sharp": 0.2, "eyes": 0.1, "look": 0.25, "mouth": 0.2, "still": 0.15, "front": 0.1}
+# blendshape limits (0..1), from the 20 frames of film 2026-11-04 checked by eye: at the camera |gaze_h| <= 0.16, a side
+# glance 0.36-0.44; eyes down -0.77 with blink 0.51 (s06); a pursed mouth pucker 0.61 (s12)
+GAZE_H, GAZE_DOWN, GAZE_UP = 0.25, -0.3, 0.35
+BLINK_MAX, PUCKER_MAX, JAW_OPEN, LIPS_IN_MAX = 0.35, 0.3, 0.4, 0.5
+# head pose (degrees, MediaPipe face transformation matrix): s03 cover 427.0 s turned 20 deg and 425.5 s 15 deg, frames at
+# the camera <= 9 deg; 415.0 s lips rolled in (mouthRollLower 0.93)
+HEAD_YAW, HEAD_PITCH, HEAD_ROLL = 12.0, 12.0, 9.0
 EYES_MIN, SHARP_MIN = 0.7, 0.6  # of the window's best: below = not a candidate (shut eyes, blur)
 BEST_PCT = 90      # percentile of the window that counts as its best (scores above it are capped at 1)
 MIN_GAP = 0.5      # s between two candidates of the top list (not 6 copies of one moment)
@@ -44,6 +62,7 @@ class Cand:
     still: float
     front: float
     raw: dict
+    look: float = 1.0
 
 
 def frames(video: str, t0: float, t1: float, crop: str | None):
@@ -101,14 +120,62 @@ def measure(img: np.ndarray, prev: np.ndarray | None, det) -> dict | None:
             "dark": dark, "smile": mw / eye_d, "still": still, "off": float(off), "face_h": float(fh / img.shape[0]), "gray": gray}
 
 
-def pick(video: str, t0: float, t1: float, crop: str | None = None) -> list[Cand]:
-    """every sample with a face, ranked; samples under EYES_MIN / SHARP_MIN of the window's best are left out"""
+def expression_reader():
+    """img (BGR) -> {gaze_h, gaze_v, blink, pucker, jaw} of the biggest face, or None; MediaPipe Face Landmarker"""
+    try:  # only here: the other measures need no mediapipe; it lives in VENV_PY, so the type checker cannot see it
+        mp = importlib.import_module("mediapipe")
+        mpt = importlib.import_module("mediapipe.tasks.python")
+        vision = importlib.import_module("mediapipe.tasks.python.vision")
+    except ImportError as e:
+        raise RuntimeError(f"frame_pick needs mediapipe for gaze and expression: run it with {VENV_PY} (README › Frame pick)") from e
+    if not LANDMARK_MODEL.is_file(): raise FileNotFoundError(f"face landmark model missing: {LANDMARK_MODEL} (README › Frame pick)")
+    lm = vision.FaceLandmarker.create_from_options(vision.FaceLandmarkerOptions(
+        base_options=mpt.BaseOptions(model_asset_path=str(LANDMARK_MODEL)), output_face_blendshapes=True,
+        output_facial_transformation_matrixes=True, num_faces=1))
+
+    def read(img: np.ndarray) -> dict | None:
+        r = lm.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))))
+        if not r.face_blendshapes: return None
+        pose = np.array(r.facial_transformation_matrixes[0])[:3, :3] if r.facial_transformation_matrixes else None
+        return expression({c.category_name: c.score for c in r.face_blendshapes[0]}, pose)
+    return read
+
+
+def expression(b: dict, pose: np.ndarray | None = None) -> dict:
+    """blendshape scores (+ the 3x3 head rotation) -> gaze_h (+ = to the speaker's left), gaze_v (+ = up), blink, pucker,
+    jaw, lips_in, yaw / pitch / roll in degrees (0 without a pose)"""
+    yaw = pitch = roll = 0.0
+    if pose is not None:
+        yaw = float(np.degrees(np.arctan2(-pose[2, 0], np.hypot(pose[2, 1], pose[2, 2]))))
+        pitch, roll = float(np.degrees(np.arctan2(pose[2, 1], pose[2, 2]))), float(np.degrees(np.arctan2(pose[1, 0], pose[0, 0])))
+    return {"gaze_h": ((b["eyeLookOutLeft"] - b["eyeLookInLeft"]) + (b["eyeLookInRight"] - b["eyeLookOutRight"])) / 2,
+            "gaze_v": (b["eyeLookUpLeft"] + b["eyeLookUpRight"] - b["eyeLookDownLeft"] - b["eyeLookDownRight"]) / 2,
+            "blink": (b["eyeBlinkLeft"] + b["eyeBlinkRight"]) / 2, "pucker": b["mouthPucker"], "jaw": b["jawOpen"],
+            "lips_in": max(b.get("mouthRollLower", 0.0), b.get("mouthRollUpper", 0.0)), "yaw": yaw, "pitch": pitch, "roll": roll}
+
+
+def odd_face(e: dict) -> str:
+    """why a face is no candidate ('' = fine): looks away, half-shut eyes, a pursed mouth"""
+    if abs(e["gaze_h"]) > GAZE_H: return "looks to the side"
+    if not GAZE_DOWN <= e["gaze_v"] <= GAZE_UP: return "looks down" if e["gaze_v"] < GAZE_DOWN else "looks up"
+    if e["blink"] > BLINK_MAX: return "half-shut eyes"
+    if e["pucker"] > PUCKER_MAX: return "pursed mouth"
+    if e.get("lips_in", 0.0) > LIPS_IN_MAX: return "lips rolled in"
+    if abs(e.get("yaw", 0.0)) > HEAD_YAW: return "head turned"
+    if abs(e.get("pitch", 0.0)) > HEAD_PITCH or abs(e.get("roll", 0.0)) > HEAD_ROLL: return "head tilted"
+    return ""
+
+
+def pick(video: str, t0: float, t1: float, crop: str | None = None, expr=None) -> list[Cand]:
+    """every sample with a face, ranked; samples under EYES_MIN / SHARP_MIN of the window's best, or with an odd face
+    (odd_face), are left out. expr = expression_reader() (tests pass a fake)"""
+    expr = expr or expression_reader()
     raw, prev, det = [], None, None
     for t, img in frames(video, t0, t1, crop):
         if det is None: det = detector(img.shape[1], img.shape[0])
         m = measure(img, prev, det)
         prev = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
-        if m: m.pop("gray"); raw.append((t, m))
+        if m and (e := expr(img)): m.pop("gray"); raw.append((t, m | e))
     if not raw: return []
     # the window's "best" = its 90th percentile, not its maximum: one blurred frame with a high eye-box contrast (a hand or
     # the head in motion) would set the bar so that no sharp frame reached EYES_MIN (s03 cover, 2026-11-08: 152 faces, 0 kept)
@@ -116,12 +183,14 @@ def pick(video: str, t0: float, t1: float, crop: str | None = None) -> list[Cand
     out = []
     for t, m in raw:
         s = {"sharp": min(m["sharp"] / best["sharp"], 1.0), "eyes": min(m["eyes"] / best["eyes"], 1.0), "still": m["still"],
-             "mouth": 0.6 * (1.0 - min(m["dark"] / 0.25, 1.0)) + 0.4 * min(m["smile"] / best["smile"], 1.0),
-             "front": max(0.0, 1.0 - m["off"] / 0.35)}
-        if s["eyes"] < EYES_MIN or s["sharp"] < SHARP_MIN: continue
+             "mouth": 0.4 * (1.0 - min(m["dark"] / 0.25, 1.0)) + 0.3 * min(m["smile"] / best["smile"], 1.0)
+                      + 0.3 * (1.0 - min(m["jaw"] / JAW_OPEN, 1.0)),
+             "front": max(0.0, 1.0 - max(abs(m["yaw"]) / HEAD_YAW, abs(m["pitch"]) / HEAD_PITCH, abs(m["roll"]) / HEAD_ROLL)),
+             "look": max(0.0, 1.0 - (abs(m["gaze_h"]) / GAZE_H + max(0.0, -m["gaze_v"]) / -GAZE_DOWN + m["blink"] / BLINK_MAX) / 3)}
+        if s["eyes"] < EYES_MIN or s["sharp"] < SHARP_MIN or odd_face(m): continue
         r3 = {k: round(v, 3) for k, v in s.items()}
         out.append(Cand(round(t, 2), round(sum(WEIGHTS[k] * s[k] for k in WEIGHTS), 3), r3["sharp"], r3["eyes"], r3["mouth"],
-                        r3["still"], r3["front"], {k: round(v, 3) for k, v in m.items()}))
+                        r3["still"], r3["front"], {k: round(v, 3) for k, v in m.items()}, r3["look"]))
     return sorted(out, key=lambda c: -c.score)
 
 
@@ -149,7 +218,7 @@ def sheet(video: str, cands: list[Cand], out: str, crop: str | None = None) -> N
                            capture_output=True, check=True, timeout=120).stdout
         im = cv2.imdecode(np.frombuffer(b, np.uint8), cv2.IMREAD_COLOR)
         if im is None: continue
-        for i, line in enumerate((f"{c.t:.1f}s  {c.score:.2f}", f"e{c.eyes:.2f} s{c.sharp:.2f} m{c.mouth:.2f} st{c.still:.2f}")):
+        for i, line in enumerate((f"{c.t:.1f}s  {c.score:.2f}", f"e{c.eyes:.2f} l{c.look:.2f} s{c.sharp:.2f} m{c.mouth:.2f}")):
             cv2.putText(im, line, (8, 24 + 22 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4)
             cv2.putText(im, line, (8, 24 + 22 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
         tiles.append(im)
@@ -164,12 +233,12 @@ def main(argv: list[str]) -> int:
     video, t0, t1 = pos[0], float(pos[1]), float(pos[2])
     crop, n = opt("--crop"), int(opt("--top", "6") or 6)
     best = top(pick(video, t0, t1, crop), n)
-    if not best: print(f"frame_pick: no sharp frame with open eyes in {t0}-{t1} s", file=sys.stderr); return 1
+    if not best: print(f"frame_pick: no sharp frame looking at the camera with open eyes in {t0}-{t1} s", file=sys.stderr); return 1
     if s := opt("--sheet"): sheet(video, best, s, crop)
     if o := opt("--out"): grab(video, best[0].t, o, crop)
     if "--json" in argv: print(json.dumps([asdict(c) for c in best], ensure_ascii=False))
     else:
-        for c in best: print(f"{c.t:8.2f} s  score {c.score:.3f}  eyes {c.eyes:.2f} sharp {c.sharp:.2f} mouth {c.mouth:.2f} still {c.still:.2f} front {c.front:.2f}")
+        for c in best: print(f"{c.t:8.2f} s  score {c.score:.3f}  eyes {c.eyes:.2f} sharp {c.sharp:.2f} mouth {c.mouth:.2f} still {c.still:.2f} front {c.front:.2f} look {c.look:.2f}")
     return 0
 
 
