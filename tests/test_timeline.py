@@ -30,3 +30,16 @@ class TimelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with raw piece lengths (up to 287 ms off on 2026-11-04)
+    def test_film_times_follow_whole_frame_pieces(self):
+        import film_check
+        segs = [{"in": 0.0, "out": 1.016, "zoom": 1.0}, {"in": 2.0, "out": 3.016, "zoom": {"a": 1.0, "b": 1.2, "t0": 0.5}},
+                {"in": 4.0, "out": 5.0, "zoom": 1.3}]
+        edl = {"segments": segs, "seg_exact": True}
+        self.assertAlmostEqual(film_check.body_len(edl), T.total(segs, True))
+        self.assertAlmostEqual(film_check.punches(edl)[0], 1.5)  # 1.016 s = 30 frames
+        self.assertAlmostEqual(film_check.zoom_steps(edl)[0], 2.0)
+        self.assertAlmostEqual(film_check.src2out(segs, 4.5, True), 2.5)
+        self.assertAlmostEqual(film_check.body_len({"segments": segs}), 3.032)

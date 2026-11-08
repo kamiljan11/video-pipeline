@@ -32,6 +32,7 @@ import manifest  # which pipeline commit made each film and material
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 import research_gate  # research for thumbnails must be in them
 import thumb_check  # the long thumbnails as the feed shows them
+import timeline  # film time of a source time: the one place (frame-exact pieces)
 import title_check  # the A/B/C titles of the long
 
 ROOT = Path(__file__).resolve().parent
@@ -118,40 +119,38 @@ def word_times(words_file: Path) -> list[float]:
     return [w["offsets"]["from"] / 1000 for w in d["transcription"]]
 
 
-def src2out(segments: list[dict], t: float) -> float:
-    """source time -> film time; a time inside a cut maps to the start of the next kept piece"""
-    acc = 0.0
-    for s in segments:
-        if t < s["in"]: return acc
-        if t <= s["out"]: return acc + t - s["in"]
-        acc += s["out"] - s["in"]
-    return acc
+def src2out(segments: list[dict], t: float, exact: bool = False) -> float:
+    """source time -> film time (timeline.py: whole-frame pieces with seg_exact); a time inside a cut maps to the start
+    of the next kept piece"""
+    return timeline.src2out(t, segments, exact)
+
+
+def exact(edl: dict) -> bool:
+    return bool(edl.get("seg_exact"))
 
 
 def body_len(edl: dict) -> float:
-    return sum(s["out"] - s["in"] for s in edl["segments"])
+    return timeline.total(edl["segments"], exact(edl))
 
 
 def punches(edl: dict) -> list[float]:
     """film times of punch-in zooms: an animated zoom inside a piece (build_edl emph) or an editing-grammar punch"""
-    out, acc = [], 0.0
-    for s in edl["segments"]:
+    out = []
+    for s, acc in zip(edl["segments"], timeline.starts(edl["segments"], exact(edl)), strict=True):
         z = s.get("zoom")
         if isinstance(z, dict) and z.get("t0", 0) > 0.01 and z.get("b", 0) > z.get("a", 0) + 0.1:
             out.append(acc + z["t0"])
-        acc += s["out"] - s["in"]
     out += [r["at"] for r in edl.get("beat_fx", []) if r.get("fx") == "punch"]
     return sorted(out)
 
 
 def zoom_steps(edl: dict) -> list[float]:
     """film times where the framing jumps (a jump cut to another zoom level): a picture change too"""
-    out, acc, prev = [], 0.0, None
-    for s in edl["segments"]:
+    out, prev = [], None
+    for s, acc in zip(edl["segments"], timeline.starts(edl["segments"], exact(edl)), strict=True):
         z = s.get("zoom"); level = z.get("a", 1.0) if isinstance(z, dict) else float(z or 1.0)
         if prev is not None and abs(level - prev) >= 0.08: out.append(acc)
         prev = level if not isinstance(z, dict) else z.get("b", level)
-        acc += s["out"] - s["in"]
     return out
 
 
@@ -233,7 +232,7 @@ class Film:
             sw = pt.get("start_word") if isinstance(pt, dict) else None
             if not (isinstance(sw, int) and not isinstance(sw, bool) and 0 <= sw < len(wt)):
                 bad_input(f"story.json part {pt.get('id', '?') if isinstance(pt, dict) else pt!r}: start_word = a word index 0..{len(wt) - 1}, got {sw!r}")
-        starts = [(pt.get("title", pt.get("id", "?")), src2out(segs, wt[pt["start_word"]])) for pt in story.get("parts", [])]
+        starts = [(pt.get("title", pt.get("id", "?")), src2out(segs, wt[pt["start_word"]], exact(self.edl))) for pt in story.get("parts", [])]
         return [(t, a, starts[i + 1][1] if i + 1 < len(starts) else self.len) for i, (t, a) in enumerate(starts)]
 
     def no_chap(self) -> set[str]:
