@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, drawProblems, MIN_TEXT_PX, readProblems, window_ } from '../scene_check.mjs';
+import { clashes, cutProblems, drawProblems, hiddenProblems, MIN_TEXT_PX, readProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -90,4 +90,21 @@ test('reading time: a piece of words is up 0.6 s + 0.25 s a word, at least 1.2 s
   assert.match(readProblems(late, [line(0), line(90)], big(1)).join('\n'), /3 words/);
   // a piece that leaves ("gone") is read until it leaves; a one-word node still needs the 1.2 s floor
   assert.match(readProblems({ id: 'x', dur: 20, els: [{ k: 'node', at: 1, gone: 2 }] }, [{ ...line(0), s: 'Ja' }], big(1)).join('\n'), /1 words\) is on screen 1\.0 s, it needs 1\.2 s/);
+});
+
+test('a line of words half cut by the frame or the board while the camera rests is named; a whole or a hidden line is not (stills 2026-11-08)', () => {
+  const sp = { id: 's16', layout: 'side', dur: 10, els: [{ k: 'chip', id: 'c', at: 2 }, { k: 'text', id: 'x', at: 0, gone: 3 }] };
+  const cut = { i: 0, t: 6, s: 'zamiast nadpisywać', frac: 0.62 };
+  assert.match(cutProblems(sp, [cut]).join('\n'), /"zamiast nadpisywać" \(chip\) is cut by the edge of the board at 6\.0 s \(62 % shows\)/);
+  assert.deepEqual(cutProblems(sp, [{ ...cut, frac: 0.99 }, { ...cut, frac: 0.01 }]), []);  // whole, or (nearly) out of the picture
+  assert.deepEqual(cutProblems(sp, [{ ...cut, t: 2.2 }]), []);  // its own entrance
+  assert.deepEqual(cutProblems(sp, [{ i: 1, t: 5, s: 'old', frac: 0.5 }]), []);  // gone at 3 s
+  assert.match(cutProblems({ ...sp, layout: undefined }, [cut]).join('\n'), /edge of the frame/);
+  assert.equal(cutProblems(sp, [cut, { ...cut, t: 7 }]).length, 1);  // once per line
+});
+
+test('a piece the camera hides for the whole card is named (s14 "AI", 2026-11-08)', () => {
+  const sp = { id: 's14', els: [{ k: 'say', id: 'h' }, { k: 'node', id: 'ai' }] };
+  assert.deepEqual(hiddenProblems(sp, [1]), ['s14: ai (node) is never on screen: no camera stop shows it whole, so it hides for the whole card']);
+  assert.deepEqual(hiddenProblems(sp, []), []);
 });

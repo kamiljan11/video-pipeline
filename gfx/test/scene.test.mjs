@@ -164,3 +164,37 @@ test('a side column follows the newest pieces; the side scene is clipped to its 
   const row = ok([{ k: 'chip', id: 'a', x: 120, y: 500, text: 'x' }], { layout: 'side' });
   assert.match(scene(row, esc, icon), /class="scene side col" style="clip-path:inset\(150px 100px 290px 1640px round 48px\)"/);
 });
+
+test('sceneFit takes a piece the framing would cut into the framing, down to 0.85 of the zoom; past that the piece hides for the stop (stills 2026-11-08)', () => {
+  const el = (id, x, y, w = 200) => ({ dataset: { id }, offsetLeft: x, offsetTop: y, offsetWidth: w, offsetHeight: 100, classList: { contains: c => c === 'p' }, style: {} });
+  const run = (pieces) => {
+    const head = [];
+    const world = { dataset: { cam: JSON.stringify([{ t: 0, on: ['b'], zmax: 1.8 }, { t: 4, on: '*' }]), dur: '8' }, querySelectorAll: () => pieces, style: {},
+      parentElement: { classList: { contains: () => false }, getBoundingClientRect: () => ({ width: 2560, height: 1440 }) } };
+    globalThis.document = { querySelector: () => world, createElement: () => ({ textContent: '' }), head: { appendChild: s => head.push(s) } };
+    globalThis.getComputedStyle = () => ({ clipPath: 'none' });
+    try { return [sceneFit({ x: 110, y: 100, w: 1800, h: 1240 }, camKeyframes.toString(), soloKeys.toString()), head, pieces]; }
+    finally { delete globalThis.document; delete globalThis.getComputedStyle; }
+  };
+  // framing "b" alone at 1.8 shows world x 1039..2461: "c" at 2350..2550 would be cut, so the camera takes it in (z 1800/1150)
+  const [near] = run([el('a', 100, 100), el('b', 1500, 900), el('c', 2350, 900)]);
+  assert.ok(Math.abs(near[0].z - 1800 / 1150) < 1e-9, `z ${near[0].z}`);
+  // a wide neighbour would need z 0.95 (< 0.85 of 1.8): the camera keeps 1.8 and that piece fades out for the stop
+  const [far, head, pieces] = run([el('a', 100, 100), el('b', 1500, 900), el('c', 2300, 900, 1000)]);
+  assert.equal(far[0].z, 1.8);
+  assert.match(head[0].textContent, /@keyframes solo_2\{0\.000%\{opacity:0\}/);
+  assert.match(pieces[2].style.animation, /^solo_2 8s linear both$/);
+});
+
+test('sceneFit measures a piece with the label that sticks out of it (node "Księgarnia", 2026-11-08)', () => {
+  const label = { offsetWidth: 300, offsetHeight: 50, offsetLeft: -90, offsetTop: 130, offsetParent: null };
+  const node = { dataset: { id: 'n' }, offsetLeft: 1000, offsetTop: 500, offsetWidth: 120, offsetHeight: 120, classList: { contains: () => true }, style: {}, querySelectorAll: () => [label] };
+  label.offsetParent = node;
+  const world = { dataset: { cam: JSON.stringify([{ t: 0, on: ['n'], zmax: 1, pad: 0 }]), dur: '4' }, querySelectorAll: () => [node], style: {} };
+  globalThis.document = { querySelector: () => world, createElement: () => ({ textContent: '' }), head: { appendChild: () => {} } };
+  try {
+    const safe = { x: 0, y: 0, w: 2560, h: 1440 }, [st] = sceneFit(safe, camKeyframes.toString(), null);
+    assert.equal(st.x, 1000 - 90 + 300 / 2 - 1280);  // centred on icon + label (910..1210), not the icon alone (1000..1120)
+    assert.equal(st.y, 500 + 180 / 2 - 720);
+  } finally { delete globalThis.document; }
+});

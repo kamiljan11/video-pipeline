@@ -107,7 +107,7 @@ export function zoomStops(stops, zooms) {
 // at a camera stop fades out for that stop and back in when a stop frames it again; the last stop ("*") shows the whole
 // drawing. pieces: [{x, y, w, h}] in world px; stops: resolved {t, x, y, z, move}; returns per piece [[t, opacity], ...]
 // or null when it never hides. Self-contained: render.mjs ships its source into the page like camKeyframes.
-export function soloKeys(pieces, stops, dur, safe, tol = 24) {
+export function soloKeys(pieces, stops, dur, safe, tol = 24, keepCut = false) {
   const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d), FADE = 0.25, MOVE = 0.9;
   const fits = (p, s) => {
     const z = num(s.z, 1), x0 = (p.x - num(s.x, 0)) * z, y0 = (p.y - num(s.y, 0)) * z;
@@ -115,7 +115,7 @@ export function soloKeys(pieces, stops, dur, safe, tol = 24) {
   };
   return pieces.map(p => {
     const vis = stops.map(s => fits(p, s));
-    if (vis.every(Boolean)) return null;
+    if (vis.every(Boolean) || (keepCut && !vis.some(Boolean))) return null;  // keepCut (16:9, board): never whole stays, scene_check names it
     const keys = [[0, vis[0] ? 1 : 0]];
     for (let i = 1; i < stops.length; i++) {
       if (vis[i] === vis[i - 1]) continue;
@@ -487,17 +487,50 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
   if (!world || !world.dataset.cam) return null;
   const cam = JSON.parse(world.dataset.cam), dur = +world.dataset.dur;
   const pieces = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map(el => {
-    if (el.dataset.bb) { const [x, y, w, h] = el.dataset.bb.split(' ').map(Number); return { id: el.dataset.id, x, y, w, h }; }
-    return { id: el.dataset.id, x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+    if (el.dataset.bb) { const [x, y, w, h] = el.dataset.bb.split(' ').map(Number); return { id: el.dataset.id, x, y, w, h, ln: true }; }
+    // with what sticks out of it (a node's label is wider than its icon: "Księgarnia" was cut, 2026-11-08); offset geometry,
+    // so an entrance animation's transform does not move the box
+    let x0 = 0, y0 = 0, x1 = el.offsetWidth, y1 = el.offsetHeight;
+    for (const d of el.querySelectorAll ? el.querySelectorAll('*') : []) {
+      if (!(d.offsetWidth > 0 && d.offsetHeight > 0)) continue;
+      let x = 0, y = 0, n = d;
+      for (; n && n !== el; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+      if (n !== el) continue;
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + d.offsetWidth); y1 = Math.max(y1, y + d.offsetHeight);
+    }
+    return { id: el.dataset.id, x: el.offsetLeft + x0, y: el.offsetTop + y0, w: x1 - x0, h: y1 - y0 };
   });
-  const frame = s => {
-    const want = s.on === undefined || s.on === '*' ? null : [].concat(s.on);
-    const got = pieces.filter(p => !want || want.includes(p.id));
+  // what the viewer sees, in the scene's own px: the frame, or a side scene's board (its clip-path inset)
+  const sc = world.parentElement, view = (() => {  // null outside a page (a test's stand-in world): no closure, no 16:9 solo
+    if (!sc || typeof sc.getBoundingClientRect !== 'function' || typeof getComputedStyle !== 'function') return null;
+    const sr = sc.getBoundingClientRect(), ins = (getComputedStyle(sc).clipPath.match(/inset\(([^)]*)\)/) || [])[1];
+    const [it, ir, ib, il] = ins ? ins.split('round')[0].trim().split(/\s+/).map(parseFloat) : [0, 0, 0, 0];
+    return { x: il, y: it, w: sr.width - il - ir, h: sr.height - it - ib };
+  })();
+  const fit = (got, s) => {
     const x0 = Math.min(...got.map(p => p.x)), y0 = Math.min(...got.map(p => p.y));
     const x1 = Math.max(...got.map(p => p.x + p.w)), y1 = Math.max(...got.map(p => p.y + p.h));
     const pad = s.pad ?? 50, bw = x1 - x0 + 2 * pad, bh = y1 - y0 + 2 * pad;
     const z = Math.min(safe.w / bw, safe.h / bh, s.zmax ?? 1.8);
     return { t: s.t, move: s.move, z, x: (x0 + x1) / 2 - (safe.x + safe.w / 2) / z, y: (y0 + y1) / 2 - (safe.y + safe.h / 2) / z };
+  };
+  // a piece the framing cuts at the edge of the view is taken into the framing (a word half off the frame reads as a mistake,
+  // stills 2026-11-08), while the camera stays at >= 0.85 of its zoom (text size on a phone, scene_check readProblems); what is
+  // still cut then hides for that stop (soloKeys)
+  const frame = s => {
+    const want = s.on === undefined || s.on === '*' ? null : [].concat(s.on);
+    let got = pieces.filter(p => !want || want.includes(p.id)), st = fit(got, s);
+    const z0 = st.z;
+    for (let k = 0; view && k < 6; k++) {
+      const v0 = st.x + view.x / st.z, v1 = st.x + (view.x + view.w) / st.z, w0 = st.y + view.y / st.z, w1 = st.y + (view.y + view.h) / st.z;
+      const cut = pieces.filter(p => !p.ln && !got.includes(p) && p.x < v1 && p.x + p.w > v0 && p.y < w1 && p.y + p.h > w0 &&
+        !(p.x >= v0 - 2 && p.x + p.w <= v1 + 2 && p.y >= w0 - 2 && p.y + p.h <= w1 + 2));
+      if (!cut.length) break;
+      const wider = fit([...got, ...cut], s);
+      if (wider.z < z0 * 0.85) break;
+      got = [...got, ...cut]; st = wider;
+    }
+    return st;
   };
   const col = world.parentElement && world.parentElement.classList.contains('col');
   if (col && !followSrc) throw new Error('side column: sceneFit needs the source of colFollow');
@@ -517,10 +550,11 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
   st.textContent = `@keyframes cam_fit{${camKeyframes(stops, dur)}}`;
   document.head.appendChild(st);
   world.style.animation = `cam_fit ${dur}s linear both`;
-  if (world.dataset.solo && soloSrc) {  // 9:16: a piece cut by the frame edge hides for that stop (soloKeys)
+  if (soloSrc && (world.dataset.solo || view)) {  // a piece cut by the edge hides for that stop (soloKeys): 9:16 against its free area, else the view
     const soloKeys = new Function(`return ${soloSrc}`)();
     const els = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')];
-    soloKeys(pieces, stops, dur, safe).forEach((keys, i) => {
+    const v = !!world.dataset.solo;
+    soloKeys(pieces, stops, dur, v ? safe : view, v ? 24 : 4, !v).forEach((keys, i) => {
       const el = els[i];
       if (!keys || !el.classList.contains('p') || el.style.animation) return;  // lines stay: a cut line reads as going on
       st.textContent += `@keyframes solo_${i}{${keys.map(([t, o]) => `${((t / dur) * 100).toFixed(3)}%{opacity:${o}}`).join('')}}`;
