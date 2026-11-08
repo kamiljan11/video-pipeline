@@ -60,3 +60,104 @@ test('a run that stops on variant B leaves out as it was: no new A next to an ol
   assert.deepEqual(fs.readdirSync(out).sort(), ['long_A.jpg', 'long_B.jpg']);  // no staging dir left behind
   fs.rmSync(w, { recursive: true, force: true });
 });
+
+// --- research ledger plan2 TH6 / TH8: opt-in fields; a variant without them is drawn exactly as before (the hashes are
+// of the HTML at 3338af5; an edit of style/themes/cetus.json or of the default layout changes them on purpose)
+test('default output unchanged: the HTML of a plain long, a long with icon/fx and a cover is the same as before TH6/TH8', async () => {
+  const { createHash } = await import('crypto'); const { pathToFileURL } = await import('url');
+  const d = '/tmp/x-golden', norm = (h) => h.split(pathToFileURL(d).href).join('DIR');
+  const sha = (h) => createHash('sha256').update(norm(h)).digest('hex');
+  assert.equal(sha(longHtml(v('A'), d, 'cetus')), '9bc2f31257b87e3560bb2595c738a7a775b038d29e921f29d19edaf645b416fe');
+  assert.equal(sha(longHtml(v('B', { side: 'right', icon: 'construction', tag: 'x', fx: -300, fy: -100, fw: 1800 }), d, 'cetus')),
+    'dcc39bda6dabeb165c89b3244c28f3c2b588e2248e9f71c909d78aae7b1beec7');
+  assert.equal(sha(shortHtml(v('s1', { dy: 150 }), d, 'cetus')), '68bcd648ce6e1184c0c39f547d347e6192b4f5e9bac571b32aea2ee41c52420b');
+});
+
+test('TH6 tone "lift": harder, brighter frame without the colour boost, band and shadow in black; long and cover', () => {
+  const h = longHtml(v('A', { tone: 'lift' }), dir, 'cetus');
+  assert.match(h, /filter:contrast\(1\.2\) saturate\(1\) brightness\(1\.1\)/);
+  assert.match(h, /--panel-rgb:0,0,0/); assert.match(h, /--scrim-rgb:0,0,0/); assert.doesNotMatch(h, /saturate\(1\.15\)/);
+  assert.match(shortHtml(v('s1', { tone: 'lift' }), dir, 'cetus'), /--panel-rgb:0,0,0/);
+  assert.match(longHtml(v('A'), dir, 'cetus'), /saturate\(1\.15\)/);
+  assert.ok(checkThumbs({ long: [v('A', { tone: 'flat' }), v('B')] }, dir).some(b => b.includes('"tone" = "lift"')));
+  assert.deepEqual(checkThumbs({ long: [v('A', { tone: 'lift' }), v('B')], shorts: [v('s1', { tone: 'lift' })] }, dir), []);
+});
+
+test('TH8 accent "thumb": reads --acc-thumb from the theme (rgb follows), no token = the usual accent', () => {
+  const theme = { css: { '--acc': '#6FA7EC', '--acc-rgb': '111,167,236', '--acc-thumb': '#FFD400', '--ink': '#0A1430' } };
+  const h = longHtml(v('A', { accent: 'thumb' }), dir, theme);
+  assert.match(h, /--acc:#FFD400/); assert.match(h, /--acc-rgb:255,212,0/); assert.doesNotMatch(h, /--acc-thumb/);
+  assert.match(longHtml(v('A'), dir, theme), /--acc:#6FA7EC;--acc-rgb:111,167,236/);  // not asked for: unchanged
+  assert.match(longHtml(v('A', { accent: 'thumb' }), dir, 'cetus'), /--acc:#6FA7EC/);  // cetus has no --acc-thumb yet (Kamil's colour)
+  assert.ok(checkThumbs({ long: [v('A', { accent: 'gold' }), v('B')] }, dir).some(b => b.includes('"accent" = "thumb"')));
+});
+
+test('TH8 spec: layout "object" with 1-2 objects or a 3-5 item panel, one arrow at a real target', () => {
+  fs.writeFileSync(path.join(dir, 'o.png'), '');
+  const flat = (id, more) => ({ id, big: '18%', layout: 'object', ...more });
+  const good = [flat('A', { object: { src: 'o.png', w: 0.5 }, arrow: { to: 'object' } }), flat('B', { object: [{ icon: 'terminal' }, { icon: 'file-check', h: 0.4 }], arrow: { to: 'object', i: 1 } }),
+    flat('C', { panel: { kind: 'steps', items: ['92%', '40%', '18%'] } }), flat('D', { panel: { kind: 'chart', items: [1, 2, 3, 4, 5].map(n => ({ label: `${n}`, value: n })) } }),
+    v('E', { icon: 'construction', arrow: { to: 'icon' } })];
+  assert.deepEqual(checkThumbs({ long: good }, dir), []);
+  const cases = [
+    [flat('A', {}), 'needs "object"'],
+    [flat('A', { frame: 'f.png', object: { icon: 'terminal' } }), 'no "frame"'],
+    [flat('A', { object: [{ icon: 'terminal' }, { icon: 'terminal' }, { icon: 'file' }] }), '3 objects, at most 2'],
+    [flat('A', { object: { icon: 'terminal' }, panel: { kind: 'steps', items: ['a', 'b', 'c'] } }), 'not both'],
+    [flat('A', { object: { icon: 'terminal', h: 0.3 } }), '"h" = 0.4'],
+    [flat('A', { object: { src: 'o.png', w: 0.3 } }), '"w" = 0.45'],
+    [flat('A', { object: { src: 'o.png', icon: 'terminal' } }), 'one of "src" or "icon"'],
+    [flat('A', { object: { src: 'none.png' } }), '"src" = an existing image'],
+    [flat('A', { panel: { kind: 'steps', items: ['a', 'b'] } }), '"items" = 3-5'],
+    [flat('A', { panel: { kind: 'steps', items: ['a', 'b', 'c', 'd', 'e', 'f'] } }), '"items" = 3-5'],
+    [flat('A', { panel: { kind: 'grid', items: ['a', 'b', 'c'] } }), '"kind" = steps or chart'],
+    [flat('A', { panel: { kind: 'steps', items: ['a', 'b', 'jeden dwa trzy cztery'] } }), 'over 3 words'],
+    [flat('A', { panel: { kind: 'chart', items: ['a', 'b', 'c'] } }), 'a chart item'],
+    [flat('A', { object: { icon: 'terminal' }, arrow: [{ to: 'object' }, { to: 'object' }] }), 'one arrow, not a list'],
+    [flat('A', { object: { icon: 'terminal' }, arrow: { to: 'object', i: 1 } }), 'points at object 1, there are 1'],
+    [flat('A', { panel: { kind: 'steps', items: ['a', 'b', 'c'] }, arrow: { to: 'panel' } }), '"arrow" = {"to": "icon"}'],
+    [v('A', { arrow: { to: 'icon' } }), 'needs "icon"'],
+    [v('A', { object: { icon: 'terminal' } }), 'need "layout": "object"'],
+    [v('A', { layout: 'grid' }), '"layout" = "object"'],
+  ];
+  for (const [bad, want] of cases) {
+    const got = checkThumbs({ long: [bad, v('Z')] }, dir);
+    assert.ok(got.some(b => b.includes(want)), `missing: ${want}\n${got.join('\n')}`);
+  }
+  const s = checkThumbs({ long: [v('A'), v('B')], shorts: [v('s1', { layout: 'object', arrow: { to: 'icon' } })] }, dir);
+  assert.ok(s.some(b => b.includes('"layout" is for long variants only')) && s.some(b => b.includes('"arrow" is for long variants only')), s.join('\n'));
+});
+
+test('TH8 fit: an object drawn small, past the edge or under the words is named; a panel label obeys the 320 px floor', () => {
+  const box = (k, x0, y0, x1, y1, fs = 0) => ({ k, x0, y0, x1, y1, fs });
+  const fit = { wide: [], bottom: 400 }, big = box('big', 60, 110, 560, 300, 190);
+  assert.deepEqual(fitProblems('long_B.jpg', { ...fit, boxes: [big, box('obj', 640, 160, 1220, 560), box('arrow', 300, 350, 620, 400)] }, 720), []);
+  const small = fitProblems('long_B.jpg', { ...fit, boxes: [big, box('obj', 800, 260, 1000, 460)] }, 720);
+  assert.ok(small.some(b => b.includes('the obj is drawn 200x200 px')), small.join('\n'));
+  const over = fitProblems('long_B.jpg', { ...fit, boxes: [big, box('obj', 500, 100, 1100, 500)] }, 720);
+  assert.ok(over.some(b => b.includes('"big" overlaps the obj')), over.join('\n'));
+  const edge = fitProblems('long_B.jpg', { ...fit, boxes: [box('obj', 700, 100, 1320, 500)] }, 720);
+  assert.ok(edge.some(b => b.includes('the obj reaches past the frame edge')), edge.join('\n'));
+  const label = fitProblems('long_C.jpg', { ...fit, boxes: [box('panel', 60, 340, 1220, 590), box('panel item 1', 100, 500, 200, 550, 30)] }, 720);
+  assert.ok(label.some(b => b.includes('"panel item 1" is 7.5 px')), label.join('\n'));
+  assert.ok(!label.some(b => b.includes('overlaps')), label.join('\n'));  // the labels sit inside the panel
+});
+
+test('TH6/TH8 render: lift + arrow to the icon, an image object with an arrow, a steps panel; a panel that does not fit stops', { skip: !fs.existsSync('/usr/bin/google-chrome') }, async () => {
+  const { execFileSync, spawnSync } = await import('child_process');
+  const w = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-th8-')), out = path.join(w, 'out');
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=s=640x360', '-frames:v', '1', path.join(w, 'f.png')]);
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=white:s=480x270', '-frames:v', '1', path.join(w, 'o.png')]);
+  const spec = { long: [v('A', { icon: 'construction', arrow: { to: 'icon' }, tone: 'lift', accent: 'thumb', pick: { t: 1, score: 0.9 } }),
+    { id: 'B', big: '18%', sub: 'bez błędów', layout: 'object', object: { src: 'o.png', w: 0.45 }, arrow: { to: 'object' }, no_face: true },
+    { id: 'C', big: '3 kroki', layout: 'object', panel: { kind: 'steps', items: ['92%', '40%', '18%'] } }] };
+  const cli = new URL('../thumbs.mjs', import.meta.url).pathname;
+  fs.writeFileSync(path.join(w, 't.json'), JSON.stringify(spec));
+  const r = spawnSync('node', [cli, path.join(w, 't.json'), out], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  for (const f of ['long_A.jpg', 'long_B.jpg', 'long_C.jpg']) assert.ok(fs.statSync(path.join(out, f)).size > 1000, f);
+  fs.writeFileSync(path.join(w, 't.json'), JSON.stringify({ long: [v('A'), { id: 'C', big: 'x', layout: 'object', panel: { kind: 'steps', items: ['przeglądanie', 'b', 'c', 'd', 'e'] } }] }));
+  const r2 = spawnSync('node', [cli, path.join(w, 't.json'), out], { encoding: 'utf8' });
+  assert.notEqual(r2.status, 0); assert.match(r2.stderr, /"panel item 1" is \d+ px wider than its column/);
+  fs.rmSync(w, { recursive: true, force: true });
+});
