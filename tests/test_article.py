@@ -236,6 +236,16 @@ class ArticleCheckTest(unittest.TestCase):
         self.assertEqual(len(bad), 1, bad)
         self.assertIn("4321", bad[0])
 
+    def test_a_thumbnail_copied_as_the_blog_cover_fails(self):
+        # Kamil 2026-11-08: out_v3 blog cover = long thumbnail A ("18% LECI NA ŚLEPO ... musisz zmienic logiki")
+        art = self.d / "out" / "blog" / "bramki-dla-agenta"; art.mkdir(parents=True); (self.d / "out" / "thumbnails").mkdir()
+        article(art)
+        twin = self.d / "out" / "thumbnails" / "long_A.jpg"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(art / "cover.png"), "-vf", "scale=128:72", str(twin)], check=True)
+        self.assertTrue(any("is the thumbnail long_A.jpg" in b for b in A.problems(art)))
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=orange:s=128x72", "-frames:v", "1", str(twin)], check=True)
+        self.assertFalse(any("is the thumbnail" in b for b in A.problems(art)))
+
     def test_pictures_must_sit_inside_the_article_folder(self):
         (self.d / "a").mkdir()
         outside = self.d / "outside.png"

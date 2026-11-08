@@ -75,6 +75,26 @@ def inside(folder: Path, src: object) -> bool:
     return f.is_file() and f.is_relative_to(folder.resolve())
 
 
+COPY_DIFF = 6.0  # mean grey difference (0-255) of two pictures shrunk to 32x18 under which one is a copy of the other
+
+
+def thumbnail_twin(folder: Path, cover: Path) -> str | None:
+    """Kamil 2026-11-08 on out_v3: "18% LECI NA ŚLEPO ... bardzo bez sensu i zdjecie i tekst na bloga, musisz zmienic logiki":
+    the blog cover was the long's thumbnail A copied (face + a feed hook). The name of the thumbnail in <out>/thumbnails that
+    the cover copies (also resized or re-encoded), None when it is its own picture or the article is not in <out>/blog/<slug>"""
+    import cv2  # only here: the rest of the check needs no picture library (frame_pick.py reads pictures with it too)
+    thumbs = folder.parent.parent / "thumbnails"
+    if folder.parent.name != "blog" or not thumbs.is_dir(): return None
+    def small(p: Path):
+        im = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
+        return None if im is None else cv2.resize(im, (32, 18), interpolation=cv2.INTER_AREA).astype("float32")
+    c = small(cover)
+    if c is None: return None
+    for t in sorted(x for x in thumbs.iterdir() if x.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")):
+        if (g := small(t)) is not None and float(abs(c - g).mean()) < COPY_DIFF: return t.name
+    return None
+
+
 def meta_problems(a: dict, folder: Path) -> list[str]:
     out: list[str] = []
     slug = a.get("slug", "")
@@ -84,6 +104,8 @@ def meta_problems(a: dict, folder: Path) -> list[str]:
     if yt is not None and not (isinstance(yt, str) and YT.match(yt)): out.append(f"youtube {yt!r}: a youtube.com/watch?v= or youtu.be link, or null before the film is up")
     cov = a.get("cover") or {}
     if not inside(folder, cov.get("src", "")): out.append(f"cover {cov.get('src')!r}: no such file in {folder}")
+    elif (twin := thumbnail_twin(folder, folder / cov["src"])):
+        out.append(f"cover {cov['src']!r} is the thumbnail {twin}: make a cover for the article (its title and subject), not a copy of a film thumbnail")
     for lang in ("pl", "en"):
         if len(str((cov.get("alt") or {}).get(lang, ""))) < MIN_ALT: out.append(f"cover alt ({lang}): describe the picture, more than {MIN_ALT - 1} chars")
     return out
