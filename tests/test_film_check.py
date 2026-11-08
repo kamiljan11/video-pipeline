@@ -449,7 +449,7 @@ class FilmCheckTest(unittest.TestCase):
                         "youtube/shorts/s1.md": "## Tytuł\n## Opis\nJedno zdanie.\nPełny film: {{LONG_URL}}\n## Powiązany film\nlong\n",
                         "youtube/long.md": LONG_MD}.items():
             (out / p).parent.mkdir(parents=True, exist_ok=True); (out / p).write_text(body)
-        (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA"}, {"id": "B", "big": "SZLABAN"}]}))
+        (self.d / "thumbs.json").write_text(json.dumps({"long": [{"id": "A", "big": "BLIZNA", "pick": {"t": 1.0, "score": 0.9}}, {"id": "B", "big": "SZLABAN", "no_face": True}]}))
         thumb(out / "thumbnails/long_A.jpg", "BLIZNA"); thumb(out / "thumbnails/long_B.jpg", "SZLABAN")
         r, rep = self.run_check("--out", str(out))
         self.assertIn("numbers in the posts cannot be checked", rep["out.posts"]["detail"])  # no words of the long: never a silent skip

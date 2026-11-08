@@ -192,5 +192,13 @@ class PictureTest(unittest.TestCase):
         self.assertEqual(T.main([]), 2)
 
 
+
+class PickTest(unittest.TestCase):  # frame_pick.py must choose every frame with the speaker (2026-11-08 "glupie miny")
+    def test_frames_need_a_pick_or_no_face(self):
+        spec = {"long": [{"id": "A", "pick": {"t": 265.6, "score": 0.89}}, {"id": "B"}, {"id": "C", "no_face": True}],
+                "shorts": [{"id": "s1", "pick": {"t": 3}}]}
+        self.assertEqual([b.split(":")[0] for b in T.pick_problems(spec)], ["long_B", "s1_cover"])
+
+
 if __name__ == "__main__":
     unittest.main()

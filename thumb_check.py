@@ -161,6 +161,20 @@ def text_warns(name: str, v: dict) -> list[str]:
     return w
 
 
+def pick_problems(spec: dict) -> list[str]:
+    """every frame with the speaker came from frame_pick.py ("pick": {"t", "score"}); a frame without him says
+    "no_face": true. Kamil 2026-11-08 "glupie miny wybierasz", "rozmazane": one frame at a word start had a mid-word
+    mouth, half-shut eyes, a blurred hand"""
+    bad = []
+    for kind, name in (("long", "long_{}"), ("shorts", "{}_cover")):
+        for v in spec.get(kind, []):
+            if v.get("no_face"): continue
+            pk = v.get("pick")
+            if not (isinstance(pk, dict) and isinstance(pk.get("t"), (int, float)) and isinstance(pk.get("score"), (int, float))):
+                bad.append(f"{name.format(v.get('id'))}: frame not chosen by frame_pick.py (want \"pick\": {{t, score}}, or \"no_face\": true)")
+    return bad
+
+
 def check(spec: dict, out: Path, titles: list[str], phrase: str = "") -> tuple[list[str], list[str]]:
     """(failures, warnings) of the thumbnails in spec; phrase = the long's `## Fraza kluczowa`"""
     if not shutil.which("tesseract"): return ["no tesseract: sudo apt install tesseract-ocr tesseract-ocr-pol (README, setup)"], []

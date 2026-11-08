@@ -508,7 +508,9 @@ class Out:
         text = md.read_text() if md.exists() else ""
         titles = [r["title"] for r in title_check.titles(text)]
         try:
-            bad, warns = thumb_check.check(load(spec, "thumbs.json"), self.out, titles, title_check.phrase(text))
+            sp = load(spec, "thumbs.json")
+            bad, warns = thumb_check.check(sp, self.out, titles, title_check.phrase(text))
+            bad = thumb_check.pick_problems(sp) + bad
             self.warns += [("out.thumbs_read", w) for w in warns]
         except (RuntimeError, OSError, ValueError, ImportError, subprocess.SubprocessError) as e:  # ffmpeg, tesseract, OpenCV
             return False, f"thumb_check failed: {e}"
