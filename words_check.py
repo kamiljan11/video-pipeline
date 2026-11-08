@@ -22,9 +22,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+import timeline
 from cpu_budget import heavy_threads, low_priority
 
 W = "/home/kamil-jan/video-pipeline"
+SPEECH_DB = -40.0  # mean level of a said word in rough.mkv (speech measured -15..-25 dB, the cut-out pauses -51..-61 dB)
 WORD = re.compile(r"[a-ząćęłńóśźż0-9%]+")
 
 
@@ -83,6 +85,54 @@ def judge(mode: str, expected: list[str], heard: list[str]) -> tuple[list[str], 
     return bad, warn
 
 
+def token_times(plan: dict, words: list[dict]) -> list[tuple[float, float]]:
+    """source (start, end) of every token of the plan text, in the order norm() reads edl_<n>.txt (build_edl joins the
+    kept words' text); [] when the tokens do not line up one to one (then nothing is confirmed, the check stays as strict)"""
+    out = []
+    for a, b in plan["keeps"]:
+        for i in range(a, b + 1):
+            w = words[i]; out += [(w["offsets"]["from"] / 1000, w["offsets"]["to"] / 1000)] * len(norm(w["text"]))
+    return out
+
+
+def film_time(segments: list[dict], t: float) -> float | None:
+    """film time of source time t: the piece that holds it (seg_exact lengths), None when t was cut out"""
+    for s, start in zip(segments, timeline.starts(segments, True), strict=True):
+        if s["in"] <= t <= s["out"]:
+            return start + (t - s["in"])
+    return None
+
+
+def mean_db(media: str, t0: float, d: float) -> float:
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{t0:.3f}", "-t", f"{d:.3f}", "-i", media, "-vn",
+                        "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, check=False, timeout=120)
+    m = re.search(r"mean_volume: (-?[\d.]+) dB", r.stderr)
+    return float(m.group(1)) if m else -99.0
+
+
+def confirm_kept(bad: list[str], expected: list[str], times: list[tuple[float, float]], segments: list[dict], rough: str
+                 ) -> tuple[list[str], list[str]]:
+    """cut mode: a word whisper did not hear in rough.mkv is kept when its source time lies in a piece of the cut and
+    rough.mkv has speech there (2026-11-08 long: 8 FAILs, all names and fillers whisper misheard; the pauses cut out
+    around them were silence). Problems that stay: a word outside every piece, or silence where it should be."""
+    if len(times) != len(expected):
+        return bad, []
+    still, kept = [], []
+    for i, gone, _ in missing(expected, transcribe(rough)):
+        line = next((x for x in bad if x.startswith(f"missing: {context(expected, i, len(gone))} ")), None)
+        if line is None:
+            continue
+        # word starts only: the transcript's end times run late (2026-11-08 "Claude." ended 0.1 s after its piece, the
+        # cut-out pause after it was silence, -60 dB)
+        f0, f1 = film_time(segments, times[i][0]), film_time(segments, times[i + len(gone) - 1][0])
+        db = mean_db(rough, f0, max(f1 - f0, 0.0) + 0.3) if f0 is not None and f1 is not None else None
+        if db is not None and db > SPEECH_DB:
+            kept.append(f"{line} (whisper did not hear it; kept in the cut at {f0:.2f} s, speech {db:.1f} dB)")
+        else:
+            still.append(line + (" (cut out)" if db is None else f" (silence at {f0:.2f} s: {db:.1f} dB)"))
+    return still, kept
+
+
 def main(argv: list[str]) -> int:
     out = None
     if "--json" in argv: i = argv.index("--json"); out = argv[i + 1]; argv = argv[:i] + argv[i + 2:]
@@ -92,6 +142,15 @@ def main(argv: list[str]) -> int:
     expected = norm(Path(a).read_text(encoding="utf-8")) if mode == "cut" else transcribe(a)
     heard = transcribe(b)
     bad, warn = judge(mode, expected, heard)
+    edl_json = Path(a).with_suffix(".json")
+    if mode == "cut" and bad and edl_json.exists():  # confirm against the sound: the plan says which source words are kept
+        edl = json.loads(edl_json.read_text(encoding="utf-8"))
+        plan_p = edl_json.with_name(edl_json.name.replace("edl_", "plan_", 1))
+        if plan_p.exists():
+            plan = json.loads(plan_p.read_text(encoding="utf-8"))
+            words = json.loads((plan_p.parent / plan["words"]).read_text(encoding="utf-8"))["transcription"]
+            bad, kept = confirm_kept(bad, expected, token_times(plan, words), edl["segments"], b)
+            warn += kept
     if out: Path(out).write_text(json.dumps({"mode": mode, "expected": len(expected), "heard": len(heard), "problems": bad, "warnings": warn}, ensure_ascii=False, indent=1), encoding="utf-8")
     for x in bad: print(x)
     for x in warn: print("WARN", x)

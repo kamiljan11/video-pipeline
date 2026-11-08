@@ -102,5 +102,22 @@ class Materials(unittest.TestCase):
         self.assertEqual(rows["Artykuł na bloga"], (0, 1))
 
 
+class Failed(unittest.TestCase):
+    FILMS = ("long", "s01", "s02", "s03")
+
+    def test_films_passed_without_a_file_are_failed(self):
+        self.assertEqual(R.failed_films(list(self.FILMS), ["s01"], "s03", False), ["long", "s02"])
+        self.assertEqual(R.failed_films(list(self.FILMS), [], "long", False), [])  # the long is still running
+        self.assertEqual(R.failed_films(list(self.FILMS), ["long", "s01", "s02"], None, True), ["s03"])  # finish step: all
+
+    def test_rows_count_failed(self):
+        rows = R.queue(list(self.FILMS), ["s01"], "s03", False)
+        self.assertEqual((rows[0]["failed"], rows[1]["failed"]), (1, 1))
+
+    def test_reason_is_the_specific_step(self):
+        log = "FAILED words_check cut long\nFAILED assemble long\nFAILED_FILMS long\nFAILED film_check s02 (/x/critic_s02.log)\n"
+        self.assertEqual(R.fail_reasons(log, ["long", "s02"]), {"long": "words_check cut", "s02": "film_check"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -63,13 +63,22 @@ def eta(films: list[str], done: list[str], current: str | None, frac: float | No
     return {"current_left_s": left_cur, "rest_films": len(rest), "per_short_s": per_short, "total_left_s": total}
 
 
+def failed_films(films: list[str], done: list[str], current: str | None, finishing: bool) -> list[str]:
+    """films the run has gone past without a finished file (Kamil 2026-11-08 "nie pokazuje ze renderuje sie long": the
+    long had failed a gate and stood as 0/1 like one still waiting): every film before the current one in render order
+    (all of them once the run is in the finish step) that is not done"""
+    upto = len(films) if finishing else (films.index(current) if current in films else 0)
+    return [f for f in films[:upto] if f not in done]
+
+
 def queue(films: list[str], done: list[str], current: str | None, finishing: bool) -> list[dict]:
-    """One row per format for the window: long 0/1, shorts 3/18, the materials step (stamp + out_gate after the films;
-    posts, blog, IG and thumbnails are built before the render, render_v4.sh only stamps and gates them)."""
+    """One row per format for the window: long 0/1, shorts 3/18 (+ how many failed), the materials step (stamp + out_gate
+    after the films; posts, blog, IG and thumbnails are built before the render, render_v4.sh only stamps and gates them)."""
     shorts = [f for f in films if f != "long"]
-    rows = [{"name": "Long", "done": int("long" in done), "total": 1, "now": current == "long"},
+    bad = failed_films(films, done, current, finishing)
+    rows = [{"name": "Long", "done": int("long" in done), "total": 1, "now": current == "long", "failed": int("long" in bad)},
             {"name": "Shorty", "done": sum(f in done for f in shorts), "total": len(shorts),
-             "now": current is not None and current != "long"}]
+             "now": current is not None and current != "long", "failed": sum(f in bad for f in shorts)}]
     rows.append({"name": "Materiały (pieczątki + out_gate)", "done": 0, "total": 1, "now": finishing})
     return rows
 
@@ -91,6 +100,17 @@ def materials(out: str | Path, shorts: list[str]) -> list[dict]:
             ("Opisy YouTube", int((o / "youtube/long.md").exists()) + sum((o / "youtube/shorts" / f"{s}.md").exists() for s in shorts),
              1 + len(shorts))]
     return [{"name": n, "done": d, "total": t, "now": False} for n, d, t in rows]
+
+
+def fail_reasons(log_text: str, names: list[str]) -> dict[str, str]:
+    """the last FAILED line of render.log naming each film (run_v4.sh: "FAILED <step> <film> ..."), "FAILED assemble <film>"
+    skipped when a more specific line came before it"""
+    out: dict[str, str] = {}
+    for line in log_text.splitlines():
+        m = re.match(r"FAILED (.+?) (\S+)(?: \(.*\))?$", line)
+        if m and m.group(2) in names and not (m.group(1) == "assemble" and m.group(2) in out):
+            out[m.group(2)] = m.group(1)
+    return out
 
 
 def shell_var(text: str, name: str) -> str:
@@ -177,6 +197,13 @@ def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float |
         st = [t for t, p in mp4s if p.parent.name == "shorts"]
         short_times = [b - a for a, b in itertools.pairwise(st)]
     stage, film = stage_of(list(procs.values()))
+    bad = failed_films(films, done, film, stage == "finish")
+    log = Path(src).resolve().parents[3] / "render.log" if src else None  # <VP>/render/montaz/<date>/work/render_v4.sh
+    try:
+        why = fail_reasons(log.read_text(errors="replace")[-400_000:], bad) if log and bad else {}
+    except OSError:
+        why = {}
+    fails = [{"film": f, "why": why.get(f, "?")} for f in bad]
     pid = stage2_pid(procs)
     frac = _read_frac(pid) if pid else None
     # the rate from assemble.py's age: in windows a new ffmpeg starts every 2 min, so its own age says nothing
@@ -184,6 +211,7 @@ def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float |
     e = eta(films, done, film, frac, _age(apid) if (pid and apid) else None, short_times, rate)
     return {"unit": unit, "active": active, "stage": stage, "film": film, "frac": frac, "films": films, "done": done,
             "queue": queue(films, done, film, stage == "finish") + (materials(out, shorts) if out else []),
+            "failed": fails,
             "elapsed_s": time.time() - start if start else None, **e}
 
 

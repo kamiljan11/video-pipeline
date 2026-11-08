@@ -1,5 +1,7 @@
 """words_check (lost words) and word_times (word starts on the voice): the pure parts, no whisper run.
 Film 2026-11-04: "Przez" and "I" lost in the long; whisper word starts up to 1.07 s off the voice."""
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -91,3 +93,40 @@ class WordTimesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+SEGS = ({"in": 10.0, "out": 12.0}, {"in": 20.0, "out": 22.0}, {"in": 30.0, "out": 31.0})  # film 0-2, 2-4, 4-5 s
+
+
+class ConfirmKeptTest(unittest.TestCase):
+    """cut mode confirms a word whisper did not hear against rough.mkv: speech at its film time = kept (WARN), silence or
+    a source time outside every piece = still a problem (2026-11-08 long: 8 misheard names and fillers)"""
+
+    def test_film_time_through_the_pieces(self):
+        self.assertEqual(C.film_time(list(SEGS), 10.5), 0.5)
+        self.assertEqual(C.film_time(list(SEGS), 21.0), 3.0)
+        self.assertIsNone(C.film_time(list(SEGS), 15.0))  # cut out
+
+    def test_token_times_follow_norm(self):
+        words = [{"text": " Ala", "offsets": {"from": 10000, "to": 10300}}, {"text": " kamiljan.com", "offsets": {"from": 10400, "to": 11000}}]
+        self.assertEqual(C.token_times({"keeps": [[0, 1]]}, words), [(10.0, 10.3), (10.4, 11.0), (10.4, 11.0)])
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
+    def test_speech_kept_silence_and_cut_out_stay(self):
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
+        rough = f"{d}/rough.wav"  # film 0-2 s a loud tone (speech), 2-5 s silence
+        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=f=300:d=2", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
+                        "-filter_complex", "[1:a]atrim=0:3[s];[0:a][s]concat=n=2:v=0:a=1", rough], check=True)
+        exp = ["aa", "bb", "cc", "dd"]
+        times = [(10.2, 10.4), (10.8, 11.0), (20.5, 20.7), (15.0, 15.2)]  # bb in the tone, cc in the silence, dd cut out
+        real = C.transcribe
+        try:
+            for gone, want in (("bb", "kept in the cut"), ("cc", "silence"), ("dd", "cut out")):
+                C.transcribe = lambda m, g=gone: [w for w in exp if w != g]
+                bad = [f"missing: {C.context(exp, exp.index(gone), 1)} | heard: -"]
+                still, kept = C.confirm_kept(bad, exp, times, list(SEGS), rough)
+                self.assertIn(want, (kept if gone == "bb" else still)[0], (gone, still, kept))
+                self.assertEqual(len(still) + len(kept), 1)
+        finally:
+            C.transcribe = real
