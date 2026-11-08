@@ -203,7 +203,7 @@ def voice_over_bed(voice: np.ndarray, bed: np.ndarray, t0: float, t1: float) -> 
 
 
 def locate(expected: list[str], i: int, n: int, plan_toks: list[str], times: list[tuple[float, float]],
-           segments: list[dict]) -> tuple[float, float] | None:
+           segments: list[dict], max_span: float = 6.0) -> tuple[float, float] | None:
     """film time span of expected[i:i+n] (whisper's words of the cut, no times): from the start of the nearest word
     before it that the plan text shares to the start of the nearest shared word after it; None when unsure"""
     if len(times) != len(plan_toks):
@@ -215,13 +215,36 @@ def locate(expected: list[str], i: int, n: int, plan_toks: list[str], times: lis
     if not before or not after:
         return None
     t0, t1 = film_time(segments, times[before[-1]][0]), film_time(segments, times[after[0]][0])
-    if t0 is None or t1 is None or not 0 < t1 - t0 <= 6.0:
+    if t0 is None or t1 is None or not 0 < t1 - t0 <= max_span:
         return None
     return t0, t1 + 0.3
 
 
-def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: dict, args_json: Path
-                    ) -> tuple[list[str], list[str]]:
+def _whisper_window(media: str, t0: float, d: float) -> list[str] | None:
+    """whisper's words of media over [t0, t0+d] alone; None when it could not run"""
+    with tempfile.TemporaryDirectory() as tmp:
+        clip = os.path.join(tmp, "w.wav")
+        try:
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t0:.3f}", "-t", f"{d:.3f}", "-i", media, "-vn", "-ac", "1",
+                            "-ar", "16000", clip], check=True, timeout=300)
+            return _whisper(clip)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
+            print(f"words_check: no short-window whisper of {media} at {t0:.2f} s: {e}", file=sys.stderr)
+            return None
+
+
+def reheard(gone: list[str], rough: str, final: str, t0: float, t1: float) -> bool:
+    """the last word on a flag: whisper the same short window of the cut and of the film. Same words, or the missing
+    words heard in the film's window = whisper misheard the whole film (2026-11-08 long: "to jest to co się dzieje" at
+    443 s was not in the cut's own window either; the outro read the same word for word in both)"""
+    a, b = _whisper_window(rough, max(t0 - 1.0, 0.0), t1 - t0 + 2.0), _whisper_window(final, max(t0 - 1.0, 0.0), t1 - t0 + 2.0)
+    if a is None or b is None:
+        return False
+    return a == b or all(w in b for w in gone)
+
+
+def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: dict, args_json: Path,
+                    rough: str = "", final: str = "") -> tuple[list[str], list[str]]:
     """sound mode: a word whisper heard in the cut but not in the film is kept when the voice there is MASK_DB over the
     music and sfx (2026-11-08 s02 "no" 28 dB over the bed, s04 English words 25 dB: mishearings, not losses).
     Problems that stay: no place on the timeline, no stems, or a bed within MASK_DB of the voice."""
@@ -233,14 +256,19 @@ def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: 
         line = next((x for x in bad if x.startswith(f"missing: {context(expected, i, len(gone))} ")), None)
         if line is None:
             continue
-        span = locate(expected, i, len(gone), loc["toks"], loc["times"], loc["segments"])
+        span = (locate(expected, i, len(gone), loc["toks"], loc["times"], loc["segments"])
+                or locate(expected, i, len(gone), loc["toks"], loc["times"], loc["segments"], max_span=30.0))
         snr = voice_over_bed(*st, *span) if span else None
-        if span is None or snr is None:
+        if span is None:
             still.append(line + " (no place on the timeline to measure)")
-        elif snr >= MASK_DB:
+        elif snr is not None and snr >= MASK_DB:
             kept.append(f"{line} (whisper did not hear it; voice {snr:.1f} dB over the music at {span[0]:.2f} s)")
+        elif rough and final and reheard(gone, rough, final, *span):
+            kept.append(f"{line} (the same in a short window of the cut and the film at {span[0]:.2f} s; music within "
+                        f"{snr if snr is not None else float('nan'):.1f} dB)")
         else:
-            still.append(line + f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)")
+            still.append(line + (f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)" if snr is not None
+                                 else f" (no speech to measure at {span[0]:.2f} s)"))
     return still, kept
 
 
@@ -276,7 +304,7 @@ def main(argv: list[str]) -> int:
     if mode == "sound" and bad:  # confirm against the mix: run_v4 runs in the work dir next to edl_<n>.txt
         loc = plan_times(Path(edl or f"edl_{Path(a).parent.name}.txt"))
         if loc:
-            bad, kept = confirm_audible(bad, expected, heard, loc, Path(b).parent / "assemble.audio.args.json")
+            bad, kept = confirm_audible(bad, expected, heard, loc, Path(b).parent / "assemble.audio.args.json", a, b)
             warn += kept
     if out: Path(out).write_text(json.dumps({"mode": mode, "expected": len(expected), "heard": len(heard), "problems": bad, "warnings": warn}, ensure_ascii=False, indent=1), encoding="utf-8")
     for x in bad: print(x)

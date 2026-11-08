@@ -189,6 +189,20 @@ class ConfirmAudibleTest(unittest.TestCase):
             self.assertIn(want, (kept or still)[0], (music_db, still, kept))
             self.assertEqual(len(still) + len(kept), 1)
 
+    def test_reheard_compares_the_same_short_window(self):
+        real = C._whisper_window
+        try:
+            C._whisper_window = lambda m, t0, d: ["a", "b"]
+            self.assertTrue(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # the same: whisper misheard the whole film
+            C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "b"]
+            self.assertFalse(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # gone in the film's window too
+            C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "x", "c"]
+            self.assertTrue(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # the word is heard in the film
+            C._whisper_window = lambda m, t0, d: None
+            self.assertFalse(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # no whisper: stays a problem
+        finally:
+            C._whisper_window = real
+
     def test_no_stems_keeps_the_problem(self):
         bad = ["missing: a b c [[dd]] e f g | heard: -"]
         self.assertEqual(C.confirm_audible(bad, [], [], {}, Path("/nonexistent/assemble.audio.args.json")), (bad, []))
