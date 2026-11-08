@@ -463,13 +463,25 @@ export function scene(sp, esc, icon) {
     : sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
   const zoom = sp.canvas_zoom ? ` data-zoom="${esc(JSON.stringify(sp.canvas_zoom.map(z => ({ t: z.t, on: z.on, k: num(z.k, CANVAS_ZOOM.k), d: num(z.d, CANVAS_ZOOM.d) }))))
     .replace(/"/g, '&quot;')}"` : '';
-  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}${col ? ' col' : ''}">${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}${zoom}` : ''}>${world}</div></div>`;
+  return `${SCENE_CSS}<div class="scene${side ? ' side' : ''}${col ? ' col' : ''}"${side ? ` style="clip-path:inset(${SIDE.y}px ${W - SIDE.x - SIDE.w}px ${H - SIDE.y - SIDE.h}px ${SIDE.x}px round 48px)"` : ''}>${bg}<div class="world"${cam ? ` data-cam="${esc(JSON.stringify(cam)).replace(/"/g, '&quot;')}" data-dur="${sp.dur}"${sp.canvas === 'v' ? ' data-solo="1"' : ''}${zoom}` : ''}>${world}</div></div>`;
+}
+
+// a side column follows the newest pieces: each stop frames what came in since the stop before (cumulative "on" lists
+// from the plan), so the column scrolls inside its board; framed whole, a tall stack fell to 0.5-0.7 scale and its text
+// under 40 px on a phone (2026-11-08). Self-contained: render.mjs ships its source into the page like zoomStops.
+export function colFollow(cam) {
+  return cam.map((s, i) => {
+    const p = cam[i - 1];
+    if (!i || !Array.isArray(s.on) || !Array.isArray(p && p.on)) return s;
+    const fresh = s.on.filter(x => !p.on.includes(x));
+    return fresh.length ? { ...s, on: fresh } : s;
+  });
 }
 
 // in the page, before the first frame (render.mjs): measures the pieces as laid out (their final place, not mid-animation),
 // turns every "on" stop into x, y, z that put those pieces in the middle of the free area, and starts the camera animation.
 // Self-contained: its source is evaluated in the page with camKeyframes' source as the second argument.
-export function sceneFit(safe, kfSrc, soloSrc, zoomSrc) {
+export function sceneFit(safe, kfSrc, soloSrc, zoomSrc, followSrc) {
   const camKeyframes = new Function(`return ${kfSrc}`)();
   const world = document.querySelector('.scene .world');
   if (!world || !world.dataset.cam) return null;
@@ -487,7 +499,10 @@ export function sceneFit(safe, kfSrc, soloSrc, zoomSrc) {
     const z = Math.min(safe.w / bw, safe.h / bh, s.zmax ?? 1.8);
     return { t: s.t, move: s.move, z, x: (x0 + x1) / 2 - (safe.x + safe.w / 2) / z, y: (y0 + y1) / 2 - (safe.y + safe.h / 2) / z };
   };
-  let stops = cam.map(s => (s.on !== undefined || (s.x === undefined && s.y === undefined) ? frame(s) : s));
+  const col = world.parentElement && world.parentElement.classList.contains('col');
+  if (col && !followSrc) throw new Error('side column: sceneFit needs the source of colFollow');
+  const follow = col ? new Function(`return ${followSrc}`)()(cam) : cam;
+  let stops = follow.map(s => (s.on !== undefined || (s.x === undefined && s.y === undefined) ? frame(s) : s));
   if (world.dataset.zoom) {  // L17 canvas_zoom: one more stop per zoom, onto the centre of the pieces it names (zoomStops)
     if (!zoomSrc) throw new Error('canvas_zoom: sceneFit needs the source of zoomStops');
     const zoomStops = new Function(`return ${zoomSrc}`)();
@@ -566,7 +581,7 @@ const SCENE_CSS = `<style>
 .scene .sv.cnt{counter-reset:cnt var(--cnt)}
 .scene .sv.cnt::after{content:attr(data-pre) counter(cnt) attr(data-suf)}
 .scene .win .pi,.scene .file .pi,.scene .term .pi{background:#16181c;border:2px solid #2a2d33;border-radius:22px;box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:hidden}
-.scene .tb{display:flex;align-items:center;gap:14px;height:80px;padding:0 28px;border-bottom:2px solid #24272c;color:#c9ccd1;font-weight:600;font-size:36px}
+.scene .tb{display:flex;align-items:center;gap:14px;height:80px;padding:0 28px;border-bottom:2px solid #24272c;color:#c9ccd1;font-weight:600;font-size:42px}
 .scene .tb i{width:18px;height:18px;border-radius:50%;background:#ff5f57}.scene .tb i:nth-child(2){background:#febc2e}.scene .tb i:nth-child(3){background:#28c840;margin-right:14px}
 .scene .tb svg{width:34px;height:34px;stroke:#9aa0a8;stroke-width:2;vertical-align:-6px;margin-right:10px}
 .scene .tb .ti{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -605,12 +620,12 @@ const SCENE_CSS = `<style>
 .scene .stamp{transform:rotate(var(--r))}
 .scene .text .pi{font-weight:800;line-height:1.12;letter-spacing:-1px}
 .scene .text b{color:var(--acc)}
-.scene .bl{color:#c9ccd1;font-weight:700;font-size:34px;margin-bottom:14px}
+.scene .bl{color:#c9ccd1;font-weight:700;font-size:40px;margin-bottom:14px}
 .scene .tr{height:30px;border-radius:15px;background:#23262b;overflow:hidden}
 .scene .fl{height:100%;border-radius:15px;transform-origin:left}
 .scene .stat .pi{display:flex;flex-direction:column;width:auto;height:auto}
 .scene .sv{font-weight:900;font-size:140px;line-height:1;letter-spacing:-3px}
-.scene .sl{color:#c9ccd1;font-weight:600;font-size:38px;margin-top:10px}
+.scene .sl{color:#c9ccd1;font-weight:600;font-size:46px;margin-top:10px}
 .scene svg.ln{position:absolute;left:0;top:0;width:${W}px;height:${H}px;pointer-events:none}
 .scene svg.ln path{fill:none;stroke-width:5;stroke-linecap:round}
 @keyframes scpop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}

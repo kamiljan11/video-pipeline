@@ -6,7 +6,7 @@
 // stagger step over 12 frames. Cards without it keep the timings from before tokens and are only counted.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
-import { camKeyframes, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { camKeyframes, colFollow, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
@@ -126,8 +126,8 @@ async function main() {
       await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, scene(sp, esc, icon));
       await page.evaluate(() => document.fonts.ready);
       // the camera as render.mjs builds it (sceneFit: stops "on" pieces -> one move, the side column fitted into its board)
-      await page.evaluate(([fit, kf, safe, solo, zoom]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom); },
-        [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString()]);
+      await page.evaluate(([fit, kf, safe, solo, zoom, follow]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow); },
+        [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString()]);
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
       const { rects, texts, cam } = await page.evaluate(dur => {
         const world = document.querySelector('.scene .world');

@@ -185,6 +185,16 @@ class FilmCheckTest(unittest.TestCase):
             self.assertFalse(film_check.says_nothing(title, sub), title)
         self.assertTrue(film_check.says_nothing("", ""))
 
+    def test_a_new_camera_is_not_a_new_text(self):  # 2026-11-08: cam "on" ids made 48 reviewed cards "changed"
+        import film_check
+        sp = {"id": "s1", "type": "scene", "owner": "s01", "els": [{"k": "chip", "id": "c", "text": "ryzyko: wysokie"}],
+              "cam": [{"t": 0, "on": ["c"]}]}
+        moved = {**sp, "cam": [{"t": 0, "on": "*"}, {"t": 2, "on": ["c", "d"]}], "owner": "s02"}
+        self.assertEqual(film_check.card_texts(sp), ["ryzyko: wysokie"])
+        self.assertEqual(film_check.card_text_hash(sp), film_check.card_text_hash(moved))
+        reworded = {**sp, "els": [{"k": "chip", "id": "c", "text": "ryzyko: niskie"}]}
+        self.assertNotEqual(film_check.card_text_hash(sp), film_check.card_text_hash(reworded))
+
     def test_every_card_is_read_for_meaning_before_the_render(self):
         ovs, specs, segs = self.full_long()
         self.project(ovs, specs, segs)

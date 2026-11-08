@@ -156,3 +156,11 @@ test('beside the speaker the pieces stack in one column in reading order; a scen
   const tied = scene({ ...row, els: [...row.els, { k: 'line', from: [10, 10], to: [400, 300], at: 1 }] }, esc, icon);
   assert.match(tied, /class="scene side"/);
 });
+
+test('a side column follows the newest pieces; the side scene is clipped to its board (2026-11-08 readability)', async () => {
+  const { colFollow } = await import('../scene_lib.mjs');
+  const cam = [{ t: 0, on: ['a'] }, { t: 2, on: ['a', 'b'] }, { t: 4, on: ['a', 'b'] }, { t: 6, on: '*' }];
+  assert.deepEqual(colFollow(cam).map(s => s.on), [['a'], ['b'], ['a', 'b'], '*']);  // nothing new: the stop stays as it was
+  const row = ok([{ k: 'chip', id: 'a', x: 120, y: 500, text: 'x' }], { layout: 'side' });
+  assert.match(scene(row, esc, icon), /class="scene side col" style="clip-path:inset\(150px 100px 290px 1640px round 48px\)"/);
+});

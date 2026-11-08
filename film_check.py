@@ -61,7 +61,9 @@ def load(p: Path, what: str):
 
 
 TEXT_CARDS = ("kw", "lower", "maxim", "cta")  # words only: a sticker or meme carries a picture (judged in content_review)
-TEXT_SKIP_KEYS = {"id", "type", "file", "icon", "bg", "tone", "anim", "k", "src", "url", "photo", "layout", "who", "mark", "head", "font"}
+# "on", "owner", "extends": piece / film / scene ids (a camera stop "on": ["au"]), not words: a new camera is not a new text (2026-11-08)
+TEXT_SKIP_KEYS = {"id", "type", "file", "icon", "bg", "tone", "anim", "k", "src", "url", "photo", "layout", "who", "mark", "head", "font",
+                  "on", "owner", "extends"}
 
 
 def says_nothing(title: str, sub: str) -> bool:

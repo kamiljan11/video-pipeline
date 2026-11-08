@@ -33,9 +33,9 @@ test('the lint names an ease-in-out entrance once per curve, and leaves moves an
 });
 
 // golden moved on purpose 2026-11-08: short Polish words glued to their neighbour (keepTogether) and the side column
-// wrapping text at 640 px, node sub-label 30 -> 38 px (phone readability, Kamil note 15); every card of a film is rendered anew
+// wrapping text at 640 px, node sub-label 30 -> 38 px, window title 36 -> 42, bar label 34 -> 40, stat label 38 -> 46 (phone readability, Kamil note 15); every card of a film is rendered anew
 test('a card without "motion" is drawn byte for byte as before tokens (golden: sha1 of the fixture, scene_lib.mjs 2026-11-08)', () => {
-  assert.equal(crypto.createHash('sha1').update(scene(ALL, esc, icon)).digest('hex'), '6cdb3a4d732141d501b8da225b477ebaae050154');
+  assert.equal(crypto.createHash('sha1').update(scene(ALL, esc, icon)).digest('hex'), 'b8392aafaefe204b2a67d37db2236f2e0d699a7b');
 });
 
 test('a card without "motion" keeps the old timings (and the old check draw eases both ways); "tokens" passes the lint', () => {
