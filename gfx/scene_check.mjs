@@ -57,23 +57,25 @@ export function clashes(sp, rects, share = 0.12) {
 // boxes are typed by hand in the plan, so they are measured against the laid-out words. texts: [{i, x, y, w, h}] = one
 // rect per drawn line of words (world px). A ring either holds a line of words whole or stays off it, and holds something;
 // a line starts and ends on a piece, not in the air.
-const NEAR = 40, SLACK = 12;
+const NEAR = 40, STROKE = 4;  // px: a line end this near a piece is on it; half the ring stroke (7) rounded up
 export function drawProblems(sp, rects, texts) {
   const out = [], on = (e, f) => { const [a0, a1] = window_(e, sp.dur), [b0, b1] = window_(f, sp.dur); return a0 < b1 && b0 < a1; };
   const label = i => `${sp.els[i].id ?? `#${i}`} (${sp.els[i].k})`;
   sp.els.forEach((e, i) => {
-    if (e.k === 'ring') {
-      const R = { x: e.x - SLACK, y: e.y - SLACK, r: e.x + e.w + SLACK, b: e.y + e.h + SLACK };
+    if (e.k === 'ring') {  // the ring is drawn as an ellipse (scene_lib ring: pad 24, radius 0.97-1.03, ry up to +5 %, stroke 7)
+      const pad = e.pad ?? 24, cx = e.x + e.w / 2, cy = e.y + e.h / 2, rx = e.w / 2 + pad, ry = e.h / 2 + pad;
+      const inner = ([x, y]) => ((x - cx) / (rx * 0.97 - STROKE)) ** 2 + ((y - cy) / (ry * 0.97 - STROKE)) ** 2 <= 1;
+      const ox = rx * 1.03 + STROKE, oy = ry * 1.03 * 1.05 + STROKE;  // nearest point of a box to the centre, in the circle space of the outer ellipse
+      const reaches = B => Math.hypot((Math.min(Math.max(cx, B.x), B.x + B.w) - cx) / ox, (Math.min(Math.max(cy, B.y), B.y + B.h) - cy) / oy) < 1;
+      const corners = B => [[B.x, B.y], [B.x + B.w, B.y], [B.x, B.y + B.h], [B.x + B.w, B.y + B.h]];
       let held = 0;
       for (const T of texts) {
-        if (T.i === i || !on(e, sp.els[T.i])) continue;
-        const ix = Math.min(R.r, T.x + T.w) - Math.max(R.x, T.x), iy = Math.min(R.b, T.y + T.h) - Math.max(R.y, T.y);
-        if (ix <= TOUCH || iy <= TOUCH) continue;
-        if (T.x >= R.x && T.x + T.w <= R.r && T.y >= R.y && T.y + T.h <= R.b) held++;
-        else out.push(`${sp.id}: ring ${label(i)} cuts the words of ${label(T.i)} (${Math.round(ix)}x${Math.round(iy)} px): circle the whole line or move it`);
+        if (T.i === i || !on(e, sp.els[T.i]) || !reaches(T)) continue;
+        if (corners(T).every(inner)) held++;
+        else out.push(`${sp.id}: ring ${label(i)} cuts the words of ${label(T.i)} (line ${Math.round(T.x)},${Math.round(T.y)} ${Math.round(T.w)}x${Math.round(T.h)} is not inside the drawn ellipse): circle the whole line or move it`);
       }
       const box = rects.some(B => B.i !== i && !OVERLAY_KINDS.has(sp.els[B.i].k) && on(e, sp.els[B.i])
-        && B.x >= R.x && B.y >= R.y && B.x + B.w <= R.r && B.y + B.h <= R.b);
+        && B.x >= e.x - pad && B.y >= e.y - pad && B.x + B.w <= e.x + e.w + pad && B.y + B.h <= e.y + e.h + pad);  // a whole piece in the ring's box
       if (!held && !box) out.push(`${sp.id}: ring ${label(i)} circles nothing (no line of words, no piece inside ${e.x},${e.y} ${e.w}x${e.h})`);
     }
     if (e.k === 'line' && !e.free && Array.isArray(e.from) && Array.isArray(e.to)) {  // "free": a road or a time axis, not a link

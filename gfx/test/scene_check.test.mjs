@@ -57,3 +57,11 @@ test('line: each end on a piece (<= 40 px); a "free" line (road, time axis) is n
   assert.deepEqual(drawProblems({ ...sp, els: [sp.els[0], { ...sp.els[1], from: [1530, 455] }, sp.els[2]] }, rects, []), []);
   assert.deepEqual(drawProblems({ ...sp, els: [sp.els[0], { ...sp.els[1], free: true }, sp.els[2]] }, rects, []), []);
 });
+
+test('ring: measured as the drawn ellipse, so a label in the corner of its box is cut (Kamil 2026-11-08 s43 "PRZECIW")', () => {
+  const node = { k: 'node', id: 'a3', at: 0 }, label = { i: 0, x: 1200, y: 356, w: 222, h: 54 }, rects = [{ i: 0, x: 1236, y: 180, w: 150, h: 230 }];
+  const tight = { id: 's43', dur: 6, els: [node, { k: 'ring', x: 1188, y: 168, w: 246, h: 254, at: 2 }] };  // the label fits the box, not the ellipse
+  assert.match(drawProblems(tight, rects, [label]).join('\n'), /cuts the words of a3 .*not inside the drawn ellipse/);
+  const wide = { ...tight, els: [node, { k: 'ring', x: 1156, y: 145, w: 311, h: 311, at: 2 }] };
+  assert.deepEqual(drawProblems(wide, rects, [label]), []);
+});
