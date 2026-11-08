@@ -17,16 +17,18 @@ from pathlib import Path
 import research_gate
 
 ROOT = Path(__file__).resolve().parent
+TIMEOUT_S = 3600
 
 
 def main(argv: list[str]) -> int:
     if len(argv) != 2: print(__doc__, file=sys.stderr); return 2
     work, out = Path(argv[0]), Path(argv[1])
-    r = subprocess.run([sys.executable, str(ROOT / "film_check.py"), str(work), "--out", str(out), "--json"],
-                       capture_output=True, text=True, check=False, timeout=3600)
-    try: report = json.loads(r.stdout)
-    except json.JSONDecodeError:
-        print(f"out_gate: film_check --out gave no report (exit {r.returncode}): {r.stderr.strip()[-400:]}", file=sys.stderr); return 2
+    try: r = subprocess.run([sys.executable, str(ROOT / "film_check.py"), str(work), "--out", str(out), "--json"],
+                            capture_output=True, text=True, check=False, timeout=TIMEOUT_S)
+    except subprocess.TimeoutExpired: print(f"out_gate: film_check --out ran over {TIMEOUT_S} s", file=sys.stderr); return 2
+    try: report = research_gate.check_report(json.loads(r.stdout))
+    except ValueError as e:  # JSONDecodeError is a ValueError
+        print(f"out_gate: film_check --out gave no report (exit {r.returncode}): {e}; {r.stderr.strip()[-400:]}", file=sys.stderr); return 2
     (work / "fc_out.json").write_text(json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     fails = [f"{x['id']}: {str(x['detail'])[:160]}" for x in report if x["status"] == "FAIL"]
     items = research_gate.load(research_gate.LEDGER)

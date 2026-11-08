@@ -8,7 +8,7 @@
 // card's key (render.mjs MEME_CODE), so a new rule there would re-render and un-accept every meme.
 // The 16:9 face circle (assemble.py PiP) sits bottom right: a note takes the other bottom corner (ledger wf2 cole-medin:3),
 // a part tag the top left (codie-sanchez:2); all four are 16:9 only (Long items; 9:16 has captions and app buttons there).
-import { esc, icon } from './html_lib.mjs';
+import { esc, icon, ICON_NAME } from './html_lib.mjs';
 
 // min_dur = gfx_types.py NOTE / DEFINE (build_edl.py adds the reading time there); here the card alone is checked
 export const NOTE = { max_words: 14, max_lines: 3, line_chars: 38, min_dur: 4 };
@@ -55,6 +55,7 @@ function checkList(sp) {
   const items = sp.items;
   if (!(Array.isArray(items) && items.length && items.every(x => typeof x === 'string' && x.trim()))) fail(sp, '"items" = a list of texts');
   if (sp.upto !== undefined && !(isInt(sp.upto) && sp.upto >= 1 && sp.upto <= items.length)) fail(sp, `"upto" = a whole number 1..${items.length} (items shown), got ${JSON.stringify(sp.upto)}`);
+  if (sp.icons !== undefined && !(Array.isArray(sp.icons) && sp.icons.every(x => x === null || (typeof x === 'string' && ICON_NAME.test(x))))) fail(sp, `"icons" = lucide names or null per item, got ${JSON.stringify(sp.icons)}`);
   if (sp.dim_done !== undefined && typeof sp.dim_done !== 'boolean') fail(sp, `"dim_done" = true or false, got ${JSON.stringify(sp.dim_done)}`);
   const d = sp.delays ?? [], n = sp.upto ?? items.length;
   if (!Array.isArray(d) || d.length > n) fail(sp, `"delays" = at most ${n} values (one per item shown), got ${JSON.stringify(sp.delays)}`);
@@ -155,7 +156,7 @@ function checkNote(sp) {
   if (!n || n > NOTE.max_words) fail(sp, `a note is 1..${NOTE.max_words} words, got ${n}`);
   if (lineCount(sp.text, NOTE.line_chars) > NOTE.max_lines) fail(sp, `a note takes at most ${NOTE.max_lines} lines (${NOTE.line_chars} characters a line): shorten it`);
   if (sp.dur < NOTE.min_dur) fail(sp, `a note stays >= ${NOTE.min_dur} s (ledger plan2:L21), got ${sp.dur}`);
-  if (sp.icon !== undefined && !(typeof sp.icon === 'string' && /^[a-z0-9-]+$/.test(sp.icon))) fail(sp, `"icon" = a lucide name, got ${JSON.stringify(sp.icon)}`);
+  if (sp.icon !== undefined && !(typeof sp.icon === 'string' && ICON_NAME.test(sp.icon))) fail(sp, `"icon" = a lucide name, got ${JSON.stringify(sp.icon)}`);
 }
 
 const NOTE_CSS = '<style>.note{position:absolute;left:110px;bottom:120px;max-width:900px;display:flex;gap:24px;align-items:flex-start;padding:24px 36px;'

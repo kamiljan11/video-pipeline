@@ -38,6 +38,14 @@ class OutGateTest(unittest.TestCase):
         with mock.patch.object(out_gate.subprocess, "run", mock.Mock(return_value=subprocess.CompletedProcess([], 2, stdout="", stderr="boom"))):
             self.assertEqual(out_gate.main([str(self.d), str(self.d)]), 2)
         self.assertEqual(out_gate.main([]), 2)
+        self.assertEqual(self.gate([]), 2)  # an empty report measured nothing: not a pass
+
+    def test_a_missing_out_row_is_not_met(self):  # pg-review 2026-11-08: a renamed check passed silently
+        self.assertEqual(self.gate([{"film": "out", "id": "out.manifest", "status": "OK", "detail": ""}]), 1)
+
+    def test_a_timeout_is_a_usage_error(self):
+        with mock.patch.object(out_gate.subprocess, "run", mock.Mock(side_effect=subprocess.TimeoutExpired("film_check", 1))):
+            self.assertEqual(out_gate.main([str(self.d), str(self.d)]), 2)
 
 
 if __name__ == "__main__":

@@ -119,3 +119,10 @@ test('render.mjs stops a bad new card by name before it opens a browser', () => 
     assert.ok(!fs.existsSync(path.join(work, 'gfx')), 'nothing rendered, no output folder');
   } finally { fs.rmSync(work, { recursive: true, force: true }); }
 });
+
+test('an icon name that is a path stops (no .svg from elsewhere on the disk inlined in a card)', () => {  // pg-review 2026-11-08
+  assert.throws(() => icon('../../../../etc/x'), /lucide name/);
+  assert.throws(() => checkCard({ id: 'l', type: 'list', text: 'h', items: ['a'], upto: 1, dur: 3, icons: ['../x'] }), /"icons"/);
+  assert.doesNotThrow(() => checkCard({ id: 'l', type: 'list', text: 'h', items: ['a', 'b'], dur: 3, icons: [null, 'check'] }));
+  assert.match(icon('check'), /<svg/);
+});

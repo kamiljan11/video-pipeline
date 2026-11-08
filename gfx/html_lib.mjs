@@ -6,5 +6,11 @@ const ICONS = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..'
 
 // text into HTML, also inside a "quoted" attribute
 export const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-// a lucide icon as inline SVG ('' for none); a missing name throws (the caller names the card)
-export const icon = n => (n ? fs.readFileSync(path.join(ICONS, `${n}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '');
+// a lucide icon as inline SVG ('' for none); a missing name throws (the caller names the card). Only a lucide name
+// (a-z, 0-9, -): a path like "../x" would read any .svg on the disk into the card (pg-review 2026-11-08 security-1)
+export const ICON_NAME = /^[a-z0-9-]+$/;
+export const icon = n => {
+  if (!n) return '';
+  if (!(typeof n === 'string' && ICON_NAME.test(n))) throw new Error(`icon = a lucide name (a-z, 0-9, -), got ${JSON.stringify(n)}`);
+  return fs.readFileSync(path.join(ICONS, `${n}.svg`), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+};

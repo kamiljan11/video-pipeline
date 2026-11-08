@@ -96,6 +96,25 @@ class ResearchGateTest(unittest.TestCase):
             r.write_text(json.dumps([{**x, "status": "OK"} for x in rep]))
             self.assertEqual(rg.main(["long", "--report", str(r), "--ledger", str(f)]), 0)
 
+    def test_a_check_without_a_row_for_a_film_is_not_met(self):  # pg-review 2026-11-08 data-1 / code-1
+        items = [item("S4", "done", "check:short.hook_echo", "Shorts"), item("L1", "done", "check:out.chapters", "Shorts")]
+        rep = [{"film": "s01", "id": "short.hook_echo", "status": "OK", "detail": ""},
+               {"film": "s02", "id": "short.end", "status": "OK", "detail": ""}]
+        bad, _ = rg.report_problems(items, "shorts", rep)
+        self.assertEqual(len(bad), 1); self.assertIn("no row for s02", bad[0])  # out.chapters: another format, not here
+
+    def test_an_empty_or_malformed_report_is_refused(self):
+        items = [item("L8", "done", "check:long.list_said")]
+        for rep in ([], {}, [{"id": "long.list_said"}], ["x"]):
+            with self.assertRaises(ValueError): rg.report_problems(items, "long", rep)
+        with tempfile.TemporaryDirectory() as d:
+            f, r = Path(d) / "l.jsonl", Path(d) / "fc.json"
+            f.write_text(json.dumps(items[0]) + "\n")
+            for text in ("[]", "{", '[{"id": "x"}]'):
+                r.write_text(text)
+                self.assertEqual(rg.main(["long", "--ledger", str(f), "--report", str(r)]), 2)
+            self.assertEqual(rg.main(["long", "--ledger", str(f), "--report", str(Path(d) / "missing.json")]), 2)
+
     def test_the_real_checklist_ids_load(self):
         self.assertIn("long.opening", rg.checklist_ids())
 

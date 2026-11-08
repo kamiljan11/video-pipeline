@@ -18,7 +18,8 @@ For every ledger item of the form (creator-study/round2/ledger.jsonl):
   done "meta: ..."          -> work on the plan itself, no film rule (e.g. a revision of the list); always printed as INFO
 --report (Kamil 2026-11-08 "czy realnie wprowadziles nowe logiki??? sprawdzales to"): most research checks are level
 "warn" in film_check, so a film could miss them and still pass. Here a done item whose check is in the report must be OK
-there; an id the report does not hold (another format, e.g. out.* for a film) is checked in that format's report.
+there, with a row for every film of its format in the report (a missing row = not measured = not met); an id of another
+format (e.g. out.* for a film) is checked in that format's report. An empty or malformed report = exit 2.
 """
 import json
 import os
@@ -83,17 +84,37 @@ def problems(items: list[dict], form: str, ids: set[str]) -> list[str]:
     return bad
 
 
-def report_problems(items: list[dict], form: str, report: list[dict]) -> tuple[list[str], list[str]]:
-    """(problems, info) of the done items of a form against a film_check --json report"""
-    by_id: dict[str, list[dict]] = {}
-    for r in report: by_id.setdefault(r["id"], []).append(r)
+REPORT_KEYS = ("film", "id", "status", "detail")
+
+
+def check_report(report: object) -> list[dict]:
+    """a film_check --json report: a non-empty list of {film, id, status, detail} rows; ValueError otherwise"""
+    if not isinstance(report, list) or not report: raise ValueError("empty report: film_check measured nothing")
+    bad = [r for r in report if not isinstance(r, dict) or any(k not in r for k in REPORT_KEYS)]
+    if bad: raise ValueError(f"{len(bad)} row(s) without {'/'.join(REPORT_KEYS)}, e.g. {str(bad[0])[:120]}")
+    return report
+
+
+def report_problems(items: list[dict], form: str, report: object) -> tuple[list[str], list[str]]:
+    """(problems, info) of the done items of a form against a film_check --json report. A check of a format the report
+    holds (its id prefix, e.g. "long.") must have a row for every film of that format in the report: a missing row is
+    not met (a renamed check or a check film_check never ran). A check of another format (out.* in a film report) is
+    measured in that format's report."""
+    rows: dict[tuple[str, str], list[dict]] = {}
+    films: dict[str, set[str]] = {}  # id prefix -> the films the report measured it in
+    for r in check_report(report):
+        rows.setdefault((r["id"], r["film"]), []).append(r)
+        films.setdefault(r["id"].split(".")[0], set()).add(r["film"])
     bad, info = [], []
     for i in items:
         if not (of_form(i, form) and i["status"] == "done"): continue
         for cid in re.findall(r"check:([\w.]+)", str(i.get("ref", ""))):
-            for r in by_id.get(cid, []):
-                if r["status"] == "SKIP": info.append(f"INFO {i['id']} {cid} skipped in {r['film']}: {r['detail']}")
-                elif r["status"] != "OK": bad.append(f"{i['id']} done, but {cid} is {r['status']} in {r['film']}: {str(r['detail'])[:160]}")
+            for film in sorted(films.get(cid.split(".")[0], ())):
+                got = rows.get((cid, film))
+                if not got: bad.append(f"{i['id']} done, but {cid} has no row for {film} in the report (not measured)")
+                for r in got or []:
+                    if r["status"] == "SKIP": info.append(f"INFO {i['id']} {cid} skipped in {film}: {r['detail']}")
+                    elif r["status"] != "OK": bad.append(f"{i['id']} done, but {cid} is {r['status']} in {film}: {str(r['detail'])[:160]}")
     return bad, info
 
 
@@ -112,7 +133,8 @@ def main(argv: list[str]) -> int:
     if not ledger.exists(): print(f"research_gate: no ledger at {ledger}", file=sys.stderr); return 2
     items = load(ledger)
     if report is not None:
-        bad, info = report_problems(items, argv[0], json.loads(report.read_text(encoding="utf-8")))
+        try: bad, info = report_problems(items, argv[0], json.loads(report.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as e: print(f"research_gate: bad report {report}: {e}", file=sys.stderr); return 2
         for b in bad: print(b)
         for x in info: print(x)
         print(f"research {argv[0]} in {report.name}: {len(bad)} done item(s) not met in the film" + ("" if bad else " OK"))

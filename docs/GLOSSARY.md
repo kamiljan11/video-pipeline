@@ -50,3 +50,9 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | `cta_variant` | forma zamknięcia posta LinkedIn: `question` (ostatnia linia = pytanie) albo `ps` („P.S. …?”); zapisana w `linkedin.json`, do przeglądu ADR-0015 (do czasu `results.jsonl` przegląd czyta ją z `out/posts/*/linkedin.json`) |
 | end screen | elementy YouTube Studio (film, playlista, subskrypcja) w ostatnich 5-20 s longa; `## End screen` w long.md mówi, na co wskazują |
 | `first_comment` | tekst pierwszego komentarza pod postem LinkedIn (`linkedin.json`); tam idą linki ponad jeden w treści (dziś wklejany ręcznie, kod go nie sprawdza) |
+| rejestr badań (ledger researchu) | `creator-study/round2/ledger.jsonl`: jedna reguła z badań = jeden wpis z `id`, `form`, `status` (`todo`/`done`/`merged`/`deferred`/`rejected`) i `ref`; nie mylić z rejestrem muzyki `render/music_ledger.json` (ADR-0019) |
+| `done` vs OK w filmie | `done` w rejestrze = jest kod i punkt `film_check` (`check:<id>`); OK w filmie = ten punkt przeszedł w raporcie danego filmu (`research_gate --report`); render wymaga obu |
+| `read_along` | zaznaczenie linii cytatu (terminal, okno, plik) w chwili, gdy Kamil ją czyta (L16b); w planie indeksy słów |
+| `roadmap` / `part_tag` | `chap_style` karty `chap` (L9): `roadmap` = cała mapa części (zrobione / bieżąca / następne), `part_tag` = mała plakietka części w lewym górnym rogu, mówca zostaje |
+| definicja (`define`) | karta `lower` z `define: true` (L12): termin w kolorze akcentu i definicja do 20 słów |
+| `note` | mała karta z ikoną lucide i jednym zdaniem (L21), np. „Link do repozytorium w opisie” |
