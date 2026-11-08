@@ -342,7 +342,10 @@ class ConfirmTest(unittest.TestCase):
     def publish(self, gh_rc: int = 0, gh_sleep: int = 0, timeout: int = 300, env_more: dict[str, str] | None = None) -> subprocess.CompletedProcess:
         gh = self.bin / "gh"
         gh.write_text(f'#!/bin/sh\nsleep {gh_sleep}\necho "$@" > {self.calls}\necho https://github.com/x/y/pull/1\nexit {gh_rc}\n'); gh.chmod(0o755)
-        env = {**os.environ, "PATH": f"{self.bin}:{os.environ['PATH']}", "GITHUB_Token": "tok-SECRET-123", "PUBLISH_TIMEOUT": str(timeout), **(env_more or {})}
+        # git config from the caller's environment (the stop gate runs tests with a hooks path override) would replace
+        # the hooks these tests set in the repo
+        base = {k: v for k, v in os.environ.items() if not k.startswith("GIT_CONFIG")}
+        env = {**base, "PATH": f"{self.bin}:{os.environ['PATH']}", "GITHUB_Token": "tok-SECRET-123", "PUBLISH_TIMEOUT": str(timeout), **(env_more or {})}
         return subprocess.run([sys.executable, str(ROOT / "publish_post.py"), str(self.art), "--repo", str(self.repo), "--remote", str(self.bare), "--confirm"],
                               cwd=ROOT, env=env, capture_output=True, text=True, check=False)
 
