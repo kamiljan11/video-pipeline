@@ -22,5 +22,5 @@ do poziomu `fail` w `film_check` (zablokowałoby stare filmy bez pozycji w rejes
 pomiaru w filmie.
 **Koszt:** zablokowany render przy błędnym pomiarze; obejście = `skip` z powodem w planie (widać go w raporcie jako INFO)
 albo `RESEARCH_GATE=off` w `run_v4.sh` (WARN w logu). `film_check --json` chodzi drugi raz po zwykłym przebiegu (sekundy).
-**Metryka:** pozycje `done` niespełnione w filmie (`research_gate --report`): film 2026-11-04 v2 shorty 142, v3 0; long v3 0.
+**Metryka:** pozycje `done` niespełnione w filmie (`research_gate <forma> --report <fc.json>`, ostatnia linia wyjścia): film 2026-11-04 v2 shorty 142 (raport `film_check --json` planów v2), v3 0 dla każdego z 18 shortów; long v3 0. Liczby do przeglądu: `render/render.log` każdego renderu (krok `research_used`) i `work/fc_out.json`.
 Koszt cykliczny: 0 zł (lokalnie).
