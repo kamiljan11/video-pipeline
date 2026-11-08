@@ -32,6 +32,12 @@ class FramePickTest(unittest.TestCase):
         got = self.run_pick([m(still=0.4), m(off=0.3), m()])
         self.assertEqual(got[0].t, 0.2)
 
+    def test_one_blurred_outlier_does_not_drop_every_sharp_frame(self):
+        # s03 cover 2026-11-08: a frame in motion had the highest eye-box contrast; scaled to it no sharp frame was kept
+        got = self.run_pick([m(eyes=200, sharp=40)] + [m() for _ in range(10)])
+        self.assertTrue(got)
+        self.assertNotIn(0.0, [c.t for c in got])
+
     def test_no_face_no_candidates(self):
         self.assertEqual(self.run_pick([None, None]), [])
 

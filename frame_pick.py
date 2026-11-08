@@ -13,7 +13,7 @@ YuNet finds (5 landmarks: eyes, nose tip, mouth corners):
   mouth   closed or smiling: the dark share between the mouth corners (an open, talking mouth is dark) and the mouth
           width against the eye distance (a round "o" is narrow, a smile wide)
   front   the nose tip between the eyes and level eyes (a turned or tilted head reads badly at feed size)
-Each measure is scaled to the window (best sample = 1), a sample below EYES_MIN or SHARP_MIN of the window's best is
+Each measure is scaled to the window (its BEST_PCT percentile = 1, capped), a sample below EYES_MIN or SHARP_MIN of the window's best is
 dropped, the rest ranked by WEIGHTS. --sheet writes the top N side by side with their scores: look at it before use.
 """
 import json
@@ -30,6 +30,7 @@ FPS = 10           # samples per second in the window
 WIDTH = 1280       # samples are scaled to this width (2560 recordings: half)
 WEIGHTS = {"sharp": 0.25, "eyes": 0.3, "mouth": 0.2, "still": 0.15, "front": 0.1}
 EYES_MIN, SHARP_MIN = 0.7, 0.6  # of the window's best: below = not a candidate (shut eyes, blur)
+BEST_PCT = 90      # percentile of the window that counts as its best (scores above it are capped at 1)
 MIN_GAP = 0.5      # s between two candidates of the top list (not 6 copies of one moment)
 
 
@@ -109,11 +110,13 @@ def pick(video: str, t0: float, t1: float, crop: str | None = None) -> list[Cand
         prev = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
         if m: m.pop("gray"); raw.append((t, m))
     if not raw: return []
-    best = {k: max(m[k] for _, m in raw) or 1.0 for k in ("sharp", "eyes", "smile")}
+    # the window's "best" = its 90th percentile, not its maximum: one blurred frame with a high eye-box contrast (a hand or
+    # the head in motion) would set the bar so that no sharp frame reached EYES_MIN (s03 cover, 2026-11-08: 152 faces, 0 kept)
+    best = {k: float(np.percentile([m[k] for _, m in raw], BEST_PCT)) or 1.0 for k in ("sharp", "eyes", "smile")}
     out = []
     for t, m in raw:
-        s = {"sharp": m["sharp"] / best["sharp"], "eyes": m["eyes"] / best["eyes"], "still": m["still"],
-             "mouth": 0.6 * (1.0 - min(m["dark"] / 0.25, 1.0)) + 0.4 * m["smile"] / best["smile"],
+        s = {"sharp": min(m["sharp"] / best["sharp"], 1.0), "eyes": min(m["eyes"] / best["eyes"], 1.0), "still": m["still"],
+             "mouth": 0.6 * (1.0 - min(m["dark"] / 0.25, 1.0)) + 0.4 * min(m["smile"] / best["smile"], 1.0),
              "front": max(0.0, 1.0 - m["off"] / 0.35)}
         if s["eyes"] < EYES_MIN or s["sharp"] < SHARP_MIN: continue
         r3 = {k: round(v, 3) for k, v in s.items()}
