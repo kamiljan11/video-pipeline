@@ -109,7 +109,9 @@ THUMB_TEXT = ("big", "sub", "tag")
 
 def thumb_texts(spec: dict) -> dict:
     """{"long_A": {big, sub, tag}, "cover_s01": {...}}: the words on every thumbnail and Short cover (content_review thumbs)"""
-    out = {f"long_{v['id']}": {k: v[k] for k in THUMB_TEXT if v.get(k)} for v in spec.get("long", [])}
+    out = {f"long_{v['id']}": {**{k: v[k] for k in THUMB_TEXT if v.get(k)},
+                               **({"panel": w} if (w := thumb_check.thumb_words({"panel": v.get("panel")}).strip()) else {})}
+           for v in spec.get("long", [])}
     out.update({f"cover_{v['id']}": {k: v[k] for k in THUMB_TEXT if v.get(k)} for v in spec.get("shorts", [])})
     return out
 

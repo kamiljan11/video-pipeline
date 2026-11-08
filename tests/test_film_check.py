@@ -226,6 +226,8 @@ class FilmCheckTest(unittest.TestCase):
                 "shorts": [{"id": "s1", "big": "Kto sprawdza?", "sub": "AI", "pick": {"t": 2, "score": 0.8}}]}
         (self.d / "thumbs.json").write_text(json.dumps(spec))
         texts = film_check.thumb_texts(spec)
+        with_panel = film_check.thumb_texts({"long": [{"id": "P", "big": "3 kroki", "panel": {"kind": "steps", "items": [{"label": "plan"}, {"label": "test"}, {"label": "recenzja"}]}}]})
+        self.assertEqual(with_panel["long_P"]["panel"], "plan test recenzja")  # TH8 panel labels are read too
         self.assertEqual(texts, {"long_A": {"big": "18%", "sub": "leci na ślepo"}, "cover_s1": {"big": "Kto sprawdza?", "sub": "AI"}})
         f = self.d / "content_review_thumbs.json"
         self.assertIn("no content_review_thumbs.json", film_check.review_problems(f, texts, "x")[0])
