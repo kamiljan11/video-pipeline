@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
 from pathlib import Path
 
+import chunks  # next to this script: stage 2 in time windows (memory flat in the number of cards)
 import edl_guard  # next to this script: what an EDL may carry into an ffmpeg command line
 import gfx_types  # next to this script: where a 9:16 split card puts the face box
 import themes  # next to this script (sys.path[0])
@@ -206,6 +207,9 @@ corner_track = head_track("corner", [(o["at"], o["at"] + o["dur"]) for o in corn
 
 # stage 2
 inputs = ["-i", rough]; fc = []
+# stage 2 in windows (chunks.py): which inputs are cards (swapped for a stand-in off screen) and which run frame for frame
+# with rough.mkv (seeked with the window)
+card_slots, aligned = [], [0]
 grade = edl.get("grade", "eq=contrast=1.04:saturation=1.07:gamma=0.98,unsharp=5:5:0.35")
 tail = edl.get("tail", 0)
 body = timeline.total(edl["segments"], EXACT)
@@ -275,6 +279,7 @@ if pips:
     pip_en = "+".join(f"between(t{E},{o['at'] + 0.25:.3f}{E},{o['at'] + o['dur'] - 0.3:.3f})" for o in pips)
     pip_x, pip_y = W - PS - M, H - PS - M - 20
 for k, o in enumerate(edl.get("overlays", [])):
+    card_slots.append((len(inputs), o["at"], o.get("dur", float("inf"))))  # no length = on screen in every window
     inputs += [*CARD_IN, "-itsoffset", f"{o['at']:.3f}", "-i", o["file"]]
     sc = f"scale={W}:{H}," if vertical else ""
     fc.append(f"[{k+1}:v]{sc}format=yuva444p10le[g{k}]")
@@ -284,7 +289,7 @@ if pips:
     inputs += ["-loop", "1", "-i", "/home/kamil-jan/video-pipeline/gfx/pip_mask.png", "-loop", "1", "-i", frame]
     i_mask = 1 + len(edl.get("overlays", [])); i_frame = i_mask + 1; i_pip = i_frame + 1
     if HT:
-        inputs += ["-i", pip_track]
+        aligned.append(len(inputs)); inputs += ["-i", pip_track]
         fc.append(f"[{i_pip}:v]{grade},format=yuva444p[pf]")  # the same grade as the full picture
     fc.append(f"[{i_mask}:v]format=gray,scale={PS}:{PS}[pm]")
     fc.append("[pf][pm]alphamerge[pip]")
@@ -316,7 +321,7 @@ if corners:  # after the cards: a ring in the theme accent, the face circle on i
                     f"format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lte(hypot(X-{rr - 0.5},Y-{rr - 0.5}),{rr - 1}),255,0)'", cring], check=True)
     i_cm = sum(1 for a in inputs if a == "-i"); inputs += ["-loop", "1", "-i", cmask, "-loop", "1", "-i", cring]
     if HT:
-        inputs += ["-i", corner_track]
+        aligned.append(len(inputs)); inputs += ["-i", corner_track]
         fc.append(f"[{i_cm + 2}:v]{grade},format=yuva444p" + (",split=2[cf][chs]" if HD else "[cf]"))  # the same grade as the full picture
         if HD: fc.append(f"[chs]scale={HD}:{HD}:flags=bicubic,boxblur=34:3,format=yuva444p[chb]")
     c_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - (0 if o.get('no_fade_out') else SPLIT_OUT):.3f})" for o in corners)
@@ -365,8 +370,47 @@ margs = ["ffmpeg", "-v", "error", "-y", "-i", vpart, "-i", apart, "-map", "0:v",
 # the exact stage-2 commands next to the film: a render killed for memory or time can be rerun and measured by hand
 Path(out, "assemble.args.json").write_text(json.dumps(args, ensure_ascii=False, indent=0))  # the picture (heavy) run
 Path(out, "assemble.audio.args.json").write_text(json.dumps({"audio": aargs, "mux": margs}, ensure_ascii=False, indent=0))
+
+
+def packets(f):
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                        "stream=nb_read_packets", "-of", "csv=p=0", f], capture_output=True, text=True, check=True)
+    return int(r.stdout.strip())
+
+
+def picture_in_windows():
+    """The picture run in time windows (chunks.py). A window already made by the same command is kept, so a render
+    stopped half-way goes on from there. Every window but the last must hold exactly its frames, or the join would shift
+    the picture against the sound."""
+    wins = chunks.windows(round(body * chunks.FPS), float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)))
+    cdir = os.path.join(out, "chunks"); os.makedirs(cdir, exist_ok=True)
+    pad = f",tpad=stop_mode=clone:stop_duration={tail}" if tail else ""
+    enc = ["-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p"]
+    parts = []
+    for n, w in enumerate(wins):
+        a = chunks.window_args(inputs, card_slots, aligned, fc, w, last, pad, enc, "")
+        dst = os.path.join(cdir, f"{n:03d}_{chunks.key(a)}.mkv"); a[-1] = dst
+        if not os.path.exists(dst):
+            print(f"assemble: window {n + 1}/{len(wins)} frames {w[0]}-{w[1] if w[1] is not None else 'end'}", flush=True)
+            a[-1] = dst + ".part.mkv"
+            subprocess.run(a, check=True)
+            os.replace(a[-1], dst)
+        if w[1] is not None and (got := packets(dst)) != w[1] - w[0]:
+            sys.exit(f"assemble: window {n + 1} has {got} frames, not {w[1] - w[0]} ({dst})")
+        parts.append(dst)
+    lst = os.path.join(cdir, "concat.txt")
+    Path(lst).write_text("".join(f"file '{os.path.abspath(p)}'\n" for p in parts))
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", vpart], check=True)
+    if (got := packets(vpart)) != (want := sum(packets(p) for p in parts)):
+        sys.exit(f"assemble: joined picture has {got} frames, the windows {want}")
+
+
 subprocess.run(aargs, check=True)
-subprocess.run(args, check=True)
+# one run when the film fits in one window or for a panel preview; VP_CHUNK_S=0 forces the one run (the old way)
+if PROXY or float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)) <= 0 or len(chunks.windows(round(body * chunks.FPS))) == 1:
+    subprocess.run(args, check=True)
+else:
+    picture_in_windows()
 subprocess.run(margs, check=True)
 os.remove(vpart); os.remove(apart)
 if "master" in edl and not PROXY:  # the whole mix to its loudness and true peak (master_audio.py, plan "master", {} = defaults); previews stay quick
