@@ -5,7 +5,8 @@ assemble.py normalises the voice alone, then adds music and SFX and a sample-pea
 -14.6 LUFS with a true peak of +1.9 dBFS (clips after AAC). This measures the whole mix (EBU R128), sets the gain to
 the target itself (ffmpeg loudnorm leaves its linear mode for a dynamic one when the peaks would pass its ceiling, and
 then lands up to 0.6 LU short), limits the peaks at 4x oversampling, copies the video untouched, measures the result
-again (one correction pass when the limiter took loudness away) and writes a report.
+again (one correction when the limiter took loudness away; the next limiter margin from MARGINS when AAC put the peaks
+over the ceiling) and writes a report.
 
   python3 master_audio.py <film.mp4> <out.mp4> [--lufs -14] [--tp -1.5] [--report <json>]
 assemble.py runs it when the EDL has "master": {"lufs": -14, "tp": -1.5} (plan key "master"; without it nothing changes).
@@ -21,7 +22,7 @@ from pathlib import Path
 
 LUFS, TP = -14.0, -1.5
 LU_TOL = 0.5
-TP_MARGIN = 0.5    # dB under the ceiling for the limiter: AAC still adds a little
+MARGINS = (0.5, 1.5, 1.0, 2.5)  # dB under the ceiling for the limiter, in the order tried: AAC adds a varying amount
 LOWPASS = 16000    # Hz
 TIMEOUT = 3600     # s per ffmpeg pass: a 21 min long takes ~1 min, a hang ends with a message
 
@@ -43,11 +44,11 @@ def measure(film: str) -> dict:
     return {"lufs": float(i[-1]), "tp": float(p[-1])}
 
 
-def _apply(film: str, out: str, gain: float, tp: float) -> dict:
-    """the gain (dB, linear); a look-ahead limiter at 4x oversampling (192 kHz) holds the peaks TP_MARGIN under the ceiling;
+def _apply(film: str, out: str, gain: float, ceiling: float) -> dict:
+    """the gain (dB, linear); a look-ahead limiter at 4x oversampling (192 kHz) holds the peaks at `ceiling` dBFS;
     a LOWPASS before AAC: the encoder put ~4 dB of overs on film 2's top end (TP -1.7 in PCM, +2.3 after AAC; with the
     low-pass -2.0). YouTube's own encode cuts about there anyway."""
-    lim = 10 ** ((tp - TP_MARGIN) / 20)
+    lim = 10 ** (ceiling / 20)
     chain = (f"volume={gain:.2f}dB,lowpass=f={LOWPASS},aresample=192000,"
              f"alimiter=limit={lim:.4f}:attack=5:release=50:level=disabled,aresample=48000")
     _ff(["-y", "-i", film, "-map", "0:v?", "-map", "0:a", "-c:v", "copy", "-af", chain,
@@ -56,14 +57,25 @@ def _apply(film: str, out: str, gain: float, tp: float) -> dict:
 
 
 def master(film: str, out: str, lufs: float = LUFS, tp: float = TP) -> dict:
+    """each limiter margin in MARGINS until one lands on target: the gain to the target, one correction when the limiter
+    took loudness away. AAC peaks do not follow the limiter in a straight line (film 2026-11-04 long, measured after AAC:
+    limiter -2.0 dBFS -> -0.2 dBTP, -3.0 -> -2.3, -3.5 -> +2.7), so the margins are tried, not computed"""
     before = measure(film)
-    gain = lufs - before["lufs"]
-    after = _apply(film, out, gain, tp)
-    if abs(after["lufs"] - lufs) > LU_TOL / 2:  # the limiter took some loudness: once more with the difference added
-        gain += lufs - after["lufs"]
-        after = _apply(film, out, gain, tp)
+    tried = []
+    ceiling, gain, after = tp, 0.0, before  # no margin tried = the film as it came (not ok when it is off target)
+    for margin in MARGINS:
+        ceiling = tp - margin
+        gain = lufs - before["lufs"]
+        after = _apply(film, out, gain, ceiling)
+        if abs(after["lufs"] - lufs) > LU_TOL / 2:  # the limiter took some loudness: once more with the difference added
+            gain += lufs - after["lufs"]
+            after = _apply(film, out, gain, ceiling)
+        tried.append({"ceiling_db": round(ceiling, 2), "gain_db": round(gain, 2), **after})
+        if abs(after["lufs"] - lufs) <= LU_TOL and after["tp"] <= tp:
+            break
     ok = abs(after["lufs"] - lufs) <= LU_TOL and after["tp"] <= tp
-    return {"film": film, "out": out, "target": {"lufs": lufs, "tp": tp, "lu_tol": LU_TOL}, "gain_db": round(gain, 2), "before": before, "after": after, "ok": ok}
+    return {"film": film, "out": out, "target": {"lufs": lufs, "tp": tp, "lu_tol": LU_TOL}, "gain_db": round(gain, 2),
+            "ceiling_db": round(ceiling, 2), "before": before, "after": after, "tried": tried, "ok": ok}
 
 
 def master_in_place(final: str, cfg: dict) -> dict:

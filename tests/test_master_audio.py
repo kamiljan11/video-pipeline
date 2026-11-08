@@ -74,6 +74,29 @@ class MasterTest(unittest.TestCase):
         self.assertEqual([round(g, 2) for g in calls], [-4.0, -3.2])  # the 0.8 LU the limiter took is added once
         self.assertTrue(rep["ok"]); self.assertEqual(rep["gain_db"], -3.2)
 
+    def test_aac_overshoot_tries_the_next_margin(self):  # film 2026-11-04 long: limiter -2.0 gave -0.2 dBTP after AAC
+        calls, real = [], (M.measure, M._apply)
+        aac = {-2.0: -0.2, -3.0: -2.3}  # measured, AAC is not linear in the ceiling
+        try:
+            M.measure = lambda f: {"lufs": -14.6, "tp": -1.3}
+            M._apply = lambda f, o, gain, ceiling: calls.append(ceiling) or {"lufs": -14.1, "tp": aac[round(ceiling, 1)]}
+            rep = M.master("in.mp4", "out.mp4")
+        finally:
+            M.measure, M._apply = real
+        self.assertEqual([round(c, 2) for c in calls], [-2.0, -3.0])
+        self.assertTrue(rep["ok"], rep); self.assertEqual(rep["ceiling_db"], -3.0); self.assertEqual(len(rep["tried"]), 2)
+
+    def test_a_peak_that_never_fits_fails_after_every_margin(self):
+        calls, real = [], (M.measure, M._apply)
+        try:
+            M.measure = lambda f: {"lufs": -14.0, "tp": 0.0}
+            M._apply = lambda f, o, gain, ceiling: calls.append(ceiling) or {"lufs": -14.0, "tp": 0.5}  # a broken limiter
+            rep = M.master("in.mp4", "out.mp4")
+        finally:
+            M.measure, M._apply = real
+        self.assertEqual(len(calls), len(M.MARGINS))
+        self.assertFalse(rep["ok"])
+
     def test_usage_and_a_broken_file(self):
         self.assertEqual(M.main([]), 2)
         bad = self.d / "bad.mp4"; bad.write_text("x")
