@@ -18,6 +18,8 @@ if os.environ.get("FAIL_" + name.split(".")[0]):
     sys.exit(1)
 if os.environ.get("FAIL_phase") and "--phase" in sys.argv:  # film_check's "behind" phase only
     sys.exit(1)
+if os.environ.get("FAIL_report") and "--report" in sys.argv:  # research_gate on the film_check report only
+    sys.exit(1)
 if name == "assemble.py":
     os.makedirs(sys.argv[2], exist_ok=True)
     open(os.path.join(sys.argv[2], "film.mp4"), "w").write("x")
@@ -174,6 +176,12 @@ class RunV4GateTest(unittest.TestCase):
         (self.work / "plan_x.json").write_text(json.dumps({"vertical": True}))
         render, _ = self.run_v4(rc=1, FAIL_research_gate="1")
         self.assertIn("FAILED research_gate shorts x", render)
+
+    def test_research_missed_in_the_film_renders_nothing(self):  # a done item whose warn-level check is not OK in this film
+        render, calls = self.run_v4(rc=1, FAIL_report="1")
+        self.assertIn("FAILED research_used long x", render)
+        self.assertNotIn("assemble.py", calls)
+        self.assertFalse((self.out / "film.mp4").exists())
 
     def test_research_gate_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(rc=1, RESEARCH_GATE="off", FAIL_research_gate="1", FAIL_build_edl="1")

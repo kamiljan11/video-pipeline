@@ -78,6 +78,24 @@ class ResearchGateTest(unittest.TestCase):
             self.assertEqual(rg.main(["nope", "--ledger", str(f)]), 2)
             self.assertEqual(rg.main(["long", "--ledger", str(Path(d) / "missing")]), 2)
 
+    def test_report_needs_ok_for_every_done_check(self):  # a warn-level research check missed in the film = not used
+        items = [item("L8", "done", "check:long.list_said"), item("L16", "done", "check:long.web_marked check:long.read_along"),
+                 item("L1", "done", "check:out.chapters"), item("S4", "done", "check:short.hook_echo", "Shorts")]
+        rep = [{"film": "long", "id": "long.list_said", "status": "WARN", "detail": "a: 3 items not timed"},
+               {"film": "long", "id": "long.web_marked", "status": "OK", "detail": ""},
+               {"film": "long", "id": "long.read_along", "status": "SKIP", "detail": "no code in this film"}]
+        bad, info = rg.report_problems(items, "long", rep)
+        self.assertEqual([b.split()[0] for b in bad], ["L8"])  # out.chapters not in a film report: checked in the out report
+        self.assertIn("WARN", bad[0])
+        self.assertEqual(len(info), 1); self.assertIn("no code in this film", info[0])
+        self.assertEqual(rg.report_problems(items, "shorts", rep), ([], []))
+        with tempfile.TemporaryDirectory() as d:
+            f, r = Path(d) / "l.jsonl", Path(d) / "fc.json"
+            f.write_text("".join(json.dumps(i) + "\n" for i in items)); r.write_text(json.dumps(rep))
+            self.assertEqual(rg.main(["long", "--ledger", str(f), "--report", str(r)]), 1)
+            r.write_text(json.dumps([{**x, "status": "OK"} for x in rep]))
+            self.assertEqual(rg.main(["long", "--report", str(r), "--ledger", str(f)]), 0)
+
     def test_the_real_checklist_ids_load(self):
         self.assertIn("long.opening", rg.checklist_ids())
 

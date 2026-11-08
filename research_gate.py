@@ -2,6 +2,8 @@
 """research_gate: no film render while research meant for that form is still open or "done" without proof in the film.
 
     python3 research_gate.py <long|shorts|thumbs> [--ledger path]   exit 1 + the open items
+    python3 research_gate.py <form> --report fc.json                after film_check --json: every done item's check is OK
+                                                                    in this film (WARN or FAIL = exit 1; SKIP = INFO + reason)
 
 Kamil 2026-11-08, after the 2026-11-04 night render had 0 of 24 Long research items in it: "dlaczego nic nie weszlo!?
 przeciez pisalem ci 5 krotnie ze po to robisz reserache zeby ulepszyc video pipeline i dopiero zregenerowac cale video".
@@ -14,6 +16,9 @@ For every ledger item of the form (creator-study/round2/ledger.jsonl):
                                "data:" (results that do not exist yet)
   rejected                  -> a reason of >= 10 characters
   done "meta: ..."          -> work on the plan itself, no film rule (e.g. a revision of the list); always printed as INFO
+--report (Kamil 2026-11-08 "czy realnie wprowadziles nowe logiki??? sprawdzales to"): most research checks are level
+"warn" in film_check, so a film could miss them and still pass. Here a done item whose check is in the report must be OK
+there; an id the report does not hold (another format, e.g. out.* for a film) is checked in that format's report.
 """
 import json
 import os
@@ -78,6 +83,20 @@ def problems(items: list[dict], form: str, ids: set[str]) -> list[str]:
     return bad
 
 
+def report_problems(items: list[dict], form: str, report: list[dict]) -> tuple[list[str], list[str]]:
+    """(problems, info) of the done items of a form against a film_check --json report"""
+    by_id: dict[str, list[dict]] = {}
+    for r in report: by_id.setdefault(r["id"], []).append(r)
+    bad, info = [], []
+    for i in items:
+        if not (of_form(i, form) and i["status"] == "done"): continue
+        for cid in re.findall(r"check:([\w.]+)", str(i.get("ref", ""))):
+            for r in by_id.get(cid, []):
+                if r["status"] == "SKIP": info.append(f"INFO {i['id']} {cid} skipped in {r['film']}: {r['detail']}")
+                elif r["status"] != "OK": bad.append(f"{i['id']} done, but {cid} is {r['status']} in {r['film']}: {str(r['detail'])[:160]}")
+    return bad, info
+
+
 def meta_items(items: list[dict], form: str) -> list[str]:
     return [f"INFO {i['id']} done as plan work ({i['ref']})" for i in items
             if of_form(i, form) and i["status"] == "done" and str(i.get("ref", "")).startswith("meta:")]
@@ -86,10 +105,18 @@ def meta_items(items: list[dict], form: str) -> list[str]:
 def main(argv: list[str]) -> int:
     ledger = LEDGER
     if "--ledger" in argv: i = argv.index("--ledger"); ledger = Path(argv[i + 1]); argv = argv[:i] + argv[i + 2:]
+    report = None
+    if "--report" in argv: i = argv.index("--report"); report = Path(argv[i + 1]); argv = argv[:i] + argv[i + 2:]
     if len(argv) != 1 or argv[0] not in FORMS:
-        print("usage: research_gate.py <long|shorts|thumbs> [--ledger path]", file=sys.stderr); return 2
+        print("usage: research_gate.py <long|shorts|thumbs> [--ledger path] [--report film_check.json]", file=sys.stderr); return 2
     if not ledger.exists(): print(f"research_gate: no ledger at {ledger}", file=sys.stderr); return 2
     items = load(ledger)
+    if report is not None:
+        bad, info = report_problems(items, argv[0], json.loads(report.read_text(encoding="utf-8")))
+        for b in bad: print(b)
+        for x in info: print(x)
+        print(f"research {argv[0]} in {report.name}: {len(bad)} done item(s) not met in the film" + ("" if bad else " OK"))
+        return 1 if bad else 0
     bad = problems(items, argv[0], checklist_ids())
     n = sum(of_form(i, argv[0]) for i in items)
     for b in bad: print(b)
