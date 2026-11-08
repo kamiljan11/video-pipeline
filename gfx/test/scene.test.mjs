@@ -152,7 +152,7 @@ test('beside the speaker the pieces stack in one column in reading order; a scen
   const row = ok(['a', 'b', 'c', 'd'].map((t, i) => ({ k: 'chip', id: t, x: 120 + 400 * i, y: 500, text: `Zadanie ${i + 1}` })), { layout: 'side' });
   const h = scene({ ...row, els: [...row.els].reverse() }, esc, icon);
   assert.match(h, /class="scene side col"/);
-  assert.ok(h.indexOf('Zadanie 1') < h.indexOf('Zadanie 4'));  // left to right becomes top to bottom
+  assert.ok(h.indexOf('Zadanie\u00a01') < h.indexOf('Zadanie\u00a04') && h.includes('Zadanie\u00a01'));  // left to right becomes top to bottom ("1" glued, keepTogether)
   const tied = scene({ ...row, els: [...row.els, { k: 'line', from: [10, 10], to: [400, 300], at: 1 }] }, esc, icon);
   assert.match(tied, /class="scene side"/);
 });

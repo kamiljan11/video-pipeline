@@ -6,7 +6,7 @@
 // stagger step over 12 frames. Cards without it keep the timings from before tokens and are only counted.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
-import { resolveExtends, scene } from './scene_lib.mjs';
+import { camKeyframes, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
@@ -89,6 +89,27 @@ export function drawProblems(sp, rects, texts) {
   return out;
 }
 
+// phone readability (Kamil 2026-11-05 note 15: "tablice boczne za małe na telefon"; design 2026-11-05 step 1): a line of
+// words, after the camera scale, is at least 40 px on the 1440 frame while it is read, i.e. its first READ_S seconds on
+// screen (the camera may pull back later, once it is read). A phone shows a 16:9 frame held sideways over its short side
+// (1440 px) and a 9:16 frame upright over the same side (1080 px), so the same size there is 40 * 1080 / 1440 = 30 px.
+// cam = [[t, scale]] sampled in the page; texts carry s = the words, for the message.
+export const MIN_TEXT_PX = { h: 40, v: 30 }, READ_S = 1.5;
+export function readProblems(sp, texts, cam) {
+  const min = MIN_TEXT_PX[sp.canvas === 'v' ? 'v' : 'h'], out = [], seen = new Set();
+  for (const T of texts) {
+    const [a0, a1] = window_(sp.els[T.i], sp.dur), from = a0 + 0.5, to = Math.min(a1, a0 + 0.5 + READ_S);
+    const got = cam.filter(([t]) => t >= from - 1e-6 && t <= to + 1e-6).map(c => c[1]);
+    const k = got.length ? Math.min(...got) : (cam.find(([t]) => t >= a0)?.[1] ?? 1), h = T.h * k;
+    const key = `${T.i}|${T.s}`;
+    if (h < min && !seen.has(key)) {
+      seen.add(key);
+      out.push(`${sp.id}: "${String(T.s ?? '').slice(0, 30)}" (${sp.els[T.i].k}) is ${Math.round(h)} px on the frame (line ${Math.round(T.h)} px x camera ${k.toFixed(2)}), at least ${min} on a phone: fewer pieces, bigger text or a full screen`);
+    }
+  }
+  return out;
+}
+
 async function main() {
   const [specFile, ...only] = process.argv.slice(2);
   if (!specFile) { console.error('usage: node gfx/scene_check.mjs <specs.json> [id ...]'); process.exit(2); }
@@ -104,10 +125,22 @@ async function main() {
       if (v) await page.evaluate(() => document.documentElement.classList.add('v'));
       await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, scene(sp, esc, icon));
       await page.evaluate(() => document.fonts.ready);
+      // the camera as render.mjs builds it (sceneFit: stops "on" pieces -> one move, the side column fitted into its board)
+      await page.evaluate(([fit, kf, safe, solo, zoom]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom); },
+        [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString()]);
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
-      const { rects, texts } = await page.evaluate(() => {
-        for (const a of document.getAnimations()) a.cancel();
-        const world = document.querySelector('.scene .world'), wr = world.getBoundingClientRect();
+      const { rects, texts, cam } = await page.evaluate(dur => {
+        const world = document.querySelector('.scene .world');
+        // the camera: the world's own animation, sampled every 0.1 s -> [t, scale] (1 = no camera move)
+        const camAnims = document.getAnimations().filter(a => a.effect?.target === world), cam = [];
+        for (const a of document.getAnimations()) if (!camAnims.includes(a)) a.cancel();
+        for (let t = 0; t <= dur + 1e-6; t += 0.1) {
+          for (const a of camAnims) { a.pause(); a.currentTime = t * 1000; }
+          const tf = getComputedStyle(world).transform;
+          cam.push([+t.toFixed(2), tf && tf !== 'none' ? new DOMMatrixReadOnly(tf).a : 1]);
+        }
+        for (const a of camAnims) a.cancel();
+        const wr = world.getBoundingClientRect();
         const rects = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map((el, i) => {
           if (el.tagName.toLowerCase() === 'svg') return null;
           const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
@@ -124,14 +157,15 @@ async function main() {
           for (let n = walk.nextNode(); n; n = walk.nextNode()) {
             if (!n.textContent.trim()) continue;
             const rg = document.createRange(); rg.selectNodeContents(n);
-            for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height });
+            for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
           }
         });
-        return { rects, texts };
-      });
-      // kept pieces of an "extends" scene are drawn first (scene_lib scene()): the measured index runs over both lists
-      const all = sp._held ? { ...sp, els: [...sp._held, ...sp.els] } : sp;
+        return { rects, texts, cam };
+      }, sp.dur);
+      // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
+      const all = { ...sp, els: drawnEls(sp).els };
       bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts));
+      bad.push(...readProblems(all, texts, cam));
       await page.close();
     }
   } finally { await browser.close(); }

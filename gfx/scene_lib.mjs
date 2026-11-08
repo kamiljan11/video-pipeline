@@ -8,6 +8,7 @@
 // left, zoom z). Pieces are measured in the browser (render.mjs calls sceneFit), so nobody has to guess their size.
 
 import { EASE, F, STAGGER, sec } from './motion_tokens.mjs';
+import { keepTogether as kt } from './html_lib.mjs';  // a short Polish word stays with its neighbour when a line wraps (side column)
 
 export const W = 2560, H = 1440;
 // the PiP circle (assemble.py: pip_size 600, margin 72, 20 px up) + its 40 px frame, with some air
@@ -240,7 +241,7 @@ function row(r, esc, icon, at, m = MOTION.legacy) {
   const o = typeof r === 'string' ? { t: r } : r;
   const mk = o.mark ? `<span class="mk ${o.mark}" style="animation:${m.mark} ${f2(num(o.mark_at, at + 0.4))}s both">${icon({ ok: 'check', bad: 'x', warn: 'triangle-alert' }[o.mark] ?? 'check')}</span>` : '';
   const hl = o.hl ? `<span class="rhl" style="background:${tone(o.tone ?? (o.mark === 'bad' ? 'bad' : 'acc'))};animation:${m.hl} ${f2(num(o.hl_at, at + 0.6))}s both"></span>` : '';
-  const body = typeof o.t === 'string' && /^~\d*$/.test(o.t) ? `<div class="sk" style="width:${o.t.length > 1 ? +o.t.slice(1) : 70}%"></div>` : `<span class="rt">${esc(o.t ?? '')}</span>`;
+  const body = typeof o.t === 'string' && /^~\d*$/.test(o.t) ? `<div class="sk" style="width:${o.t.length > 1 ? +o.t.slice(1) : 70}%"></div>` : `<span class="rt">${esc(kt(o.t))}</span>`;
   return `<div class="row">${hl}${body}${mk}</div>`;
 }
 
@@ -285,12 +286,12 @@ const PIECES = {
     return { inner: `<div class="tb"><i></i><i></i><i></i><span class="ti">${esc(e.title ?? 'terminal')}</span></div>`
       + `<div class="bd"><div class="cl"><span class="ps">${esc(e.prompt ?? '$')}</span> <span class="cmd" style="--n:${e.cmd.length};animation:sctype ${f2(Math.max(typed, 0.1))}s steps(${Math.max(e.cmd.length, 1)}) ${f2(cmdAt)}s both">${esc(e.cmd)}</span></div>${lines}</div>` };
   },
-  chip: (e, { esc, icon, tn }) => ({ inner: `<span class="ci" style="background:${tn}">${icon(e.icon ?? 'zap')}</span><span>${esc(e.text ?? '')}</span>` }),
+  chip: (e, { esc, icon, tn }) => ({ inner: `<span class="ci" style="background:${tn}">${icon(e.icon ?? 'zap')}</span><span>${esc(kt(e.text))}</span>` }),
   node: (e, { esc, icon, tn }) => {
     const s = num(e.size, 200);
-    return { inner: `<div class="nt" style="width:${s}px;height:${s}px;color:${tn};border-color:${tn}">${icon(e.icon ?? 'box')}</div>${e.text ? `<div class="nl">${esc(e.text)}</div>` : ''}${e.sub ? `<div class="ns">${esc(e.sub)}</div>` : ''}` };
+    return { inner: `<div class="nt" style="width:${s}px;height:${s}px;color:${tn};border-color:${tn}">${icon(e.icon ?? 'box')}</div>${e.text ? `<div class="nl">${esc(kt(e.text))}</div>` : ''}${e.sub ? `<div class="ns">${esc(kt(e.sub))}</div>` : ''}` };
   },
-  you: (e, { esc, icon }) => ({ inner: `<div class="nt you">${icon('user')}</div><div class="nl">${esc(e.text ?? 'Ty')}</div>` }),
+  you: (e, { esc, icon }) => ({ inner: `<div class="nt you">${icon('user')}</div><div class="nl">${esc(kt(e.text ?? 'Ty'))}</div>` }),
   chat: (e, { esc, at, m }) => ({
     inner: (e.msgs ?? []).map((g, i) => {
       const t = num(g.at, at + i * num(e.step, m.chatStep)), sk = typeof g.t !== 'string' || /^~\d*$/.test(g.t);
@@ -300,17 +301,17 @@ const PIECES = {
   stamp: (e, { esc, tn }) => ({ style: `color:${tn};border-color:${tn};--r:${num(e.rot, -6)}deg;`, inner: esc(e.text ?? '') }),
   text: (e, { esc, tn }) => ({
     style: `font-size:${num(e.size, 64)}px;color:${e.tone ? tn : '#f1f2f4'};${e.w ? '' : 'white-space:nowrap;'}`,
-    inner: esc(e.t ?? '').replace(/\*([^*]+)\*/g, '<b>$1</b>'),
+    inner: esc(kt(e.t)).replace(/\*([^*]+)\*/g, '<b>$1</b>'),
   }),
   bar: (e, { esc, at, tn }) => {
     const v = Math.min(Math.max(num(e.v, 1), 0), 1);
-    return { inner: `${e.label ? `<div class="bl">${esc(e.label)}</div>` : ''}<div class="tr"><div class="fl" style="width:${(v * 100).toFixed(1)}%;background:${tn};animation:scgrow ${f2(num(e.d, 1))}s cubic-bezier(.2,.8,.2,1) ${f2(at + 0.3)}s both"></div></div>` };
+    return { inner: `${e.label ? `<div class="bl">${esc(kt(e.label))}</div>` : ''}<div class="tr"><div class="fl" style="width:${(v * 100).toFixed(1)}%;background:${tn};animation:scgrow ${f2(num(e.d, 1))}s cubic-bezier(.2,.8,.2,1) ${f2(at + 0.3)}s both"></div></div>` };
   },
   stat: (e, { esc, at, tn }) => {
-    if (!e.count) return { inner: `<div class="sv" style="color:${tn}">${esc(e.value ?? '')}</div><div class="sl">${esc(e.label ?? '')}</div>` };
+    if (!e.count) return { inner: `<div class="sv" style="color:${tn}">${esc(e.value ?? '')}</div><div class="sl">${esc(kt(e.label))}</div>` };
     const c = e.count, u = uid(e), d = num(c.d, 1);  // the number counts up to its value while it is said (@property --cnt, seekable)
     return { inner: `<style>@keyframes cnt_${u}{from{--cnt:${Math.round(num(c.from, 0))}}to{--cnt:${Math.round(c.to)}}}</style>`
-      + `<div class="sv cnt" data-pre="${esc(c.pre ?? '')}" data-suf="${esc(c.suf ?? '')}" style="color:${tn};animation:cnt_${u} ${f2(d)}s ${EASE_IN} ${f2(num(c.at, at + 0.2))}s both"></div><div class="sl">${esc(e.label ?? '')}</div>` };
+      + `<div class="sv cnt" data-pre="${esc(c.pre ?? '')}" data-suf="${esc(c.suf ?? '')}" style="color:${tn};animation:cnt_${u} ${f2(d)}s ${EASE_IN} ${f2(num(c.at, at + 0.2))}s both"></div><div class="sl">${esc(kt(e.label))}</div>` };
   },
   check: (e, { at, tn, m }) => {  // ring draws, tick draws, a burst ring and ten sparks fly out (deterministic angles)
     const sz = num(e.size, 120), r = sz / 2 - 6, c = (2 * Math.PI * r).toFixed(0), tk = (sz * 0.9).toFixed(0);
@@ -359,7 +360,7 @@ const PIECES = {
     // its keyframes only with back_at: a card without it is drawn byte for byte as before (motion.test golden)
     const css = back !== null ? '<style>@keyframes sctgkback{from{transform:translateX(60px)}to{transform:none}}'
       + '@keyframes sctgbad{0%{background:var(--on)}35%{background:#ff5f57;box-shadow:0 0 48px #ff5f57}100%{background:#c8423c;box-shadow:0 0 26px rgba(255,95,87,.7)}}</style>' : '';
-    return { inner: `${css}<span class="tg"><i class="tgb" style="--on:${tn};animation:${bg}"></i><i class="tgk" style="animation:${kn}"></i></span>${e.text ? `<span class="tgl">${esc(e.text)}</span>` : ''}` };
+    return { inner: `${css}<span class="tg"><i class="tgb" style="--on:${tn};animation:${bg}"></i><i class="tgk" style="animation:${kn}"></i></span>${e.text ? `<span class="tgl">${esc(kt(e.text))}</span>` : ''}` };
   },
   steps: (e, { esc, tn }) => {  // a progress pill "label N / total": the number changes and the bar grows at each step
     const st = e.steps;
@@ -440,19 +441,23 @@ export function resolveExtends(specs) {
   return specs.map(s => resolve(s, []));
 }
 
+// the pieces in the order they are drawn (DOM order; scene_check measures by this index). Beside the speaker the pieces
+// stack in one column in reading order (top to bottom, then left to right), so the camera fits a tall narrow block into
+// the tall narrow board and the text stays big (Kamil 2026-11-05: on a phone held sideways a wide drawing shrunk into the
+// side field cannot be read; "większe i pionowo narysowane"). Kept pieces of "extends" come first: under the new ones.
+export function drawnEls(sp) {
+  const all = [...(sp._held ?? []), ...sp.els];
+  const col = sp.layout === 'side' && sp.canvas !== 'v' && all.every(e => !TIED.includes(e.k));
+  return { els: col ? [...all].sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0)) : all, col };
+}
+
 export function scene(sp, esc, icon) {
   const bad = checkScene(sp);
   if (sp.extends !== undefined && !Array.isArray(sp._held)) bad.push('"extends": run resolveExtends(specs) on the specs file first');
   if (bad.length) throw new Error(`"${sp.id}": scene: ${bad.join('; ')}`);
   const safeIcon = n => { try { return icon(n); } catch { throw new Error(`"${sp.id}": no icon "${n}" in lucide-static`); } };
   const cam = sp.cam === 'none' ? null : sp.cam ?? [{ t: 0, on: '*' }];
-  const side = sp.layout === 'side' && sp.canvas !== 'v';
-  // beside the speaker the pieces stack in one column in reading order (top to bottom, then left to right), so the
-  // camera fits a tall narrow block into the tall narrow board and the text stays big (Kamil 2026-11-05: on a phone held
-  // sideways a wide drawing shrunk into the side field cannot be read; "większe i pionowo narysowane")
-  const all = [...(sp._held ?? []), ...sp.els];  // kept pieces first: under the new ones
-  const col = side && all.every(e => !TIED.includes(e.k));
-  const els = col ? [...all].sort((a, b) => (a.y ?? 0) - (b.y ?? 0) || (a.x ?? 0) - (b.x ?? 0)) : all;
+  const side = sp.layout === 'side' && sp.canvas !== 'v', { els, col } = drawnEls(sp);
   const world = els.map(e => piece(e, esc, safeIcon, MOTION[sp.motion ?? 'legacy'])).join('');
   const bg = side ? `<div class="board" style="left:${SIDE.x}px;top:${SIDE.y}px;width:${SIDE.w}px;height:${SIDE.h}px"></div>`
     : sp.bg === 'blobs' ? '<div class="blobs"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>' : '';
@@ -517,6 +522,9 @@ const SCENE_CSS = `<style>
 .scene.side{background:none}
 .scene.col .world{display:flex;flex-direction:column;align-items:flex-start;gap:48px;padding:60px}
 .scene.col .p{position:relative;left:auto!important;top:auto!important;flex:none}
+.scene.col .p.file,.scene.col .p.term,.scene.col .p.win,.scene.col .p.bar,.scene.col .p.chat{max-width:640px}
+.scene.col .p.text,.scene.col .p.say{max-width:640px;white-space:normal!important}
+.scene.col .chip .pi{max-width:640px;white-space:normal;border-radius:44px}
 .scene.side .board{position:absolute;border-radius:48px;background:rgba(12,13,15,.72);box-shadow:0 30px 90px rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.08);animation:scboard .5s cubic-bezier(.2,1.3,.4,1) both}
 @keyframes scboard{from{opacity:0;transform:translateX(80px) scale(.92)}to{opacity:1;transform:none}}
 .scene .world{position:absolute;left:0;top:0;width:${W}px;height:${H}px;transform-origin:0 0}
@@ -588,7 +596,7 @@ const SCENE_CSS = `<style>
 .scene .nt svg{width:52%;height:52%;stroke:currentColor;stroke-width:2}
 .scene .nt.you{width:150px;height:150px;border-radius:50%;border-color:#3a3e45;color:#c9ccd1}
 .scene .nl{margin-top:20px;color:#f1f2f4;font-weight:800;font-size:44px;white-space:nowrap}
-.scene .ns{margin-top:6px;color:#8b9096;font-weight:600;font-size:30px;white-space:nowrap}
+.scene .ns{margin-top:6px;color:#8b9096;font-weight:600;font-size:38px;white-space:nowrap}
 .scene .chat .pi{display:flex;flex-direction:column;gap:18px}
 .scene .msg{max-width:78%;padding:24px 32px;border-radius:26px;font-weight:600;font-size:42px;line-height:1.25;color:#eef0f2;background:#1d2025;border:2px solid #2a2d33}
 .scene .msg.me{align-self:flex-end;background:#232a35;border-color:#2f3a4a;border-bottom-right-radius:8px}

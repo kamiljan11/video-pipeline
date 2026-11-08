@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, drawProblems, window_ } from '../scene_check.mjs';
+import { clashes, drawProblems, MIN_TEXT_PX, readProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -64,4 +64,18 @@ test('ring: measured as the drawn ellipse, so a label in the corner of its box i
   assert.match(drawProblems(tight, rects, [label]).join('\n'), /cuts the words of a3 .*not inside the drawn ellipse/);
   const wide = { ...tight, els: [node, { k: 'ring', x: 1156, y: 145, w: 311, h: 311, at: 2 }] };
   assert.deepEqual(drawProblems(wide, rects, [label]), []);
+});
+
+test('phone readability: a line under 40 px on the 1440 frame (30 px on 9:16) after the camera, while it is read, is named (Kamil note 15)', () => {
+  assert.deepEqual(MIN_TEXT_PX, { h: 40, v: 30 });
+  const sp = { id: 's42', dur: 10, els: [{ k: 'file', at: 1 }] }, texts = [{ i: 0, x: 0, y: 0, w: 400, h: 57, s: 'dodaj moduł płatności' }];
+  const cam = k => Array.from({ length: 101 }, (_, j) => [j / 10, k]);
+  assert.match(readProblems(sp, texts, cam(0.6)).join('\n'), /"dodaj moduł płatności" \(file\) is 34 px on the frame \(line 57 px x camera 0\.60\), at least 40/);
+  assert.deepEqual(readProblems(sp, texts, cam(0.71)), []);  // 40 px
+  assert.deepEqual(readProblems({ ...sp, canvas: 'v' }, texts, cam(0.53)), []);  // 30 px upright on a phone
+  // big while it is read (1.5 s from 0.5 s after it comes in), then the camera pulls back to the whole picture: fine
+  const pull = Array.from({ length: 101 }, (_, j) => [j / 10, j / 10 < 3.2 ? 1 : 0.4]);
+  assert.deepEqual(readProblems(sp, texts, pull), []);
+  const late = Array.from({ length: 101 }, (_, j) => [j / 10, j / 10 < 2.5 ? 1 : 0.4]);  // pulls back before it is read
+  assert.equal(readProblems(sp, texts, late).length, 1);
 });
