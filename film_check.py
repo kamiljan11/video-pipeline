@@ -384,6 +384,16 @@ class Film:
     def has_end_card(self): return any(self.typ(o) == "end" for o in self.ovs)
 
     # ---- round 2 long research (creator-study/round2/PLAN2.md L1-L24); each item names its ledger id ----
+    def film_word_spans(self) -> list[tuple[float, float]]:
+        """(film start, film end) of every kept word, in the order of film_words"""
+        if not hasattr(self, "_fws"):
+            raw = load(self.work / self.plan["words"], "words")["transcription"] if self.plan.get("words") else []
+            segs, ex = self.edl["segments"], exact(self.edl)
+            kept = lambda t: any(sg["in"] <= t <= sg["out"] for sg in segs)
+            self._fws = [(src2out(segs, w["offsets"]["from"] / 1000, ex), src2out(segs, w["offsets"]["to"] / 1000, ex)) for w in raw
+                         if w.get("text", "").strip() and kept(w["offsets"]["from"] / 1000)]
+        return self._fws
+
     def film_words(self) -> list[tuple[float, str]]:
         """(film time, word) of every word the cut keeps (its start inside a kept piece)"""
         if not hasattr(self, "_fw"):
@@ -416,7 +426,7 @@ class Film:
         bad = [f"block {k * block_s / 60:.0f}-{(k + 1) * block_s / 60:.0f} min {b:.0f} wpm vs median {med:.0f}" for k, b in enumerate(blocks)
                if med and abs(b - med) / med > drift]
         spans = cover_spans(self.edl) + [(t, t + 0.6) for t in punches(self.edl)]
-        for (a, _), (b, _) in itertools.pairwise(fw):
+        for (_, a), (b, _) in itertools.pairwise(self.film_word_spans()):  # a pause = one word's end to the next one's start
             if b - a > pause_s and not any(x <= a + 0.3 and y >= b - 0.3 for x, y in spans):
                 bad.append(f"pause {b - a:.1f} s at {a:.0f} s with nothing on screen")
         return not bad, "; ".join(bad[:6]) or f"{len(blocks)} blocks around {med:.0f} wpm"

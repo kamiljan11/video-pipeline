@@ -36,7 +36,17 @@ class LongResearchTest(unittest.TestCase):
         (self.d / "w.json").write_text(json.dumps({"transcription": [{"offsets": {"from": i * 1000, "to": i * 1000 + 400}, "text": " a"} for i in ws]}))
         f = film_check.Film(self.d, "long")
         ok, detail = f.pace_flat()
-        self.assertFalse(ok); self.assertIn("block 5-10 min", detail); self.assertIn("pause 2.0 s", detail)
+        self.assertFalse(ok); self.assertIn("block 5-10 min", detail); self.assertIn("pause 1.6 s", detail)  # 0.4 s words: end to start
+
+    def test_l2_a_long_word_is_not_a_pause(self):  # "halucynowania" (1.4 s) + 0.4 s air: start to start 1.8 s, the pause 0.4 s
+        ws = [{"offsets": {"from": int(t * 1000), "to": int(e * 1000)}, "text": w} for t, e, w in
+              [(0.0, 0.3, " a"), (0.5, 1.9, " halucynowania"), (2.3, 2.6, " b"), (5.0, 5.3, " c")]]
+        ws += [{"offsets": {"from": 5500 + 500 * k, "to": 5800 + 500 * k}, "text": " x"} for k in range(25)]  # >= 20 words
+        f = self.film([], [], length=20)
+        (self.d / "w.json").write_text(json.dumps({"transcription": ws}))
+        f = film_check.Film(self.d, "long")
+        bad = [b for b in f.pace_flat(block_s=600)[1].split("; ") if b.startswith("pause")]
+        self.assertEqual(bad, ["pause 2.4 s at 3 s with nothing on screen"])
 
     def test_l3_roadmap_said_and_listed(self):
         ovs = [{"id": "map", "at": 20, "dur": 6}]
