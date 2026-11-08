@@ -53,6 +53,22 @@ export function clashes(sp, rects, share = 0.12) {
   return out;
 }
 
+// a stamp judges a piece, so it sits on it or right against it (NOTES_LOG 16, Kamil 2026-11-05: "ZABLOKOWANE floated in empty
+// space"; still in 9 scenes on the 2026-11-08 sheet): its box overlaps or comes within NEAR px of a piece on screen with it
+export function stampProblems(sp, rects) {
+  const out = [];
+  for (const S of rects.filter(r => sp.els[r.i]?.k === 'stamp')) {
+    const [s0, s1] = window_(sp.els[S.i], sp.dur);
+    const gaps = rects.filter(r => r !== S && !OVERLAY_KINDS.has(sp.els[r.i]?.k)).filter(r => {
+      const [r0, r1] = window_(sp.els[r.i], sp.dur);
+      return r0 < s1 && s0 < r1;
+    }).map(r => Math.max(r.x - (S.x + S.w), S.x - (r.x + r.w), r.y - (S.y + S.h), S.y - (r.y + r.h), 0));
+    const gap = gaps.length ? Math.min(...gaps) : Infinity;
+    if (gap > NEAR) out.push(`${sp.id}: stamp "${String(sp.els[S.i].text ?? '').slice(0, 24)}" floats ${Number.isFinite(gap) ? Math.round(gap) + ' px' : ''} from every piece: put it on the piece it judges`);
+  }
+  return out;
+}
+
 // drawing accuracy (Kamil 2026-11-08: "nie w tym miejscu co trzeba rysujesz np te podkreslenie w kolku"): ring and line
 // boxes are typed by hand in the plan, so they are measured against the laid-out words. texts: [{i, x, y, w, h}] = one
 // rect per drawn line of words (world px). A ring either holds a line of words whole or stays off it, and holds something;
@@ -275,7 +291,7 @@ async function main() {
       const { rects, texts } = await page.evaluate(measurePieces);
       // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
       const all = { ...sp, els: drawnEls(sp).els };
-      bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts));
+      bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts), ...stampProblems(all, rects));
       bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...hiddenProblems(all, hidden), ...hiddenWhileRead(all, hid.filter(h => !hidden.includes(h.i))));
       await page.close();
     }

@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, cutProblems, drawProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, readProblems, window_ } from '../scene_check.mjs';
+import { clashes, cutProblems, drawProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, readProblems, stampProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -113,4 +113,14 @@ test('a piece the camera fades out while it is being read is named; before it co
   const sp = { id: 's03', dur: 10, els: [{ k: 'say', id: 'l1', at: 2 }] };
   assert.match(hiddenWhileRead(sp, [{ i: 0, t: 3 }]).join('\n'), /s03: l1 \(say\) is hidden by the camera at 3\.0 s, while it is being read/);
   assert.deepEqual(hiddenWhileRead(sp, [{ i: 0, t: 1 }, { i: 0, t: 4.5 }]), []);
+});
+
+test('a stamp sits on or right against a piece on screen with it; one alone in empty space fails (NOTES_LOG 16)', () => {
+  const sp = { id: 'st', dur: 6, els: [{ k: 'file', at: 0 }, { k: 'stamp', text: 'BLOKOWANE', at: 2 }, { k: 'chip', at: 0, gone: 1 }] };
+  const file = { i: 0, x: 0, y: 0, w: 800, h: 300 }, chip = { i: 2, x: 0, y: 900, w: 300, h: 80 };
+  assert.deepEqual(stampProblems(sp, [file, { i: 1, x: 100, y: 200, w: 400, h: 100 }, chip]), []);   // on the file
+  assert.deepEqual(stampProblems(sp, [file, { i: 1, x: 100, y: 330, w: 400, h: 100 }, chip]), []);   // 30 px under it
+  const far = stampProblems(sp, [file, { i: 1, x: 100, y: 820, w: 400, h: 100 }, chip]);             // the chip near it is gone by then
+  assert.equal(far.length, 1);
+  assert.match(far[0], /BLOKOWANE.*floats 520 px/);
 });
