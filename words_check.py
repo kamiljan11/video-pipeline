@@ -56,14 +56,21 @@ def _whisper(media: str) -> list[str]:
     with tempfile.TemporaryDirectory() as tmp:
         wav = os.path.join(tmp, "a.wav")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", media, "-vn", "-ac", "1", "-ar", "16000", wav], check=True, timeout=1800)
-        prog = Path(media + ".whisper.progress")  # render_status reads the % for the widget
+        # render_status reads the % for the widget; one file a run (cut and sound may hear the same media at once), and a
+        # folder we cannot write only loses the %, never the check
+        prog = Path(f"{media}.whisper.{os.getpid()}.progress")
         try:
-            with prog.open("w") as pf:
-                subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl",
-                                "-t", str(heavy_threads()), "-pp", "-otxt", "-of", os.path.join(tmp, "a"), wav],
-                               stdout=subprocess.DEVNULL, stderr=pf, check=True, preexec_fn=low_priority, timeout=7200)
+            pf = prog.open("w")
+        except OSError as e:
+            print(f"words_check: no progress file {prog}: {e}", file=sys.stderr)
+            pf = None
+        try:
+            subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl",
+                            "-t", str(heavy_threads()), "-pp", "-otxt", "-of", os.path.join(tmp, "a"), wav],
+                           stdout=subprocess.DEVNULL, stderr=pf or subprocess.DEVNULL, check=True, preexec_fn=low_priority, timeout=7200)
         finally:
-            prog.unlink(missing_ok=True)
+            if pf is not None:
+                pf.close(); prog.unlink(missing_ok=True)
         return norm(Path(tmp, "a.txt").read_text(encoding="utf-8"))
 
 

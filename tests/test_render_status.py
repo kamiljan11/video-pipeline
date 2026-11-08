@@ -120,7 +120,7 @@ class Failed(unittest.TestCase):
 
 
 class Processes(unittest.TestCase):  # Kamil 2026-11-08 "na tym widgecie to powinny wszystkie procesy leciec ... ile %"
-    VP = "/home/kamil-jan/video-pipeline/"
+    VP = R.VP
 
     def test_film_of_reads_edl_render_paths_and_bare_names(self):
         self.assertEqual(R.film_of(["python3", "x/build_edl.py", "edl_s02.json"], FILMS), "s02")
@@ -139,6 +139,12 @@ class Processes(unittest.TestCase):  # Kamil 2026-11-08 "na tym widgecie to powi
         busy = {r["film"] for r in rows if r["by_hand"]}
         self.assertEqual(R.failed_films(FILMS, ["s01"], "s02", False, busy), [])  # the long is checked by hand: not failed
         self.assertTrue(R.queue(FILMS, [], "s02", False, busy)[0]["now"])
+
+    def test_progress_file_is_found_next_to_the_media(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        (d / "f.mp4.whisper.123.progress").write_text("progress = 30%\nprogress = 60%\n")
+        self.assertEqual(R._whisper_progress(["python3", "words_check.py", "sound", str(d / "rough.mkv"), str(d / "f.mp4")]), 0.6)
+        self.assertIsNone(R._whisper_progress(["python3", "words_check.py", "sound", str(d / "x.mp4")]))
 
     def test_whisper_pct_and_total_pct(self):
         self.assertEqual(R.whisper_pct("whisper_print_progress_callback: progress =  5%\n... progress = 45%\n"), 0.45)

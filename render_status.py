@@ -193,7 +193,7 @@ def _procs(unit: str) -> dict[int, list[str]]:
     return out
 
 
-VP = "/home/kamil-jan/video-pipeline/"
+VP = str(Path(__file__).resolve().parent) + "/"  # the pipeline repo, wherever it lives (planned rename: content-pipeline)
 
 
 def _all_pipeline_procs() -> dict[int, list[str]]:
@@ -212,15 +212,28 @@ def _all_pipeline_procs() -> dict[int, list[str]]:
 
 
 def _whisper_progress(args: list[str]) -> float | None:
-    """words_check writes whisper's --print-progress next to the media it hears (<media>.whisper.progress)"""
+    """words_check writes whisper's --print-progress next to the media it hears (<media>.whisper.<pid>.progress)"""
     for a in args:
-        f = Path(a + ".whisper.progress")
+        for f in Path(a).parent.glob(Path(a).name + ".whisper.*.progress") if a.startswith("/") else ():
+            try:
+                if time.time() - f.stat().st_mtime < 600:
+                    return whisper_pct(f.read_text(errors="replace")[-2000:])
+            except OSError:
+                continue
+    return None
+
+
+def _new_mp4s(out: str, start: float) -> list[tuple[float, Path]]:
+    """(mtime, path) of the films in the out dirs written after start, oldest first; a file moved away meanwhile is skipped"""
+    found = []
+    for p in Path(out).glob("*/*.mp4"):
         try:
-            if f.exists() and time.time() - f.stat().st_mtime < 600:
-                return whisper_pct(f.read_text(errors="replace")[-2000:])
+            t = p.stat().st_mtime
         except OSError:
             continue
-    return None
+        if t > start:
+            found.append((t, p))
+    return sorted(found)
 
 
 def _read_frac(pid: int) -> float | None:
@@ -273,7 +286,7 @@ def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float |
     start = _unit_start(unit) if active else None
     done, short_times = [], []
     if out and start:
-        mp4s = sorted((p.stat().st_mtime, p) for p in Path(out).glob("*/*.mp4") if p.stat().st_mtime > start)
+        mp4s = _new_mp4s(out, start)
         for t, p in mp4s:
             name = "long" if p.parent.name == "long" else next((s for s in shorts if p.stem.startswith(s)), p.stem)
             done.append(name)
@@ -297,7 +310,8 @@ def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float |
     frac = _read_frac(pid) if pid else None
     # the rate from assemble.py's age: in windows a new ffmpeg starts every 2 min, so its own age says nothing
     apid = next((p for p, args in procs.items() if any(a.endswith("assemble.py") for a in args)), None)
-    last = max([start or 0.0, *(p.stat().st_mtime for p in Path(out).glob("*/*.mp4") if start and p.stat().st_mtime > start)]) if out else 0.0
+    new = _new_mp4s(out, start) if out and start else []
+    last = new[-1][0] if new else (start or 0.0)  # when the current film began: the last finished one, else the run start
     e = eta(films, done, film, frac, _age(apid) if (pid and apid) else None, short_times, rate,
             time.time() - last if last else None)
     elapsed = time.time() - start if start else None
