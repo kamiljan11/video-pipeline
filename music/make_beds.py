@@ -175,13 +175,18 @@ def card_v2(o, sp, ty):
 
 for o in edl.get("overlays", []):
     sp = specs.get(o["id"], {}); ty = sp.get("type")
+    # a chapter "part_tag" (gfx/cards_lib.mjs, plan2:L9) is a small corner tag over the speaker: the pop of a lower third,
+    # not the riser + impact + whoosh of a full-screen chapter card
+    if ty == "chap" and sp.get("chap_style") == "part_tag": ty = "lower"
     if v2:
         card_v2(o, sp, ty)
         continue
     if ty in ("kw", "count", "lower"): put(o["at"] + 0.03, pop(), 0.8)
     if ty == "list":
         put(o["at"], whoosh(0.5), 0.5)
-        for dl in sp.get("delays", []): put(o["at"] + dl + 0.05, pop(), 0.7)
+        # null = an item already on an "upto" list card (gfx/cards_lib.mjs, plan2:L8): no pop for it
+        for dl in sp.get("delays", []):
+            if type(dl) in (int, float): put(o["at"] + dl + 0.05, pop(), 0.7)
     if ty in ("chap", "slide", "web", "scene"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
     if ty == "end": put(o["at"] - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put(o["at"] + 0.1, ding(), 0.6)

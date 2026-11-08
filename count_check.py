@@ -30,6 +30,8 @@ def said_count(word: str) -> int | None:
 
 def card_count(spec: dict) -> int | None:
     if spec.get("type") == "list": return len(spec.get("items", [])) or None
+    # a roadmap chapter card (plan2:L9) shows every part: "trzy części" over it counts its parts
+    if spec.get("type") == "chap" and spec.get("chap_style") == "roadmap": return len(spec.get("parts") or []) or None
     kinds = Counter(e.get("k") for e in spec.get("els", []) if e.get("k") in COUNTABLE)
     n = max(kinds.values(), default=0)
     return n if n >= LO else None
@@ -43,15 +45,28 @@ def shown_numbers(spec: dict) -> set[int]:
     return {int(n) for t in texts for n in re.findall(r"(?<![\d.,])\d+(?![\d.,%])", t) if LO <= int(n) <= HI}
 
 
+def early_items(o: dict) -> list[str]:
+    """plan2:L8, a list placed with "item_words" (build_edl.py writes delays, items_said, item_lead into its overlay): no
+    item on screen before he says it, so the items visible never outnumber the items said (an item counts as said from its
+    word's start + the card's lead, the same few tenths a card comes in before its word)"""
+    d, said, lead = o.get("delays"), o.get("items_said"), o.get("item_lead", 0.0)
+    if not (isinstance(d, list) and isinstance(said, list)): return []
+    return [f"{o['id']}: item {i + 1} on screen at {o['at'] + (v or 0.0):.2f} s, said at {t:.2f} s"
+            for i, (v, t) in enumerate(zip(d, said, strict=False)) if o["at"] + (v or 0.0) < t + lead - 0.05]
+
+
 def problems(overlays: list[dict], specs: dict[str, dict], said: list[tuple[float, str]]) -> list[str]:
     """said = (time in the finished film, word), viewer_pack.film_words"""
     out = []
     for o in overlays:
         sp = specs.get(o.get("id", ""))
         if not sp: continue
+        out += early_items(o)
         counts = {n for t, w in said if o["at"] - LEAD <= t <= o["at"] + min(o["dur"], SPAN) and (n := said_count(w))}
         if not counts: continue
         n = card_count(sp)
-        if n and n not in counts: out.append(f"{o['id']}: {n} on the card, says {sorted(counts)}")
+        # an "upto" list (plan2:L8) shows items 1..k of the list: the count he says may be either
+        shown = sp.get("upto") if sp.get("type") == "list" and isinstance(sp.get("upto"), int) else None
+        if n and n not in counts and shown not in counts: out.append(f"{o['id']}: {n} on the card, says {sorted(counts)}")
         out += [f"{o['id']}: shows {v}, says {sorted(counts)}" for v in sorted(shown_numbers(sp) - counts)]
     return out

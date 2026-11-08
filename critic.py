@@ -152,7 +152,7 @@ if BEATS:
     autos = [e for e in P.get("emph", []) if e.get("auto")]
     if autos: add("C10", "info", f"{len(autos)} akcentów bez momentu (auto) — pomijane przez gramatykę montażu")
     for r in E.get("beat_fx", []):
-        if r.get("gfx") in ("kw", "list", "chap", "slide", "cta") and r["fx"] not in ("off", "cut") and \
+        if r.get("gfx") in ("kw", "list", "chap", "slide", "cta", "define", "note") and r["fx"] not in ("off", "cut") and \
                 not any(o["at"] - 4 <= r["at"] <= o["at"] + o["dur"] + 1 for o in ov):
             add("C10", "info", f"moment {r['type']} @{r['at']:.1f}s „{W[r['word']]['text'].strip()}”: sugerowana grafika {r['gfx']}", at=r["at"], word=r["word"])
 # C11 stock b-roll (plan has "broll"): clips build_edl.py could not place (cut word, under a graphic, missing file)

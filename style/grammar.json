@@ -1,6 +1,6 @@
 {
  "version": 1,
- "_doc": "Editing grammar: which moment in the spoken text gets which effect. Single source of truth (beats.py detects moments, build_edl.py + beatfx.py apply effects, music/make_beds.py places beat SFX, critic.py checks). Edit freely; cues are Python regexes, case-insensitive, matched per sentence. Evidence and thresholds (SRC/HEUR/PROP): RESEARCH.md. sfx: null | pop | whoosh | ding (played at the beat; a punch without sfx is silent).",
+ "_doc": "Editing grammar: which moment in the spoken text gets which effect. Single source of truth (beats.py detects moments, build_edl.py + beatfx.py apply effects, music/make_beds.py places beat SFX, critic.py checks). Edit freely; cues are Python regexes, case-insensitive, matched per sentence. Evidence and thresholds (SRC/HEUR/PROP): RESEARCH.md. sfx: null | pop | whoosh | ding (played at the beat; a punch without sfx is silent). A beat with \"opt_in\": true is detected only in a plan that lists it in \"beat_opt_in\" (define, note: research ledger plan2:L12, plan2:L21); other plans see the grammar as before.",
  "detect": {
   "_doc": "beats.py detection: up to per_sentence moments per sentence, at least min_dist words apart (one per phrase); a run of max_sentence words without . ? ! is split at the next comma; the hook (first sentence) lands on the first content word between hook_earliest and hook_latest s (shorts: visual change inside 1.5 s, RESEARCH); auto graphics keep gfx_min_gap s from other graphics; number cards drop filler words before the caption and mark approximations (około 60 -> ~60)",
   "min_dist": 6,
@@ -175,6 +175,26 @@
    "cues": [
     "\\b(sami wiecie|no wiesz|wiecie|wyobra[zź]\\w*|każdy z nas|na pewno (znasz|znacie))\\b"
    ]
+  },
+  "define": {
+   "label": "Definicja",
+   "priority": 52,
+   "tier": "secondary",
+   "opt_in": true,
+   "intent": "a term is explained; the viewer needs the word and its meaning on screen",
+   "cues": [
+    "\\b(czyli|to znaczy|chodzi o)\\b"
+   ]
+  },
+  "note": {
+   "label": "Dopisek",
+   "priority": 86,
+   "tier": "secondary",
+   "opt_in": true,
+   "intent": "a caveat or a pointer to a resource (link in the description, a comment, another film)",
+   "cues": [
+    "\\b(link (znajdziesz |jest |macie |dam |wrzucę )?(w opisie|w komentarzu|pod filmem)|w opisie (filmu|pod filmem)|zastrze[gż]\\w*)\\b"
+   ]
   }
  },
  "effects": {
@@ -295,6 +315,18 @@
     "gfx": null,
     "why": "rhythm only: long stretch with no moment; consider cutting it",
     "sfx": null
+   },
+   "define": {
+    "punch": null,
+    "gfx": "define",
+    "sfx": null,
+    "why": "term + definition on a lower third (lower with define: true), >= max(reading, 6 s); the card is the effect, no punch (plan2:L12)"
+   },
+   "note": {
+    "punch": null,
+    "gfx": "note",
+    "sfx": null,
+    "why": "<= 3 lines / 14 words in the bottom corner away from the face circle, >= max(reading, 4 s), at most 1 per 5 min, silent (plan2:L21)"
    }
   },
   "short": {
@@ -435,6 +467,20 @@
     "broll": null,
     "why": "rhythm only: no moment for too long; consider cutting",
     "sfx": null
+   },
+   "define": {
+    "punch": null,
+    "gfx": null,
+    "broll": null,
+    "sfx": null,
+    "why": "Long only: a definition needs 6 s; a short keeps face and captions"
+   },
+   "note": {
+    "punch": null,
+    "gfx": null,
+    "broll": null,
+    "sfx": null,
+    "why": "Long only: in a short the pointer goes to the caption / pinned comment"
    }
   }
  },

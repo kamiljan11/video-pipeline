@@ -16,9 +16,22 @@ def beside(spec: dict) -> bool:
     return spec.get("canvas") != "v" and (spec.get("type") == "sticker" or (spec.get("type") == "scene" and spec.get("layout") == "side"))
 
 
+def is_part_tag(spec: dict) -> bool:
+    """a chapter entrance drawn as a small tag in the top-left corner (gfx/cards_lib.mjs, ledger plan2:L9): the speaker stays
+    full frame, so it is not a separate screen (still a "chap" for the chapter checks)"""
+    return spec.get("type") == "chap" and spec.get("chap_style") == "part_tag"
+
+
 def is_full(spec: dict) -> bool:
-    """a separate screen: a FULL type, except a 16:9 scene with layout "side" (drawn beside the speaker, he stays full frame)"""
-    return spec.get("type") in FULL and not beside(spec)
+    """a separate screen: a FULL type, except a 16:9 scene with layout "side" (drawn beside the speaker, he stays full frame)
+    and a "chap" with chap_style "part_tag" (a corner tag)"""
+    return spec.get("type") in FULL and not beside(spec) and not is_part_tag(spec)
+
+
+# timing build_edl.py holds the plan2 cards to (gfx/cards_lib.mjs checks their text): a "note" (L21) stays
+# max(reading time, min_dur) s and comes at most once per `every` s, a "define" lower third (L12) stays max(reading, 6) s
+NOTE = {"min_dur": 4.0, "every": 300.0}
+DEFINE = {"min_dur": 6.0}
 
 
 def has_pip(spec: dict) -> bool:

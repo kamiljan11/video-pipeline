@@ -101,7 +101,18 @@ def hook_anchor(idx, W, earliest=0.5, latest=1.5):
     return next((i for i in idx if W[i][0] - t_first >= earliest), idx[-1])
 
 
+def enabled(grammar, plan):
+    """the grammar as this plan detects it: a beat with "opt_in": true (define, note: ledger plan2:L12, plan2:L21) only
+    when plan["beat_opt_in"] lists it, so a plan without the key finds the same moments as before"""
+    want = plan.get("beat_opt_in", [])
+    opt = {k for k, b in grammar["beats"].items() if b.get("opt_in")}
+    if not (isinstance(want, list) and all(isinstance(x, str) and x in opt for x in want)):
+        raise ValueError(f"beat_opt_in: a list of opt-in beats from the grammar {sorted(opt)}, got {want!r}")
+    return {**grammar, "beats": {k: b for k, b in grammar["beats"].items() if not b.get("opt_in") or k in want}}
+
+
 def detect(plan, W, grammar):
+    grammar = enabled(grammar, plan)
     beats, d = [], grammar["detect"]
     for n, idx in enumerate(sentences(plan, W, d["max_sentence"])):
         text = " ".join(W[i][2].strip() for i in idx)
@@ -264,8 +275,8 @@ def main(argv):
     grammar = load_grammar(gpath)
     W = load_words(plan, os.path.dirname(os.path.abspath(plan_p)))
     beats = detect(plan, W, grammar)
-    if "--llm" in argv:
-        print("llm: oznaczone", llm_refine(beats, W, grammar))
+    if "--llm" in argv:  # the model is offered only the moment types this plan detects
+        print("llm: oznaczone", llm_refine(beats, W, enabled(grammar, plan)))
     beats = [{k: v for k, v in b.items() if not k.startswith("_")} for b in beats if b["type"]]
     beats = merge(plan.get("beats", []), beats)
     fmt = "short" if plan.get("vertical") else "long"
