@@ -10,6 +10,7 @@ import fs from 'fs'; import https from 'https'; import path from 'path'; import 
 import { pathToFileURL } from 'url'; import { promisify } from 'util';
 import { viewOf, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, blockedIp, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';
 import { guardedLookup, startGuardProxy, chromeArgs, chromeProxy } from './netguard.mjs';
+import { isMain } from './cli.mjs';
 
 // poppler/ffmpeg on a hostile or huge file must not hang the render: 120 s each, and killed with the card when it runs
 // out of time (async, so the card's timer can fire while a tool works). SIGKILL by hand: execFile's own `signal` sends
@@ -202,7 +203,7 @@ export async function capture(specFile, outDir, opts = {}) {
   return failed;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (isMain(import.meta.url)) {
   const [specFile, outDir] = process.argv.slice(2);
   process.exit(await capture(specFile, outDir) ? 1 : 0);  // exit also ends work abandoned by a timeout
 }

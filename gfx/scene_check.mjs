@@ -9,6 +9,7 @@ import fs from 'fs'; import path from 'path';
 import { resolveExtends, scene } from './scene_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
+import { isMain } from './cli.mjs';
 
 // pieces meant to sit on others: a stamp lands on a card, a check or ring marks it, a cursor points at it, a line joins them
 export const OVERLAY_KINDS = new Set(['stamp', 'check', 'ring', 'cursor', 'line']);
@@ -87,4 +88,4 @@ async function main() {
   process.exit(bad.length || motion.length ? 1 : 0);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) await main();
+if (isMain(import.meta.url)) await main();

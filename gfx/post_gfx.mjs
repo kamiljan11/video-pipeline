@@ -12,6 +12,7 @@ import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
 import { esc } from './html_lib.mjs';
 import { readTheme } from './theme_lib.mjs';
+import { isMain } from './cli.mjs';
 
 const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -179,4 +180,4 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) await main();
+if (isMain(import.meta.url)) await main();

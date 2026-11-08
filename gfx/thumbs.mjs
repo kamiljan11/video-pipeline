@@ -18,6 +18,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
 import { esc, icon } from './html_lib.mjs';
+import { isMain } from './cli.mjs';
 
 const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -29,8 +30,15 @@ const SMALL = 320, MIN_PX = 12, CORNER = 0.12, SAFE_TOP = 220, SAFE_BOTTOM = 420
 // arrow at one target helps (a:4: loops of 4 arrows were in the bottom group)
 const OBJ_H = 0.40, OBJ_W = 0.45, OBJ_MAX = 2, PANEL_MIN = 3, PANEL_MAX = 5, LABEL_WORDS = 3;
 const TEXT_W_OBJ = 500, PANEL_TOP = 340, PANEL_H = 250;
+// "big" starts at its size by length and shrinks to its column, in BIG_STEP px, down to BIG_FLOOR (25 px on a 320 px feed, MIN_PX is 12);
+// wider than that still stops with "shorten it" (2026-11-08: "„Gotowe”?" with an icon was 445 px too wide at 190 px)
+const BIG_FLOOR = 100, BIG_STEP = 4;
 // boxes that hold no words (no font-size floor) and the solid ones words must not cover
 const NOT_TEXT = new Set(['ic', 'obj', 'panel', 'arrow']), SOLID = new Set(['obj', 'panel']), WORDS = new Set(['big', 'sub', 'tag', 'ic']);
+// Polish typesetting: no one-letter word (a, i, o, u, w, z) at a line end and no short last word (<= 3 letters) alone on the
+// last line (2026-11-08: "KAŻDĄ ZMIANĘ OD / AI", "1 zdanie do / AI"); a no-break space keeps it with its neighbour
+export const keepTogether = (t) => String(t ?? '').replace(/(^|\s)([aiouwzAIOUWZ])\s+/g, '$1$2\u00a0').replace(/\s+(\S{1,3})$/u, '\u00a0$1');
+const words = (t) => esc(keepTogether(t));
 const list = (o) => (o === undefined ? [] : Array.isArray(o) ? o : [o]);
 const isObj = (o) => o !== null && typeof o === 'object' && !Array.isArray(o);
 
@@ -162,8 +170,8 @@ html,body{width:1280px;height:720px}
 .pn{width:90px;height:90px;border-radius:50%;background:var(--acc);color:var(--ink);font-weight:900;font-size:56px;display:flex;align-items:center;justify-content:center}
 .pbar{flex:1;width:60%;display:flex;align-items:flex-end}.pv{width:100%;background:var(--acc);border-radius:10px 10px 0 0}
 .pl{max-width:100%;overflow:hidden;white-space:nowrap;font-weight:900;font-size:50px;color:#fff;line-height:1.1}</style>
-<div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${esc(v.big)}</div>
-${v.sub ? `<div class="sub">${esc(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${esc(v.tag)}</div>` : ''}</div>
+<div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${words(v.big)}</div>
+${v.sub ? `<div class="sub">${words(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${words(v.tag)}</div>` : ''}</div>
 ${obj.length ? `<div class="objs">${obj.map(one).join('')}</div>` : ''}${p ? `<div class="panel">${items.map(item).join('')}</div>` : ''}${v.arrow ? arrowHtml(`.obj:nth-child(${(v.arrow.i ?? 0) + 1})`, 'text') : ''}`;
 };
 
@@ -178,8 +186,8 @@ html,body{width:1280px;height:720px}
 .txt{position:absolute;${left ? 'left' : 'right'}:60px;top:${v.icon ? 70 : 110}px;width:640px;text-align:${left ? 'left' : 'right'}}
 .big{font-size:${v.big.length > 9 ? 150 : v.big.length > 5 ? 190 : 240}px}.sub{font-size:60px;margin-top:22px}.tag{font-size:48px;margin-top:26px}
 .ic{width:150px;height:150px;margin-bottom:26px}</style>
-<div class="bg"></div><div class="sh"></div><div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${esc(v.big)}</div>
-${v.sub ? `<div class="sub">${esc(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${esc(v.tag)}</div>` : ''}</div>${v.arrow ? arrowHtml('.ic', left ? 768 : 512) : ''}`;
+<div class="bg"></div><div class="sh"></div><div class="txt">${v.icon ? `<div class="ic">${icon(v.icon)}</div>` : ''}<div class="big">${words(v.big)}</div>
+${v.sub ? `<div class="sub">${words(v.sub)}</div>` : ''}${v.tag ? `<div class="tag">${words(v.tag)}</div>` : ''}</div>${v.arrow ? arrowHtml('.ic', left ? 768 : 512) : ''}`;
 };
 
 // short cover: the words above the head. The Shorts shelf crops covers to about 2:3 (~150 px lost at the top and the bottom,
@@ -189,7 +197,7 @@ html,body{width:1080px;height:1920px}
 .bg{background-image:url(${pathToFileURL(path.resolve(base, v.frame)).href});background-size:1080px 1920px;background-position:0 ${v.dy ?? 200}px}
 .sh{position:absolute;left:0;right:0;top:0;height:900px;background:linear-gradient(rgba(var(--panel-rgb),1) 0%,rgba(var(--panel-rgb),1) 40%,rgba(var(--panel-rgb),.6) 70%,rgba(var(--panel-rgb),0))}
 .txt{position:absolute;left:60px;right:60px;top:${SAFE_TOP}px;text-align:center}.big{font-size:${v.big.length > 6 ? 140 : 190}px}.sub{font-size:62px;margin-top:22px}</style>
-<div class="bg"></div><div class="sh"></div><div class="txt"><div class="big">${esc(v.big)}</div>${v.sub ? `<div class="sub">${esc(v.sub)}</div>` : ''}</div>`;
+<div class="bg"></div><div class="sh"></div><div class="txt"><div class="big">${words(v.big)}</div>${v.sub ? `<div class="sub">${words(v.sub)}</div>` : ''}</div>`;
 
 // words that do not fit their thumbnail, measured in the browser: a headline wider than its column is cut at the frame
 // edge and a block that runs past the bottom loses its last line (film 2, long_A and long_B, 2026-11-04). m.boxes
@@ -240,6 +248,11 @@ async function main() {
       fs.writeFileSync(f, `<!doctype html><meta charset="utf-8">${html}`);
       await page.goto(pathToFileURL(f).href, { waitUntil: 'load' });
       await page.evaluate(() => document.fonts.ready);
+      await page.evaluate(([floor, step]) => {  // "big" to its column (see BIG_FLOOR), before the arrow aims and the measure
+        const e = document.querySelector('.big'); if (!e) return;
+        let px = parseFloat(getComputedStyle(e).fontSize);
+        while (e.scrollWidth > e.clientWidth + 1 && px - step >= floor) { px -= step; e.style.fontSize = `${px}px`; }
+      }, [BIG_FLOOR, BIG_STEP]);
       await page.evaluate(() => window.__arrow?.());  // TH8: aimed after the fonts, before the measure
       const m = await page.evaluate(() => {
         const els = [...['big', 'sub', 'tag'].map(k => [k, document.querySelector(`.${k}`)]).filter(([, e]) => e),
@@ -277,4 +290,4 @@ async function main() {
   console.log(`thumbs ok: ${t.long.length} long variants, ${(t.shorts ?? []).length} covers -> ${out}`);
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname) await main();
+if (isMain(import.meta.url)) await main();

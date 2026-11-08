@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs'; import os from 'os'; import path from 'path';
-import { checkThumbs, fitProblems, longHtml, shortHtml } from '../thumbs.mjs';
+import { checkThumbs, fitProblems, keepTogether, longHtml, shortHtml } from '../thumbs.mjs';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-test-'));
 fs.writeFileSync(path.join(dir, 'f.png'), '');
@@ -65,7 +65,8 @@ test('a run that stops on variant B leaves out as it was: no new A next to an ol
 // of the HTML at 3338af5; an edit of style/themes/cetus.json or of the default layout changes them on purpose)
 test('default output unchanged: the HTML of a plain long, a long with icon/fx and a cover is the same as before TH6/TH8', async () => {
   const { createHash } = await import('crypto'); const { pathToFileURL } = await import('url');
-  const d = '/tmp/x-golden', norm = (h) => h.split(pathToFileURL(d).href).join('DIR');
+  // no-break spaces of keepTogether (2026-11-08) read as spaces: the layout itself is what must not change
+  const d = '/tmp/x-golden', norm = (h) => h.split(pathToFileURL(d).href).join('DIR').replaceAll('\u00a0', ' ');
   const sha = (h) => createHash('sha256').update(norm(h)).digest('hex');
   assert.equal(sha(longHtml(v('A'), d, 'cetus')), '9bc2f31257b87e3560bb2595c738a7a775b038d29e921f29d19edaf645b416fe');
   assert.equal(sha(longHtml(v('B', { side: 'right', icon: 'construction', tag: 'x', fx: -300, fy: -100, fw: 1800 }), d, 'cetus')),
@@ -160,4 +161,27 @@ test('TH6/TH8 render: lift + arrow to the icon, an image object with an arrow, a
   const r2 = spawnSync('node', [cli, path.join(w, 't.json'), out], { encoding: 'utf8' });
   assert.notEqual(r2.status, 0); assert.match(r2.stderr, /"panel item 1" is \d+ px wider than its column/);
   fs.rmSync(w, { recursive: true, force: true });
+});
+
+test('a long "big" shrinks to its column down to the floor; past the floor it still stops', { skip: !fs.existsSync('/usr/bin/google-chrome') }, async () => {
+  const { execFileSync, spawnSync } = await import('child_process');
+  const w = fs.mkdtempSync(path.join(os.tmpdir(), 'thumbs-fit-')), out = path.join(w, 'out');
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=gray:s=640x360', '-frames:v', '1', path.join(w, 'f.png')]);
+  const cli = new URL('../thumbs.mjs', import.meta.url).pathname;
+  fs.writeFileSync(path.join(w, 't.json'), JSON.stringify({ long: [v('A', { big: '„Gotowe”?', sub: 'a nic nie działa', icon: 'badge-x' }), v('B')] }));
+  const r = spawnSync('node', [cli, path.join(w, 't.json'), out], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);  // 2026-11-08: 445 px too wide at the size by length
+  fs.writeFileSync(path.join(w, 't.json'), JSON.stringify({ long: [v('A', { big: 'Niezrozumiałe' }), v('B')] }));
+  const r2 = spawnSync('node', [cli, path.join(w, 't.json'), out], { encoding: 'utf8' });
+  assert.notEqual(r2.status, 0); assert.match(r2.stderr, /"big" is \d+ px wider than its column/);
+  fs.rmSync(w, { recursive: true, force: true });
+});
+
+test('no orphan: a one-letter word or a short last word stays with its neighbour (no-break space)', () => {
+  assert.equal(keepTogether('każdą zmianę od AI'), 'każdą zmianę od\u00a0AI');
+  assert.equal(keepTogether('1 zdanie do AI'), '1 zdanie do\u00a0AI');
+  assert.equal(keepTogether('AI mówi „gotowe”, a nic nie działa'), 'AI mówi „gotowe”, a\u00a0nic nie działa');
+  assert.equal(keepTogether('w szybę'), 'w\u00a0szybę');
+  assert.equal(keepTogether('Kto sprawdza?'), 'Kto sprawdza?');  // a long last word: nothing to keep
+  assert.equal(keepTogether(undefined), '');
 });
