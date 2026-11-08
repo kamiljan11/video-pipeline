@@ -16,6 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_article  # an article folder that passes article_check
 import test_ig_check  # an Instagram carousel that passes ig_check
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 ROOT = Path(__file__).resolve().parent.parent
 FACE_MODEL = ROOT / "models" / "face_detection_yunet_2023mar.onnx"
 BRAND = json.loads((ROOT / "style" / "brand.json").read_text())["lower_sub"]
@@ -104,6 +106,12 @@ class FilmCheckTest(unittest.TestCase):
         (self.d / "specs.json").write_text(json.dumps(specs))
         (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_long.json", "gfx_specs": "specs.json", **plan}))
         self.accept_stills([o["id"] for o in overlays])
+        self.review_meaning(specs)
+
+    def review_meaning(self, specs):  # every card read for meaning (content_review.py, film_check long/short.meaning)
+        import film_check
+        (self.d / "content_review_long.json").write_text(json.dumps(
+            {s["id"]: {"verdict": "ok", "why": "adds the step the viewer needs", "hash": film_check.card_text_hash(s)} for s in specs}))
 
     def accept_stills(self, ids):  # Kamil accepted a still of every card (stills.py accept, film_check long/short.stills)
         sd = self.d / "gfx" / "stills"; sd.mkdir(parents=True, exist_ok=True)
@@ -124,7 +132,7 @@ class FilmCheckTest(unittest.TestCase):
         for k in range(6):  # an animated explanation every 100 s
             ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 12}); specs.append({"id": f"s{k}", "type": "scene"})
         for k, at in enumerate(range(20, 600, 6)):  # cards beside him cover most of the film: face_full <= 0.35
-            ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw"})
+            ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw", "title": f"{k + 2} kroki"})
         for k, at in enumerate((2, 5)):
             ovs.append({"id": f"b{k}", "at": at, "dur": 2.5}); specs.append({"id": f"b{k}", "type": "float", "behind": {"edl": "edl_long.json"}})
         for k, at in enumerate((150, 350, 550)):
@@ -152,6 +160,52 @@ class FilmCheckTest(unittest.TestCase):
                      music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
         r, rep = self.run_check("long")
         self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
+
+    def test_a_one_word_card_that_says_nothing_fails(self):  # Kamil 2026-11-08 on "Najwięcej"
+        import film_check
+        ovs, specs, segs = self.full_long()
+        ovs.append({"id": "nw", "at": 23, "dur": 3}); specs.append({"id": "nw", "type": "kw", "title": "Najwięcej", "icon": "sparkles"})
+        self.project(ovs, specs, segs)
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.filler"]["status"], "FAIL")
+        self.assertIn('nw "Najwięcej"', rep["long.filler"]["detail"])
+        for title, sub in (("GitHub", ""), ("kamiljan.com", ""), ("92%", ""), ("Najwięcej", "z jednego promptu"), ("Dwa słowa", "")):
+            self.assertFalse(film_check.says_nothing(title, sub), title)
+        self.assertTrue(film_check.says_nothing("", ""))
+
+    def test_every_card_is_read_for_meaning_before_the_render(self):
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segs)
+        f = self.d / "content_review_long.json"
+        rev = json.loads(f.read_text())
+        rev.pop("k0"); rev["k1"]["hash"] = "old"; rev["k2"]["verdict"] = "cut"; rev["k3"]["why"] = "ok"
+        f.write_text(json.dumps(rev))
+        _, rep = self.run_check("long")
+        d = rep["long.meaning"]["detail"]
+        self.assertEqual(rep["long.meaning"]["status"], "FAIL")
+        for want in ("k0 not reviewed", "k1 changed after the review", "k2 judged 'cut'", "k3 ok without a reason"):
+            self.assertIn(want, d)
+        f.unlink()
+        _, rep = self.run_check("long")
+        self.assertIn("no content_review_long.json", rep["long.meaning"]["detail"])
+
+    def test_content_review_lists_new_and_changed_cards_and_keeps_the_rest(self):
+        import content_review
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segs)
+        specs[0] = {**specs[0], "title": "Nowy tytuł"}  # c0 changed after its review
+        ovs.append({"id": "nw", "at": 23, "dur": 3}); specs.append({"id": "nw", "type": "kw", "title": "Najwięcej"})
+        (self.d / "specs.json").write_text(json.dumps(specs))
+        edl = json.loads((self.d / "edl_long.json").read_text()); edl["overlays"] = ovs
+        (self.d / "edl_long.json").write_text(json.dumps(edl))
+        self.assertEqual(content_review.main([str(self.d), "long"]), 0)
+        rev = json.loads((self.d / "content_review_long.json").read_text())
+        self.assertEqual(rev["nw"]["verdict"], "todo")
+        self.assertEqual(rev["c0"]["verdict"], "todo")
+        self.assertEqual(rev["k5"]["verdict"], "ok")
+        md = (self.d / "content_review_long.md").read_text()
+        self.assertIn("### nw (kw, 0:23.0, 3.0 s) **FILLER?**", md)
+        self.assertIn("- said: w23", md)
 
     def test_face_windows_must_be_cut_around_the_head(self):  # Kamil 5.11: PiP "scentruj", corner "nie ultra zoomed twarz"
         ovs, specs, segs = self.full_long()

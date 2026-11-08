@@ -32,7 +32,7 @@ class RunV4GateTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
-                    "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py"):
+                    "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "words_check.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -153,6 +153,15 @@ class RunV4GateTest(unittest.TestCase):
         self.assertEqual(calls[calls.index("av_check.py") + 1], "sync_check.py")
         self.assertIn("FAILED sync_check x", render)
         self.assertFalse((self.out / "film.mp4").exists())
+
+    def test_lost_words_keep_the_film_out_of_out(self):  # words_check cut + sound after sync_check
+        render, calls = self.run_v4(rc=1, FAIL_words_check="1")
+        self.assertEqual(calls[calls.index("sync_check.py") + 1], "words_check.py")
+        self.assertIn("FAILED words_check cut x", render)
+        self.assertFalse((self.out / "film.mp4").exists())
+        render, calls = self.run_v4(rc=0, WORDS_CHECK="off")
+        self.assertIn("WORDS_CHECK=off: words_check skipped for x", render)
+        self.assertIn("DONE x", render)
 
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")

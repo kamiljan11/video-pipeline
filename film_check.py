@@ -55,6 +55,37 @@ def load(p: Path, what: str):
         bad_input(f"{what} is not JSON ({p}): {e}")
 
 
+TEXT_CARDS = ("kw", "lower", "maxim", "cta")  # words only: a sticker or meme carries a picture (judged in content_review)
+TEXT_SKIP_KEYS = {"id", "type", "file", "icon", "bg", "tone", "anim", "k", "src", "url", "photo", "layout", "who", "mark", "head", "font"}
+
+
+def says_nothing(title: str, sub: str) -> bool:
+    """one word (or none), no sub line, no digit, not a name: "Najwiecej" yes; "GitHub", "kamiljan.com", "92%" no"""
+    words = re.findall(r"\w+", title)
+    if len(words) > 1 or sub.strip() or re.search(r"\d", title): return False
+    is_name = bool(words) and (any(c.isupper() for c in words[0][1:]) or "." in title)  # GitHub, iPhone, kamiljan.com
+    return not is_name
+
+
+def card_texts(spec: dict) -> list[str]:
+    """every word a card shows: strings anywhere in its spec, not file names, icons, colours or timing"""
+    out: list[str] = []
+    def walk(v, key=""):
+        if isinstance(v, str) and key not in TEXT_SKIP_KEYS: out.append(v)
+        elif isinstance(v, dict):
+            for k, x in sorted(v.items()): walk(x, k)
+        elif isinstance(v, list):
+            for x in v: walk(x, key)
+    walk(spec)
+    return out
+
+
+def card_text_hash(spec: dict) -> str:
+    """the key of content_review_<film>.json: a card whose words change must be read again"""
+    import hashlib
+    return hashlib.sha256("\n".join(card_texts(spec)).encode()).hexdigest()[:16]
+
+
 def word_times(words_file: Path) -> list[float]:
     d = load(words_file, "words")
     return [w["offsets"]["from"] / 1000 for w in d["transcription"]]
@@ -312,6 +343,37 @@ class Film:
     def music_moods(self): return len(self.plan.get("music_moods") or [])
     def sfx_style_v2(self): return self.plan.get("sfx_style") == "v2"
     def has_end_card(self): return any(self.typ(o) == "end" for o in self.ovs)
+
+    def filler_cards(self):
+        """text cards that say nothing: one word, no sub line, no number, no name (Kamil 2026-11-08 on the card
+        "Najwiecej": "bez sensu pisac takie cos w takim okienku ... nic to nie wnosi")"""
+        bad = []
+        for o in self.ovs:
+            sp = self.specs.get(o["id"], {})
+            if sp.get("type") not in TEXT_CARDS: continue
+            title = str(sp.get("title") or sp.get("text") or "").strip()
+            if says_nothing(title, str(sp.get("sub") or "")): bad.append(f"{o['id']} \"{title}\"")
+        return not bad, ", ".join(bad) or f"{sum(self.specs.get(o['id'], {}).get('type') in TEXT_CARDS for o in self.ovs)} text cards"
+
+    def meaning_reviewed(self):
+        """every card's words were read for meaning before the render: work/content_review_<film>.json
+        {id: {"verdict": "ok", "why": "what it adds for a viewer who has not seen the film", "hash": <card_text_hash>}}.
+        A card changed after the review (hash), missing, judged "cut" but still in the plan, or "ok" without a reason = FAIL.
+        Why: Kamil 2026-11-08: "znajdz sobie wiecej takich bez sensownych nic nie wnoszacych rzeczy", the blog cover
+        "18% LECI NA SLEPO" had no meaning without the film"""
+        f = self.work / f"content_review_{self.name}.json"
+        ids = sorted({o["id"] for o in self.ovs if o.get("id") in self.specs})
+        if not ids: return True, "no cards"
+        if not f.exists(): return False, f"no {f.name}: read every card for meaning (python3 content_review.py {self.work} {self.name})"
+        rev = load(f, f.name)
+        bad = []
+        for i in ids:
+            r = rev.get(i) if isinstance(rev, dict) else None
+            if not isinstance(r, dict): bad.append(f"{i} not reviewed")
+            elif r.get("hash") != card_text_hash(self.specs[i]): bad.append(f"{i} changed after the review")
+            elif r.get("verdict") != "ok": bad.append(f"{i} judged {r.get('verdict')!r}: {r.get('why', '')[:60]}")
+            elif len(str(r.get("why", "")).strip()) < SKIP_MIN: bad.append(f"{i} ok without a reason")
+        return not bad, (f"{len(bad)} of {len(ids)}: " + "; ".join(bad[:6])) if bad else f"{len(ids)} cards reviewed"
 
     def stills_accepted(self):
         """every card of the film has a still Kamil accepted (stills.py, ADR-0018): without this item a film that never made

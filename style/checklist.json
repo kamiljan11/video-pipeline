@@ -1,110 +1,439 @@
 {
-  "_doc": "What every film must have before it is rendered (film_check.py <work> <films...>) and what the out folder must hold after (film_check.py <work> --out <out>). Each item: id, fmt (long | short | out), metric (a function in film_check.py), op (>= | <= | == | true), value, level (optional \"warn\": a miss prints WARN and does not fail), why (Kamil's words or a measured reference). A plan may skip an item only with a reason: \"skip\": {\"<id>\": \"why not in this film\"}. Thresholds are data: change them here, not in code. Reference numbers: render/ref/research/teardowns.md (Jeff Su, Ali Abdaal, Kuba Klawiter, Fireship, 2026-11-04).",
-  "items": [
-    {"id": "long.story", "fmt": "long", "metric": "story_parts", "op": ">=", "value": 3,
-     "why": "Producer role: story.json names the parts of the film and the word where each starts (Kamil 4.11: chapters entered where the part begins)"},
-    {"id": "long.chapters", "fmt": "long", "metric": "parts_with_chap_at_start", "op": "==", "value": "all",
-     "why": "Kamil 4.11: 'nie podzieliłeś na chaptery treści z wejściem na ekranie', 'pomysł 3 ma wejście a reszta nie'; a chap card within 3 s of each part start"},
-    {"id": "long.explainers", "fmt": "long", "metric": "parts_with_explainer", "op": "==", "value": "all",
-     "why": "Kamil 4.11: 'najbardziej mi zależy na graficznym animowanym pokazywaniu moich pomysłów'; each part has a scene, float, slide or web card"},
-    {"id": "long.explainer_count", "fmt": "long", "metric": "explainers_per_min", "op": ">=", "value": 0.5,
-     "why": "One animated explanation every 2 minutes at least (AI LABS reference: a new picture every few seconds)"},
-    {"id": "long.graphics", "fmt": "long", "metric": "graphics_per_min", "op": ">=", "value": 4,
-     "why": "Film 1: 3.8/min, film 2: 1.5/min ('w ciul pominąłeś'); references 12-16/min"},
-    {"id": "long.max_gap", "fmt": "long", "metric": "max_visual_gap", "op": "<=", "value": 20,
-     "why": "Seconds without a card, punch-in or b-roll; film 2 had 166 s"},
-    {"id": "long.opening", "fmt": "long", "metric": "events_first_60s", "op": ">=", "value": 10,
-     "why": "Kamil 4.11: 'na początku filmu jest zbyt mało bajerów'; references: about 14 cuts and many overlays in the first minute; Negacz 11-12 changes in the first 60 s in 8 of 8 films (style/REF-long-negacz.md L8): 8 -> 10"},
-    {"id": "long.head_track", "fmt": "long", "metric": "face_windows_head_tracked", "op": "true",
-     "why": "Kamil 5.11: the PiP window looked like the full screen pasted in; plan \"head_track\": true cuts it from the recording around the head"},
-    {"id": "long.gfx_lead", "fmt": "long", "metric": "gfx_lead_early", "op": "true",
-     "why": "Skool CCC A19 (motion): a graphic enters ~0.12 s before its word so it is up when the word lands; plan \"gfx_lead\": -0.12"},
-    {"id": "long.punch", "fmt": "long", "metric": "punches_per_min", "op": ">=", "value": 2,
-     "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute"},
-    {"id": "long.behind", "fmt": "long", "metric": "behind_cards", "op": ">=", "value": 2,
-     "why": "Kamil 4.11: 'nie ma napisów za plecami' (behind.py, ADR-0005)"},
-    {"id": "long.behind_readable", "fmt": "long", "phase": "behind", "metric": "behind_cover_max", "op": "<=", "value": 0.15,
-     "why": "Kamil 5.11: 'WYZNANIE' behind the head could not be read; the speaker may hide at most 15 % of a card behind him"},
-    {"id": "long.screen_switches", "fmt": "long", "metric": "screen_switches_per_min", "op": "<=", "value": 1.5,
-     "why": "Kamil 5.11: 'zbyt często przenosimy się na osobny ekran i to rozprasza' (v2: 3.2 a minute); Negacz 1.32 a minute, IQR 1.25-1.44, 346 blocks in 8 films (style/REF-long-negacz.md L1)"},
-    {"id": "long.screen_block", "fmt": "long", "metric": "screen_block_median", "op": ">=", "value": 10,
-     "why": "A separate screen stays long enough to be worth the jump: Negacz block 16 s median (IQR 7-37, n 346, style/REF-long-negacz.md L1); merge neighbouring scenes into one block"},
-    {"id": "long.speaker_back", "fmt": "long", "metric": "full_screen_min_gap", "op": ">=", "value": 3,
-     "why": "Between two separate screens the speaker is back for 3 s at least (Negacz return 7 s median, 3 s p25, n 349); v2 had 0.1 s flashes of the face"},
-    {"id": "long.screen_share", "fmt": "long", "metric": "full_screen_share", "op": "<=", "value": 0.5,
-     "why": "Kamil 5.11: 'nie wszystko pokazywać na ekranie takim, że jestem w prawym dolnym rogu… zagospodarować przestrzeń dookoła mnie' (v2 68 %). Negacz has 65 %, Kamil's rule wins: the rest goes beside him (sticker, float, kw)"},
-    {"id": "long.face_full", "fmt": "long", "metric": "face_full", "op": "<=", "value": 0.35, "level": "warn",
-     "why": "Share of the long with the bare face: no card, float, sticker, scene, lower third or b-roll from the EDL. Value from the course author study (Skool CCC, n=1: 18-26 % of a lesson); to be revised after the wider creator study (creator-study/PLAN.md 1.1, 0.4). Reconciles screen_share <= 0.5: the missing >= 15 pp goes into cards beside him (float, kw, sticker), not into full screens. Level warn: n=1, advice until the wider study confirms it (review 2026-11-07)"},
-    {"id": "long.reading", "fmt": "long", "metric": "cards_shorter_than_reading", "op": "==", "value": 0,
-     "why": "Kamil 5.11: 'czasami są one zbyt krótko i nie zdąży się przeczytać' (v2: 36 cards, the maps 1.4-3.2 s). Text: 1.2 s a word for the first 4 words, 0.35 s each after, 2.5 s min (Negacz 1.5 s a word, 3-word cards, n 92); a scene, web or slide 6 s min (Negacz drawn scenes 23 s median, n 101)"},
-    {"id": "long.counts", "fmt": "long", "metric": "counts_match", "op": "true",
-     "why": "Skool CCC A4/E9 (P1 task 4): 'trzy kroki' over six tiles, or a 7 on the card while he says 'sześć', tells the viewer one is wrong; checked from 3 s before to 4 s into the card (count_check.py)"},
-    {"id": "long.memes", "fmt": "long", "metric": "meme_cards", "op": ">=", "value": 3,
-     "why": "Kamil 4.11: 'miały być też memy, memów nie ma'; the meme card existed since 10-31 and no film used it (film 2 v2: 9 in the long)"},
-    {"id": "long.lower", "fmt": "long", "metric": "lower_matches_brand", "op": "true",
-     "why": "Kamil 4.11: title = Polish 'AI Automation & Implementation Engineer' (style/brand.json)"},
-    {"id": "long.music_palette", "fmt": "long", "metric": "music_palette_new", "op": "true",
-     "why": "Kamil 4.11: 'co filmik nowa muzyczka'; palette and key differ from the last film (render/music_ledger.json)"},
-    {"id": "long.music_moods", "fmt": "long", "metric": "music_moods", "op": ">=", "value": 3,
-     "why": "The music follows the parts (RESEARCH lessons 7: music_moods)"},
-    {"id": "long.sfx", "fmt": "long", "metric": "sfx_style_v2", "op": "true",
-     "why": "Sounds by motion type (RESEARCH lessons 6)"},
-    {"id": "long.stills", "fmt": "long", "metric": "stills_accepted", "op": "true",
-     "why": "Skool CCC A6/G5/Z4: every card seen as a still on its real frame with its sentence and accepted by Kamil before any render (stills.py, ADR-0018)"},
-    {"id": "long.end", "fmt": "long", "metric": "has_end_card", "op": "true",
-     "why": "End card with what to watch next"},
-    {"id": "short.hook", "fmt": "short", "metric": "hook_text", "op": "true",
-     "why": "ZASADY-KAMILA-SHORTY: the hook stands on screen from the first second"},
-    {"id": "short.stills", "fmt": "short", "metric": "stills_accepted", "op": "true",
-     "why": "Skool CCC A6/G5/Z4: every card seen as a still on its real frame with its sentence and accepted by Kamil before any render (stills.py, ADR-0018)"},
-    {"id": "short.hook_lint", "fmt": "short", "metric": "hook_lint", "op": "true",
-     "why": "Skool CCC C1/C2 'the 6 hook killers': no greeting, no list title, no filler start, no vague promise or hype, a stake (a number or a stake word), on screen from frame one, <= 12 words (hook_check.py, word lists in style/hook_lint.json)"},
-    {"id": "short.hook_early", "fmt": "short", "metric": "first_overlay_at", "op": "<=", "value": 1.0,
-     "why": "Film 2 s2: hook at 4.3 s; the first picture change within a second"},
-    {"id": "short.captions", "fmt": "short", "metric": "caption_pop", "op": "true",
-     "why": "Caption pop-in from the reference shorts (main #6), not used in film 2"},
-    {"id": "short.layouts", "fmt": "short", "metric": "layout_cards", "op": ">=", "value": 1,
-     "why": "Kamil 4.11: 'pod shorty zero nowych logik': split, corner, web or meme cards"},
-    {"id": "short.behind_readable", "fmt": "short", "phase": "behind", "metric": "behind_cover_max", "op": "<=", "value": 0.15,
-     "why": "Kamil 5.11: text or a drawing behind the head must stay readable (behind.py measures it)"},
-    {"id": "short.reading", "fmt": "short", "metric": "cards_shorter_than_reading", "op": "==", "value": 0, "args": {"scene_min": 3.0},
-     "why": "Kamil 5.11: elements gone before they can be read, in the shorts too; same text rule as the long, a short's scene 3 s min (its pace is faster)"},
-    {"id": "short.counts", "fmt": "short", "metric": "counts_match", "op": "true",
-     "why": "Skool CCC A4/E9 (P1 task 4): 'trzy kroki' over six tiles, or a 7 on the card while he says 'sześć', tells the viewer one is wrong; checked from 3 s before to 4 s into the card (count_check.py)"},
-    {"id": "short.gfx_lead", "fmt": "short", "metric": "gfx_lead_early", "op": "true",
-     "why": "Skool CCC A19 (motion): a graphic enters ~0.12 s before its word; plan \"gfx_lead\": -0.12"},
-    {"id": "short.head_track", "fmt": "short", "metric": "face_windows_head_tracked", "op": "true",
-     "why": "Kamil 5.11: the corner circle was an ultra close-up cut from the zoomed picture; plan \"head_track\": true cuts it from the recording around the head"},
-    {"id": "short.meme", "fmt": "short", "metric": "meme_cards", "op": ">=", "value": 1,
-     "why": "Kamil 4.11: 'miały być też memy'; a short whose scenes leave no face gap of 3 s skips it with that reason"},
-    {"id": "short.max_gap", "fmt": "short", "metric": "max_visual_gap", "op": "<=", "value": 8,
-     "why": "References change the picture every 2.5-5 s; film 2 shorts stood 21-30 s on the face"},
-    {"id": "short.punch", "fmt": "short", "metric": "punches_per_min", "op": ">=", "value": 3,
-     "why": "Zoom on the key words"},
-    {"id": "short.music_palette", "fmt": "short", "metric": "music_palette_set", "op": "true",
-     "why": "Own music, not the default bed"},
-    {"id": "short.speaker_back", "fmt": "short", "metric": "full_screen_min_gap", "op": ">=", "value": 0.75,
-     "why": "Top shorts bring the face back for 1.5 s [0.75; 3.5] between two full screens (style/REF-shorts-top.md T3, Kamil 2026-11-05: decide by the top retention creators); under 0.75 s it is a flicker, join the two cards"},
-    {"id": "short.end", "fmt": "short", "metric": "ends_on_the_last_word", "op": "true", "args": {"tail_max": 0.6},
-     "why": "Top shorts end 0.23 s after the last word with no end board (style/REF-shorts-top.md T8, 30/30): the viewer swipes away on a board, a clean end loops"},
-    {"id": "out.long", "fmt": "out", "metric": "out_long", "op": "true", "why": "The long film in out/"},
-    {"id": "out.shorts_all", "fmt": "out", "metric": "out_shorts_vs_clips", "op": "true",
-     "why": "Kamil 4.11: 'nie wiem czy nie jesteś leniwy z ilością shortów': every clip in clips.json with \"make\": true is rendered"},
-    {"id": "out.youtube", "fmt": "out", "metric": "out_youtube_meta", "op": "true",
-     "why": "Kamil 4.11: 'nie widzę plików z tytułami opisami per platforma': youtube/long.md with titles A/B/C, description, chapters from 0:00, tags; one file per short"},
-    {"id": "out.titles", "fmt": "out", "metric": "out_titles", "op": "true",
-     "why": "Skool CCC So3/So4/C5/C10: each A/B/C title <= 60 characters, a word of ## Fraza kluczowa in its first 3 words, a filled zrodlo column (the niche title it started from), and its promise heard in the long's first 30 s (title_check.py)"},
-    {"id": "out.hooks", "fmt": "out", "metric": "out_hooks", "op": "true",
-     "why": "Skool CCC B05/So2: every short that is made has >= 3 hook variants in clips.json \"hooks\", each clean of the 6 killers, \"hook\" one of them and \"hook_from\" a row of style/hook_bank.json (the proven hook it started from)"},
-    {"id": "out.thumbs", "fmt": "out", "metric": "out_thumbnails", "op": "true",
-     "why": "Kamil 4.11: 'miałeś mi zawsze robić a/b thumbnaile': at least 2 for the long, a cover per short"},
-    {"id": "out.thumbs_read", "fmt": "out", "metric": "out_thumbs_read", "op": "true",
-     "why": "Skool CCC So5/So6/C4/Z6: at 320 px (a phone feed) OCR reads >= 80% of each big, one long variant without a face, a thumbnail shares < 50% of its words with every title (thumb_check.py); thumbs.mjs itself refuses letters under 12 px at 320, words in the timestamp corner and cover text outside y 220-1500"},
-    {"id": "out.posts", "fmt": "out", "metric": "out_posts", "op": "true",
-     "why": "Kamil 4.11: posts ready to upload; 5.11: the graphic alone carries the message (post_check.py: OCR finds its words, WCAG contrast, 15-230 words) and the text completes it (60-130 words, <= 3 hashtags, last line a question for the comments: Kamil 2026-11-07)"},
-    {"id": "out.article", "fmt": "out", "metric": "out_article", "op": "true",
-     "why": "Kamil 2026-11-07: from the film also a detailed blog article on kamiljan.com that links the YouTube film and adds what the film does not say (article_check.py: the site's post tests + >= 1200 Polish words, sources, numbers said or sourced)"},
-    {"id": "out.instagram", "fmt": "out", "metric": "out_instagram", "op": "true",
-     "why": "Kamil 2026-11-07: Instagram graphic posts and carousels from the film, shorts as Reels (ig_check.py, creator study round 2 IG1/IG2/IG4/IG6: FAIL on platform limits and numbers the film never says, the rest WARN)"}
-  ]
+ "_doc": "What every film must have before it is rendered (film_check.py <work> <films...>) and what the out folder must hold after (film_check.py <work> --out <out>). Each item: id, fmt (long | short | out), metric (a function in film_check.py), op (>= | <= | == | true), value, level (optional \"warn\": a miss prints WARN and does not fail), why (Kamil's words or a measured reference). A plan may skip an item only with a reason: \"skip\": {\"<id>\": \"why not in this film\"}. Thresholds are data: change them here, not in code. Reference numbers: render/ref/research/teardowns.md (Jeff Su, Ali Abdaal, Kuba Klawiter, Fireship, 2026-11-04).",
+ "items": [
+  {
+   "id": "long.story",
+   "fmt": "long",
+   "metric": "story_parts",
+   "op": ">=",
+   "value": 3,
+   "why": "Producer role: story.json names the parts of the film and the word where each starts (Kamil 4.11: chapters entered where the part begins)"
+  },
+  {
+   "id": "long.chapters",
+   "fmt": "long",
+   "metric": "parts_with_chap_at_start",
+   "op": "==",
+   "value": "all",
+   "why": "Kamil 4.11: 'nie podzieliłeś na chaptery treści z wejściem na ekranie', 'pomysł 3 ma wejście a reszta nie'; a chap card within 3 s of each part start"
+  },
+  {
+   "id": "long.explainers",
+   "fmt": "long",
+   "metric": "parts_with_explainer",
+   "op": "==",
+   "value": "all",
+   "why": "Kamil 4.11: 'najbardziej mi zależy na graficznym animowanym pokazywaniu moich pomysłów'; each part has a scene, float, slide or web card"
+  },
+  {
+   "id": "long.explainer_count",
+   "fmt": "long",
+   "metric": "explainers_per_min",
+   "op": ">=",
+   "value": 0.5,
+   "why": "One animated explanation every 2 minutes at least (AI LABS reference: a new picture every few seconds)"
+  },
+  {
+   "id": "long.graphics",
+   "fmt": "long",
+   "metric": "graphics_per_min",
+   "op": ">=",
+   "value": 4,
+   "why": "Film 1: 3.8/min, film 2: 1.5/min ('w ciul pominąłeś'); references 12-16/min"
+  },
+  {
+   "id": "long.max_gap",
+   "fmt": "long",
+   "metric": "max_visual_gap",
+   "op": "<=",
+   "value": 20,
+   "why": "Seconds without a card, punch-in or b-roll; film 2 had 166 s"
+  },
+  {
+   "id": "long.opening",
+   "fmt": "long",
+   "metric": "events_first_60s",
+   "op": ">=",
+   "value": 10,
+   "why": "Kamil 4.11: 'na początku filmu jest zbyt mało bajerów'; references: about 14 cuts and many overlays in the first minute; Negacz 11-12 changes in the first 60 s in 8 of 8 films (style/REF-long-negacz.md L8): 8 -> 10"
+  },
+  {
+   "id": "long.head_track",
+   "fmt": "long",
+   "metric": "face_windows_head_tracked",
+   "op": "true",
+   "why": "Kamil 5.11: the PiP window looked like the full screen pasted in; plan \"head_track\": true cuts it from the recording around the head"
+  },
+  {
+   "id": "long.gfx_lead",
+   "fmt": "long",
+   "metric": "gfx_lead_early",
+   "op": "true",
+   "why": "Skool CCC A19 (motion): a graphic enters ~0.12 s before its word so it is up when the word lands; plan \"gfx_lead\": -0.12"
+  },
+  {
+   "id": "long.punch",
+   "fmt": "long",
+   "metric": "punches_per_min",
+   "op": ">=",
+   "value": 2,
+   "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute"
+  },
+  {
+   "id": "long.behind",
+   "fmt": "long",
+   "metric": "behind_cards",
+   "op": ">=",
+   "value": 2,
+   "why": "Kamil 4.11: 'nie ma napisów za plecami' (behind.py, ADR-0005)"
+  },
+  {
+   "id": "long.behind_readable",
+   "fmt": "long",
+   "phase": "behind",
+   "metric": "behind_cover_max",
+   "op": "<=",
+   "value": 0.15,
+   "why": "Kamil 5.11: 'WYZNANIE' behind the head could not be read; the speaker may hide at most 15 % of a card behind him"
+  },
+  {
+   "id": "long.screen_switches",
+   "fmt": "long",
+   "metric": "screen_switches_per_min",
+   "op": "<=",
+   "value": 1.5,
+   "why": "Kamil 5.11: 'zbyt często przenosimy się na osobny ekran i to rozprasza' (v2: 3.2 a minute); Negacz 1.32 a minute, IQR 1.25-1.44, 346 blocks in 8 films (style/REF-long-negacz.md L1)"
+  },
+  {
+   "id": "long.screen_block",
+   "fmt": "long",
+   "metric": "screen_block_median",
+   "op": ">=",
+   "value": 10,
+   "why": "A separate screen stays long enough to be worth the jump: Negacz block 16 s median (IQR 7-37, n 346, style/REF-long-negacz.md L1); merge neighbouring scenes into one block"
+  },
+  {
+   "id": "long.speaker_back",
+   "fmt": "long",
+   "metric": "full_screen_min_gap",
+   "op": ">=",
+   "value": 3,
+   "why": "Between two separate screens the speaker is back for 3 s at least (Negacz return 7 s median, 3 s p25, n 349); v2 had 0.1 s flashes of the face"
+  },
+  {
+   "id": "long.screen_share",
+   "fmt": "long",
+   "metric": "full_screen_share",
+   "op": "<=",
+   "value": 0.5,
+   "why": "Kamil 5.11: 'nie wszystko pokazywać na ekranie takim, że jestem w prawym dolnym rogu… zagospodarować przestrzeń dookoła mnie' (v2 68 %). Negacz has 65 %, Kamil's rule wins: the rest goes beside him (sticker, float, kw)"
+  },
+  {
+   "id": "long.face_full",
+   "fmt": "long",
+   "metric": "face_full",
+   "op": "<=",
+   "value": 0.35,
+   "level": "warn",
+   "why": "Share of the long with the bare face: no card, float, sticker, scene, lower third or b-roll from the EDL. Value from the course author study (Skool CCC, n=1: 18-26 % of a lesson); to be revised after the wider creator study (creator-study/PLAN.md 1.1, 0.4). Reconciles screen_share <= 0.5: the missing >= 15 pp goes into cards beside him (float, kw, sticker), not into full screens. Level warn: n=1, advice until the wider study confirms it (review 2026-11-07)"
+  },
+  {
+   "id": "long.reading",
+   "fmt": "long",
+   "metric": "cards_shorter_than_reading",
+   "op": "==",
+   "value": 0,
+   "why": "Kamil 5.11: 'czasami są one zbyt krótko i nie zdąży się przeczytać' (v2: 36 cards, the maps 1.4-3.2 s). Text: 1.2 s a word for the first 4 words, 0.35 s each after, 2.5 s min (Negacz 1.5 s a word, 3-word cards, n 92); a scene, web or slide 6 s min (Negacz drawn scenes 23 s median, n 101)"
+  },
+  {
+   "id": "long.counts",
+   "fmt": "long",
+   "metric": "counts_match",
+   "op": "true",
+   "why": "Skool CCC A4/E9 (P1 task 4): 'trzy kroki' over six tiles, or a 7 on the card while he says 'sześć', tells the viewer one is wrong; checked from 3 s before to 4 s into the card (count_check.py)"
+  },
+  {
+   "id": "long.memes",
+   "fmt": "long",
+   "metric": "meme_cards",
+   "op": ">=",
+   "value": 3,
+   "why": "Kamil 4.11: 'miały być też memy, memów nie ma'; the meme card existed since 10-31 and no film used it (film 2 v2: 9 in the long)"
+  },
+  {
+   "id": "long.lower",
+   "fmt": "long",
+   "metric": "lower_matches_brand",
+   "op": "true",
+   "why": "Kamil 4.11: title = Polish 'AI Automation & Implementation Engineer' (style/brand.json)"
+  },
+  {
+   "id": "long.music_palette",
+   "fmt": "long",
+   "metric": "music_palette_new",
+   "op": "true",
+   "why": "Kamil 4.11: 'co filmik nowa muzyczka'; palette and key differ from the last film (render/music_ledger.json)"
+  },
+  {
+   "id": "long.music_moods",
+   "fmt": "long",
+   "metric": "music_moods",
+   "op": ">=",
+   "value": 3,
+   "why": "The music follows the parts (RESEARCH lessons 7: music_moods)"
+  },
+  {
+   "id": "long.sfx",
+   "fmt": "long",
+   "metric": "sfx_style_v2",
+   "op": "true",
+   "why": "Sounds by motion type (RESEARCH lessons 6)"
+  },
+  {
+   "id": "long.stills",
+   "fmt": "long",
+   "metric": "stills_accepted",
+   "op": "true",
+   "why": "Skool CCC A6/G5/Z4: every card seen as a still on its real frame with its sentence and accepted by Kamil before any render (stills.py, ADR-0018)"
+  },
+  {
+   "id": "long.end",
+   "fmt": "long",
+   "metric": "has_end_card",
+   "op": "true",
+   "why": "End card with what to watch next"
+  },
+  {
+   "id": "short.hook",
+   "fmt": "short",
+   "metric": "hook_text",
+   "op": "true",
+   "why": "ZASADY-KAMILA-SHORTY: the hook stands on screen from the first second"
+  },
+  {
+   "id": "short.stills",
+   "fmt": "short",
+   "metric": "stills_accepted",
+   "op": "true",
+   "why": "Skool CCC A6/G5/Z4: every card seen as a still on its real frame with its sentence and accepted by Kamil before any render (stills.py, ADR-0018)"
+  },
+  {
+   "id": "short.hook_lint",
+   "fmt": "short",
+   "metric": "hook_lint",
+   "op": "true",
+   "why": "Skool CCC C1/C2 'the 6 hook killers': no greeting, no list title, no filler start, no vague promise or hype, a stake (a number or a stake word), on screen from frame one, <= 12 words (hook_check.py, word lists in style/hook_lint.json)"
+  },
+  {
+   "id": "short.hook_early",
+   "fmt": "short",
+   "metric": "first_overlay_at",
+   "op": "<=",
+   "value": 1.0,
+   "why": "Film 2 s2: hook at 4.3 s; the first picture change within a second"
+  },
+  {
+   "id": "short.captions",
+   "fmt": "short",
+   "metric": "caption_pop",
+   "op": "true",
+   "why": "Caption pop-in from the reference shorts (main #6), not used in film 2"
+  },
+  {
+   "id": "short.layouts",
+   "fmt": "short",
+   "metric": "layout_cards",
+   "op": ">=",
+   "value": 1,
+   "why": "Kamil 4.11: 'pod shorty zero nowych logik': split, corner, web or meme cards"
+  },
+  {
+   "id": "short.behind_readable",
+   "fmt": "short",
+   "phase": "behind",
+   "metric": "behind_cover_max",
+   "op": "<=",
+   "value": 0.15,
+   "why": "Kamil 5.11: text or a drawing behind the head must stay readable (behind.py measures it)"
+  },
+  {
+   "id": "short.reading",
+   "fmt": "short",
+   "metric": "cards_shorter_than_reading",
+   "op": "==",
+   "value": 0,
+   "args": {
+    "scene_min": 3.0
+   },
+   "why": "Kamil 5.11: elements gone before they can be read, in the shorts too; same text rule as the long, a short's scene 3 s min (its pace is faster)"
+  },
+  {
+   "id": "short.counts",
+   "fmt": "short",
+   "metric": "counts_match",
+   "op": "true",
+   "why": "Skool CCC A4/E9 (P1 task 4): 'trzy kroki' over six tiles, or a 7 on the card while he says 'sześć', tells the viewer one is wrong; checked from 3 s before to 4 s into the card (count_check.py)"
+  },
+  {
+   "id": "short.gfx_lead",
+   "fmt": "short",
+   "metric": "gfx_lead_early",
+   "op": "true",
+   "why": "Skool CCC A19 (motion): a graphic enters ~0.12 s before its word; plan \"gfx_lead\": -0.12"
+  },
+  {
+   "id": "short.head_track",
+   "fmt": "short",
+   "metric": "face_windows_head_tracked",
+   "op": "true",
+   "why": "Kamil 5.11: the corner circle was an ultra close-up cut from the zoomed picture; plan \"head_track\": true cuts it from the recording around the head"
+  },
+  {
+   "id": "short.meme",
+   "fmt": "short",
+   "metric": "meme_cards",
+   "op": ">=",
+   "value": 1,
+   "why": "Kamil 4.11: 'miały być też memy'; a short whose scenes leave no face gap of 3 s skips it with that reason"
+  },
+  {
+   "id": "short.max_gap",
+   "fmt": "short",
+   "metric": "max_visual_gap",
+   "op": "<=",
+   "value": 8,
+   "why": "References change the picture every 2.5-5 s; film 2 shorts stood 21-30 s on the face"
+  },
+  {
+   "id": "short.punch",
+   "fmt": "short",
+   "metric": "punches_per_min",
+   "op": ">=",
+   "value": 3,
+   "why": "Zoom on the key words"
+  },
+  {
+   "id": "short.music_palette",
+   "fmt": "short",
+   "metric": "music_palette_set",
+   "op": "true",
+   "why": "Own music, not the default bed"
+  },
+  {
+   "id": "short.speaker_back",
+   "fmt": "short",
+   "metric": "full_screen_min_gap",
+   "op": ">=",
+   "value": 0.75,
+   "why": "Top shorts bring the face back for 1.5 s [0.75; 3.5] between two full screens (style/REF-shorts-top.md T3, Kamil 2026-11-05: decide by the top retention creators); under 0.75 s it is a flicker, join the two cards"
+  },
+  {
+   "id": "short.end",
+   "fmt": "short",
+   "metric": "ends_on_the_last_word",
+   "op": "true",
+   "args": {
+    "tail_max": 0.6
+   },
+   "why": "Top shorts end 0.23 s after the last word with no end board (style/REF-shorts-top.md T8, 30/30): the viewer swipes away on a board, a clean end loops"
+  },
+  {
+   "id": "out.long",
+   "fmt": "out",
+   "metric": "out_long",
+   "op": "true",
+   "why": "The long film in out/"
+  },
+  {
+   "id": "out.shorts_all",
+   "fmt": "out",
+   "metric": "out_shorts_vs_clips",
+   "op": "true",
+   "why": "Kamil 4.11: 'nie wiem czy nie jesteś leniwy z ilością shortów': every clip in clips.json with \"make\": true is rendered"
+  },
+  {
+   "id": "out.youtube",
+   "fmt": "out",
+   "metric": "out_youtube_meta",
+   "op": "true",
+   "why": "Kamil 4.11: 'nie widzę plików z tytułami opisami per platforma': youtube/long.md with titles A/B/C, description, chapters from 0:00, tags; one file per short"
+  },
+  {
+   "id": "out.titles",
+   "fmt": "out",
+   "metric": "out_titles",
+   "op": "true",
+   "why": "Skool CCC So3/So4/C5/C10: each A/B/C title <= 60 characters, a word of ## Fraza kluczowa in its first 3 words, a filled zrodlo column (the niche title it started from), and its promise heard in the long's first 30 s (title_check.py)"
+  },
+  {
+   "id": "out.hooks",
+   "fmt": "out",
+   "metric": "out_hooks",
+   "op": "true",
+   "why": "Skool CCC B05/So2: every short that is made has >= 3 hook variants in clips.json \"hooks\", each clean of the 6 killers, \"hook\" one of them and \"hook_from\" a row of style/hook_bank.json (the proven hook it started from)"
+  },
+  {
+   "id": "out.thumbs",
+   "fmt": "out",
+   "metric": "out_thumbnails",
+   "op": "true",
+   "why": "Kamil 4.11: 'miałeś mi zawsze robić a/b thumbnaile': at least 2 for the long, a cover per short"
+  },
+  {
+   "id": "out.thumbs_read",
+   "fmt": "out",
+   "metric": "out_thumbs_read",
+   "op": "true",
+   "why": "Skool CCC So5/So6/C4/Z6: at 320 px (a phone feed) OCR reads >= 80% of each big, one long variant without a face, a thumbnail shares < 50% of its words with every title (thumb_check.py); thumbs.mjs itself refuses letters under 12 px at 320, words in the timestamp corner and cover text outside y 220-1500"
+  },
+  {
+   "id": "out.posts",
+   "fmt": "out",
+   "metric": "out_posts",
+   "op": "true",
+   "why": "Kamil 4.11: posts ready to upload; 5.11: the graphic alone carries the message (post_check.py: OCR finds its words, WCAG contrast, 15-230 words) and the text completes it (60-130 words, <= 3 hashtags, last line a question for the comments: Kamil 2026-11-07)"
+  },
+  {
+   "id": "out.article",
+   "fmt": "out",
+   "metric": "out_article",
+   "op": "true",
+   "why": "Kamil 2026-11-07: from the film also a detailed blog article on kamiljan.com that links the YouTube film and adds what the film does not say (article_check.py: the site's post tests + >= 1200 Polish words, sources, numbers said or sourced)"
+  },
+  {
+   "id": "out.instagram",
+   "fmt": "out",
+   "metric": "out_instagram",
+   "op": "true",
+   "why": "Kamil 2026-11-07: Instagram graphic posts and carousels from the film, shorts as Reels (ig_check.py, creator study round 2 IG1/IG2/IG4/IG6: FAIL on platform limits and numbers the film never says, the rest WARN)"
+  },
+  {
+   "id": "long.filler",
+   "fmt": "long",
+   "metric": "filler_cards",
+   "op": "true",
+   "why": "Kamil 2026-11-08 on the card 'Najwięcej': 'bez sensu pisać takie coś w takim okienku, nic to nie wnosi'; a text card with one word, no sub line, no number, no name says nothing"
+  },
+  {
+   "id": "long.meaning",
+   "fmt": "long",
+   "metric": "meaning_reviewed",
+   "op": "true",
+   "why": "Kamil 2026-11-08: 'znajdź więcej takich bezsensownych, nic nie wnoszących rzeczy i zmieniaj logikę'; every card read for meaning (content_review.py) before the render, a changed card read again"
+  },
+  {
+   "id": "short.filler",
+   "fmt": "short",
+   "metric": "filler_cards",
+   "op": "true",
+   "why": "Kamil 2026-11-08 on the card 'Najwięcej': 'bez sensu pisać takie coś w takim okienku, nic to nie wnosi'; a text card with one word, no sub line, no number, no name says nothing"
+  },
+  {
+   "id": "short.meaning",
+   "fmt": "short",
+   "metric": "meaning_reviewed",
+   "op": "true",
+   "why": "Kamil 2026-11-08: 'znajdź więcej takich bezsensownych, nic nie wnoszących rzeczy i zmieniaj logikę'; every card read for meaning (content_review.py) before the render, a changed card read again"
+  }
+ ]
 }

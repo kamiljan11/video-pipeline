@@ -85,6 +85,23 @@ def chain_ok(text, allowed: frozenset) -> bool:
     return True
 
 
+GATE_MAX_THRESHOLD, GATE_MIN_RANGE = 0.015, 0.3
+
+
+def gate_ok(text) -> bool:
+    """an agate in the voice chain stays gentle: threshold <= 0.015 and range >= 0.3. Film 2026-11-04 had
+    threshold=0.035 range=0.1: it ate quiet word starts ("I wtedy" -> "Wtedy"); 0.008 / 0.4 kept them (whisper A/B)"""
+    if not isinstance(text, str): return True
+    for part in text.split(","):
+        if not part.startswith("agate"): continue
+        opts = dict(kv.split("=", 1) for kv in part.partition("=")[2].split(":") if "=" in kv)
+        try:
+            if float(opts.get("threshold", 0.125)) > GATE_MAX_THRESHOLD or float(opts.get("range", 0.06125)) < GATE_MIN_RANGE: return False
+        except ValueError:
+            return False
+    return True
+
+
 def local_file(v) -> bool:
     return isinstance(v, str) and bool(v) and not PROTOCOL.match(v) and "\n" not in v
 
@@ -111,6 +128,8 @@ def problems(edl) -> list[str]:
         out.append("out_name: a bare file name like film_v2.mp4 (letters, digits, _ . - and an extension; no /, space, Polish letter or leading dot)")
     out += [f"{k}: only the filters {sorted(allowed)}, options with plain values" for k, allowed in (("audio", AUDIO), ("grade", VIDEO))
             if k in edl and not chain_ok(edl[k], allowed)]
+    if not gate_ok(edl.get("audio")):
+        out.append(f"audio: agate must be gentle (threshold <= {GATE_MAX_THRESHOLD:g}, range >= {GATE_MIN_RANGE:g}): a hard gate eats quiet word starts")
     for o in edl.get("overlays", []):
         if not (local_file(o.get("file", "")) and num(o.get("dur", 0))):
             out.append(f"overlay at {o['at']}: file must be a local path, dur a number")

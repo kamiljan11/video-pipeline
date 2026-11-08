@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import word_times
 from cpu_budget import heavy_threads, low_priority
 
 b = sys.argv[1]; W = "/home/kamil-jan/video-pipeline"
@@ -20,7 +21,7 @@ for i, m in enumerate(mids):
     if nxt - last > 25 and m - last > 3:
         cuts.append(m); last = m
 cuts.append(dur)
-cd = f"{b}_chunks"; os.makedirs(cd, exist_ok=True)
+cd = f"{b}_chunks_dtw"; os.makedirs(cd, exist_ok=True)  # _dtw: the old chunks have no DTW times and would be skipped as done
 files = []
 for k in range(len(cuts) - 1):
     f = f"{cd}/{k:03d}_{cuts[k]:.3f}.wav"; files.append(f)
@@ -29,14 +30,21 @@ for k in range(len(cuts) - 1):
 todo = [f for f in files if not os.path.exists(f[:-4] + ".json")]
 if todo:
     subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl", "-t", str(heavy_threads()),
-                    "-ml", "1", "-sow", "-oj", "--dtw", "large.v3", "-nf", *todo], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=low_priority)
-words = []
+                    "-ml", "1", "-sow", "-ojf", "-nfa", "--dtw", "large.v3", "-nf", *todo], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=low_priority)
+words = []; dtw_n = 0
 for f in files:
     off = float(os.path.basename(f)[4:-4])
     for x in json.loads(Path(f + ".json" if os.path.exists(f + ".json") else f[:-4] + ".json").read_text())["transcription"]:
         if x["text"].strip():
-            words.append({"s": round(off + x["offsets"]["from"] / 1000, 3), "e": round(off + x["offsets"]["to"] / 1000, 3), "w": x["text"]})
-Path(b + ".cw.json").write_text(json.dumps(
-    {"transcription": [{"offsets": {"from": int(w["s"] * 1000), "to": int(w["e"] * 1000)}, "text": w["w"]} for w in words]},
-    ensure_ascii=False))
-print("chunks", len(files), "words", len(words))
+            # the DTW start of the word (flash attention off, -nfa: with it whisper drops DTW without a word); else whisper's guess
+            d = word_times.dtw_start_ms(x)
+            s0 = d / 1000 if d is not None else x["offsets"]["from"] / 1000
+            words.append({"s": round(off + s0, 3), "e": round(off + max(x["offsets"]["to"] / 1000, s0 + 0.04), 3), "w": x["text"]})
+            dtw_n += d is not None
+if words:  # the start after a pause onto the voice onset (word_times.snap)
+    cw = [{"offsets": {"from": int(w["s"] * 1000), "to": int(w["e"] * 1000)}, "text": w["w"]} for w in words]
+    snapped = word_times.snap(cw, word_times.onsets(b + ".wav"))
+else: cw, snapped = [], 0
+Path(b + ".cw.json").write_text(json.dumps({"transcription": cw}, ensure_ascii=False))
+print("chunks", len(files), "words", len(words), "dtw", dtw_n, "snapped", snapped)
+if words and dtw_n < len(words) * 0.9: sys.exit(f"chunked_whisper: only {dtw_n} of {len(words)} words have DTW times (whisper-cli dropped DTW?)")

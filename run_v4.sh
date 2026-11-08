@@ -3,6 +3,14 @@
 # per video: build_edl -> face_track -> critic --fix (auto-fixes) -> rebuild -> face_track -> critic -> beds -> render -> critic --video
 WORK=$1; OUT=$2; shift 2
 VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
+
+# words_check: no word lost by the cut (plan text vs rough) or by the sound (rough vs film). Kamil 2026-11-08 "0:04 uciales
+# moje gadanie ... juz ktorys raz". WORDS_CHECK=off skips it, logged (a quick preview render)
+words_ok() {
+  if [ "${WORDS_CHECK:-on}" = off ]; then echo "WORDS_CHECK=off: words_check skipped for $1" >> "$R/render.log"; return 0; fi
+  python3 $VP/words_check.py cut "edl_$1.txt" "$R/$1/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED words_check cut $1" >> "$R/render.log"; return 1; }
+  python3 $VP/words_check.py sound "$R/$1/rough.mkv" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED words_check sound $1" >> "$R/render.log"; return 1; }
+}
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # the films are moved to OUT at the very end: a relative OUT counts from WORK (after the cd), so check it before 20 min of
 # render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
@@ -66,6 +74,7 @@ for n in "$@"; do
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" >> "$R/render.log" 2>&1 \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
+    && words_ok "$n" "$R/$n/$f" \
     && mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; then
     echo "DONE $n" >> "$R/render.log"
     # editing-grammar metric per render (ADR-0002); EDLs get overwritten
