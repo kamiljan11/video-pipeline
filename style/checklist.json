@@ -300,6 +300,46 @@
    "why": "Round 2 L16b (Nate Herk read-along): a scene showing code lights the spoken line (gfx_events overlay read_along)"
   },
   {
+   "id": "long.list_said",
+   "fmt": "long",
+   "metric": "list_said",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L8 (stack instead of N cards): list items on their words (plan item_words), two lists within 90 s = one stacked list (upto / dim_done)"
+  },
+  {
+   "id": "long.chap_roadmap",
+   "fmt": "long",
+   "metric": "chap_roadmap",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L9: a part card is the opening map again (chap_style roadmap / part_tag), the viewer sees where they are"
+  },
+  {
+   "id": "long.define",
+   "fmt": "long",
+   "metric": "define_used",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L12: a term explained aloud (czyli / to znaczy) gets a define card (term + definition, >= 6 s)"
+  },
+  {
+   "id": "long.note",
+   "fmt": "long",
+   "metric": "note_used",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L21: a pointer said aloud (w opisie, link, zastrzezenie) shows as a note card within 10 s"
+  },
+  {
+   "id": "long.scene_zoom",
+   "fmt": "long",
+   "metric": "scene_zoom",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 L17: a scene >= 6 s zooms on the element being said (canvas_zoom)"
+  },
+  {
    "id": "short.hook",
    "fmt": "short",
    "metric": "hook_text",
@@ -473,6 +513,22 @@
    "op": "true",
    "level": "warn",
    "why": "Round 2 S8 (hook_pos mid + punch at its end), S9 (caption_emph key: one accent word a line), S16 (hook_show: the listed nouns get cards, or hook_show_report names the missing asset)"
+  },
+  {
+   "id": "short.list_items",
+   "fmt": "short",
+   "metric": "list_items",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S11: list item cards >= 3 s each (<= 0.3 s after the numeral is held in build_edl)"
+  },
+  {
+   "id": "short.panel_moves",
+   "fmt": "short",
+   "metric": "panel_moves",
+   "op": "true",
+   "level": "warn",
+   "why": "Round 2 S14: a panel >= 4 s moves at least every 3 s (scroll, cursor, typing, camera)"
   },
   {
    "id": "out.long",

@@ -244,3 +244,47 @@ class AgentFieldsTest(unittest.TestCase):  # the EDL fields of the round 2 optio
         for want in ("hook_pos", "caption_emph", "Supabase"):
             self.assertIn(want, detail)
         self.assertTrue(film({"overlays": [], "options_used": {"hook_pos": "mid", "caption_emph": "key"}}, vertical=True).short_options()[0])
+
+
+class CardUseTest(unittest.TestCase):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new cards are measured in the film, not only drawn
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp(prefix="fc-cu-")); self.addCleanup(shutil.rmtree, self.d, True)
+
+    def film(self, ovs, specs, words=()):
+        tr = [{"text": w, "offsets": {"from": int(t * 1000), "to": int(t * 1000) + 200}} for t, w in words]
+        (self.d / "w.json").write_text(json.dumps({"transcription": tr}))
+        (self.d / "specs.json").write_text(json.dumps(specs))
+        (self.d / "edl_x.json").write_text(json.dumps({"segments": [{"in": 0.0, "out": 300.0}], "overlays": ovs}))
+        (self.d / "plan_x.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json"}))
+        return film_check.Film(self.d, "x")
+
+    def test_lists_on_their_words_and_stacked(self):
+        sp = [{"id": "a", "type": "list", "items": ["x", "y", "z"]}, {"id": "b", "type": "list", "items": ["q"]}]
+        ok, detail = self.film([{"id": "a", "at": 10, "dur": 8}, {"id": "b", "at": 50, "dur": 4}], sp).list_said()
+        self.assertFalse(ok)
+        self.assertIn("not timed", detail); self.assertIn("one stacked list", detail)
+        self.assertTrue(self.film([{"id": "a", "at": 10, "dur": 8, "items_said": [10, 12, 14], "variant": "upto"}, {"id": "b", "at": 50, "dur": 4}], sp).list_said()[0])
+
+    def test_chap_cards_drawn_as_the_map(self):
+        sp = [{"id": "c1", "type": "chap", "text": "a"}, {"id": "c2", "type": "chap", "text": "b"}]
+        self.assertFalse(self.film([{"id": "c1", "at": 5, "dur": 3, "variant": "roadmap"}, {"id": "c2", "at": 90, "dur": 3}], sp).chap_roadmap()[0])
+        self.assertTrue(self.film([{"id": "c1", "at": 5, "dur": 3, "variant": "roadmap"}, {"id": "c2", "at": 90, "dur": 3, "variant": "part_tag"}], sp).chap_roadmap()[0])
+        self.assertFalse(self.film([], []).chap_roadmap()[0])
+
+    def test_define_and_note_follow_what_is_said(self):
+        words = [(20.0, "czyli"), (100.0, "opisie.")]
+        sp = [{"id": "d", "type": "lower", "define": True, "text": "RLS", "sub": "kto widzi wiersz"}, {"id": "n", "type": "note", "text": "link w opisie"}]
+        f = self.film([], sp, words)
+        self.assertFalse(f.define_used()[0]); self.assertFalse(f.note_used()[0])
+        f = self.film([{"id": "d", "at": 21, "dur": 6, "variant": "define"}, {"id": "n", "at": 104, "dur": 4, "variant": "note"}], sp, words)
+        self.assertTrue(f.define_used()[0]); self.assertTrue(f.note_used()[0])
+        self.assertTrue(self.film([], sp).define_used()[0])  # no cue word: no define card needed
+
+    def test_scene_zoom_items_and_panel_moves(self):
+        sp = [{"id": "s", "type": "scene", "els": []}, {"id": "w", "type": "web"}]
+        f = self.film([{"id": "s", "at": 0, "dur": 8}, {"id": "w", "at": 20, "dur": 9, "moves": [23.0]}], sp)
+        self.assertFalse(f.scene_zoom()[0]); self.assertFalse(f.panel_moves()[0])
+        f = self.film([{"id": "s", "at": 0, "dur": 8, "zooms": [3.0], "moves": [2.5, 5.0]}, {"id": "w", "at": 20, "dur": 9, "moves": [22.5, 25.0, 27.0]}], sp)
+        self.assertTrue(f.scene_zoom()[0]); self.assertTrue(f.panel_moves()[0])
+        self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 3], [3, 8]]}], sp).list_items()[0])
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 4.5], [4.5, 8]]}], sp).list_items()[0])

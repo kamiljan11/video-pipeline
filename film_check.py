@@ -529,6 +529,68 @@ class Film:
         bad = [i for i in code if not next((o for o in self.ovs if o["id"] == i), {}).get("read_along")]
         return not bad, f"code scenes without read_along: {', '.join(bad[:6])}" if bad else f"{len(code)} code scenes read along"
 
+    def ov_dur(self, o: dict) -> float:
+        return float(o.get("dur") or self.specs.get(o["id"], {}).get("dur") or 0)
+
+    def list_said(self, near: float = 90):
+        """round 2 L8: a list of >= 3 items brings each item on its word (plan "item_words" -> overlay "items_said", or the
+        scene item cues "items"), and two list cards within 90 s are one stacked list ("upto" / "dim_done", EDL variant)"""
+        lists = sorted((o for o in self.ovs if self.typ(o) == "list"), key=lambda o: o["at"])
+        bad = [f"{o['id']}: {len(self.specs[o['id']].get('items', []))} items not timed to their words (plan item_words)"
+               for o in lists if len(self.specs[o["id"]].get("items", [])) >= 3 and not (o.get("items_said") or o.get("items"))]
+        bad += [f"{a['id']} + {b['id']} {b['at'] - a['at']:.0f} s apart: one stacked list (upto / dim_done)"
+                for a, b in itertools.pairwise(lists) if b["at"] - a["at"] <= near and not (a.get("variant") or b.get("variant"))]
+        return not bad, "; ".join(bad[:6]) or f"{len(lists)} list cards"
+
+    def chap_roadmap(self):
+        """round 2 L9: every part card is the drawing of the opening map (chap_style "roadmap" / "part_tag", EDL variant)"""
+        chaps = [o for o in self.ovs if self.typ(o) == "chap"]
+        if not chaps: return False, "no chap cards"
+        bad = [o["id"] for o in chaps if o.get("variant") not in ("roadmap", "part_tag")]
+        return not bad, f"chap cards without chap_style: {', '.join(bad[:6])}" if bad else f"{len(chaps)} chap cards drawn as the map"
+
+    CUE_DEFINE = re.compile(r"^(czyli|znaczy)$", re.IGNORECASE)
+    CUE_NOTE = re.compile(r"^(opisie|opisu|zastrze\w*|link\w*)$", re.IGNORECASE)
+
+    def define_used(self):
+        """round 2 L12: a term the speaker explains ("czyli", "to znaczy") gets a define card (lower + "define": term +
+        definition >= 6 s); a film that says none of the cues needs none"""
+        cues = [t for t, w in self.film_words() if self.CUE_DEFINE.match(w.strip(".,!?"))]
+        n = sum(1 for o in self.ovs if o.get("variant") == "define")
+        return n > 0 or not cues, f"{n} define cards, {len(cues)} cue words (czyli / to znaczy)"
+
+    def note_used(self, near: float = 10):
+        """round 2 L21: a pointer said aloud ("w opisie", "link", "zastrzeżenie") shows a note card (or the cta) within
+        10 s, so a viewer who only reads still gets it"""
+        cues = [t for t, w in self.film_words() if self.CUE_NOTE.match(w.strip(".,!?"))]
+        shown = [o["at"] for o in self.ovs if o.get("variant") == "note" or self.typ(o) == "cta"]
+        bad = [t for t in cues if not any(abs(a - t) <= near for a in shown)]
+        return not bad, f"said without a note card at {', '.join(f'{t:.0f} s' for t in bad[:6])}" if bad else f"{len(cues)} pointers, all shown"
+
+    def scene_zoom(self, long_scene: float = 6):
+        """round 2 L17: a scene on screen >= 6 s zooms into the element being said (canvas_zoom -> overlay "zooms")"""
+        long_ = [o for o in self.ovs if self.typ(o) == "scene" and self.ov_dur(o) >= long_scene]
+        bad = [o["id"] for o in long_ if not o.get("zooms")]
+        return not bad, f"scenes >= {long_scene:g} s without canvas_zoom: {', '.join(bad[:6])}" if bad else f"{len(long_)} long scenes zoom"
+
+    def list_items(self, min_on: float = 3):
+        """round 2 S11: list item cards in a short stay >= 3 s each (build_edl already holds each to <= 0.3 s after its
+        numeral, gfx_events.cue_problems)"""
+        cards = [o for o in self.ovs if o.get("items")]
+        bad = [f"{o['id']} item {k + 1} {b - a:.1f} s" for o in cards for k, (a, b) in enumerate(o["items"]) if b - a < min_on]
+        return not bad, "; ".join(bad[:6]) or f"{len(cards)} item cards"
+
+    def panel_moves(self, every: float = 3, panel: float = 4):
+        """round 2 S14: a web / scene panel on screen >= 4 s moves (scroll, cursor, typing, camera on the spoken line)
+        at least every 3 s (gfx_events overlay "moves")"""
+        bad = []
+        for o in self.ovs:
+            d = self.ov_dur(o)
+            if self.typ(o) not in ("web", "scene") or d < panel: continue
+            ts = [o["at"], *sorted(o.get("moves", [])), o["at"] + d]
+            if (g := max(b - a for a, b in itertools.pairwise(ts))) > every: bad.append(f"{o['id']} still {g:.1f} s")
+        return not bad, "; ".join(bad[:6]) or "every panel moves"
+
     def opening_pace(self):
         """L24 (info, no threshold): words in the first 30 s and words per minute of the hook vs the body (PL 65-104 words
         in 30 s, KS, KO)"""
