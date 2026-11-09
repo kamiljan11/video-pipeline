@@ -497,7 +497,8 @@ class Film:
             if len(words) < n: wrong.append(f"retakes_ok {k!r}: name the {n}+ words said twice")
             elif not (isinstance(v, str) and len(v.strip()) >= SKIP_MIN): wrong.append(f"retakes_ok {k!r}: the reason must say why (>= {SKIP_MIN} characters)")
             else: ok.append(words)
-        named = lambda run: any(run[i:i + len(k)] == k for k in ok for i in range(len(run) - len(k) + 1))  # whole words, in a row
+        # the key covers the WHOLE repeated run (whole words, in a row): 4 named words do not waive a 20-word retake (review 2026-11-09)
+        named = lambda run: any(k[i:i + len(run)] == run for k in ok for i in range(len(k) - len(run) + 1))
         fw = sorted((t, norm_word(w)) for t, w in self.film_words())
         fw = [(t, w) for t, w in fw if w]
         seen: dict[str, float] = {}

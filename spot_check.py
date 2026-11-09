@@ -9,16 +9,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+import timeline
 from cpu_budget import heavy_threads, low_priority
 
 edl = json.loads(Path(sys.argv[1]).read_text()); W = json.loads(Path(sys.argv[2]).read_text())["transcription"]; video = sys.argv[3]
 norm = lambda t: re.sub(r"[^a-ząćęłńóśźż0-9 ]", "", t.lower()).split()
-def src2out(t):
-    acc = 0.0
-    for s in edl["segments"]:
-        if s["in"] <= t <= s["out"]: return acc + t - s["in"]
-        acc += s["out"] - s["in"]
-    return None
+def src2out(t):  # one accounting with film_check (timeline.src2out: pieces out of source order); a cut word = not kept
+    if not any(s["in"] <= t <= s["out"] for s in edl["segments"]): return None
+    return timeline.src2out(t, edl["segments"], False)
 words = [(i, norm(w["text"])) for i, w in enumerate(W)]
 tmp = tempfile.mkdtemp()
 for ph in sys.argv[4:]:

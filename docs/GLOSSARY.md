@@ -74,3 +74,6 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **use** — dla formy (long/short): `required` (w filmie albo `skip cap.<id>` z powodem), `report` (WARN, gdy nieużyta), `infra` (kod robi zawsze), `never` (nie dla tej formy, z `why`), `menu` (lista do wyboru — memy, palety, moody, dźwięki kart; `brief` pokazuje wartości z kodu, film nie jest z nich rozliczany).
 - **punkt designu** — numerowana pozycja `## Order of work` w `docs/designs/*.md`; wiersz `design:<plik>:<n>:<forma>` w rejestrze badań.
 
+
+## Cięcie
+- **dubel (retake)** — to samo zdanie powiedziane dwa razy, bo pierwsze się nie udało; w filmie zostaje jedno, lepsze ujęcie. Bramka `long/short.retakes` (`film_check.retakes_left`: te same 4 słowa 2x w 20 s czasu filmu, bez skipu); powtórzenie celowe = klucz w planie `retakes_ok` z całą powtórzoną frazą i powodem.

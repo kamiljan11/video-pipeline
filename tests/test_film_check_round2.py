@@ -64,8 +64,10 @@ class LongResearchTest(unittest.TestCase):
         self.assertEqual(detail.count(" at "), 1)  # one retake = one line, not one per overlapping run
         far = {**fill, **dict(enumerate(take)), **{30 + i: w for i, w in enumerate(take)}}
         self.assertTrue(self.film([], [], said=far, length=40).retakes_left()[0])  # 30 s apart: a callback, not a retake
-        named = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "said twice on purpose for emphasis"})
+        named = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne zdanie": "said twice on purpose for emphasis"})
         self.assertTrue(named.retakes_left()[0])
+        part = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "said twice on purpose for emphasis"})
+        self.assertFalse(part.retakes_left()[0])  # review 2026-11-09: 4 of the 5 repeated words do not waive the whole retake
         ok, detail = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "ok"}).retakes_left()
         self.assertFalse(ok); self.assertIn("the reason must say why", detail)
         for key in ("", "to", "jest bardzo"):  # review 2026-11-09: an empty or short key waived every run (substring match)
