@@ -79,7 +79,8 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
         opts |= {f"{a}.{b}" for a, b in re.findall(r"""\bspec\[["'](\w+)["']\]\.get\(["'](\w+)["']""", t)}
     build_box = re.search(r"BOX_KEYS = \(\((.*)\)\)", build)
     if build_box: opts |= set(re.findall(r'\("(\w+)"', "(" + build_box.group(1)))
-    pfx = {k for rel in PIECE_JS if (root / rel).exists() for k in re.findall(r"\be\.(\w+)", (root / rel).read_text())}
+    # "_on" / "_from" / "_to" / "_held": written by gfx/anchor_lib.mjs after measuring, never by a role
+    pfx = {k for rel in PIECE_JS if (root / rel).exists() for k in re.findall(r"\be\.(\w+)", (root / rel).read_text()) if not k.startswith("_")}
     opts |= {k for k, rel in SPEC_HAND.items() if (root / rel).exists() and f'"{k}"' in (root / rel).read_text()}
     return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys, "opt": opts, "pfx": pfx,
             "menu": {m for m, vals in menus(root).items() if vals}}

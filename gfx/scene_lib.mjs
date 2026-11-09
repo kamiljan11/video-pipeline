@@ -8,7 +8,8 @@
 // left, zoom z). Pieces are measured in the browser (render.mjs calls sceneFit), so nobody has to guess their size.
 
 import { EASE, F, STAGGER, sec } from './motion_tokens.mjs';
-import { keepTogether as kt } from './html_lib.mjs';  // a short Polish word stays with its neighbour when a line wraps (side column)
+import { keepTogether as kt } from './html_lib.mjs';
+import { annotation, autoShape, seedOf } from './rough_lib.mjs';  // rough box / underline (visual upgrade item 3)  // a short Polish word stays with its neighbour when a line wraps (side column)
 
 export const W = 2560, H = 1440;
 // the PiP circle (assemble.py: pip_size 600, margin 72, 20 px up) + its 40 px frame, with some air
@@ -156,6 +157,7 @@ export function checkScene(sp) {
     if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
     if (e.k === 'toggle' && e.back_at !== undefined && !(e.back_at > num(e.on_at, num(e.at, 0) + 0.8))) bad.push(`${n}: "back_at" = after the switch flips on ("on_at")`);
     if (e.k === 'ring' && !(e.w > 0 && e.h > 0)) bad.push(`${n}: "w" and "h" = the box to circle`);
+    if (e.k === 'ring' && e.shape !== undefined && !['circle', 'box', 'underline'].includes(e.shape)) bad.push(`${n}: "shape" = "circle", "box" or "underline", got ${JSON.stringify(e.shape)}`);
     if (e.k === 'say') {
       if (!Array.isArray(e.words) || !e.words.length || !e.words.every(w => Array.isArray(w) && typeof w[0] === 'string' && typeof w[1] === 'number' && w[1] >= 0 && w[1] < dur))
         bad.push(`${n}: "words" = [["word", seconds], ...], each said inside the card`);
@@ -343,6 +345,17 @@ const PIECES = {
       + `<svg viewBox="0 0 32 32" style="animation:scpress .18s ease-out ${f2(ca)}s"><path d="M5 3 L5 26 L11 20 L15 29 L19 27 L15 18 L23 18 Z" fill="#fff" stroke="#0c0d0f" stroke-width="2" stroke-linejoin="round"/></svg></div></div>` };
   },
   ring: (e, { esc, at, tn, m }) => {  // a hand-drawn circle around a box: one turn and a bit, the radius wobbling a few per cent
+    // a flat box (a row: wider than 3x its height) gets a rough box instead, "shape": "underline" a rough underline (item 3)
+    const shape = e.shape ?? autoShape(e.w, e.h);
+    if (shape !== 'circle') {
+      const { paths } = annotation(shape, e.x, e.y, e.w, e.h, seedOf(JSON.stringify([e.x, e.y, e.w, e.h, e._on ?? '', e.id ?? ''])), e.pad);
+      const d = num(e.d, 0.6), gone = e.gone !== undefined ? `;animation:${m.fadeOut} ${f2(e.gone)}s forwards` : '', p = shape === 'box' ? num(e.pad, 14) : 0;
+      const bb = shape === 'box' ? `${e.x - p} ${e.y - p} ${e.w + 2 * p} ${e.h + 2 * p}` : `${e.x} ${e.y + e.h} ${e.w} ${num(e.pad, 10) + 8}`;
+      // two pen passes, each revealed along its own length (pathLength 1), the second starting before the first ends
+      const strokes = paths.map((pd, i) => `<path d="${pd}" pathLength="1" stroke="${tn}" style="stroke-width:${i ? 4 : 6};stroke-dasharray:1;stroke-dashoffset:1;`
+        + `animation:scdraw ${f2(d * (i ? 0.8 : 1))}s ${m.draw} ${f2(at + i * d * 0.55)}s forwards"/>`).join('');
+      return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${bb}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}">${strokes}</svg>` };
+    }
     const pad = num(e.pad, 24), cx = e.x + e.w / 2, cy = e.y + e.h / 2, rx = e.w / 2 + pad, ry = e.h / 2 + pad;
     const pts = Array.from({ length: 57 }, (_, i) => {
       const a = -2.2 + (i / 50) * 2 * Math.PI, w = 1 + 0.03 * Math.sin(i * 1.7);

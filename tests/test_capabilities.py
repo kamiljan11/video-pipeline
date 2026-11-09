@@ -242,5 +242,16 @@ class RoundFourTest(unittest.TestCase):  # completeness critic round 3 (2026-11-
         self.assertEqual((C.check_of(end, "long"), C.check_of(end, "short"), end["use"]["short"]), ("long.end", "short.end", "never"))
 
 
+class RoundFiveTest(unittest.TestCase):  # completeness critic round 4 (2026-11-09)
+    def test_fields_the_anchors_write_are_not_choices(self):
+        d = copy_root(self)
+        s = d / "gfx" / "scene_lib.mjs"
+        s.write_text(s.read_text() + "\nconst _q = e => e._from ?? e.shapeless;\n")
+        f = C.discover(d)
+        self.assertIn("shapeless", f["pfx"])
+        self.assertFalse({k for k in f["pfx"] if k.startswith("_")}, "internal _fields are not in the scan")
+        self.assertIn("shape", C.discover()["pfx"])
+
+
 if __name__ == "__main__":
     unittest.main()

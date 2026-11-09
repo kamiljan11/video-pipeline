@@ -61,6 +61,21 @@ test('in Chrome: the ring circles the measured row, the line joins the two piece
   } finally { await browser.close(); }
 });
 
+test('in Chrome: a ring on a text row takes the text, not the full window width (a highlight band is left out)', async () => {
+  const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
+  try {
+    const sp = { id: 't', type: 'scene', dur: 6, els: [
+      { k: 'win', id: 'md', x: 200, y: 200, w: 900, h: 520, title: 'plan.md', rows: ['Krok 1', { t: 'Krok 2: montaż', hl: true }] },
+      { k: 'ring', on: 'md.1', at: 2 }, { k: 'ring', on: 'md.0', shape: 'underline', at: 2 },
+    ] };
+    await resolveAnchors([sp], opener(browser), esc, icon);
+    const [win, box, under] = sp.els;
+    assert.ok(box.w > 150 && box.w < win.w / 2, `as wide as "Krok 2: montaż": ${JSON.stringify(box)}`);
+    assert.ok(under.w > 60 && under.w < box.w, `"Krok 1" is shorter: ${JSON.stringify(under)}`);
+    assert.ok(box.x >= win.x && box.x < win.x + 60, `starts where the text starts: ${box.x}`);
+  } finally { await browser.close(); }
+});
+
 test('scene_check measures the attached scene, a stamp on a missing id stops it by name', () => {
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'anchor-')); made.push(d);
   const f = path.join(d, 'specs.json');

@@ -364,8 +364,10 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
     `line` linia rysowana od `from` do `to` (`curve`, `d` = czas rysowania, `arrow: false` bez kropki na końcu, `head: "arrow"`
     = grot zamiast kropki, `packet_at` + `packet_d` = kropka „pakiet” jadąca po linii).
   - `stat` z `count: {from, to, d, at, pre, suf}`: liczba nabija się od `from` do `to` w `d` s (np. 0 → 92 z `suf: "%"`).
-  - `check` ptaszek: kółko i ptaszek rysują się, iskry rozbiegają się (`size`). `ring` odręczne kółko wokół pudełka
-    `x, y, w, h` (`pad`, `d`). `cursor` kursor jedzie z `from` do `to`, klika w `click_at` (fala w miejscu kliknięcia).
+  - `check` ptaszek: kółko i ptaszek rysują się, iskry rozbiegają się (`size`). `ring` odręczne obramowanie pudełka
+    `x, y, w, h` (`pad`, `d`, `shape`): płaskie (szerokość >= 3x wysokość, np. wiersz) = szkicowa ramka z dwóch pociągnięć
+    pióra, reszta = kółko; `shape: "underline"` podkreślenie, `"box"`/`"circle"` wymusza kształt (`gfx/rough_lib.mjs`, kształt
+    z ziarna = ten sam w każdej klatce i stillu). Wiersz mierzony po tekście, nie po całej szerokości okna. `cursor` kursor jedzie z `from` do `to`, klika w `click_at` (fala w miejscu kliknięcia).
   - **Przypięte do id (zamiast współrzędnych, `gfx/anchor_lib.mjs`):** `ring`/`stamp`/`check` z `on: "<id>"` (wiersz okna,
     terminala albo czatu: `"<id>.<n>"`, od 0), `line`/`cursor` z `from`/`to` = id (koniec linii przy krawędzi pudełka, kursor do
     środka). Pozycje mierzone w Chrome przed renderem; `scene_check` odrzuca `ring`/`stamp`/`check` po samych `x, y` i linię

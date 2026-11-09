@@ -2517,6 +2517,18 @@
    "why": "what the piece shows or where it sits (its content), not an effect to choose"
   },
   {
+   "id": "pfx.shape",
+   "kind": "pfx",
+   "name": "shape",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "ring shape: auto = a rough box around a flat row (w >= 3h), else the circle; underline under one line (visual upgrade item 3)"
+  },
+  {
    "id": "pfx.size",
    "kind": "pfx",
    "name": "size",

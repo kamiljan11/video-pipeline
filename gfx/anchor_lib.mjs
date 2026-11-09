@@ -60,7 +60,23 @@ export function measureIds() {
   for (const el of world.querySelectorAll('[data-id]')) {
     const id = el.getAttribute('data-id');
     out[id] = rel(el.getBoundingClientRect());
-    [...el.querySelectorAll(':scope .bd > :is(.row, .sk, .ol), :scope .msg')].forEach((r, i) => { out[`${id}.${i}`] = rel(r.getBoundingClientRect()); });
+    // a row is as wide as what it shows: its text (a Range: .rt is flex:1, as wide as the window), marks and placeholder
+    // lines; highlight bands (.rhl) fill the whole row and are left out
+    const span = r => {
+      const kids = [], walk = document.createTreeWalker(r, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        if (!n.textContent.trim() || n.parentElement.closest('.rhl')) continue;
+        const g = document.createRange(); g.selectNodeContents(n); kids.push(g.getBoundingClientRect());
+      }
+      if (r.matches('.sk')) kids.push(r.getBoundingClientRect());
+      for (const c of r.querySelectorAll('.sk, .mk')) kids.push(c.getBoundingClientRect());
+      const vis = kids.filter(b => b.width > 0 && b.height > 0);
+      if (!vis.length) return r.getBoundingClientRect();
+      kids.length = 0; kids.push(...vis);
+      const L = Math.min(...kids.map(b => b.left)), T = Math.min(...kids.map(b => b.top));
+      return { left: L, top: T, width: Math.max(...kids.map(b => b.right)) - L, height: Math.max(...kids.map(b => b.bottom)) - T };
+    };
+    [...el.querySelectorAll(':scope .bd > :is(.row, .sk, .ol), :scope .msg')].forEach((r, i) => { out[`${id}.${i}`] = rel(span(r)); });
   }
   return out;
 }
