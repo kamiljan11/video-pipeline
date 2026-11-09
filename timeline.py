@@ -60,3 +60,14 @@ def concat_list(files: list[str], seconds: list[float | None]) -> str:
         out.append(f"file '{f}'\n" + (f"duration {d:.6f}\n" if d is not None else ""))
     return "".join(out)
 
+
+
+def snap_in(t: float, v0: float) -> float:
+    """the seek time for a piece starting at source time t: just before the source video frame nearest to t.
+
+    A recording's frames sit at v0 + k / FPS (film 2026-11-04: video start_time 0.033 s, sound at 0). A piece cut at
+    `-ss t` got its first frame up to one frame after t, and setpts/asetpts=PTS-STARTPTS put picture and sound both at 0:
+    the picture ran up to 33 ms ahead of the voice, piece by piece (Kamil 2026-11-09 "dalej long ma opoznienie"). Seeking
+    to a frame's own time (0.5 ms before it) makes the first frame and the first sound sample the same instant."""
+    k = max(round((t - v0) * FPS), 0)  # before the first frame: the first frame
+    return max(v0 + k / FPS - 0.0005, 0.0)

@@ -50,7 +50,7 @@ def _apply(film: str, out: str, gain: float, ceiling: float) -> dict:
     low-pass -2.0). YouTube's own encode cuts about there anyway."""
     lim = 10 ** (ceiling / 20)
     chain = (f"volume={gain:.2f}dB,lowpass=f={LOWPASS},aresample=192000,"
-             f"alimiter=limit={lim:.4f}:attack=5:release=50:level=disabled,aresample=48000")
+             f"alimiter=limit={lim:.4f}:attack=5:release=50:level=disabled:latency=1,aresample=48000")  # latency=1: the look-ahead does not delay the voice
     _ff(["-y", "-i", film, "-map", "0:v?", "-map", "0:a", "-c:v", "copy", "-af", chain,
          "-c:a", "aac", "-b:a", "256k", "-ac", "2", "-movflags", "+faststart", out])
     return measure(out)

@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
 from pathlib import Path
 
+import av_latency  # next to this script: the voice chain's own delay, taken back
 import chunks  # next to this script: stage 2 in time windows (memory flat in the number of cards)
 import edl_guard  # next to this script: what an EDL may carry into an ffmpeg command line
 import gfx_types  # next to this script: where a 9:16 split card puts the face box
@@ -101,9 +102,17 @@ def zkey(z):
         return f"k{__import__('hashlib').md5(str(z['keys']).encode()).hexdigest()[:10]}"
     return z if not isinstance(z, dict) else f"{z['a']}-{z['b']}-{z['t0']:.2f}-{z['t1']:.2f}"
 
+def seek(s) -> tuple[float, str]:
+    """(-ss time on the recording's frame grid, cache-name tag): the tag only where the seek moved, so pieces that were
+    already on the grid keep their cached names (timeline.snap_in)"""
+    t = timeline.snap_in(s["in"], av_latency.video_start(edl["sources"][s["src"]]))
+    return t, (f"_g{t:.4f}" if abs(t + 0.0005 - s["in"]) > 0.001 else "")
+
+
 def cut(i_s):
     i, s = i_s
-    dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{zkey(s.get('zoom',1.0))}_{'-'.join(str(v) for v in s.get('face', []))}{'_tr' + __import__('hashlib').md5(str(s.get('track')).encode()).hexdigest()[:6] if s.get('track') else ''}.mkv")
+    ss, gtag = seek(s)
+    dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{zkey(s.get('zoom',1.0))}_{'-'.join(str(v) for v in s.get('face', []))}{'_tr' + __import__('hashlib').md5(str(s.get('track')).encode()).hexdigest()[:6] if s.get('track') else ''}{gtag}.mkv")
     if EXACT: dst = dst[:-4] + "_x.mkv"
     # the crop also depends on face_target_y: without it in the name a re-render after a plan change reused segments cut
     # for the old height (2026-10-25 shorts: fixed-zoom shots kept the 0.40 head line). Only when the key is set, so old
@@ -118,7 +127,7 @@ def cut(i_s):
     f = min(0.012, d / 4)
     af = f"afade=t=in:d={f},afade=t=out:st={d - f:.3f}:d={f},aresample=48000"
     if EXACT: af = f"asetpts=PTS-STARTPTS,aresample=48000,apad,atrim=0:{d:.6f}," + af
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{s['in']:.3f}", "-i", edl["sources"][s["src"]], "-t", f"{d:.3f}",
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{ss:.4f}", "-i", edl["sources"][s["src"]], "-t", f"{d:.3f}",
                     "-vf", vf, *extra, "-af", af, "-c:v", "libx264", *SEG_ENC,
                     "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", "-ac", "1", dst], check=True)
     return dst
@@ -185,8 +194,9 @@ def head_track(name, wins, size, fill):
                 # the window of the old crop (fill 0.62 of the frame height for a PiP), scaled to this window's fill
                 side = int(min(SH, SW, SH * 0.62 / fill * 0.62)) // 2 * 2
                 x = int(min(max(fx * SW - side / 2, 0), SW - side)); y = int(min(max(fy * SH - side * 0.42, 0), SH - side))
-            dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{x}-{y}-{side}_{size}{'_x' if EXACT else ''}.mkv")
-            src = ["-ss", f"{s['in']:.3f}", "-i", edl["sources"][s["src"]]]
+            ss, gtag = seek(s)
+            dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{x}-{y}-{side}_{size}{'_x' if EXACT else ''}{gtag}.mkv")
+            src = ["-ss", f"{ss:.4f}", "-i", edl["sources"][s["src"]]]
             vf = ("setpts=PTS-STARTPTS," if EXACT else "") + f"crop={side}:{side}:{x}:{y},scale={size}:{size}:flags=lanczos,setsar=1,fps=30"
         if not os.path.exists(dst):
             subprocess.run(["ffmpeg", "-v", "error", "-y", *src, "-vf", vf, *frames, "-an", "-c:v", "libx264", *SEG_ENC,
@@ -341,7 +351,11 @@ if corners:  # after the cards: a ring in the theme accent, the face circle on i
 if edl.get("subs"):
     fc.append(f"[{last}]subtitles='{edl['subs']}':force_style='{edl.get('sub_style','')}'[vs]"); last = "vs"
 audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")
-va = f"[0:a]{audio},aresample=48000" + (f",apad=pad_dur={tail}" if tail else "")
+# the voice chain's own delay (afftdn 25 ms, an alimiter without latency=1 5 ms) cut off its start, so the voice stays on
+# the lips (film 2026-11-04 long: +40 ms, Kamil 2026-11-09); measured on a test signal, the chain is the plan's data
+_lat = av_latency.chain_ms(audio)
+va = (f"[0:a]{audio}" + (f",atrim=start={_lat / 1000:.4f},asetpts=PTS-STARTPTS" if _lat > 0 else "") + ",aresample=48000"
+      + (f",apad=pad_dur={tail}" if tail else ""))
 # the sound is mixed in its OWN ffmpeg run, not in the picture graph: in one run with ~100 card inputs ffmpeg 8 dropped
 # 0.65 s of the voice where the first card ended (film 2026-11-04 long, 3.09 s: one 0.676 s AAC packet, "Przez" gone,
 # and every player that plays samples in a row heard the voice 0.65 s before the lips; Kamil 2026-11-08). The sound
@@ -359,7 +373,7 @@ if edl.get("music"):
     sduck = {"threshold": 0.015, "ratio": 6, **edl.get("sfx_duck", {})}
     afc.append(f"[2:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sxr]")
     afc.append(f"[sxr][vss]sidechaincompress=threshold={sduck['threshold']:g}:ratio={sduck['ratio']:g}:attack=5:release=300:makeup=1[sx]")
-    afc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[a]")
+    afc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89:latency=1[a]")  # latency=1: no 5 ms look-ahead delay
 else:
     afc.append(va + "[a]")
 if PROXY:

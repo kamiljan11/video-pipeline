@@ -83,9 +83,12 @@ for n in "$@"; do
   rm -f "$R/$n/rough.mkv"
   # av_check: no voice dropped, sound in step with the cut before graphics (film 2026-11-04: 0.65 s lost in long + 4 shorts)
   # sync_check: every piece of the cut where build_edl timed its cards and subtitles (timeline.py; 2026-11-04: up to 287 ms off)
+  # lip_check: the finished film's voice vs its lips, against the recording (Kamil 2026-11-09 "dalej long ma opoznienie":
+  # voice 46 ms after the lips, max 65 ms, no other gate compared picture with sound)
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" >> "$R/render.log" 2>&1 \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
+    && { python3 $VP/lip_check.py edl_$n.json "$R/$n/$f" >> "$R/render.log" 2>&1 || { echo "FAILED lip_check $n" >> "$R/render.log"; false; }; } \
     && words_ok "$n" "$R/$n/$f" \
     && mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; then
     echo "DONE $n" >> "$R/render.log"
