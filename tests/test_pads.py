@@ -58,6 +58,12 @@ class PadsTest(unittest.TestCase):
         self.assertEqual(len(self.segments()), 2)
         self.assertEqual(len(self.segments(pads={"mingap": 1.0})), 1)
 
+    def test_sfx_duck_reaches_the_edl_and_a_bad_one_is_refused(self):  # assemble.py reads it from the EDL only
+        self.segments(sfx_duck={"ratio": 1})
+        self.assertEqual(json.loads((self.d / "edl.json").read_text())["sfx_duck"], {"ratio": 1})
+        r = self.build(sfx_duck={"ratio": 0.5})
+        self.assertNotEqual(r.returncode, 0); self.assertIn("sfx_duck", r.stderr)
+
     def test_bad_pads_are_named_errors(self):
         for bad, msg in (([0.2], "pads: object"), ({"pre": 0.2, "gap": 1}, "pads: object"),
                          ({"pre": "0.2"}, "pads.pre"), ({"post": True}, "pads.post"), ({"mingap": 3}, "pads.mingap"),

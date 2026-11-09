@@ -77,6 +77,7 @@ checks the EDL again before ffmpeg runs. A bad value stops the build with the ke
 |---|---|---|
 | `progress` | `"fill"`, `true`, `false` | `"fill"`: a bar at the bottom that grows with the film time. `true`: the old `drawbox` bar, which stands full width from the first frame; kept so old EDLs render the same |
 | `music_duck` | `{"threshold": 0.001..1, "ratio": 1..20}` | how far the music dips under the voice (`sidechaincompress`). Default 0.015 / 6 nearly hides music under speech; 0.05 / 2.5 keeps it audible |
+| `sfx_duck` | `{"threshold": 0.001..1, "ratio": 1..20}` | how far the sound effects dip under the voice, as `music_duck`. Default 0.015 / 6 (since 2026-11-09: a chapter riser covered a sentence); `{"ratio": 1}` = the old full-level SFX |
 | `music_db`, `sfx_db` | dB | music and sound-effect level |
 | `audio` | ffmpeg filter chain for the voice | replaces the default voice chain; only filters on the `AUDIO` list in `edl_guard.py` |
 | `grade` | ffmpeg filter chain for the picture | replaces the default colour grade; only filters on the `VIDEO` list (`hqdn3d` included, against sensor grain in 9:16 crops) |
