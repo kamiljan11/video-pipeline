@@ -66,7 +66,13 @@ class LongResearchTest(unittest.TestCase):
         self.assertTrue(self.film([], [], said=far, length=40).retakes_left()[0])  # 30 s apart: a callback, not a retake
         named = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "said twice on purpose for emphasis"})
         self.assertTrue(named.retakes_left()[0])
-        self.assertFalse(self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "ok"}).retakes_left()[0])
+        ok, detail = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "ok"}).retakes_left()
+        self.assertFalse(ok); self.assertIn("the reason must say why", detail)
+        for key in ("", "to", "jest bardzo"):  # review 2026-11-09: an empty or short key waived every run (substring match)
+            ok, detail = self.film([], [], said=said, length=40, retakes_ok={key: "said twice on purpose for emphasis"}).retakes_left()
+            self.assertFalse(ok, key); self.assertIn("name the 4+ words said twice", detail)
+        kto = {**fill, **dict(enumerate(["kto", "jest", "bardzo", "ważne", "x", "kto", "jest", "bardzo", "ważne"]))}
+        self.assertFalse(self.film([], [], said=kto, length=40, retakes_ok={"to jest bardzo ważne": "said twice on purpose for emphasis"}).retakes_left()[0])
 
     def test_l3_the_announced_parts_are_the_road_when_marked(self):  # Kamil 2026-11-09: "trzy pomysły" in 13 chapters, no skip
         parts = [{"id": "intro", "title": "Wstęp", "start_word": 0, "chap": False}, {"id": "pr", "title": "Problem", "start_word": 30}] + \

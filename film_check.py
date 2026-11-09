@@ -490,8 +490,14 @@ class Film:
         """Kamil 2026-11-09 "jak dwa razy coś mówię, bo się pomyliłem, to wytnij i zostaw lepszą wersję": the same n words
         said twice within `window` s of FILM time = a retake the cut kept. A repeat on purpose is named in plan
         "retakes_ok": {"<the n words>": "why (>= 10 chars)"}, one phrase at a time (no switch for the whole film)"""
-        ok = {" ".join(map(norm_word, k.split())): v for k, v in (self.plan.get("retakes_ok") or {}).items()
-              if isinstance(v, str) and len(v.strip()) >= SKIP_MIN}
+        ok: list[list[str]] = []
+        wrong: list[str] = []  # a named phrase that waives nothing is said, not dropped (review 2026-11-09)
+        for k, v in (self.plan.get("retakes_ok") or {}).items():
+            words = [x for x in map(norm_word, str(k).split()) if x]
+            if len(words) < n: wrong.append(f"retakes_ok {k!r}: name the {n}+ words said twice")
+            elif not (isinstance(v, str) and len(v.strip()) >= SKIP_MIN): wrong.append(f"retakes_ok {k!r}: the reason must say why (>= {SKIP_MIN} characters)")
+            else: ok.append(words)
+        named = lambda run: any(run[i:i + len(k)] == k for k in ok for i in range(len(run) - len(k) + 1))  # whole words, in a row
         fw = sorted((t, norm_word(w)) for t, w in self.film_words())
         fw = [(t, w) for t, w in fw if w]
         seen: dict[str, float] = {}
@@ -504,8 +510,9 @@ class Film:
             elif again: runs.append([seen[key], t, key.split()])
             prev = again
             seen[key] = t
-        bad = [f"'{' '.join(w)}' at {a:.0f} s and {b:.0f} s" for a, b, w in runs if not any(k in " ".join(w) for k in ok)]
-        return not bad, ("retake kept (cut the worse take, or name it in plan retakes_ok): " + "; ".join(bad[:8])) if bad else "no phrase said twice"
+        bad = [f"'{' '.join(w)}' at {a:.0f} s and {b:.0f} s" for a, b, w in runs if not named(w)]
+        detail = (["retake kept (cut the worse take, or name it in plan retakes_ok): " + "; ".join(bad[:8])] if bad else []) + wrong
+        return not bad and not wrong, "; ".join(detail) or "no phrase said twice"
 
     def story(self) -> dict:
         p = self.work / "story.json"
