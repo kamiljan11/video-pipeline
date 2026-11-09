@@ -248,6 +248,15 @@ def max_gap(edl: dict, end: float) -> float:
     return round(max(gap, end - t), 1)
 
 
+
+def chap_text(spec: dict) -> str:
+    """What a chap card shows (gfx/cards_lib.mjs chapHtml): its "text", else the part it starts, parts[current - 1]
+    (v5 2026-11-09: part_tag cards carry no "text", and chapters were compared with "None")"""
+    if spec.get("text") is not None: return str(spec["text"])
+    parts, k = spec.get("parts"), spec.get("current")
+    if isinstance(parts, list) and type(k) is int and 1 <= k <= len(parts): return str(parts[k - 1])
+    return ""
+
 class Film:
     def __init__(self, work: Path, name: str):
         self.name = name
@@ -1067,7 +1076,7 @@ class Out:
         desc = md[md.find("Rozdziały:"):] if "Rozdziały:" in md else ""
         rows = [(desc_check.seconds(m), md_line.split(None, 1)[1].strip() if len(md_line.split(None, 1)) > 1 else "")
                 for md_line in desc.splitlines() if (m := desc_check.CHAPTER.match(md_line))]
-        chaps = sorted((o["at"], str(f.specs[o["id"]].get("text", ""))) for o in f.ovs if f.typ(o) == "chap")
+        chaps = sorted((o["at"], chap_text(f.specs[o["id"]])) for o in f.ovs if f.typ(o) == "chap")
         if not rows: return False, "no Rozdziały: block"
         body = [r for r in rows if r[0] > 0] if len(rows) == len(chaps) + 1 else rows
         bad = [f"{len(rows)} chapters vs {len(chaps)} chap cards"] if len(body) != len(chaps) else []

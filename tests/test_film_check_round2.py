@@ -210,6 +210,14 @@ class OutResearchTest(unittest.TestCase):
         self.assertFalse(ok); self.assertIn("at 90 s, its card at 60 s", detail); self.assertIn("is not the card text", detail)
         self.assertIn("call to action", o.warns[0][1])
 
+    def test_l1_a_part_tag_card_without_text_is_its_part_title(self):  # v5 2026-11-09: compared with "None" before
+        parts = ["Problem", "Szlaban zamiast tabliczki"]
+        ovs, specs = [{"id": "c2", "at": 60, "dur": 3}], [{"id": "c2", "type": "chap", "chap_style": "part_tag", "parts": parts, "current": 2}]
+        ok = self.out("## Opis\nRozdziały:\n0:00 Wstęp\n1:01 Szlaban zamiast tabliczki\n", ovs=ovs, specs=specs).chapters_match()
+        self.assertTrue(ok[0], ok)
+        self.assertEqual(film_check.chap_text({"parts": parts, "current": 0}), "")  # roadmap opening: no part yet
+        self.assertEqual(film_check.chap_text({"text": "Własny", "parts": parts, "current": 1}), "Własny")
+
     def test_l19_said_in_the_description_needs_resources(self):
         said = {100: "link", 101: "w", 102: "opisie"}
         self.assertTrue(self.out("## Opis\nx\n").resources_given()[0])
