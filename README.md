@@ -531,6 +531,15 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
   Nieznany `meme`, za dużo tekstów, `layout` w 16:9 albo mem 16:9 w filmie pionowym = nazwany błąd (`build_edl.py`, `render.mjs`).
   Lista kontrolna: `long.memes` (>= 3 w longu) i `short.meme` (>= 1; short bez luki na twarzy pomija go z powodem), bo
   karta istniała od 10-31 i żaden film jej nie użył (Kamil 4.11: „memów nie ma”). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
+  **Przegląd memów (notatka Kamila 19):** każdy mem/naklejka na ekranie ma w planie `"meme_review": {"<id karty>": {"sentence":
+  "zdanie, które ilustruje", "why": "dlaczego pasuje", "year": 2021, "source": "https://…"}}`; zdanie musi paść, gdy karta stoi
+  (60 % słów, od 6 s przed do 2 s po), mem starszy niż `max_age` lat (checklista `long.meme_review`/`short.meme_review`, `args`,
+  domyślnie 8) = wymień; własny `toon` bez roku i źródła.
+  **Naklejka bez tła (`"cut": true`, karta `sticker` 16:9):** postać bez prostokąta zdjęcia, z białą obwódką po swoim konturze.
+  Wycięcie robi `matte/.venv/bin/python cutout.py <slug>` (`--method person` = ludzie przez model RVM z `matte/models`, bez nowej
+  instalacji; `flat` = jednolite tło; `alpha` = PNG już przezroczysty) -> `render/memes/<slug>.cut.png` + `"cut"` w `<slug>.json`.
+  Kadr, z którego wycięcie zachowa < 8 % albo > 92 %, = nazwany błąd (np. kreskówka bez ludzi w `person`); nowe pobranie obrazka
+  unieważnia wycięcie (`render.mjs`: „made from another picture”). Testy: `tests/test_cutout.py`, `gfx/test/sticker.test.mjs`.
   ```json
   {"id": "m_excel", "type": "meme", "canvas": "v", "dur": 3, "meme": "drake", "text": ["Nowe narzędzie", "Stary dobry Excel"], "at": [0.2, 1.0]}
   ```

@@ -12,6 +12,7 @@ Outputs (story.json, clips.json, posts.json) come from the editorial team, team/
 """
 from __future__ import annotations
 
+import datetime
 import inspect
 import itertools
 import json
@@ -343,6 +344,30 @@ class Film:
         got.sort(reverse=True)  # worst first; the limit is the checklist's value, not repeated here
         return (round(got[0][0], 3) if got else 0.0), ("hidden: " + ", ".join(f"{i} {c:.0%}" for c, i in got)) if got else ""
     def meme_cards(self): return sum(self.typ(o) in ("meme", "sticker") for o in self.ovs)
+
+    def meme_review(self, max_age: int = 8, window: float = 6.0, said_share: float = 0.6):
+        """Kamil note 19 (2026-11-05, long v2): a meme must fit the sentence and be current. Every meme/sticker card on screen
+        has plan "meme_review" {"<card id>": {"sentence", "why", "year", "source"}}: the sentence is said while the card is up
+        (said_share of its words from `window` s before to 2 s after), "why" says why it fits, a picture meme names the year it
+        started and a source URL, at most max_age years ago (args in style/checklist.json); our own toon needs no year"""
+        cards = [o for o in self.ovs if self.typ(o) in ("meme", "sticker")]
+        if not cards: return True, "no meme cards"
+        rev, bad, now = self.plan.get("meme_review") or {}, [], datetime.datetime.now(datetime.UTC).year
+        for o in cards:
+            r, sp, cid = rev.get(o["id"]), self.specs.get(o["id"], {}), o["id"]
+            if not isinstance(r, dict): bad.append(f'{cid}: no plan meme_review entry {{"sentence", "why", "year", "source"}}'); continue
+            words = [w for w in map(norm_word, str(r.get("sentence", "")).split()) if len(w) >= 3]
+            heard = {norm_word(w) for t, w in self.film_words() if o["at"] - window <= t <= o["at"] + self.ov_dur(o) + 2}
+            if not words: bad.append(f'{cid}: "sentence" = the line the meme illustrates')
+            elif sum(w in heard for w in words) < said_share * len(words):
+                bad.append(f"{cid}: the sentence is not said while the card is up ({sum(w in heard for w in words)}/{len(words)} words)")
+            if len(str(r.get("why", "")).strip()) < 15: bad.append(f'{cid}: "why" = why this meme fits that sentence (>= 15 characters)')
+            if sp.get("toon") is not None: continue  # our own drawing: no age, no source
+            y = r.get("year")
+            if not (isinstance(y, int) and 1990 <= y <= now): bad.append(f'{cid}: "year" = the year the meme started, got {y!r}')
+            elif now - y > max_age: bad.append(f"{cid}: the meme is from {y}, more than {max_age} years old (note 19: change it)")
+            if not str(r.get("source", "")).startswith("http"): bad.append(f'{cid}: "source" = a URL for the year (e.g. its knowyourmeme page)')
+        return not bad, "; ".join(bad[:6]) or f"{len(cards)} memes reviewed"
     # a separate screen too often "rozprasza" (Kamil 2026-11-05, v2 long: 62 full-screen cards, every 21 s, 63 % of the time)
     def full_screen_share(self):
         sp = full_spans(self.edl, self.specs)

@@ -2011,6 +2011,21 @@
    "why": "critic findings accepted on purpose ({code, msg}); each one is a visible decision in the plan"
   },
   {
+   "id": "plan.meme_review",
+   "kind": "plan",
+   "name": "meme_review",
+   "owner": "montazysta",
+   "check": {
+    "long": "long.meme_review",
+    "short": "short.meme_review"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "Kamil note 19: long.meme_review / short.meme_review (fail level) demand it for every meme on screen; no meme, nothing to review"
+  },
+  {
    "id": "opt.bookend",
    "kind": "opt",
    "name": "bookend",
@@ -2121,6 +2136,18 @@
     "long": "report",
     "short": "report"
    }
+  },
+  {
+   "id": "opt.cut",
+   "kind": "opt",
+   "name": "cut",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "sticker \"cut\": true = the character without its background (cutout.py); the sticker card is 16:9 only"
   },
   {
    "id": "pfx.anim",

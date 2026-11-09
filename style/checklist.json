@@ -161,6 +161,16 @@
    "why": "Kamil 4.11: 'miały być też memy, memów nie ma'; the meme card existed since 10-31 and no film used it (film 2 v2: 9 in the long)"
   },
   {
+   "id": "long.meme_review",
+   "fmt": "long",
+   "metric": "meme_review",
+   "op": "true",
+   "args": {
+    "max_age": 8
+   },
+   "why": "Kamil note 19 (2026-11-05, long v2): memes must fit the sentence and be current; every meme has its sentence (said while it is up), why it fits, its year and source; older than max_age = change it (max_age = data, Kamil sets it)"
+  },
+  {
    "id": "long.lower",
    "fmt": "long",
    "metric": "lower_matches_brand",
@@ -431,6 +441,16 @@
    "op": ">=",
    "value": 1,
    "why": "Kamil 4.11: 'miały być też memy'; a short whose scenes leave no face gap of 3 s skips it with that reason"
+  },
+  {
+   "id": "short.meme_review",
+   "fmt": "short",
+   "metric": "meme_review",
+   "op": "true",
+   "args": {
+    "max_age": 8
+   },
+   "why": "Kamil note 19 (2026-11-05, long v2): memes must fit the sentence and be current; every meme has its sentence (said while it is up), why it fits, its year and source; older than max_age = change it (max_age = data, Kamil sets it)"
   },
   {
    "id": "short.max_gap",

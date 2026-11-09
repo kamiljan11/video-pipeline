@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import datetime
 import json
 import shutil
 import subprocess
@@ -116,6 +117,10 @@ class FilmCheckTest(unittest.TestCase):
         (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": overlays, "gfx_lead": -0.12}))  # build_edl copies plan gfx_lead
         (self.d / "specs.json").write_text(json.dumps(specs))
         plan["skip"] = {"long.capabilities": "fixture film: feature coverage has its own tests (test_capabilities.py)", **plan.get("skip", {})}
+        kinds = {sp["id"]: sp.get("type") for sp in specs}  # note 19: every meme on screen reviewed, its sentence said (words w<i> at i s)
+        plan.setdefault("meme_review", {o["id"]: {"sentence": " ".join(f"w{int(o['at']) + i}" for i in range(3)), "why": "fixture: the meme fits this line",
+                                                  "year": datetime.datetime.now(datetime.UTC).year - 2, "source": "https://knowyourmeme.com/fixture"}
+                                        for o in overlays if kinds.get(o["id"]) in ("meme", "sticker")})
         (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_long.json", "gfx_specs": "specs.json", **plan}))
         self.accept_stills([o["id"] for o in overlays])
         self.review_meaning(specs)

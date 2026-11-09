@@ -324,3 +324,28 @@ class ActionWordTest(FilmFixture):  # round 2 L23: the prompt shown where it is 
         words = [(0.0, "To"), (20.0, "dopisz")]
         self.assertFalse(self.film([{"id": "s", "at": 30, "dur": 8}], sp, words).action_words_shown()[0])
         self.assertTrue(self.film([{"id": "s", "at": 19.5, "dur": 8}], sp, words).action_words_shown()[0])
+
+
+class MemeReviewTest(FilmFixture):  # Kamil note 19: a meme fits its sentence and is current
+    def reviewed(self, review, sp=None, words=((10.0, "ręczny"), (10.4, "montaż"), (10.8, "odpada"))):
+        self.film([{"id": "m", "at": 11, "dur": 3}], sp or [{"id": "m", "type": "sticker", "meme": "drake"}], words)
+        (self.d / "plan_x.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json", "meme_review": review}))
+        return film_check.Film(self.d, "x").meme_review(max_age=8)
+
+    def test_a_reviewed_current_meme_said_on_time_passes(self):
+        now = film_check.datetime.datetime.now(film_check.datetime.UTC).year
+        good = {"m": {"sentence": "ręczny montaż odpada", "why": "odrzucenie starego sposobu, Drake odpycha", "year": now - 3, "source": "https://knowyourmeme.com/x"}}
+        self.assertTrue(self.reviewed(good)[0])
+        self.assertTrue(self.film([], []).meme_review()[0])  # no meme on screen: nothing to review
+
+    def test_missing_entry_old_meme_unsaid_sentence_each_named(self):
+        self.assertIn("no plan meme_review entry", self.reviewed({})[1])
+        ok, d = self.reviewed({"m": {"sentence": "zupełnie inne zdanie tutaj", "why": "krótko", "year": 2009, "source": ""}})
+        self.assertFalse(ok)
+        for part in ("not said while the card is up", '"why" = why', "more than 8 years old", '"source" = a URL'):
+            self.assertIn(part, d)
+
+    def test_our_own_toon_needs_no_year_or_source(self):
+        ok, d = self.reviewed({"m": {"sentence": "ręczny montaż odpada", "why": "kot przy klawiaturze = robota sama"}},
+                              sp=[{"id": "m", "type": "sticker", "toon": "cat_typing"}])
+        self.assertTrue(ok, d)

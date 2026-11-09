@@ -184,6 +184,14 @@ function toonSticker(sp) {
     + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${at.toFixed(2)}s infinite alternate">`
     + t.svg.replace('<svg ', `<svg style="width:${w}px;height:auto" `) + `</div>${say}</div></div>`;
 }
+// the cut-out of a meme picture (cutout.py): refused when missing or made from another picture than the one on disk
+function cutImg(sp, m) {
+  const c = m.cut, bad = why => new Error(`"${sp.id}": sticker ${JSON.stringify(sp.meme)} "cut": ${why} (run: matte/.venv/bin/python cutout.py ${sp.meme})`);
+  if (!c || typeof c.file !== 'string' || !/^[a-z0-9_]+\.cut\.png$/.test(c.file) || !fs.existsSync(`${MEMES}/${c.file}`)) throw bad('no cut-out yet');
+  const sha = crypto.createHash('sha256').update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
+  if (c.src_sha256 !== sha) throw bad('made from another picture (re-fetched since)');
+  return c.file;
+}
 function sticker(sp) {
   if (sp.toon !== undefined) return toonSticker(sp);
   const m = memeLib(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [], crops = m.sticker;
@@ -195,20 +203,25 @@ function sticker(sp) {
   if (!Array.isArray(texts) || !texts.every(t => typeof t === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
   const n = Math.max(1, texts.length), ats = sp.at ?? [];
   if (!(Array.isArray(ats) && ats.every(t => typeof t === 'number' && t >= 0 && t < sp.dur))) throw bad(`"at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
-  const chipH = texts.length ? 200 : 0;
+  const chipH = texts.length ? 200 : 0, img = sp.cut === true ? cutImg(sp, m) : m.img;
+  if (sp.cut !== undefined && sp.cut !== true) throw bad(`"cut" = true (the character without its background, cutout.py) or left out, got ${JSON.stringify(sp.cut)}`);
+  // cut: no white card behind the character, a white sticker edge drawn around its own outline (four hard drop-shadows)
+  const picCut = sp.cut === true ? ';border:0;background:none;box-shadow:none;border-radius:0;overflow:hidden;filter:drop-shadow(10px 0 0 #fff) drop-shadow(-10px 0 0 #fff) drop-shadow(0 10px 0 #fff) drop-shadow(0 -10px 0 #fff) drop-shadow(0 22px 40px rgba(0,0,0,.45))' : '';
   return '<div class="float">' + Array.from({ length: n }, (_, i) => {
     const [cx, cy, cw, ch] = crops[Math.min(i, crops.length - 1)], pw = cw * m.width, ph = ch * m.height;
     const s = Math.min(B.w / pw, (B.h - chipH) / ph), w = Math.round(pw * s), h = Math.round(ph * s);
     const t0 = ats[i] ?? 0.15 + (sp.dur / n) * i, t1 = i < n - 1 ? (ats[i + 1] ?? 0.15 + (sp.dur / n) * (i + 1)) - 0.05 : sp.dur - 0.35;
     const say = texts[i] ? `<div class="say" style="animation-delay:${(t0 + 0.25).toFixed(2)}s">${prose(texts[i])}</div>` : '';
     return `<div class="stk" style="left:${Math.round(B.x + (B.w - w) / 2)}px;top:${B.y}px;width:${w}px;animation:stkin .5s cubic-bezier(.2,1.5,.4,1) ${t0.toFixed(2)}s both,stkout .25s ease-in ${t1.toFixed(2)}s forwards">`
-      + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${t0.toFixed(2)}s infinite alternate"><div class="pic" style="width:${w}px;height:${h}px">`
-      + `<img src="${pathToFileURL(`${MEMES}/${m.img}`).href}" style="width:${(m.width * s).toFixed(1)}px;margin-left:${(-cx * m.width * s).toFixed(1)}px;margin-top:${(-cy * m.height * s).toFixed(1)}px"></div></div>${say}</div>`;
+      + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${t0.toFixed(2)}s infinite alternate"><div class="pic" style="width:${w}px;height:${h}px${picCut}">`
+      + `<img src="${pathToFileURL(`${MEMES}/${img}`).href}" style="width:${(m.width * s).toFixed(1)}px;margin-left:${(-cx * m.width * s).toFixed(1)}px;margin-top:${(-cy * m.height * s).toFixed(1)}px"></div></div>${say}</div>`;
   }).join('') + '</div>';
 }
 function memeStamp(sp) {
   const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
-  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(MEME_CODE).digest('hex');
+  const h = crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(MEME_CODE);
+  if (sp.cut === true && m.cut?.file && fs.existsSync(`${MEMES}/${m.cut.file}`)) h.update(fs.readFileSync(`${MEMES}/${m.cut.file}`));  // a new cut-out = a new card
+  return h.digest('hex');
 }
 // a toon's frames change with its drawing and the code that places it
 const toonStamp = sp => crypto.createHash('sha1').update(JSON.stringify(sp)).update(toonSvg(sp).svg).update(MEME_CODE)

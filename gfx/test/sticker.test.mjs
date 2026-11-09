@@ -113,3 +113,31 @@ test('the toons in the repo pass the drawing-only check', CHROME, () => {
     assert.equal(r.status, 0, `${f}: ${r.stderr}`);
   }
 });
+
+test('"cut": true shows the character without its rectangle; a missing or stale cut-out stops by name', CHROME, () => {
+  // cut.png: the picture's left half keeps only a red square in its middle, the rest transparent (cutout.py writes the same shape)
+  const sq = 'between(X,50,149)*between(Y,150,249)*255';  // drawbox would leave the alpha at 0
+  execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=400x400', '-vf',
+    `format=rgba,geq=r='${sq}':g=0:b=0:a='${sq}'`, '-frames:v', '1', path.join(lib, 'cutme.cut.png')]);
+  fs.copyFileSync(path.join(lib, 'rg.png'), path.join(lib, 'cutme.png'));
+  const sha = execFileSync('sha256sum', [path.join(lib, 'cutme.png')], { encoding: 'utf8' }).split(' ')[0];
+  const meta = { ...pic, img: 'cutme.png', sticker: [[0, 0, 0.5, 1]] };
+  fs.writeFileSync(path.join(lib, 'cutme.json'), JSON.stringify({ ...meta, cut: { file: 'cutme.cut.png', method: 'flat', src_sha256: sha } }));
+  const r = render([{ id: 'c1', type: 'sticker', dur: 2, meme: 'cutme', cut: true }]);
+  assert.equal(r.status, 0, r.stderr);
+  const f = frameAt(path.join(work, 'gfx', 'c1.mov'), 1.0);
+  // the right box (STICKER_BOX right: x 1620, w 820): the crop is 200x400, the square sits in its middle third
+  let red = 0, clear = 0;
+  for (let y = 150; y < 1300; y += 10) for (let x = 1620; x < 2440; x += 10) {
+    const [rr, g, b, a] = f(x, y);
+    if (a > 200 && rr > 180 && g < 80 && b < 80) red++;
+    if (a === 0) clear++;
+  }
+  assert.ok(red > 50, `the red square shows (${red} samples)`);
+  assert.ok(clear > red * 3, `around it the card is see-through, not a white rectangle (${clear} clear vs ${red} red)`);
+  fs.writeFileSync(path.join(lib, 'cutme.json'), JSON.stringify({ ...meta, cut: { file: 'cutme.cut.png', method: 'flat', src_sha256: 'x' } }));
+  assert.match(render([{ id: 'c2', type: 'sticker', dur: 2, meme: 'cutme', cut: true }]).stderr + '', /"cut": made from another picture .*cutout\.py cutme/);
+  fs.writeFileSync(path.join(lib, 'cutme.json'), JSON.stringify(meta));
+  assert.match(render([{ id: 'c3', type: 'sticker', dur: 2, meme: 'cutme', cut: true }]).stderr + '', /"cut": no cut-out yet/);
+  assert.match(render([{ id: 'c4', type: 'sticker', dur: 2, meme: 'rg', cut: 'yes' }]).stderr + '', /"cut" = true/);
+});
