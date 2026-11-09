@@ -504,7 +504,7 @@ class Film:
                 return False, f"gfx/scene_check.mjs did not run: {e}"
         lines = (r.stdout + r.stderr).strip().splitlines()
         msg = next((x for x in lines if x.startswith("Error")), None) or next((x for x in lines if "scene_check:" in x), lines[-1] if lines else "")
-        return r.returncode == 0, msg
+        return r.returncode == 0, msg or f"gfx/scene_check.mjs exit {r.returncode}, no output"
 
     def retakes_left(self, n: int = 4, window: float = 20.0):
         """Kamil 2026-11-09 "jak dwa razy coś mówię, bo się pomyliłem, to wytnij i zostaw lepszą wersję": the same n words

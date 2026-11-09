@@ -326,7 +326,7 @@ for sg in out:
 BROLL = None
 if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anchor words, never under a graphic
     from broll import place
-    BROLL = place(P["broll"], W, out, ovs)
+    BROLL = place(P["broll"], W, out, ovs, exact=EXACT)
 # plan values assemble.py turns into ffmpeg filters: refused here, at plan time, not minutes later in the render
 if P.get("progress", False) not in (True, False, "fill"): sys.exit(f"progress: true, false or \"fill\", got {P['progress']!r}")
 if "music_duck" in P and not edl_guard.duck_ok(P["music_duck"]):

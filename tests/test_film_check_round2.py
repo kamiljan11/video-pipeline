@@ -101,6 +101,18 @@ class LongResearchTest(unittest.TestCase):
         self.assertTrue(self.film([], [bad]).scenes_valid()[0])  # a scene the film does not show is not its problem
         self.assertEqual(self.film([], []).scenes_valid(), (True, "no drawn scene"))
 
+    def test_a_scene_check_that_cannot_run_or_says_nothing_fails_with_a_reason(self):  # pg-review T3 2026-11-09
+        from unittest import mock
+        good = {"id": "sc", "type": "scene", "dur": 6, "els": [{"k": "chip", "id": "c", "x": 0, "y": 500, "text": "exit 2", "tone": "bad", "at": 2}]}
+        f = self.film([{"id": "sc", "at": 10, "dur": 6}], [good])
+        with mock.patch("film_check.subprocess.run", side_effect=OSError("node missing")):
+            ok, detail = f.scenes_valid()
+        self.assertFalse(ok); self.assertIn("did not run", detail)
+        silent = mock.Mock(returncode=1, stdout="", stderr="")
+        with mock.patch("film_check.subprocess.run", return_value=silent):
+            ok, detail = f.scenes_valid()
+        self.assertFalse(ok); self.assertIn("exit 1, no output", detail)
+
     def test_l3_the_announced_parts_are_the_road_when_marked(self):  # Kamil 2026-11-09: "trzy pomysły" in 13 chapters, no skip
         parts = [{"id": "intro", "title": "Wstęp", "start_word": 0, "chap": False}, {"id": "pr", "title": "Problem", "start_word": 30}] + \
                 [{"id": f"p{i}", "title": t, "start_word": 60 + 60 * i, "roadmap": True} for i, t in enumerate(("Szlaban", "Blizna", "Dowód"))] + \

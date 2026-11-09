@@ -27,10 +27,15 @@ CACHE = os.environ.get("VP_BROLL_DIR") or os.path.join(HERE, "render", "broll") 
 FRAME = {"short": ("portrait", 1080, 1920), "long": ("landscape", 1920, 1080)}
 
 
-def src2out(segments, t):
+def src2out(segments, t, exact=False):
     """Output time of source time t: timeline.src2out, the one place for it (a copy here placed b-roll wrong once pieces
-    were out of source order, 2026-11-09)"""
-    return timeline.src2out(t, segments, False)
+    were out of source order, 2026-11-09). exact = the EDL's seg_exact (whole-frame pieces), as build_edl.py counts"""
+    return timeline.src2out(t, segments, exact)
+
+
+def exact_of(edl, plan=None):
+    """seg_exact of the EDL (else the plan): the film's pieces are whole frames then (timeline.piece_len)"""
+    return bool(edl.get("seg_exact", (plan or {}).get("seg_exact")))
 
 
 def topic_of(word, topics):
@@ -40,13 +45,13 @@ def topic_of(word, topics):
 
 def blocked(plan, W, edl, cfg, grammar):
     """Output intervals where no b-roll may start or run: graphics, sentences of avoided moments, the hook band."""
-    segs = edl["segments"]
+    segs, ex = edl["segments"], exact_of(edl, plan)
     out = [(0.0, cfg["not_before"])]
     out += [(o["at"] - 0.3, o["at"] + o["dur"] + 0.3) for o in edl.get("overlays", [])]
     avoid = {b["word"] for b in plan.get("beats", []) if b.get("type") in cfg.get("avoid", []) and not b.get("off")}
     for sent in sentences(plan, W, grammar["detect"]["max_sentence"]):
         if avoid & set(sent):
-            out.append((src2out(segs, W[sent[0]][0]), src2out(segs, W[sent[-1]][1])))
+            out.append((src2out(segs, W[sent[0]][0], ex), src2out(segs, W[sent[-1]][1], ex)))
     return out
 
 
@@ -62,10 +67,10 @@ def propose(plan, W, edl, grammar, find=stock.search, fetch=stock.fetch, cache=C
     old = [b for b in got if _usable(b, len(W))] if isinstance(got, list) else []
     if not cfg:
         return {"broll": old, "new": 0, "skipped": [], "credits": credits(old), "format": fmt, "error": None}
-    segs = edl["segments"]
-    total = sum(s["out"] - s["in"] for s in segs)
+    segs, ex = edl["segments"], exact_of(edl, plan)
+    total = timeline.total(segs, ex)
     spans = blocked(plan, W, edl, cfg, grammar)
-    placed = [src2out(segs, W[b["word"]][0]) + b.get("lead", 0.0) for b in old]
+    placed = [src2out(segs, W[b["word"]][0], ex) + b.get("lead", 0.0) for b in old]
     got = plan.get("broll_rejected")
     rejected = [r for r in got if isinstance(r, dict)] if isinstance(got, list) else []  # removed by the editor: never again
     used_ids = {(b.get("provider"), b.get("id")) for b in old + rejected if _key(b.get("provider")) and _key(b.get("id"))}
@@ -80,7 +85,7 @@ def propose(plan, W, edl, grammar, find=stock.search, fetch=stock.fetch, cache=C
         q = topic_of(W[i][2], br["topics"])
         if not q or i in no_words or q in dead_q:
             continue
-        t = src2out(segs, W[i][0]) + cfg["lead"]
+        t = src2out(segs, W[i][0], ex) + cfg["lead"]
         a, b = t, t + cfg["dur"]
         said = W[i][2].strip()
         if b > total or clash(a, b, spans) or any(abs(a - p) < cfg["min_gap"] + cfg["dur"] for p in placed):
@@ -135,7 +140,7 @@ def _usable(b, n_words):
             and all(b.get(k) is None or _key(b[k]) for k in ("provider", "id")))
 
 
-def _slot(b, W, segments, total, spans, end, root):
+def _slot(b, W, segments, total, spans, end, root, exact=False):
     """(at, dur, real file) of one plan item in output time, or the reason it cannot be placed (Polish, for the UI)."""
     file, dur, lead = b.get("file"), b.get("dur", 2.5), b.get("lead", 0.0)
     real = os.path.realpath(file) if isinstance(file, str) else ""
@@ -146,7 +151,7 @@ def _slot(b, W, segments, total, spans, end, root):
     t = W[b["word"]][0]
     if not any(s["in"] <= t <= s["out"] for s in segments):
         return "słowo wycięte"
-    at = max(0.0, src2out(segments, t) + lead)
+    at = max(0.0, src2out(segments, t, exact) + lead)
     d = min(at + dur, total) - at
     if d < 0.5:
         return "za blisko końca filmu"
@@ -157,13 +162,13 @@ def _slot(b, W, segments, total, spans, end, root):
     return at, d, real
 
 
-def place(items, W, segments, overlays, cache=CACHE):
+def place(items, W, segments, overlays, cache=CACHE, exact=False):
     """EDL entries for the plan's b-roll (build_edl.py, key "broll"): [{file, at, dur, ss, word, query, id}], skipped.
     A clip starts on its anchor word (+lead) in output time, is cut at the film's end, skips its first second when the
     clip is long enough (stock clips often fade in) and is dropped when the word was cut, it would overlap a graphic
     (+-0.3 s) or the previous clip, or its file is not a cached clip (plans arrive through Syncthing: no other paths)."""
     root = os.path.realpath(cache)
-    total = sum(s["out"] - s["in"] for s in segments)
+    total = timeline.total(segments, exact)  # exact = build_edl's EXACT (seg_exact): same film clock as the overlays
     spans = [(o["at"] - 0.3, o["at"] + o["dur"] + 0.3) for o in overlays]
     out, skipped, end = [], [], -1.0
     if not isinstance(items, list):  # "broll": null / a number from a hand edit: no b-roll, the film still builds
@@ -173,7 +178,7 @@ def place(items, W, segments, overlays, cache=CACHE):
             and 0 <= b["word"] < len(W)]
     skipped += [{"word": b.get("word") if isinstance(b, dict) else None, "reason": "zły wpis b-rollu"} for b in items if b not in good]
     for b in sorted(good, key=lambda b: b["word"]):
-        got = _slot(b, W, segments, total, spans, end, root)
+        got = _slot(b, W, segments, total, spans, end, root, exact)
         if isinstance(got, str):
             skipped.append({"word": b["word"], "said": W[b["word"]][2].strip()[:60], "reason": got})
             continue

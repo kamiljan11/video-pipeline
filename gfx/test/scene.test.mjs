@@ -216,3 +216,9 @@ test('term: "out_start" starts the output, "out_at" makes the terminal leave; "o
   assert.deepEqual(delays(term({ out_at: 4 })), ['4.00']);  // legacy: out_at is the output start too
   assert.deepEqual(checkScene(ok([{ k: 'term', x: 0, y: 0, cmd: 'ls', out_start: 9 }])).length, 1);  // out_start is a time 0..dur
 });
+
+test('term: "out_start" after "out_at" is named (the output would start after the terminal left)', () => {
+  const t = out_start => checkScene(ok([{ k: 'term', id: 't', x: 0, y: 0, cmd: 'ls', out: ['a'], out_start, out_at: 3 }]));
+  assert.ok(t(4).some(b => b.includes('"out_start"')), t(4).join('\n'));
+  assert.ok(!t(1.5).some(b => b.includes('"out_start"')));
+});

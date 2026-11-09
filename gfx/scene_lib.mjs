@@ -156,6 +156,7 @@ export function checkScene(sp) {
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
     if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
     if (e.k === 'check' && e.x_at !== undefined && !(e.x_at >= num(e.at, 0) + 0.6)) bad.push(`${n}: "x_at" = after the tick has drawn ("at" + 0.6 s or later)`);
+    if (e.out_start !== undefined && e.out_at !== undefined && !(e.out_start < e.out_at)) bad.push(`${n}: "out_start" (the output starts) = before "out_at" (the terminal leaves)`);
     if (e.k === 'toggle' && e.back_at !== undefined && !(e.back_at > num(e.on_at, num(e.at, 0) + 0.8))) bad.push(`${n}: "back_at" = after the switch flips on ("on_at")`);
     if (e.k === 'ring' && !(e.w > 0 && e.h > 0)) bad.push(`${n}: "w" and "h" = the box to circle`);
     if (e.k === 'ring' && e.shape !== undefined && !['circle', 'box', 'underline'].includes(e.shape)) bad.push(`${n}: "shape" = "circle", "box" or "underline", got ${JSON.stringify(e.shape)}`);
