@@ -26,3 +26,4 @@ words*.json
 plan_*.json
 edl_*.json
 gfx_specs.json
+.playwright-mcp/
