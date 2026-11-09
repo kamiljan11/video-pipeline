@@ -1,5 +1,5 @@
 {
- "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here.",
+ "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form.",
  "caps": [
   {
    "id": "card.chap",
@@ -43,9 +43,9 @@
    "check": "short.end",
    "use": {
     "long": "report",
-    "short": "required"
+    "short": "report"
    },
-   "why": "a long ends on the platform end screen (plan end/next_video, long.end)"
+   "why": "top shorts end 0.23 s after the last word with no end board (short.end, 30/30); the long ends on the platform end screen (long.end)"
   },
   {
    "id": "card.float",
@@ -63,7 +63,10 @@
    "kind": "card",
    "name": "kw",
    "owner": "motion-designer",
-   "check": "long.graphics",
+   "check": {
+    "long": "long.graphics",
+    "short": "short.max_gap"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -107,7 +110,10 @@
    "kind": "card",
    "name": "meme",
    "owner": "motion-designer",
-   "check": "long.memes",
+   "check": {
+    "long": "long.memes",
+    "short": "short.meme"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -485,7 +491,8 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "the voice filter chain (denoise, limiters) of every film; its delay is measured and trimmed (ADR-0022, lip_check)"
   },
   {
    "id": "plan.beat_opt_in",
@@ -517,7 +524,7 @@
    "check": "long.graphics",
    "use": {
     "long": "required",
-    "short": "required"
+    "short": "report"
    }
   },
   {
@@ -541,7 +548,7 @@
     "long": "never",
     "short": "report"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts; the long has none"
   },
   {
    "id": "plan.caption_box",
@@ -553,7 +560,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts (short.captions); the long has none"
   },
   {
    "id": "plan.caption_case",
@@ -565,7 +572,7 @@
     "long": "never",
     "short": "report"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts; the long has none"
   },
   {
    "id": "plan.caption_emph",
@@ -577,7 +584,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts (short.captions); the long has none"
   },
   {
    "id": "plan.caption_emph_scale",
@@ -589,7 +596,7 @@
     "long": "never",
     "short": "report"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts; the long has none"
   },
   {
    "id": "plan.caption_pop",
@@ -601,7 +608,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts (short.captions); the long has none"
   },
   {
    "id": "plan.caption_v",
@@ -613,7 +620,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "captions are burned in only on shorts (short.captions); the long has none"
   },
   {
    "id": "plan.drift",
@@ -653,7 +660,10 @@
    "kind": "plan",
    "name": "emph",
    "owner": "operator",
-   "check": "long.punch",
+   "check": {
+    "long": "long.punch",
+    "short": "short.punch"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -681,7 +691,7 @@
     "long": "never",
     "short": "report"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "a short may hold a last card in its tail (short.end, short.last_face); the long ends on the platform end screen (long.end)"
   },
   {
    "id": "plan.face",
@@ -704,14 +714,17 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "the face height in the 9:16 crop (face_track.py); the long is 16:9 and framed by part_framing"
   },
   {
    "id": "plan.gfx",
    "kind": "plan",
    "name": "gfx",
    "owner": "motion-designer",
-   "check": "long.graphics",
+   "check": {
+    "long": "long.graphics",
+    "short": "short.layouts"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -733,7 +746,10 @@
    "kind": "plan",
    "name": "gfx_lead",
    "owner": "motion-designer",
-   "check": "long.gfx_lead",
+   "check": {
+    "long": "long.gfx_lead",
+    "short": "short.gfx_lead"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -759,14 +775,18 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "the 2026-11-04 long had no grade while every gate was green (ADR-0023); the picture chain is checked by edl_guard"
   },
   {
    "id": "plan.head_track",
    "kind": "plan",
    "name": "head_track",
    "owner": "operator",
-   "check": "long.head_track",
+   "check": {
+    "long": "long.head_track",
+    "short": "short.head_track"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -782,7 +802,7 @@
     "long": "never",
     "short": "report"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "the pictures for the hook nouns of a short (film_check hook_show); the long has no hook card"
   },
   {
    "id": "plan.hook_dur",
@@ -794,7 +814,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "the on-screen hook card is a short feature (short.hook); the long opens on the cut"
   },
   {
    "id": "plan.hook_pos",
@@ -806,7 +826,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "the on-screen hook card is a short feature (short.hook_early); the long opens on the cut"
   },
   {
    "id": "plan.hook_show",
@@ -818,7 +838,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "the on-screen hook card is a short feature (short.hook); the long opens on the cut"
   },
   {
    "id": "plan.hook_show_report",
@@ -841,7 +861,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "a short-only key: the long has no burned-in captions or hook card"
+   "why": "the on-screen hook card is a short feature (short.hook); the long opens on the cut"
   },
   {
    "id": "plan.keeps",
@@ -852,7 +872,8 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "the cut itself: which pieces of the recording stay (verify_cut.py checks them against the words)"
   },
   {
    "id": "plan.master",
@@ -863,7 +884,8 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "loudness master of the mix (master_audio.py); without it the level differs film to film"
   },
   {
    "id": "plan.min_seg",
@@ -885,7 +907,8 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "music level under the voice; words_check.py measures that the words stay understood"
   },
   {
    "id": "plan.music_duck",
@@ -896,7 +919,8 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "the music dips under the voice (sidechain); words_check.py measures the words stay understood"
   },
   {
    "id": "plan.music_moods",
@@ -914,7 +938,10 @@
    "kind": "plan",
    "name": "music_palette",
    "owner": "dzwiekowiec",
-   "check": "long.music_palette",
+   "check": {
+    "long": "long.music_palette",
+    "short": "short.music_palette"
+   },
    "use": {
     "long": "required",
     "short": "required"
@@ -1062,7 +1089,8 @@
    "use": {
     "long": "required",
     "short": "required"
-   }
+   },
+   "why": "the 2026-11-04 long had no sfx_duck (ADR-0023): sounds dip under the voice; words_check.py measures it"
   },
   {
    "id": "plan.sfx_style",
@@ -1072,7 +1100,7 @@
    "check": "long.sfx",
    "use": {
     "long": "required",
-    "short": "required"
+    "short": "report"
    }
   },
   {
@@ -1212,7 +1240,10 @@
    "kind": "plan",
    "name": "zooms",
    "owner": "operator",
-   "check": "long.framing",
+   "check": {
+    "long": "long.framing",
+    "short": "short.punch"
+   },
    "use": {
     "long": "required",
     "short": "required"

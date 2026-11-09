@@ -55,7 +55,8 @@ def missing(designs: Path, ledger: list[dict]) -> list[dict]:
 def main(argv: list[str]) -> int:
     if argv[:1] not in (["check"], ["sync"]): print(__doc__, file=sys.stderr); return 2
     path = research_gate.LEDGER
-    ledger = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    try: ledger = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    except OSError as e: print(f"FAIL research ledger {path} not readable ({e.strerror}): research_gate.LEDGER / RESEARCH_LEDGER"); return 1
     try: gone = missing(DESIGNS, ledger)
     except ValueError as e: print(f"FAIL {e}"); return 1
     if argv[0] == "sync" and gone:

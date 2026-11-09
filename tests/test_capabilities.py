@@ -6,12 +6,15 @@ Lock 4: a film uses every required feature or skips it with a reason (film_check
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -55,6 +58,29 @@ class MapTest(unittest.TestCase):
                      "card.ghost: in style/capabilities.json, no longer in the code"):
             self.assertIn(want, bad)
 
+    def test_required_needs_evidence_of_its_own_form(self):
+        caps = [dict(c) for c in C.load()]
+        i = next(k for k, c in enumerate(caps) if c["id"] == "plan.grade")  # gate:edl_guard.py: the why is its only evidence
+        caps[i] = {k: v for k, v in caps[i].items() if k != "why"}
+        j = next(k for k, c in enumerate(caps) if c["id"] == "card.list")  # long.list_said is a long item: no evidence for a short
+        caps[j] = {**caps[j], "use": {"long": "required", "short": "required"}}
+        bad = C.problems(caps, C.discover())
+        self.assertIn("plan.grade: required in the long without evidence (a why, or a long checklist item with a why as its check)", bad)
+        self.assertIn("card.list: required in the short without evidence (a why, or a short checklist item with a why as its check)", bad)
+        self.assertNotIn("card.list: required in the long without evidence (a why, or a long checklist item with a why as its check)", bad)
+
+    def test_a_form_can_have_its_own_check(self):
+        kw = next(c for c in C.load() if c["id"] == "card.kw")
+        self.assertEqual((C.check_of(kw, "long"), C.check_of(kw, "short")), ("long.graphics", "short.max_gap"))
+
+    def test_a_scan_that_finds_nothing_or_lost_its_marker_fails_loudly(self):
+        found = {**C.discover(), "bg": set()}
+        self.assertIn("bg: 0 found in the code (the scan in capabilities.discover no longer matches it)", C.problems(C.load(), found))
+        d = self.copy_root()
+        s = d / "gfx" / "scene_lib.mjs"; s.write_text(s.read_text().replace("export const BGS = [", "export const BACKGROUNDS = ["))
+        with self.assertRaisesRegex(ValueError, "gfx/scene_lib.mjs: marker 'export const BGS = \\['"):
+            C.discover(d)
+
 
 CAPS = ({"id": "card.kw", "check": "long.graphics", "use": {"long": "required", "short": "required"}},
         {"id": "plan.broll", "check": "long.graphics", "use": {"long": "required", "short": "report"}},
@@ -70,14 +96,15 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(C.coverage(list(CAPS), "long", {"card.kw"}, {"cap.plan.broll": "  "})[0], ["plan.broll"])  # no reason
         self.assertEqual(C.coverage(list(CAPS), "short", set(), {})[0], ["card.kw"])  # report in a short: WARN only
 
-    def test_a_skipped_checklist_item_covers_its_features(self):
-        self.assertEqual(C.coverage(list(CAPS), "long", set(), {"long.graphics": "a talk without graphics, Kamil asked"})[0], [])
+    def test_a_skipped_checklist_item_does_not_waive_its_features(self):  # one reason per feature (b-roll hid under graphics)
+        self.assertEqual(C.coverage(list(CAPS), "long", set(), {"long.graphics": "a talk without graphics, Kamil asked"})[0],
+                         ["card.kw", "plan.broll"])
 
     def test_used_reads_the_film_not_the_spec_file(self):
         specs = {"a": {"type": "scene", "bg": "dots", "els": [{"k": "ring", "anim": "pop"}]}, "b": {"type": "kw"}}
         edl = {"overlays": [{"id": "a", "at": 1, "dur": 3}]}  # "b" is specified but never on screen
-        got = C.used({"broll": [{"q": "x"}], "grade": None, "zooms": []}, edl, specs)
-        self.assertEqual(got, {"plan.broll", "card.scene", "bg.dots", "piece.ring", "anim.pop"})
+        got = C.used({"broll": [{"q": "x"}], "grade": None, "zooms": [], "music_db": 0, "head_track": False, "audio": ""}, edl, specs)
+        self.assertEqual(got, {"plan.broll", "plan.music_db", "card.scene", "bg.dots", "piece.ring", "anim.pop"})  # 0 dB is set
 
     def test_film_check_runs_it_for_both_forms(self):
         items = {i["id"]: i for i in json.loads((ROOT / "style" / "checklist.json").read_text())["items"]}
@@ -106,6 +133,30 @@ class DesignLedgerTest(unittest.TestCase):
         self.assertEqual(D.missing(self.doc("a design that mentions `## Order of work` in a sentence\n"), []), [])
         with self.assertRaises(ValueError):
             D.missing(self.doc("<!-- ledger-forms: posters -->\n## Order of work\n1. **Lines**\n"), [])
+
+    def run_main(self, designs: Path, ledger: Path, *argv: str) -> tuple[int, str]:
+        out = io.StringIO()
+        with mock.patch.object(D, "DESIGNS", designs), mock.patch.object(D.research_gate, "LEDGER", ledger), \
+                contextlib.redirect_stdout(out):
+            rc = D.main(list(argv))
+        return rc, out.getvalue()
+
+    def test_sync_adds_each_row_once_and_check_then_passes(self):
+        d = self.doc("<!-- ledger-forms: long -->\n## Order of work\n1. **Lines** drawn\n")
+        led = d / "ledger.jsonl"; led.write_text(json.dumps({"id": "other", "status": "done"}) + "\n")
+        self.assertEqual(self.run_main(d, led, "check")[0], 1)
+        self.assertEqual(self.run_main(d, led, "sync")[0], 0)
+        self.assertEqual(self.run_main(d, led, "sync")[0], 0)  # idempotent: nothing new the second time
+        rows = [json.loads(x) for x in led.read_text().splitlines()]
+        self.assertEqual([r["id"] for r in rows], ["other", "design:2026-01-01-x:1:long"])
+        self.assertEqual(rows[1]["status"], "todo")
+        self.assertEqual(self.run_main(d, led, "check")[0], 0)
+
+    def test_a_missing_ledger_is_a_fail_line_not_a_traceback(self):
+        d = self.doc("no plan here\n")
+        rc, out = self.run_main(d, d / "nope.jsonl", "check")
+        self.assertEqual(rc, 1)
+        self.assertIn("FAIL research ledger", out)
 
     def test_the_repo_designs_all_have_rows(self):
         if not D.research_gate.LEDGER.exists(): self.skipTest("no research ledger on this machine")
