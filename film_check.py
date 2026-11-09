@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import NoReturn
 
 import article_check  # the kamiljan.com blog article made from the film
+import capabilities  # every feature: used, skipped with a reason, or named as unused
 import count_check  # the count he says is the count on the card
 import desc_check  # the YouTube descriptions (round 2 Y0-Y5, S2-S3)
 import gfx_events  # when a piece comes in inside a scene (prompt_shown_at)
@@ -246,6 +247,7 @@ class Film:
         self.specs = {s["id"]: s for s in load(work / self.plan["gfx_specs"], "gfx specs")} if self.plan.get("gfx_specs") else {}
         self.vertical = bool(self.plan.get("vertical"))
         self.fmt = "short" if self.vertical else "long"
+        self.warns: list[tuple[str, str]] = []  # (item id, advice): printed as WARN, never a failure
         self.work = work
         self.len = body_len(self.edl)
         self.ovs = self.edl.get("overlays", [])
@@ -281,6 +283,14 @@ class Film:
         free = self.no_chap()
         miss = [t for t, a, _ in self.parts() if t not in free and not any(a - CHAP_LEAD <= c <= a + CHAP_LAG for c in chaps)]
         return (not miss and bool(self.parts())), f"no chap card at the start of: {', '.join(miss)}" if miss else ""
+
+    def capabilities_missing(self):
+        """style/capabilities.json: every "required" feature of the form is in the film or skipped in the plan with a reason
+        (`"skip": {"cap.<id>": "why"}`); "report" features not used are WARN (Kamil 2026-11-09: the 2026-11-04 long had no b-roll)"""
+        miss, idle = capabilities.coverage(capabilities.load(), self.fmt, capabilities.used(self.plan, self.edl, self.specs),
+                                           self.plan.get("skip") or {})
+        if idle: self.warns.append((f"{self.fmt}.capabilities", f"not used ({len(idle)}): {', '.join(idle)}"))
+        return (not miss), (f"required, not used and not skipped with a reason: {', '.join(miss)}" if miss else "")
 
     def parts_with_explainer(self):
         ex = [o["at"] for o in self.ovs if self.typ(o) in EXPLAINERS]

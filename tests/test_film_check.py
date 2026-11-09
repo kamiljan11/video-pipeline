@@ -115,6 +115,7 @@ class FilmCheckTest(unittest.TestCase):
         segs = segments or [{"src": "A", "in": 0.0, "out": 600.0, "zoom": 1.0}]
         (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": overlays, "gfx_lead": -0.12}))  # build_edl copies plan gfx_lead
         (self.d / "specs.json").write_text(json.dumps(specs))
+        plan["skip"] = {"long.capabilities": "fixture film: feature coverage has its own tests (test_capabilities.py)", **plan.get("skip", {})}
         (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_long.json", "gfx_specs": "specs.json", **plan}))
         self.accept_stills([o["id"] for o in overlays])
         self.review_meaning(specs)

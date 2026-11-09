@@ -47,6 +47,10 @@ for n in "$@"; do
   form=$(python3 -c "import json,sys; print('shorts' if json.load(open(sys.argv[1])).get('vertical') else 'long')" "plan_$n.json" 2>/dev/null || echo long)
   if [ "${RESEARCH_GATE:-on}" = off ]; then echo "RESEARCH_GATE=off: research_gate skipped for $n ($form)" >> "$R/render.log"
   else python3 $VP/research_gate.py "$form" >> "$R/render.log" 2>&1 || { echo "FAILED research_gate $form $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+    # nothing skipped unseen (Kamil 2026-11-09): every feature of the code in style/capabilities.json, every design work
+    # item in the ledger (else research_gate above cannot see it); film_check long/short.capabilities then asks the film
+    python3 $VP/capabilities.py check >> "$R/render.log" 2>&1 || { echo "FAILED capabilities map $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+    python3 $VP/design_ledger.py check >> "$R/render.log" 2>&1 || { echo "FAILED design_ledger $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   fi
   # a failed build_edl (e.g. a typo in style/grammar.json) or face_track must not render a stale/unclamped edl_$n.json: no DONE for this film
   python3 $VP/build_edl.py plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED build_edl $n" >> "$R/render.log"; failed="$failed $n"; continue; }

@@ -1,0 +1,1222 @@
+{
+ "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here.",
+ "caps": [
+  {
+   "id": "card.chap",
+   "kind": "card",
+   "name": "chap",
+   "owner": "motion-designer",
+   "check": "long.chapters",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "a short has no parts/chapters"
+  },
+  {
+   "id": "card.count",
+   "kind": "card",
+   "name": "count",
+   "owner": "motion-designer",
+   "check": "long.counts",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.cta",
+   "kind": "card",
+   "name": "cta",
+   "owner": "motion-designer",
+   "check": "long.cta_place",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.end",
+   "kind": "card",
+   "name": "end",
+   "owner": "motion-designer",
+   "check": "short.end",
+   "use": {
+    "long": "report",
+    "short": "required"
+   },
+   "why": "a long ends on the platform end screen (plan end/next_video, long.end)"
+  },
+  {
+   "id": "card.float",
+   "kind": "card",
+   "name": "float",
+   "owner": "motion-designer",
+   "check": "long.explainers",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.kw",
+   "kind": "card",
+   "name": "kw",
+   "owner": "motion-designer",
+   "check": "long.graphics",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "card.list",
+   "kind": "card",
+   "name": "list",
+   "owner": "motion-designer",
+   "check": "long.list_said",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.lower",
+   "kind": "card",
+   "name": "lower",
+   "owner": "motion-designer",
+   "check": "long.lower",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.maxim",
+   "kind": "card",
+   "name": "maxim",
+   "owner": "motion-designer",
+   "check": "long.graphics",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.meme",
+   "kind": "card",
+   "name": "meme",
+   "owner": "motion-designer",
+   "check": "long.memes",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "card.note",
+   "kind": "card",
+   "name": "note",
+   "owner": "motion-designer",
+   "check": "long.note",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.scene",
+   "kind": "card",
+   "name": "scene",
+   "owner": "motion-designer",
+   "check": "long.explainers",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.slide",
+   "kind": "card",
+   "name": "slide",
+   "owner": "motion-designer",
+   "check": "long.explainers",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.sticker",
+   "kind": "card",
+   "name": "sticker",
+   "owner": "motion-designer",
+   "check": "long.memes",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.web",
+   "kind": "card",
+   "name": "web",
+   "owner": "motion-designer",
+   "check": "long.web_marked",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.bar",
+   "kind": "piece",
+   "name": "bar",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.chat",
+   "kind": "piece",
+   "name": "chat",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.check",
+   "kind": "piece",
+   "name": "check",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.chip",
+   "kind": "piece",
+   "name": "chip",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.cursor",
+   "kind": "piece",
+   "name": "cursor",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.file",
+   "kind": "piece",
+   "name": "file",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.line",
+   "kind": "piece",
+   "name": "line",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.node",
+   "kind": "piece",
+   "name": "node",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.ring",
+   "kind": "piece",
+   "name": "ring",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.say",
+   "kind": "piece",
+   "name": "say",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.stamp",
+   "kind": "piece",
+   "name": "stamp",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.stat",
+   "kind": "piece",
+   "name": "stat",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.steps",
+   "kind": "piece",
+   "name": "steps",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.term",
+   "kind": "piece",
+   "name": "term",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.text",
+   "kind": "piece",
+   "name": "text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.toggle",
+   "kind": "piece",
+   "name": "toggle",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.win",
+   "kind": "piece",
+   "name": "win",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.you",
+   "kind": "piece",
+   "name": "you",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "bg.blobs",
+   "kind": "bg",
+   "name": "blobs",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "bg.dots",
+   "kind": "bg",
+   "name": "dots",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.blur",
+   "kind": "anim",
+   "name": "blur",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.drop",
+   "kind": "anim",
+   "name": "drop",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.fade",
+   "kind": "anim",
+   "name": "fade",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.left",
+   "kind": "anim",
+   "name": "left",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.pop",
+   "kind": "anim",
+   "name": "pop",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.right",
+   "kind": "anim",
+   "name": "right",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.up",
+   "kind": "anim",
+   "name": "up",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.ass_out",
+   "kind": "plan",
+   "name": "ass_out",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.audio",
+   "kind": "plan",
+   "name": "audio",
+   "owner": "dzwiekowiec",
+   "check": "gate:lip_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.beat_opt_in",
+   "kind": "plan",
+   "name": "beat_opt_in",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.beats",
+   "kind": "plan",
+   "name": "beats",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.broll",
+   "kind": "plan",
+   "name": "broll",
+   "owner": "montazysta",
+   "check": "long.graphics",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.broll_rejected",
+   "kind": "plan",
+   "name": "broll_rejected",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.caption_ahead",
+   "kind": "plan",
+   "name": "caption_ahead",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.caption_box",
+   "kind": "plan",
+   "name": "caption_box",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.caption_case",
+   "kind": "plan",
+   "name": "caption_case",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.caption_emph",
+   "kind": "plan",
+   "name": "caption_emph",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.caption_emph_scale",
+   "kind": "plan",
+   "name": "caption_emph_scale",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.caption_pop",
+   "kind": "plan",
+   "name": "caption_pop",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.caption_v",
+   "kind": "plan",
+   "name": "caption_v",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.drift",
+   "kind": "plan",
+   "name": "drift",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.edge_fix",
+   "kind": "plan",
+   "name": "edge_fix",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.edl_out",
+   "kind": "plan",
+   "name": "edl_out",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.emph",
+   "kind": "plan",
+   "name": "emph",
+   "owner": "operator",
+   "check": "long.punch",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.end",
+   "kind": "plan",
+   "name": "end",
+   "owner": "producent",
+   "check": "long.end",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "a short ends on its own end card (card.end)"
+  },
+  {
+   "id": "plan.end_hold",
+   "kind": "plan",
+   "name": "end_hold",
+   "owner": "producent-shortow",
+   "check": "short.end",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.face",
+   "kind": "plan",
+   "name": "face",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.face_target_y",
+   "kind": "plan",
+   "name": "face_target_y",
+   "owner": "operator",
+   "check": "short.layouts",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.gfx",
+   "kind": "plan",
+   "name": "gfx",
+   "owner": "motion-designer",
+   "check": "long.graphics",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.gfx_dir",
+   "kind": "plan",
+   "name": "gfx_dir",
+   "owner": "motion-designer",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.gfx_lead",
+   "kind": "plan",
+   "name": "gfx_lead",
+   "owner": "motion-designer",
+   "check": "long.gfx_lead",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.gfx_specs",
+   "kind": "plan",
+   "name": "gfx_specs",
+   "owner": "motion-designer",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.grade",
+   "kind": "plan",
+   "name": "grade",
+   "owner": "operator",
+   "check": "gate:edl_guard.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.head_track",
+   "kind": "plan",
+   "name": "head_track",
+   "owner": "operator",
+   "check": "long.head_track",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.hook_assets",
+   "kind": "plan",
+   "name": "hook_assets",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.hook_dur",
+   "kind": "plan",
+   "name": "hook_dur",
+   "owner": "producent-shortow",
+   "check": "short.hook",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.hook_pos",
+   "kind": "plan",
+   "name": "hook_pos",
+   "owner": "producent-shortow",
+   "check": "short.hook_early",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.hook_show",
+   "kind": "plan",
+   "name": "hook_show",
+   "owner": "producent-shortow",
+   "check": "short.hook",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.hook_show_report",
+   "kind": "plan",
+   "name": "hook_show_report",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.hook_text",
+   "kind": "plan",
+   "name": "hook_text",
+   "owner": "producent-shortow",
+   "check": "short.hook",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "a short-only key: the long has no burned-in captions or hook card"
+  },
+  {
+   "id": "plan.keeps",
+   "kind": "plan",
+   "name": "keeps",
+   "owner": "montazysta",
+   "check": "gate:verify_cut.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.master",
+   "kind": "plan",
+   "name": "master",
+   "owner": "dzwiekowiec",
+   "check": "gate:master_audio.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.min_seg",
+   "kind": "plan",
+   "name": "min_seg",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.music_db",
+   "kind": "plan",
+   "name": "music_db",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.music_duck",
+   "kind": "plan",
+   "name": "music_duck",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.music_moods",
+   "kind": "plan",
+   "name": "music_moods",
+   "owner": "dzwiekowiec",
+   "check": "long.music_moods",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.music_palette",
+   "kind": "plan",
+   "name": "music_palette",
+   "owner": "dzwiekowiec",
+   "check": "long.music_palette",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.music_seed",
+   "kind": "plan",
+   "name": "music_seed",
+   "owner": "dzwiekowiec",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.name",
+   "kind": "plan",
+   "name": "name",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.next_video",
+   "kind": "plan",
+   "name": "next_video",
+   "owner": "producent",
+   "check": "long.end",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "a short ends on its own end card (card.end)"
+  },
+  {
+   "id": "plan.out_name",
+   "kind": "plan",
+   "name": "out_name",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.pads",
+   "kind": "plan",
+   "name": "pads",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.part_framing",
+   "kind": "plan",
+   "name": "part_framing",
+   "owner": "operator",
+   "check": "long.framing",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.probe",
+   "kind": "plan",
+   "name": "probe",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.progress",
+   "kind": "plan",
+   "name": "progress",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.punch_headroom",
+   "kind": "plan",
+   "name": "punch_headroom",
+   "owner": "operator",
+   "check": "long.punch",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.seg_exact",
+   "kind": "plan",
+   "name": "seg_exact",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.seg_zoom",
+   "kind": "plan",
+   "name": "seg_zoom",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.sfx_db",
+   "kind": "plan",
+   "name": "sfx_db",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.sfx_duck",
+   "kind": "plan",
+   "name": "sfx_duck",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.sfx_style",
+   "kind": "plan",
+   "name": "sfx_style",
+   "owner": "dzwiekowiec",
+   "check": "long.sfx",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.sil",
+   "kind": "plan",
+   "name": "sil",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.skip",
+   "kind": "plan",
+   "name": "skip",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.sources",
+   "kind": "plan",
+   "name": "sources",
+   "owner": "fact-checker",
+   "check": "out.sources",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.src",
+   "kind": "plan",
+   "name": "src",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.srt_out",
+   "kind": "plan",
+   "name": "srt_out",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.steady_x",
+   "kind": "plan",
+   "name": "steady_x",
+   "owner": "operator",
+   "check": "long.framing",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.tail",
+   "kind": "plan",
+   "name": "tail",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.verified_claims",
+   "kind": "plan",
+   "name": "verified_claims",
+   "owner": "fact-checker",
+   "check": "out.sources",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.vertical",
+   "kind": "plan",
+   "name": "vertical",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.words",
+   "kind": "plan",
+   "name": "words",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.zoom_every_cut",
+   "kind": "plan",
+   "name": "zoom_every_cut",
+   "owner": "operator",
+   "check": "long.punch",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.zoom_every_s",
+   "kind": "plan",
+   "name": "zoom_every_s",
+   "owner": "operator",
+   "check": "long.punch",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.zooms",
+   "kind": "plan",
+   "name": "zooms",
+   "owner": "operator",
+   "check": "long.framing",
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  }
+ ]
+}

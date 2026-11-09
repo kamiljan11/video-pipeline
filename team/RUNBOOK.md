@@ -54,6 +54,11 @@ Render stoi (`FAILED scene_check`, `FAILED gfx`, `FAILED film_check <film>` w `r
 `SCENE_CHECK=off` / `FILM_CHECK=off` tylko z powodem, zostawiają `WARN` w logu).
 
 ## Zasady dla każdej roli
+- **Start roli = jej lista funkcji:** `python3 capabilities.py brief <rola>` (z `style/capabilities.json`). Każda funkcja
+  `required` trafia do filmu albo do planu jako `"skip": {"cap.<id>": "powód"}`; `film_check` long/short.capabilities to
+  sprawdza (Kamil 2026-11-09 „a da sie system enforcowac zeby nie pominal rzeczy”; long 2026-11-04 nie miał b-rolla).
+- Design z `## Order of work` ma linię `<!-- ledger-forms: long, shorts -->`; `python3 design_ledger.py sync` wpisuje punkty
+  do rejestru badań jako `todo`, a `research_gate` blokuje render, dopóki nie są `done`/`deferred` (ADR-0023).
 - Liczby z rubryk pochodzą z `render/ref/research/*.md` (rozbiory filmów, tutoriale, research). Inny próg = zmiana w
   `style/checklist.json` z powodem, nie decyzja w głowie.
 - Pominięcie pozycji listy kontrolnej tylko z powodem w planie (`"skip": {"long.behind": "powód"}`).

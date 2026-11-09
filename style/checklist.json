@@ -686,6 +686,20 @@
    "metric": "meaning_reviewed",
    "op": "true",
    "why": "Kamil 2026-11-08: 'znajdź więcej takich bezsensownych, nic nie wnoszących rzeczy i zmieniaj logikę'; every card read for meaning (content_review.py) before the render, a changed card read again"
+  },
+  {
+   "id": "long.capabilities",
+   "fmt": "long",
+   "metric": "capabilities_missing",
+   "op": "true",
+   "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': every required feature of style/capabilities.json is used or skipped with a reason (the 2026-11-04 long had no b-roll, grade or sfx_duck)"
+  },
+  {
+   "id": "short.capabilities",
+   "fmt": "short",
+   "metric": "capabilities_missing",
+   "op": "true",
+   "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': every required feature of style/capabilities.json is used or skipped with a reason (the 2026-11-04 long had no b-roll, grade or sfx_duck)"
   }
  ]
 }

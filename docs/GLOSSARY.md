@@ -69,3 +69,8 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **siatka klatek nagrania** — czasy klatek `v0 + k/30` (film 2026-11-04: `v0` = 0,033 s, dźwięk od 0); `timeline.snap_in` stawia `-ss` tuż przed najbliższą klatką, żeby obraz i dźwięk kawałka zaczynały się w tym samym miejscu.
 - **opóźnienie łańcucha audio** — ile ms filtry `audio` planu przesuwają głos (afftdn 25 ms, alimiter 5 ms bez `latency=1`); `av_latency.chain_ms` mierzy je sygnałem testowym, `assemble.py` je odcina.
 
+## Mapa funkcji (ADR-0023)
+- **funkcja (capability)** — rzecz, którą pipeline umie dać filmowi: typ karty, element sceny, tło, wejście, klucz planu; wpis `kind.name` w `style/capabilities.json` z właścicielem (karta roli) i bramką.
+- **use** — dla formy (long/short): `required` (w filmie albo `skip cap.<id>` z powodem), `report` (WARN, gdy nieużyta), `infra` (kod robi zawsze), `never` (nie dla tej formy, z `why`).
+- **punkt designu** — numerowana pozycja `## Order of work` w `docs/designs/*.md`; wiersz `design:<plik>:<n>:<forma>` w rejestrze badań.
+

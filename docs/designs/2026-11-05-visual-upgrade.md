@@ -19,6 +19,7 @@ Rule: take mechanics only, never another creator's graphics or branding.
 | card audit: text >= 28 px, contrast >= 4.5, two texts overlapping > 3 %, same word twice | eian-riso-broll `riso.js:357-389` (idea only, NC licence) | scene_check: overlap only | phone-readability gate |
 | soft 0.5 s entry into scenes, hard cut back to the speaker | REF-long-negacz.md L7 | hard cuts everywhere | P2 #6, S-M |
 
+<!-- ledger-forms: long, shorts -->
 ## Order of work (each = one commit + tests + a preview Kamil watches)
 
 1. **Phone-readability gate** in scene_check: text height after the camera scale >= 40 px on the 1440 frame, stamp
