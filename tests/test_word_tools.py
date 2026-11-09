@@ -194,11 +194,11 @@ class ConfirmAudibleTest(unittest.TestCase):
         ar = ["a", "b"]  # the words around the gap
         try:
             C._whisper_window = lambda m, t0, d: ["a", "b"]
-            self.assertTrue(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # the same: whisper misheard the whole film
+            self.assertIn("missing in both", C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0) or "")  # the same: named, Kamil listens
             C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "b"]
             self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # gone in the film's window too
             C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "x", "b", "c"]
-            self.assertTrue(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # the word is heard in the film
+            self.assertIn("heard in the film", C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0) or "")  # the word is heard in the film
             C._whisper_window = lambda m, t0, d: ["q", "r"]
             self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # same text, wrong place: no proof
             C._whisper_window = lambda m, t0, d: None
@@ -213,7 +213,7 @@ class ConfirmAudibleTest(unittest.TestCase):
             C.stems = lambda a: (np.zeros(10, np.float32), np.zeros(10, np.float32))
             C.voice_over_bed = lambda v, b, t0, t1: 5.0  # under MASK_DB: only a re-hearing could clear it
             C.locate = lambda *a, **k: (1.0, 2.0)
-            C.reheard = lambda *a: calls.append(a) or True
+            C.reheard = lambda *a: calls.append(a) or "heard in the film's short window"
             C.REHEAR_MAX = 1
             exp = ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh", "ii", "jj", "kk"]
             heard = [x for x in exp if x not in ("cc", "ii")]

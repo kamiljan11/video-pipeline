@@ -14,7 +14,7 @@ Przegląd: po obejrzeniu przez Kamila longa i 18 shortów filmu 2026-11-04 — c
 | co | decyzja | gdzie |
 |---|---|---|
 | głos vs muzyka | stemy głosu i podkładu z grafu `assemble.audio.args.json`; min. różnica dB w oknach mowy ≥ `MASK_DB` 10 = WARN (whisper się pomylił) | `words_check.confirm_audible` |
-| ponowne słuchanie | < 10 dB: whisper tego samego krótkiego okna cięcia i filmu; WARN tylko gdy słowa wokół luki (2+2) są w oknie filmu, a okna są równe albo słowo jest w filmie | `words_check.reheard` |
+| ponowne słuchanie | < 10 dB: whisper tego samego krótkiego okna cięcia i filmu; WARN tylko gdy słowa wokół luki (2+2) są w oknie filmu, a słowo jest w oknie filmu albo okna są równe (film nie gorszy od cięcia; WARN mówi wtedy „missing in both ... listen”, słabszy dowód do odsłuchu) | `words_check.reheard` |
 | budżet | max `REHEAR_MAX` 6 ponownych słuchań na check (2 przebiegi whisper każde, timeout 600 s); reszta zostaje FAIL z powodem | `words_check.confirm_audible` |
 | brak pomiaru | brak stemów / miejsca na osi / ffmpeg padł = FAIL „not measured”, nigdy cichy WARN | `words_check` |
 | short.punch | `punches_per_face_min`: punch-iny poza kartami / czas twarzy bez kart w ujęciach z zmax > `PUNCH_ROOM` 1,08; brak zmax = ujęcie liczy się | `film_check.Film.punches_per_face_min` |

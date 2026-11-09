@@ -244,15 +244,19 @@ def _whisper_window(media: str, t0: float, d: float) -> list[str] | None:
             return None
 
 
-def reheard(gone: list[str], around: list[str], rough: str, final: str, t0: float, t1: float) -> bool:
+def reheard(gone: list[str], around: list[str], rough: str, final: str, t0: float, t1: float) -> str | None:
     """the last word on a flag: whisper the same short window of the cut and of the film. The words around the gap
     (around) must be heard in the film's window, so the window sits on the right place; then the same words in both,
     or the missing words heard in the film = whisper misheard the whole film (2026-11-08 long: "to jest to co się
-    dzieje" at 443 s was not in the cut's own window either; the outro read the same word for word in both)"""
+    dzieje" at 443 s was not in the cut's own window either; the outro read the same word for word in both).
+    Returns which evidence held, for the WARN line: "missing in both" is the weaker one (the film is no worse than the cut
+    there, but no window hears the word) and is named so Kamil checks it by ear (ADR-0021); None = no proof."""
     a, b = _whisper_window(rough, max(t0 - 1.0, 0.0), t1 - t0 + 2.0), _whisper_window(final, max(t0 - 1.0, 0.0), t1 - t0 + 2.0)
     if a is None or b is None or not around or not all(w in b for w in around):
-        return False
-    return a == b or all(w in b for w in gone)
+        return None
+    if all(w in b for w in gone):
+        return "heard in the film's short window"
+    return "missing in both short windows of the cut and the film: listen" if a == b else None
 
 
 def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: dict, args_json: Path,
@@ -277,9 +281,9 @@ def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: 
             kept.append(f"{line} (whisper did not hear it; voice {snr:.1f} dB over the music at {span[0]:.2f} s)")
         elif snr is not None and rough and final and reheard_n >= REHEAR_MAX:
             still.append(line + f" (music within {snr:.1f} dB at {span[0]:.2f} s; not re-heard: over {REHEAR_MAX} flags)")
-        elif snr is not None and rough and final and (reheard_n := reheard_n + 1) and reheard(
-                gone, expected[max(0, i - 2):i] + expected[i + len(gone):i + len(gone) + 2], rough, final, *span):
-            kept.append(f"{line} (the same in a short window of the cut and the film at {span[0]:.2f} s; music within {snr:.1f} dB)")
+        elif snr is not None and rough and final and (reheard_n := reheard_n + 1) and (why := reheard(
+                gone, expected[max(0, i - 2):i] + expected[i + len(gone):i + len(gone) + 2], rough, final, *span)):
+            kept.append(f"{line} ({why} at {span[0]:.2f} s; music within {snr:.1f} dB)")
         else:
             still.append(line + (f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)" if snr is not None
                                  else f" (no speech to measure at {span[0]:.2f} s)"))
