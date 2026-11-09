@@ -79,6 +79,27 @@ class AssembleMixTest(unittest.TestCase):
         self.assertGreater(none - default, 3, (none, default, hard))
         self.assertGreater(default - hard, 1, (none, default, hard))
 
+    def sfx_db_under_voice(self, **duck) -> float:
+        """level of a 660 Hz SFX bed under the 220 Hz voice in the final mix (dBFS RMS)"""
+        sfx = self.tmp / "sfx_tone.wav"
+        if not sfx.exists():
+            ffmpeg("-f", "lavfi", "-i", f"sine=f=660:d={DUR + 1}", "-ac", "2", str(sfx))
+        v = self.render(music=str(self.tmp / "music.wav"), sfx=str(sfx), music_db=-40, **duck)
+        r = subprocess.run(["ffmpeg", "-v", "info", "-nostats", "-ss", "0.5", "-t", "1", "-i", str(v), "-af",
+                            "bandpass=f=660:width_type=q:w=8,bandpass=f=660:width_type=q:w=8,astats=measure_overall=RMS_level:measure_perchannel=none",
+                            "-f", "null", "-"], capture_output=True, text=True, check=True)
+        return float(r.stderr.rsplit("RMS level dB:", 1)[1].split()[0])
+
+    def test_sfx_dip_under_the_voice(self):  # 2026-11-04 long 443 s: a chapter riser covered a sentence
+        none = self.sfx_db_under_voice(sfx_duck={"ratio": 1})
+        default = self.sfx_db_under_voice()  # 0.015 / 6, as the music
+        self.assertGreater(none - default, 6, (none, default))
+
+    def test_guard_refuses_bad_sfx_duck(self):
+        base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
+        self.assertTrue(any("sfx_duck" in p for p in edl_guard.problems({**base, "sfx_duck": {"ratio": 0.5}})))
+        self.assertFalse(any("sfx_duck" in p for p in edl_guard.problems({**base, "sfx_duck": {"threshold": 0.02, "ratio": 4}})))
+
     def test_segment_cache_follows_face_target_y(self):
         """a re-render into the same folder after a face_target_y change cuts the segments again (not the old head line)"""
         out = Path(tempfile.mkdtemp(dir=self.tmp))

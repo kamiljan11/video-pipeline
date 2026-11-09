@@ -350,11 +350,15 @@ ainputs = ["-i", rough]; afc = []
 if edl.get("music"):
     mo = ["-ss", f"{edl['music_offset']:.3f}"] if edl.get("music_offset") else []  # preview of a slice: beds start mid-way
     ainputs += [*mo, "-i", edl["music"], *mo, "-i", edl["sfx"]]
-    afc.append(va + ",asplit=2[vm][vsc]")
+    afc.append(va + ",asplit=3[vm][vsc][vss]")
     afc.append(f"[1:a]aresample=48000,volume={edl.get('music_db', -13)}dB[mu]")
     duck = {"threshold": 0.015, "ratio": 6, **edl.get("music_duck", {})}  # how far the music dips under the voice (edl_guard checks)
     afc.append(f"[mu][vsc]sidechaincompress=threshold={duck['threshold']:g}:ratio={duck['ratio']:g}:attack=30:release=500:makeup=1[mud]")
-    afc.append(f"[2:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sx]")
+    # the SFX dip under the voice as the music does: a chapter riser landing on a sentence covered "to co się dzieje" by 3 dB
+    # (film 2026-11-04 long, 443 s, c4_dowod); in a pause they play at full level (edl_guard checks sfx_duck like music_duck)
+    sduck = {"threshold": 0.015, "ratio": 6, **edl.get("sfx_duck", {})}
+    afc.append(f"[2:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sxr]")
+    afc.append(f"[sxr][vss]sidechaincompress=threshold={sduck['threshold']:g}:ratio={sduck['ratio']:g}:attack=5:release=300:makeup=1[sx]")
     afc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89[a]")
 else:
     afc.append(va + "[a]")

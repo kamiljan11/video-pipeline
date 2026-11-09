@@ -122,6 +122,8 @@ def problems(edl) -> list[str]:
         out.append("head_track: true or false (PiP window and corner circle cut from the recording around the head)")
     if "music_duck" in edl and not duck_ok(edl["music_duck"]):
         out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
+    if "sfx_duck" in edl and not duck_ok(edl["sfx_duck"]):
+        out.append("sfx_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
     if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:
         out.append(f"tail: 0 to {MAX_TAIL:g} s")
     if "out_name" in edl and not (isinstance(edl["out_name"], str) and OUT_NAME.fullmatch(edl["out_name"])):
