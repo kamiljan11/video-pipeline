@@ -37,7 +37,10 @@ def chain_ms(chain: str, max_ms: float = 200.0) -> float:
     cs = []
     for k in range(m + 1):
         seg = y[lo + k:hi + k]; cs.append(float((ref * (seg - seg.mean()) / (seg.std() + 1e-9)).mean()))
-    return max(0.0, int(np.argmax(cs)) / ENV * 1000)
+    k = int(np.argmax(cs))
+    if k == m:  # the best match at the edge of the search: the real delay is longer, trimming max_ms would be a guess
+        raise ValueError(f"av_latency: chain delays the sound by >= {max_ms:.0f} ms (search limit): {chain}")
+    return max(0.0, k / ENV * 1000)
 
 
 _V0: dict[str, float] = {}

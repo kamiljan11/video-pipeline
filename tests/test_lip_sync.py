@@ -43,6 +43,8 @@ class ChainLatencyTest(unittest.TestCase):
         self.assertAlmostEqual(av_latency.chain_ms("adelay=37"), 37.0, delta=1.0)
         self.assertAlmostEqual(av_latency.chain_ms("alimiter=limit=0.79:level=false"), 5.0, delta=1.0)
         self.assertEqual(av_latency.chain_ms("alimiter=limit=0.79:level=false:latency=1"), 0.0)
+        with self.assertRaises(ValueError):  # longer than the search: never a silent 200 ms trim
+            av_latency.chain_ms("adelay=300", max_ms=200)
 
 
 class JudgeTest(unittest.TestCase):
