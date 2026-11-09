@@ -1,5 +1,5 @@
 {
- "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form. Kinds opt (a key inside a card/scene spec) and menu (a list the role picks from, shown by brief, not counted per film) added in round 3 (2026-11-09). Round 4: kind pfx (a field of a scene piece, els[]); \"group\": one of the members of that form is enough (long.explainers needs a scene, float, slide or web card; long.memes a meme or sticker); a cap skip needs >= 10 characters and an existing id.",
+ "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form. Kinds opt (a key inside a card/scene spec) and menu (a list the role picks from, shown by brief, not counted per film) added in round 3 (2026-11-09). Round 4: kind pfx (a field of a scene piece, els[]); \"group\": one of the members of that form is enough (long.explainers needs a scene, float, slide or web card; long.memes a meme or sticker); a cap skip needs >= 10 characters and an existing id. Round 5: spec keys read by any stage (*.py), fields of objects inside a piece (pfx.rows.*, msgs.*, count.*, badge.*), groups end (card.end / plan.end) and framing (part_framing / zoom_every_s), never-uses where the renderer refuses the canvas.",
  "caps": [
   {
    "id": "card.chap",
@@ -45,10 +45,11 @@
     "short": "short.end"
    },
    "use": {
-    "long": "report",
+    "long": "required",
     "short": "never"
    },
-   "why": "top shorts end 0.23 s after the last word with no end board (short.end FAILs a short with an end card, 30/30); a long with plan end \"platform\" has none either (long.end)"
+   "why": "long.end: an end card or plan end \"platform\" (group end). Top shorts end 0.23 s after the last word with no end board (short.end FAILs a short with an end card, 30/30)",
+   "group": "end"
   },
   {
    "id": "card.float",
@@ -132,8 +133,9 @@
    "check": "long.note",
    "use": {
     "long": "required",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: a note card is 16:9 only (refused in canvas \"v\")"
   },
   {
    "id": "card.scene",
@@ -167,9 +169,10 @@
    "check": "long.memes",
    "use": {
     "long": "required",
-    "short": "report"
+    "short": "never"
    },
-   "group": "meme"
+   "group": "meme",
+   "why": "gfx/render.mjs: a sticker is 16:9 (STICKER_BOX beside the speaker); in 9:16 use a \"meme\" (refused in canvas \"v\")"
   },
   {
    "id": "card.web",
@@ -575,9 +578,9 @@
    "check": "short.captions",
    "use": {
     "long": "never",
-    "short": "required"
+    "short": "report"
    },
-   "why": "captions are burned in only on shorts (short.captions); the long has none"
+   "why": "caption look, defaults apply when unset (short.captions reads only caption_pop); captions are burned in only on shorts, the long has none"
   },
   {
    "id": "plan.caption_case",
@@ -596,12 +599,12 @@
    "kind": "plan",
    "name": "caption_emph",
    "owner": "producent-shortow",
-   "check": "short.captions",
+   "check": "short.options",
    "use": {
     "long": "never",
     "short": "required"
    },
-   "why": "captions are burned in only on shorts (short.captions); the long has none"
+   "why": "short.options (S9) FAILs unless caption_emph == \"key\"; captions are burned in only on shorts, the long has none"
   },
   {
    "id": "plan.caption_emph_scale",
@@ -635,9 +638,9 @@
    "check": "short.captions",
    "use": {
     "long": "never",
-    "short": "required"
+    "short": "report"
    },
-   "why": "captions are burned in only on shorts (short.captions); the long has none"
+   "why": "caption look, defaults apply when unset (short.captions reads only caption_pop); captions are burned in only on shorts, the long has none"
   },
   {
    "id": "plan.drift",
@@ -697,7 +700,8 @@
     "long": "required",
     "short": "never"
    },
-   "why": "a short ends on its last word with no end card (short.end, 30/30); the platform end screen is a long thing"
+   "why": "long.end (film_check.end_ok) passes with an end card OR plan end \"platform\"; one of the two is enough. A short ends on its last word (short.end)",
+   "group": "end"
   },
   {
    "id": "plan.end_hold",
@@ -995,10 +999,10 @@
    "owner": "producent",
    "check": "long.end",
    "use": {
-    "long": "required",
+    "long": "report",
     "short": "never"
    },
-   "why": "a short ends on its last word with no end card (short.end, 30/30); the platform end screen is a long thing"
+   "why": "read by long.end only with plan end \"platform\" (end_ok: 'no plan \"next_video\"' FAILs there); a long with an end card needs none. Shorts: no end screen"
   },
   {
    "id": "plan.out_name",
@@ -1031,7 +1035,9 @@
    "use": {
     "long": "required",
     "short": "report"
-   }
+   },
+   "group": "framing",
+   "why": "long.framing (film_check.framing_changes) fails only when NEITHER zoom_every_s nor part_framing is set; one is enough"
   },
   {
    "id": "plan.probe",
@@ -1063,7 +1069,7 @@
    "owner": "operator",
    "check": "long.punch",
    "use": {
-    "long": "required",
+    "long": "report",
     "short": "report"
    }
   },
@@ -1206,10 +1212,13 @@
    "kind": "plan",
    "name": "verified_claims",
    "owner": "fact-checker",
-   "check": "out.sources",
+   "check": {
+    "long": "out.sources",
+    "short": "gate:critic.py"
+   },
    "use": {
     "long": "required",
-    "short": "required"
+    "short": "report"
    }
   },
   {
@@ -1250,11 +1259,13 @@
    "kind": "plan",
    "name": "zoom_every_s",
    "owner": "operator",
-   "check": "long.punch",
+   "check": "long.framing",
    "use": {
-    "long": "report",
+    "long": "required",
     "short": "report"
-   }
+   },
+   "group": "framing",
+   "why": "long.framing (film_check.framing_changes) fails only when NEITHER zoom_every_s nor part_framing is set; one is enough"
   },
   {
    "id": "plan.zooms",
@@ -1390,9 +1401,10 @@
    "owner": "motion-designer",
    "check": "gate:gfx/render.mjs",
    "use": {
-    "long": "report",
+    "long": "never",
     "short": "report"
-   }
+   },
+   "why": "gfx/render.mjs applies compact only with canvas \"v\": in a long it does nothing"
   },
   {
    "id": "opt.current",
@@ -1417,8 +1429,9 @@
    },
    "use": {
     "long": "required",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: lower + define is 16:9 only (refused in canvas \"v\")"
   },
   {
    "id": "opt.delays",
@@ -1440,8 +1453,9 @@
    "check": "gate:gfx/cards_lib.mjs",
    "use": {
     "long": "report",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: list + dim_done is 16:9 only (refused in canvas \"v\")"
   },
   {
    "id": "opt.dur",
@@ -1485,9 +1499,10 @@
    "owner": "operator",
    "check": "gate:build_edl.py",
    "use": {
-    "long": "report",
+    "long": "never",
     "short": "report"
-   }
+   },
+   "why": "build_edl.py reads face_box only under a split card, and split is set only in 9:16: in a long it does nothing"
   },
   {
    "id": "opt.face_corner",
@@ -1496,9 +1511,10 @@
    "owner": "operator",
    "check": "gate:build_edl.py",
    "use": {
-    "long": "report",
+    "long": "never",
     "short": "report"
-   }
+   },
+   "why": "build_edl.py applies face_corner only when vert: in a long it does nothing"
   },
   {
    "id": "opt.find",
@@ -1715,9 +1731,10 @@
    "owner": "motion-designer",
    "check": "gate:gfx/render.mjs",
    "use": {
-    "long": "report",
+    "long": "never",
     "short": "report"
-   }
+   },
+   "why": "gfx/template.html styles .pill only under html.v: in a long it does nothing"
   },
   {
    "id": "opt.pip",
@@ -1857,8 +1874,9 @@
    "check": "gate:gfx/render.mjs",
    "use": {
     "long": "report",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "gfx/render.mjs: a toon sticker is 16:9; in 9:16 use a scene (refused in canvas \"v\")"
   },
   {
    "id": "opt.type",
@@ -1880,8 +1898,9 @@
    "check": "gate:gfx/cards_lib.mjs",
    "use": {
     "long": "report",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: list + upto is 16:9 only (refused in canvas \"v\")"
   },
   {
    "id": "opt.url",
@@ -2091,6 +2110,17 @@
     "short": "report"
    },
    "why": "card height share of the text behind the speaker (behind.py, default 0.2)"
+  },
+  {
+   "id": "opt.quote",
+   "kind": "opt",
+   "name": "quote",
+   "owner": "fact-checker",
+   "check": "gate:critic.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
   },
   {
    "id": "pfx.anim",
@@ -2729,6 +2759,206 @@
     "short": "infra"
    },
    "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.rows.hl",
+   "kind": "pfx",
+   "name": "rows.hl",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.hl_at",
+   "kind": "pfx",
+   "name": "rows.hl_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.mark",
+   "kind": "pfx",
+   "name": "rows.mark",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.mark_at",
+   "kind": "pfx",
+   "name": "rows.mark_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.tone",
+   "kind": "pfx",
+   "name": "rows.tone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.msgs.at",
+   "kind": "pfx",
+   "name": "msgs.at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.msgs.who",
+   "kind": "pfx",
+   "name": "msgs.who",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.at",
+   "kind": "pfx",
+   "name": "count.at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.d",
+   "kind": "pfx",
+   "name": "count.d",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.from",
+   "kind": "pfx",
+   "name": "count.from",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.pre",
+   "kind": "pfx",
+   "name": "count.pre",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.suf",
+   "kind": "pfx",
+   "name": "count.suf",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.to",
+   "kind": "pfx",
+   "name": "count.to",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge.at",
+   "kind": "pfx",
+   "name": "badge.at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge.text",
+   "kind": "pfx",
+   "name": "badge.text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge.tone",
+   "kind": "pfx",
+   "name": "badge.tone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.t",
+   "kind": "pfx",
+   "name": "rows.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the line's own text (or a ~ placeholder): every row and message has one, nothing to choose"
+  },
+  {
+   "id": "pfx.msgs.t",
+   "kind": "pfx",
+   "name": "msgs.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the line's own text (or a ~ placeholder): every row and message has one, nothing to choose"
   },
   {
    "id": "menu.layout",

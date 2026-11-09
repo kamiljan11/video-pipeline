@@ -26,9 +26,12 @@ MAP = ROOT / "style" / "capabilities.json"
 FORMS = ("long", "short")
 USES = ("required", "report", "infra", "never", "menu")
 SPEC_JS = ("gfx/*.mjs",)  # card / scene spec options: `sp.<key>` in the renderers
-SPEC_PY = ("build_edl.py", "gfx_types.py", "film_check.py", "behind.py", "screen_grammar.py", "stills.py")  # `sp.get("k")`, `sp["k"]`
+SPEC_PY = ("*.py", "music/*.py")  # `sp.get("k")`, `sp["k"]` in every stage (round 4 critic: critic.py's "quote" sat outside a fixed list)
 SPEC_HAND = {"sfx": "music/make_beds.py", "recap": "film_check.py"}  # read off the spec under another name; the file must still say '"k"'
 PIECE_JS = ("gfx/scene_lib.mjs", "gfx/anchor_lib.mjs")  # fields of a scene piece: `e.<key>` (els[])
+# fields of objects inside a piece (round 4 critic: a row's mark, a chat line's side, a counter's suffix were invisible):
+# (piece field, start marker, end marker, variable) in gfx/scene_lib.mjs; id = pfx.<field>.<key>
+NESTED = (("rows", "function row(", "\n}", "o"), ("msgs", "  chat: (e", "\n  }),", "g"), ("count", "  stat: (e", "\n  },", "c"))
 SKIP_MIN = 10  # = film_check.SKIP_MIN: a reason, not "ok" (round 3 critic: a 1-character cap skip passed)
 
 
@@ -69,8 +72,8 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
         t = f.read_text()
         opts |= set(re.findall(r"\bsp\??\.(\w+)", t))  # sp.x, sp?.x
         for names in re.findall(r"(?:const|let) \{([^}]+)\} = sp\b", t): opts |= set(re.findall(r"(\w+)(?=\s*(?:[,=:]|$))", names))
-    for rel in SPEC_PY:
-        t = (root / rel).read_text() if (root / rel).exists() else ""
+    for f in (f for g in SPEC_PY for f in root.glob(g) if f.name != "capabilities.py"):
+        t = f.read_text()
         opts |= set(re.findall(r"""\bsp\.get\(["'](\w+)["']""", t)) | set(re.findall(r"""\bsp\[["'](\w+)["']\]""", t))
         opts |= set(re.findall(r"""["'](\w+)["'] (?:not )?in sp\b""", t))
     for py in (p for p in root.glob("*.py") if p.name != "capabilities.py"):  # a spec read off the table: self.specs.get(id, {}).get("k"); a nested option: spec["behind"].get("k")
@@ -81,6 +84,10 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
     if build_box: opts |= set(re.findall(r'\("(\w+)"', "(" + build_box.group(1)))
     # "_on" / "_from" / "_to" / "_held": written by gfx/anchor_lib.mjs after measuring, never by a role
     pfx = {k for rel in PIECE_JS if (root / rel).exists() for k in re.findall(r"\be\.(\w+)", (root / rel).read_text()) if not k.startswith("_")}
+    lib = (root / PIECE_JS[0]).read_text() if (root / PIECE_JS[0]).exists() else ""
+    for field, start, end, var in NESTED:
+        pfx |= {f"{field}.{k}" for k in re.findall(rf"\b{var}\.(\w+)", _between(lib, start, end, PIECE_JS[0]))}
+    pfx |= {f"badge.{k}" for k in re.findall(r"\be\.badge\.(\w+)", lib)}
     opts |= {k for k, rel in SPEC_HAND.items() if (root / rel).exists() and f'"{k}"' in (root / rel).read_text()}
     return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys, "opt": opts, "pfx": pfx,
             "menu": {m for m, vals in menus(root).items() if vals}}
@@ -102,7 +109,8 @@ def menus(root: Path = ROOT) -> dict[str, list[str]]:
                       set(keys_of("music/make_beds.py", "CARD_SFX = {", "}\n", r'"(\w+)": '))),
         "chap_style": keys_of("gfx/cards_lib.mjs", "export const CHAP_STYLES = [", "]", r"'(\w+)'"),
         "motion": keys_of("gfx/scene_lib.mjs", "const MOTION = {", "\n};", r"(?m)^  (\w+): \{ anims"),
-        "layout": sorted(set(keys_of("gfx/render.mjs", "const MEME_BOX = {", "};", r"(\w+): \{")) | ({"side"} if "layout === 'side'" in
+        # MEME_BOX "long" = no layout (16:9), not a choice a spec can name (round 4 critic)
+        "layout": sorted(set(keys_of("gfx/render.mjs", "const MEME_BOX = {", "};", r"(\w+): \{")) - {"long"} | ({"side"} if "layout === 'side'" in
                          ((root / "gfx" / "scene_lib.mjs").read_text() if (root / "gfx" / "scene_lib.mjs").exists() else "") else set())),
         "theme": sorted(p.stem for p in (root / "style" / "themes").glob("*.json")),
         "beat": sorted(json.loads((root / "style" / "grammar.json").read_text()).get("beats", {})) if (root / "style" / "grammar.json").exists() else [],
@@ -171,6 +179,9 @@ def used(plan: dict, edl: dict, specs: dict, def_anim: dict[str, str] | None = N
         for e in sp.get("els") or []:
             out.add(f"piece.{e.get('k')}")
             out |= {f"pfx.{k}" for k, v in e.items() if _set(v)}
+            for k, v in e.items():  # rows [{t, mark}], msgs [{who, t}], count {pre, suf}, badge {text, tone}
+                for d in ([v] if isinstance(v, dict) else [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []):
+                    out |= {f"pfx.{k}.{x}" for x, y in d.items() if _set(y)}
             anim = e.get("anim") or (def_anim or {}).get(e.get("k", ""), "up" if def_anim is not None else None)
             if anim: out.add(f"anim.{anim}")
     return out

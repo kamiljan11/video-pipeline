@@ -252,6 +252,36 @@ class RoundFiveTest(unittest.TestCase):  # completeness critic round 4 (2026-11-
         self.assertFalse({k for k in f["pfx"] if k.startswith("_")}, "internal _fields are not in the scan")
         self.assertIn("shape", C.discover()["pfx"])
 
+    def test_spec_keys_of_any_stage_and_fields_inside_pieces_are_found(self):
+        f = C.discover()
+        self.assertIn("quote", f["opt"])  # critic.py, outside the old fixed file list
+        self.assertTrue({"rows.mark", "rows.hl", "msgs.who", "count.suf", "badge.tone"} <= f["pfx"])
+        self.assertNotIn("long", C.menus()["layout"])  # MEME_BOX "long" = no layout, not a choice
+
+    def test_a_row_mark_or_a_chat_side_counts_as_used(self):
+        sp = {"type": "scene", "els": [{"k": "win", "rows": ["~", {"t": "Krok 2", "mark": "ok"}]},
+                                       {"k": "chat", "msgs": [{"who": "me", "t": "hej"}]}, {"k": "stat", "count": {"to": 9, "suf": "%"}}]}
+        have = C.used({}, {"overlays": [{"id": "s"}]}, {"s": sp})
+        self.assertTrue({"pfx.rows.mark", "pfx.rows.t", "pfx.msgs.who", "pfx.count.suf", "pfx.count.to"} <= have)
+
+    def test_one_way_to_end_and_one_way_to_reframe_is_enough(self):
+        caps = C.load()
+        missing = lambda have: C.coverage(caps, "long", have, {})[0]
+        self.assertNotIn("plan.end", missing({"card.end"}))
+        self.assertNotIn("card.end", missing({"plan.end"}))
+        self.assertNotIn("plan.next_video", missing(set()))  # report: long.end reads it only with end "platform"
+        self.assertNotIn("plan.part_framing", missing({"plan.zoom_every_s"}))
+        self.assertIn("plan.part_framing", missing(set()))
+
+    def test_features_a_form_refuses_are_never_asked_of_it(self):
+        by = {c["id"]: c for c in C.load()}
+        for i in ("card.note", "card.sticker", "opt.toon", "opt.define", "opt.upto", "opt.dim_done"):
+            self.assertEqual(by[i]["use"]["short"], "never", i)
+        for i in ("opt.compact", "opt.pill", "opt.face_box", "opt.face_corner"):
+            self.assertEqual(by[i]["use"]["long"], "never", i)
+        self.assertEqual(by["plan.verified_claims"]["use"]["short"], "report")
+        self.assertEqual(C.check_of(by["plan.caption_emph"], "short"), "short.options")
+
 
 if __name__ == "__main__":
     unittest.main()

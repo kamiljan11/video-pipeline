@@ -45,11 +45,21 @@ layout/theme/beat/tone; `use` poprawione: progress, edge_fix, seg_exact, min_seg
 required (bez niego żaden punch/dźwięk gramatyki), `card.end` -> check per forma, w shorcie never; grupy „jedno z”
 (`explainer`: float/scene/slide/web, `meme`: meme/sticker — jak liczą long.explainers i long.memes); skip `cap.<id>` >= 10 znaków
 i istniejące id (literówka = FAIL). Stary long 2026-11-04 po rundzie 4: 9 braków, w tym `beats`.
+**Runda 5 (krytyk rundy 4, każda pozycja sprawdzona w kodzie):** skan specu czyta każdy etap (`*.py`, `music/*.py`; `quote` z
+`critic.py` był poza stałą listą plików); pola obiektów w elemencie sceny: `rows.*` (ptaszek `mark`, `hl`), `msgs.*` (`who`),
+`count.*`, `badge.*`; pola `_on/_from/_to` z `anchor_lib` poza skanem (pisze je kod, nie rola); menu `layout` bez `long` (to brak
+układu w 16:9). `use` poprawione: `card.end` + `plan.end` = grupa `end` (long.end przechodzi z planszą ALBO `end: "platform"`),
+`next_video` -> report; `part_framing` + `zoom_every_s` = grupa `framing` (long.framing chce jednego z nich); `punch_headroom`,
+`caption_box`, `caption_v` -> report (domyślne); `caption_emph` -> check short.options (S9); `verified_claims` w shorcie ->
+report (C9 w critic.py łapie liczby bez źródła); note, sticker, toon, define, upto, dim_done w shorcie -> never (render odrzuca
+canvas "v"); compact, pill, face_box, face_corner w longu -> never (działają tylko w 9:16). Stary long 2026-11-04: 7 braków
+(count, list, beats, broll, grade, sfx_duck, read_along).
 Punkty listy na poziomie warn (long.define, long.note, long.read_along…) stają się blokadą przez `required` — świadomie: funkcja
 ma być użyta albo pominięta z powodem.
 Poza mapą świadomie: pod-pola kluczy planu (np. pola `emph[]`, `broll[]`), pola `story.json`/`clips.json`/`thumbs.json`
 i wyjścia `out.*` (posty, miniatury, artykuł) — pilnuje ich checklista `film_check --out`, uruchamiana na każdym filmie.
 Dziury poza mapą bez bramki (krytyk r3, do decyzji): podpisy autorów b-rolla w opisie (`broll.py` je robi, nic nie sprawdza),
-różnorodność typów grafik postów (`post_gfx` list/quote/bars/split/table), pokrętła tylko w EDL (pip_size, sub_style, music_offset). Rejestr badań leży poza repo
+różnorodność typów grafik postów (`post_gfx` list/quote/bars/split/table), pokrętła tylko w EDL (pip_size, sub_style, music_offset); miniatury: `accent: "thumb"` (TH8) nic nie zmienia, dopóki
+motyw nie ma tokenu `--acc-thumb` (kolor wybiera Kamil), a `arrow` jest opcją bez bramki (krytyk r4). Rejestr badań leży poza repo
 (`~/Dane/creator-study`), więc test blokady 3 na prawdziwych designach działa tylko na laptopie; na renderze blokuje `run_v4.sh`.
 **Koszt:** skan ~0,1 s; 0 zł. **Metryka:** funkcje `required` nieużyte bez powodu w filmie (cel 0), skipy na film.
