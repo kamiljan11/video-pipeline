@@ -290,7 +290,9 @@ class Film:
         miss, idle = capabilities.coverage(capabilities.load(), self.fmt, capabilities.used(self.plan, self.edl, self.specs, capabilities.default_anims()),
                                            self.plan.get("skip") or {})
         if idle: self.warns.append((f"{self.fmt}.capabilities", f"not used ({len(idle)}): {', '.join(idle)}"))
-        return (not miss), (f"required, not used and not skipped with a reason: {', '.join(miss)}" if miss else "")
+        bad = capabilities.bad_skips(capabilities.load(), self.plan.get("skip") or {})  # a typo or "ok" waives nothing
+        detail = "; ".join(([f"required, not used and not skipped with a reason: {', '.join(miss)}"] if miss else []) + bad)
+        return (not miss and not bad), detail
 
     def parts_with_explainer(self):
         ex = [o["at"] for o in self.ovs if self.typ(o) in EXPLAINERS]

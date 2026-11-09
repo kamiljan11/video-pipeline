@@ -22,18 +22,23 @@ import capabilities as C
 import design_ledger as D
 
 
+def copy_root(case: unittest.TestCase) -> Path:
+    """the files capabilities.discover reads, in a temp dir the test may break"""
+    d = Path(tempfile.mkdtemp()); case.addCleanup(shutil.rmtree, d)
+    for f in [*ROOT.glob("*.py"), *ROOT.glob("gfx/*.mjs"), *ROOT.glob("music/*.py"), *ROOT.glob("gfx/toons/*.svg"),
+              *ROOT.glob("style/themes/*.json"), ROOT / "style" / "checklist.json", ROOT / "style" / "memes.json", ROOT / "style" / "grammar.json"]:
+        rel = f.relative_to(ROOT); (d / rel).parent.mkdir(parents=True, exist_ok=True); shutil.copy(f, d / rel)
+    shutil.copytree(ROOT / "team" / "roles", d / "team" / "roles")
+    case.assertEqual(C.problems(C.load(), C.discover(d), d), [])  # the copy alone is a clean map
+    return d
+
+
 class MapTest(unittest.TestCase):
     def test_the_map_covers_the_code(self):
         self.assertEqual(C.problems(C.load(), C.discover()), [])
 
     def copy_root(self) -> Path:
-        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
-        for f in [*ROOT.glob("*.py"), *ROOT.glob("gfx/*.mjs"), *ROOT.glob("music/*.py"), *ROOT.glob("gfx/toons/*.svg"),
-                  ROOT / "style" / "checklist.json", ROOT / "style" / "memes.json"]:
-            rel = f.relative_to(ROOT); (d / rel).parent.mkdir(parents=True, exist_ok=True); shutil.copy(f, d / rel)
-        shutil.copytree(ROOT / "team" / "roles", d / "team" / "roles")
-        self.assertEqual(C.problems(C.load(), C.discover(d), d), [])  # the copy alone is a clean map
-        return d
+        return copy_root(self)
 
     def test_a_new_card_type_without_an_entry_fails(self):
         d = self.copy_root()
@@ -124,7 +129,7 @@ class CoverageTest(unittest.TestCase):
         edl = {"overlays": [{"id": "a", "at": 1, "dur": 3}]}  # "b" is specified but never on screen
         got = C.used({"broll": [{"q": "x"}], "grade": None, "zooms": [], "music_db": 0, "head_track": False, "audio": ""}, edl, specs)
         self.assertEqual(got, {"plan.broll", "plan.music_db", "card.scene", "bg.dots", "piece.ring", "anim.pop",  # 0 dB is set
-                               "opt.type", "opt.bg", "opt.els"})
+                               "opt.type", "opt.bg", "opt.els", "pfx.k", "pfx.anim"})
 
     def test_used_counts_spec_options_and_default_entrances(self):
         specs = {"a": {"type": "scene", "behind": {"ratio": 0.2}, "cam": None, "els": [{"k": "stamp"}, {"k": "text"}]}}
@@ -188,6 +193,53 @@ class DesignLedgerTest(unittest.TestCase):
         if not D.research_gate.LEDGER.exists(): self.skipTest("no research ledger on this machine")
         ledger = [json.loads(x) for x in D.research_gate.LEDGER.read_text().splitlines() if x.strip()]
         self.assertEqual(D.missing(D.DESIGNS, ledger), [])
+
+
+
+class RoundFourTest(unittest.TestCase):  # completeness critic round 3 (2026-11-09)
+    def test_spec_keys_read_in_other_ways_are_found(self):
+        f = C.discover()
+        for k in ("bookend", "cta", "caption_y", "face_anchor", "face_zoom", "behind.clean", "behind.ratio", "beat"):
+            self.assertIn(k, f["opt"])
+        self.assertTrue({"hl_at", "strike_at", "pulse_at", "packet_at", "on"} <= f["pfx"])
+        self.assertTrue({"layout", "theme", "beat", "tone"} <= f["menu"])
+
+    def test_blind_spots_of_the_scan_are_closed(self):
+        d = copy_root(self)
+        r = d / "gfx" / "render.mjs"
+        r.write_text(r.read_text().replace("const html = sp => {", "const html = sp => {\n  const zz = sp.type === 'badge' ? 1 : 0;", 1)
+                     + "\nconst _y = sp => sp?.gap;\nconst _z = sp => { const { zing, zong = 1 } = sp; return zing + zong; };\n")
+        b = d / "build_edl.py"; b.write_text(b.read_text() + '\nif "newkey" in P: pass\n')
+        f = C.discover(d)
+        self.assertIn("badge", f["card"])
+        self.assertTrue({"gap", "zing", "zong"} <= f["opt"])
+        self.assertIn("newkey", f["plan"])
+
+    def test_one_member_of_a_group_is_enough(self):
+        caps = [{"id": "card.scene", "check": "x", "group": "explainer", "use": {"long": "required", "short": "report"}},
+                {"id": "card.slide", "check": "x", "group": "explainer", "use": {"long": "required", "short": "report"}},
+                {"id": "card.kw", "check": "x", "use": {"long": "required", "short": "report"}}]
+        self.assertEqual(C.coverage(caps, "long", {"card.slide"}, {})[0], ["card.kw"])
+        self.assertEqual(C.coverage(caps, "long", set(), {})[0], ["card.scene", "card.slide", "card.kw"])
+
+    def test_a_skip_needs_a_real_reason_and_a_real_id(self):
+        caps = list(CAPS)
+        self.assertEqual(C.coverage(caps, "long", set(), {"cap.card.kw": "ok", "cap.plan.broll": "no thing is named"})[0], ["card.kw"])
+        self.assertEqual(C.bad_skips(caps, {"cap.card.kww": "a long enough reason", "cap.card.kw": True, "long.x": "y"}),
+                         ["cap.card.kww: no such capability in style/capabilities.json",
+                          "cap.card.kw: the reason must say why (>= 10 characters), got True"])
+        import film_check
+        self.assertEqual(C.SKIP_MIN, film_check.SKIP_MIN)
+
+    def test_used_reads_nested_options_and_piece_fields(self):
+        specs = {"a": {"type": "float", "behind": {"ratio": 0.3, "clean": True}},
+                 "b": {"type": "scene", "els": [{"k": "chip", "hl_at": 2.0, "x": 1, "y": 1}]}}
+        got = C.used({}, {"overlays": [{"id": "a"}, {"id": "b"}]}, specs)
+        self.assertTrue({"opt.behind", "opt.behind.ratio", "opt.behind.clean", "pfx.hl_at", "pfx.x"} <= got)
+
+    def test_card_end_is_judged_by_the_item_of_its_form(self):
+        end = next(c for c in C.load() if c["id"] == "card.end")
+        self.assertEqual((C.check_of(end, "long"), C.check_of(end, "short"), end["use"]["short"]), ("long.end", "short.end", "never"))
 
 
 if __name__ == "__main__":

@@ -38,7 +38,18 @@ znacznika = goły traceback (teraz `FAIL` z nazwą pliku; 0 znalezionych = błą
 Pythona -> `opt.*`, 53; `long` required z dowodem z listy: behind, chap_style, define, find, read_along, canvas_zoom), menu
 (`menu.*`: memy, toony, palety, moody, dźwięki kart, style kart części, zestawy ruchu — wartości z kodu w `brief`, bez
 rozliczania filmu), `P.get` we wszystkich etapach (`critic_accept`), domyślne wejście elementu sceny (DEF_ANIM, inaczej `up`).
+**Runda 4 (krytyk rundy 3):** opcje czytane inaczej (`specs.get(id).get("k")`: bookend, cta; `"k" in sp`; `BOX_KEYS`:
+caption_y, face_anchor, face_zoom; zagnieżdżone `behind.clean/ratio`; `sp?.x`, destrukturyzacja, `sp.type === 'x' ?`; `"k" in P`;
+wejścia zestawu tokens), pola elementów sceny `pfx.*` (efekty: hl_at, strike_at, pulse_at, packet_at, gone… = report), menu
+layout/theme/beat/tone; `use` poprawione: progress, edge_fix, seg_exact, min_seg -> report (domyślnie wyłączone), `beats` ->
+required (bez niego żaden punch/dźwięk gramatyki), `card.end` -> check per forma, w shorcie never; grupy „jedno z”
+(`explainer`: float/scene/slide/web, `meme`: meme/sticker — jak liczą long.explainers i long.memes); skip `cap.<id>` >= 10 znaków
+i istniejące id (literówka = FAIL). Stary long 2026-11-04 po rundzie 4: 9 braków, w tym `beats`.
+Punkty listy na poziomie warn (long.define, long.note, long.read_along…) stają się blokadą przez `required` — świadomie: funkcja
+ma być użyta albo pominięta z powodem.
 Poza mapą świadomie: pod-pola kluczy planu (np. pola `emph[]`, `broll[]`), pola `story.json`/`clips.json`/`thumbs.json`
-i wyjścia `out.*` (posty, miniatury, artykuł) — pilnuje ich checklista `film_check --out`, uruchamiana na każdym filmie. Rejestr badań leży poza repo
+i wyjścia `out.*` (posty, miniatury, artykuł) — pilnuje ich checklista `film_check --out`, uruchamiana na każdym filmie.
+Dziury poza mapą bez bramki (krytyk r3, do decyzji): podpisy autorów b-rolla w opisie (`broll.py` je robi, nic nie sprawdza),
+różnorodność typów grafik postów (`post_gfx` list/quote/bars/split/table), pokrętła tylko w EDL (pip_size, sub_style, music_offset). Rejestr badań leży poza repo
 (`~/Dane/creator-study`), więc test blokady 3 na prawdziwych designach działa tylko na laptopie; na renderze blokuje `run_v4.sh`.
 **Koszt:** skan ~0,1 s; 0 zł. **Metryka:** funkcje `required` nieużyte bez powodu w filmie (cel 0), skipy na film.

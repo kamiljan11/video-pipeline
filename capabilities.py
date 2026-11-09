@@ -28,6 +28,8 @@ USES = ("required", "report", "infra", "never", "menu")
 SPEC_JS = ("gfx/*.mjs",)  # card / scene spec options: `sp.<key>` in the renderers
 SPEC_PY = ("build_edl.py", "gfx_types.py", "film_check.py", "behind.py", "screen_grammar.py", "stills.py")  # `sp.get("k")`, `sp["k"]`
 SPEC_HAND = {"sfx": "music/make_beds.py", "recap": "film_check.py"}  # read off the spec under another name; the file must still say '"k"'
+PIECE_JS = ("gfx/scene_lib.mjs", "gfx/anchor_lib.mjs")  # fields of a scene piece: `e.<key>` (els[])
+SKIP_MIN = 10  # = film_check.SKIP_MIN: a reason, not "ok" (round 3 critic: a 1-character cap skip passed)
 
 
 def _between(text: str, start: str, end: str, where: str) -> str:
@@ -48,23 +50,38 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
     render = (root / "gfx" / "render.mjs").read_text()
     scene = (root / "gfx" / "scene_lib.mjs").read_text()
     build = (root / "build_edl.py").read_text()
-    cards = set(re.findall(r"if \(sp\.type === '(\w+)'\) (?:return|\{)", _between(render, "const html = sp => {", "\n};\n", "gfx/render.mjs")))
+    body = _between(render, "const html = sp => {", "\n};\n", "gfx/render.mjs")
+    cards = set(re.findall(r"if \(sp\.type === '(\w+)'\) (?:return|\{)", body)) | set(re.findall(r"sp\.type === '(\w+)' \?", body))
     pieces = set(re.findall(r"'(\w+)'", _between(scene, "export const KINDS = [", "]", "gfx/scene_lib.mjs")))
     bgs = set(re.findall(r"'(\w+)'", _between(scene, "export const BGS = [", "]", "gfx/scene_lib.mjs")))
     anims = set(re.findall(r"(\w+): 'sc\w+ ", _between(scene, "const ANIMS = {", "};", "gfx/scene_lib.mjs")))
+    anims |= set(re.findall(r"(\w+): `sc\w+ ", _between(scene, "tokens: { anims: {", "},", "gfx/scene_lib.mjs")))  # the tokens set
     keys = set(re.findall(r"""P\.get\(["'](\w+)["']""", build)) | set(re.findall(r"""P\[["'](\w+)["']\]""", build))
     keys |= set(re.findall(r'"(\w+)"', _between(build, "**{k: P[k] for k in (", ") if k in P}", "build_edl.py")))
     keys |= set(re.findall(r'"(\w+)"', _between(build, "OPTIONS = {k: P[k] for k in (", ")", "build_edl.py")))
     for py in root.glob("*.py"):  # plan keys other stages read (critic, film_check, edges, shorts...): `plan.get("x")`, `plan["x"]`
         keys |= set(re.findall(r"""\bplan\.get\(["'](\w+)["']""", py.read_text())) | set(re.findall(r"""\bplan\[["'](\w+)["']\]""", py.read_text()))
         keys |= set(re.findall(r"""\bP\.get\(["'](\w+)["']""", py.read_text()))  # critic.py reads the plan as P too
+        keys |= set(re.findall(r"""["'](\w+)["'] (?:not )?in P\b""", py.read_text()))  # `if "beats" in P:`
     keys = {k for k in keys if len(k) > 1}  # a docstring example (`plan["x"]`) is no key
-    opts = {k for g in SPEC_JS for f in root.glob(g) for k in re.findall(r"\bsp\.(\w+)", f.read_text())}
+    opts = set()
+    for f in (f for g in SPEC_JS for f in root.glob(g)):
+        t = f.read_text()
+        opts |= set(re.findall(r"\bsp\??\.(\w+)", t))  # sp.x, sp?.x
+        for names in re.findall(r"(?:const|let) \{([^}]+)\} = sp\b", t): opts |= set(re.findall(r"(\w+)(?=\s*(?:[,=:]|$))", names))
     for rel in SPEC_PY:
         t = (root / rel).read_text() if (root / rel).exists() else ""
         opts |= set(re.findall(r"""\bsp\.get\(["'](\w+)["']""", t)) | set(re.findall(r"""\bsp\[["'](\w+)["']\]""", t))
+        opts |= set(re.findall(r"""["'](\w+)["'] (?:not )?in sp\b""", t))
+    for py in (p for p in root.glob("*.py") if p.name != "capabilities.py"):  # a spec read off the table: self.specs.get(id, {}).get("k"); a nested option: spec["behind"].get("k")
+        t = py.read_text()
+        opts |= set(re.findall(r"""\bspecs?(?:\[[^\]]+\]|\.get\([^)]*\))\.get\(["'](\w+)["']\)""", t))
+        opts |= {f"{a}.{b}" for a, b in re.findall(r"""\bspec\[["'](\w+)["']\]\.get\(["'](\w+)["']""", t)}
+    build_box = re.search(r"BOX_KEYS = \(\((.*)\)\)", build)
+    if build_box: opts |= set(re.findall(r'\("(\w+)"', "(" + build_box.group(1)))
+    pfx = {k for rel in PIECE_JS if (root / rel).exists() for k in re.findall(r"\be\.(\w+)", (root / rel).read_text())}
     opts |= {k for k, rel in SPEC_HAND.items() if (root / rel).exists() and f'"{k}"' in (root / rel).read_text()}
-    return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys, "opt": opts,
+    return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys, "opt": opts, "pfx": pfx,
             "menu": {m for m, vals in menus(root).items() if vals}}
 
 
@@ -84,6 +101,11 @@ def menus(root: Path = ROOT) -> dict[str, list[str]]:
                       set(keys_of("music/make_beds.py", "CARD_SFX = {", "}\n", r'"(\w+)": '))),
         "chap_style": keys_of("gfx/cards_lib.mjs", "export const CHAP_STYLES = [", "]", r"'(\w+)'"),
         "motion": keys_of("gfx/scene_lib.mjs", "const MOTION = {", "\n};", r"(?m)^  (\w+): \{ anims"),
+        "layout": sorted(set(keys_of("gfx/render.mjs", "const MEME_BOX = {", "};", r"(\w+): \{")) | ({"side"} if "layout === 'side'" in
+                         ((root / "gfx" / "scene_lib.mjs").read_text() if (root / "gfx" / "scene_lib.mjs").exists() else "") else set())),
+        "theme": sorted(p.stem for p in (root / "style" / "themes").glob("*.json")),
+        "beat": sorted(json.loads((root / "style" / "grammar.json").read_text()).get("beats", {})) if (root / "style" / "grammar.json").exists() else [],
+        "tone": keys_of("gfx/scene_lib.mjs", "export const TONES = {", "};", r"(\w+): '"),
     }
 
 
@@ -143,9 +165,11 @@ def used(plan: dict, edl: dict, specs: dict, def_anim: dict[str, str] | None = N
         sp = specs.get(o["id"], {})
         out.add(f"card.{sp.get('type')}")
         out |= {f"opt.{k}" for k, v in sp.items() if _set(v)}
+        out |= {f"opt.{k}.{x}" for k, v in sp.items() if isinstance(v, dict) for x, y in v.items() if _set(y)}  # behind.clean
         if sp.get("bg"): out.add(f"bg.{sp['bg']}")
         for e in sp.get("els") or []:
             out.add(f"piece.{e.get('k')}")
+            out |= {f"pfx.{k}" for k, v in e.items() if _set(v)}
             anim = e.get("anim") or (def_anim or {}).get(e.get("k", ""), "up" if def_anim is not None else None)
             if anim: out.add(f"anim.{anim}")
     return out
@@ -155,11 +179,25 @@ def coverage(caps: list[dict], form: str, have: set[str], skip: dict) -> tuple[l
     """(required and missing, report and unused) for a film of `form`; a plan skip "cap.<id>" with a reason counts as used.
     One reason per feature: a skip of a checklist item does not waive the features it checks (long.graphics checks kw, maxim,
     gfx and broll; one sentence must not let b-roll go, the 2026-11-04 miss)"""
-    def done(c: dict) -> bool:
-        return c["id"] in have or bool(str(skip.get(f"cap.{c['id']}", "")).strip())
+    def own(c: dict) -> bool:
+        return c["id"] in have or len(str(skip.get(f"cap.{c['id']}", "")).strip()) >= SKIP_MIN
+
+    def done(c: dict) -> bool:  # a "group" (one of: float/scene/slide/web explain a part) is done by any member of that form
+        g = c.get("group")
+        return own(c) or bool(g) and any(own(o) for o in caps if o.get("group") == g and o["use"][form] == c["use"][form])
     miss = [c["id"] for c in caps if c["use"][form] == "required" and not done(c)]
     idle = [c["id"] for c in caps if c["use"][form] == "report" and not done(c)]
     return miss, idle
+
+
+def bad_skips(caps: list[dict], skip: dict) -> list[str]:
+    """plan skips of capabilities that are no capability (a typo is silently ignored otherwise) or have no real reason"""
+    ids, out = {c["id"] for c in caps}, []
+    for k, v in skip.items():
+        if not k.startswith("cap."): continue
+        if k[4:] not in ids: out.append(f"{k}: no such capability in style/capabilities.json")
+        elif len(str(v).strip()) < SKIP_MIN: out.append(f"{k}: the reason must say why (>= {SKIP_MIN} characters), got {v!r}")
+    return out
 
 
 def main(argv: list[str]) -> int:
@@ -186,6 +224,7 @@ def main(argv: list[str]) -> int:
             skips = {k: v for k, v in plan.get("skip", {}).items() if k.startswith("cap.")}
             print(f"{name} ({form}): {len(miss)} required missing, {len(idle)} unused, {len(skips)} skipped with a reason")
             for k, v in skips.items(): print(f"  skip    {k[4:]}: {v}")
+            for b in bad_skips(caps, plan.get("skip", {})): print(f"  BAD SKIP {b}")
             for m in miss: print(f"  MISSING {m}")
             for m in idle: print(f"  unused  {m}")
         return 0
