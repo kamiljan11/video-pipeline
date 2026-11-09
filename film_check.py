@@ -287,7 +287,7 @@ class Film:
     def capabilities_missing(self):
         """style/capabilities.json: every "required" feature of the form is in the film or skipped in the plan with a reason
         (`"skip": {"cap.<id>": "why"}`); "report" features not used are WARN (Kamil 2026-11-09: the 2026-11-04 long had no b-roll)"""
-        miss, idle = capabilities.coverage(capabilities.load(), self.fmt, capabilities.used(self.plan, self.edl, self.specs),
+        miss, idle = capabilities.coverage(capabilities.load(), self.fmt, capabilities.used(self.plan, self.edl, self.specs, capabilities.default_anims()),
                                            self.plan.get("skip") or {})
         if idle: self.warns.append((f"{self.fmt}.capabilities", f"not used ({len(idle)}): {', '.join(idle)}"))
         return (not miss), (f"required, not used and not skipped with a reason: {', '.join(miss)}" if miss else "")

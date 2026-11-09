@@ -70,7 +70,7 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **opóźnienie łańcucha audio** — ile ms filtry `audio` planu przesuwają głos (afftdn 25 ms, alimiter 5 ms bez `latency=1`); `av_latency.chain_ms` mierzy je sygnałem testowym, `assemble.py` je odcina.
 
 ## Mapa funkcji (ADR-0023)
-- **funkcja (capability)** — rzecz, którą pipeline umie dać filmowi: typ karty, element sceny, tło, wejście, klucz planu; wpis `kind.name` w `style/capabilities.json` z właścicielem (karta roli) i bramką.
-- **use** — dla formy (long/short): `required` (w filmie albo `skip cap.<id>` z powodem), `report` (WARN, gdy nieużyta), `infra` (kod robi zawsze), `never` (nie dla tej formy, z `why`).
+- **funkcja (capability)** — rzecz, którą pipeline umie dać filmowi: typ karty, opcja specu karty/sceny (`opt.behind`), element sceny, tło, wejście, klucz planu, menu; wpis `kind.name` w `style/capabilities.json` z właścicielem (karta roli) i bramką.
+- **use** — dla formy (long/short): `required` (w filmie albo `skip cap.<id>` z powodem), `report` (WARN, gdy nieużyta), `infra` (kod robi zawsze), `never` (nie dla tej formy, z `why`), `menu` (lista do wyboru — memy, palety, moody, dźwięki kart; `brief` pokazuje wartości z kodu, film nie jest z nich rozliczany).
 - **punkt designu** — numerowana pozycja `## Order of work` w `docs/designs/*.md`; wiersz `design:<plik>:<n>:<forma>` w rejestrze badań.
 

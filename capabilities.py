@@ -24,7 +24,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 MAP = ROOT / "style" / "capabilities.json"
 FORMS = ("long", "short")
-USES = ("required", "report", "infra", "never")
+USES = ("required", "report", "infra", "never", "menu")
+SPEC_JS = ("gfx/*.mjs",)  # card / scene spec options: `sp.<key>` in the renderers
+SPEC_PY = ("build_edl.py", "gfx_types.py", "film_check.py", "behind.py", "screen_grammar.py", "stills.py")  # `sp.get("k")`, `sp["k"]`
+SPEC_HAND = {"sfx": "music/make_beds.py", "recap": "film_check.py"}  # read off the spec under another name; the file must still say '"k"'
 
 
 def _between(text: str, start: str, end: str, where: str) -> str:
@@ -54,8 +57,40 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
     keys |= set(re.findall(r'"(\w+)"', _between(build, "OPTIONS = {k: P[k] for k in (", ")", "build_edl.py")))
     for py in root.glob("*.py"):  # plan keys other stages read (critic, film_check, edges, shorts...): `plan.get("x")`, `plan["x"]`
         keys |= set(re.findall(r"""\bplan\.get\(["'](\w+)["']""", py.read_text())) | set(re.findall(r"""\bplan\[["'](\w+)["']\]""", py.read_text()))
+        keys |= set(re.findall(r"""\bP\.get\(["'](\w+)["']""", py.read_text()))  # critic.py reads the plan as P too
     keys = {k for k in keys if len(k) > 1}  # a docstring example (`plan["x"]`) is no key
-    return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys}
+    opts = {k for g in SPEC_JS for f in root.glob(g) for k in re.findall(r"\bsp\.(\w+)", f.read_text())}
+    for rel in SPEC_PY:
+        t = (root / rel).read_text() if (root / rel).exists() else ""
+        opts |= set(re.findall(r"""\bsp\.get\(["'](\w+)["']""", t)) | set(re.findall(r"""\bsp\[["'](\w+)["']\]""", t))
+    opts |= {k for k, rel in SPEC_HAND.items() if (root / rel).exists() and f'"{k}"' in (root / rel).read_text()}
+    return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys, "opt": opts,
+            "menu": {m for m, vals in menus(root).items() if vals}}
+
+
+def menus(root: Path = ROOT) -> dict[str, list[str]]:
+    """the lists a role picks from (shown by `brief`, not counted per film): meme templates, toons, music palettes and moods,
+    card sounds, part-card styles, scene motion sets"""
+    def keys_of(rel: str, start: str, end: str, rx: str) -> list[str]:
+        t = (root / rel).read_text() if (root / rel).exists() else ""
+        return sorted(set(re.findall(rx, _between(t, start, end, rel)))) if start in t else []
+    memes = root / "style" / "memes.json"
+    return {
+        "meme": sorted(k for k in json.loads(memes.read_text()) if not k.startswith("_")) if memes.exists() else [],
+        "toon": sorted(p.stem for p in (root / "gfx" / "toons").glob("*.svg")),
+        "palette": keys_of("music/gen_music.py", "PALETTES = {", "\n}\n", r'(?m)^    "(\w+)": \{'),
+        "mood": keys_of("music/make_beds.py", "MOODS = (", ")", r'"(\w+)"'),
+        "sfx": sorted(set(keys_of("music/make_beds.py", "BEAT_SFX = {", "}\n", r'"(\w+)": ')) |
+                      set(keys_of("music/make_beds.py", "CARD_SFX = {", "}\n", r'"(\w+)": '))),
+        "chap_style": keys_of("gfx/cards_lib.mjs", "export const CHAP_STYLES = [", "]", r"'(\w+)'"),
+        "motion": keys_of("gfx/scene_lib.mjs", "const MOTION = {", "\n};", r"(?m)^  (\w+): \{ anims"),
+    }
+
+
+def default_anims(root: Path = ROOT) -> dict[str, str]:
+    """the entrance a scene piece gets without its own "anim" (scene_lib DEF_ANIM, else 'up')"""
+    t = (root / "gfx" / "scene_lib.mjs").read_text()
+    return dict(re.findall(r"(\w+): '(\w+)'", _between(t, "const DEF_ANIM = {", "};", "gfx/scene_lib.mjs")))
 
 
 def load(path: Path = MAP) -> list[dict]:
@@ -85,6 +120,8 @@ def problems(caps: list[dict], found: dict[str, set[str]], root: Path = ROOT) ->
             if use.get(f) == "required" and not c.get("why") and not (it.get("why") and it.get("fmt") in (f, "out")):
                 bad.append(f"{cid}: required in the {f} without evidence (a why, or a {f} checklist item with a why as its check)")
         if "never" in use.values() and not c.get("why"): bad.append(f"{cid}: 'never' needs a why")
+        if (c.get("kind") == "menu") != all(use.get(f) == "menu" for f in FORMS):
+            bad.append(f"{cid}: use 'menu' is for kind menu only, and a menu is 'menu' in every form")
     for kind, names in found.items():
         if not names: bad.append(f"{kind}: 0 found in the code (the scan in capabilities.discover no longer matches it)")
         for n in sorted(names - {c["name"] for c in caps if c.get("kind") == kind}):
@@ -94,16 +131,23 @@ def problems(caps: list[dict], found: dict[str, set[str]], root: Path = ROOT) ->
     return bad
 
 
-def used(plan: dict, edl: dict, specs: dict) -> set[str]:
-    """ids of the capabilities a film uses: cards and scene parts on screen (EDL overlays), plan keys set"""
-    out = {f"plan.{k}" for k, v in plan.items() if v is not None and v is not False and v not in ("", [], {})}  # 0 dB is set
+def _set(v: object) -> bool:
+    return v is not None and v is not False and v not in ("", [], {})  # 0 (0 dB, x = 0) is set
+
+
+def used(plan: dict, edl: dict, specs: dict, def_anim: dict[str, str] | None = None) -> set[str]:
+    """ids of the capabilities a film uses: cards, their options and scene parts on screen (EDL overlays), plan keys set;
+    a piece without its own "anim" enters with its default one (def_anim, else 'up')"""
+    out = {f"plan.{k}" for k, v in plan.items() if _set(v)}
     for o in edl.get("overlays", []):
         sp = specs.get(o["id"], {})
         out.add(f"card.{sp.get('type')}")
+        out |= {f"opt.{k}" for k, v in sp.items() if _set(v)}
         if sp.get("bg"): out.add(f"bg.{sp['bg']}")
         for e in sp.get("els") or []:
             out.add(f"piece.{e.get('k')}")
-            if e.get("anim"): out.add(f"anim.{e['anim']}")
+            anim = e.get("anim") or (def_anim or {}).get(e.get("k", ""), "up" if def_anim is not None else None)
+            if anim: out.add(f"anim.{anim}")
     return out
 
 
@@ -126,8 +170,9 @@ def main(argv: list[str]) -> int:
         print(f"capabilities: {len(load())} in the map, {len(bad)} problems {'OK' if not bad else 'FAIL'}")
         return 1 if bad else 0
     if argv[:1] == ["brief"] and len(argv) == 2:
-        mine = [c for c in load() if c["owner"] == argv[1]]
+        mine, lists = [c for c in load() if c["owner"] == argv[1]], menus()
         for c in mine:
+            if c["kind"] == "menu": print(f"- {c['id']} (pick from): {', '.join(lists.get(c['name'], []))}"); continue
             print(f"- {c['id']}: long {c['use']['long']}, short {c['use']['short']}; check {check_of(c, 'long')}/{check_of(c, 'short')}" + (f"; {c['why']}" if c.get("why") else ""))
         return 0 if mine else 1
     if argv[:1] == ["map"] and len(argv) >= 3:
@@ -137,7 +182,7 @@ def main(argv: list[str]) -> int:
             edl = json.loads((work / plan.get("edl_out", f"edl_{name}.json")).read_text())
             specs = {s["id"]: s for s in json.loads((work / plan["gfx_specs"]).read_text())} if plan.get("gfx_specs") else {}
             form = "short" if plan.get("vertical") else "long"
-            miss, idle = coverage(caps, form, used(plan, edl, specs), plan.get("skip", {}))
+            miss, idle = coverage(caps, form, used(plan, edl, specs, default_anims()), plan.get("skip", {}))
             skips = {k: v for k, v in plan.get("skip", {}).items() if k.startswith("cap.")}
             print(f"{name} ({form}): {len(miss)} required missing, {len(idle)} unused, {len(skips)} skipped with a reason")
             for k, v in skips.items(): print(f"  skip    {k[4:]}: {v}")

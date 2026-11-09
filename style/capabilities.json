@@ -1,5 +1,5 @@
 {
- "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form.",
+ "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form. Kinds opt (a key inside a card/scene spec) and menu (a list the role picks from, shown by brief, not counted per film) added in round 3 (2026-11-09).",
  "caps": [
   {
    "id": "card.chap",
@@ -1248,6 +1248,727 @@
     "long": "required",
     "short": "required"
    }
+  },
+  {
+   "id": "opt._held",
+   "kind": "opt",
+   "name": "_held",
+   "owner": "technik",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.at",
+   "kind": "opt",
+   "name": "at",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.behind",
+   "kind": "opt",
+   "name": "behind",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.behind",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.bg",
+   "kind": "opt",
+   "name": "bg",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.box",
+   "kind": "opt",
+   "name": "box",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.cam",
+   "kind": "opt",
+   "name": "cam",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas",
+   "kind": "opt",
+   "name": "canvas",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.canvas_zoom",
+   "kind": "opt",
+   "name": "canvas_zoom",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_zoom",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.chap_style",
+   "kind": "opt",
+   "name": "chap_style",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.chap_roadmap",
+    "short": "gate:gfx/cards_lib.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "a short has no parts/chapters, so no part card style"
+  },
+  {
+   "id": "opt.compact",
+   "kind": "opt",
+   "name": "compact",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.current",
+   "kind": "opt",
+   "name": "current",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.define",
+   "kind": "opt",
+   "name": "define",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.define",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.delays",
+   "kind": "opt",
+   "name": "delays",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.dim_done",
+   "kind": "opt",
+   "name": "dim_done",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.dur",
+   "kind": "opt",
+   "name": "dur",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.els",
+   "kind": "opt",
+   "name": "els",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.extends",
+   "kind": "opt",
+   "name": "extends",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.face_box",
+   "kind": "opt",
+   "name": "face_box",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.face_corner",
+   "kind": "opt",
+   "name": "face_corner",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.find",
+   "kind": "opt",
+   "name": "find",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.web_marked",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.from",
+   "kind": "opt",
+   "name": "from",
+   "owner": "motion-designer",
+   "check": "gate:gfx/count_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.html",
+   "kind": "opt",
+   "name": "html",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.icon",
+   "kind": "opt",
+   "name": "icon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.icons",
+   "kind": "opt",
+   "name": "icons",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.id",
+   "kind": "opt",
+   "name": "id",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.img",
+   "kind": "opt",
+   "name": "img",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.items",
+   "kind": "opt",
+   "name": "items",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.layout",
+   "kind": "opt",
+   "name": "layout",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.logo",
+   "kind": "opt",
+   "name": "logo",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.logo_h",
+   "kind": "opt",
+   "name": "logo_h",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.logo_sub",
+   "kind": "opt",
+   "name": "logo_sub",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.meme",
+   "kind": "opt",
+   "name": "meme",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.motion",
+   "kind": "opt",
+   "name": "motion",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.no_fade_in",
+   "kind": "opt",
+   "name": "no_fade_in",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.no_fade_out",
+   "kind": "opt",
+   "name": "no_fade_out",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.page",
+   "kind": "opt",
+   "name": "page",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.parts",
+   "kind": "opt",
+   "name": "parts",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.pill",
+   "kind": "opt",
+   "name": "pill",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.pip",
+   "kind": "opt",
+   "name": "pip",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.read_along",
+   "kind": "opt",
+   "name": "read_along",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.read_along",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.recap",
+   "kind": "opt",
+   "name": "recap",
+   "owner": "producent",
+   "check": "long.recap",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.sfx",
+   "kind": "opt",
+   "name": "sfx",
+   "owner": "dzwiekowiec",
+   "check": "long.sfx",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.shot",
+   "kind": "opt",
+   "name": "shot",
+   "owner": "technik",
+   "check": "gate:film_check.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.side",
+   "kind": "opt",
+   "name": "side",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.src",
+   "kind": "opt",
+   "name": "src",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.still",
+   "kind": "opt",
+   "name": "still",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.sub",
+   "kind": "opt",
+   "name": "sub",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.text",
+   "kind": "opt",
+   "name": "text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.title",
+   "kind": "opt",
+   "name": "title",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.toon",
+   "kind": "opt",
+   "name": "toon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.type",
+   "kind": "opt",
+   "name": "type",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.upto",
+   "kind": "opt",
+   "name": "upto",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.url",
+   "kind": "opt",
+   "name": "url",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "menu.chap_style",
+   "kind": "menu",
+   "name": "chap_style",
+   "owner": "motion-designer",
+   "check": "long.chap_roadmap",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "gfx/cards_lib.mjs CHAP_STYLES for card.chap"
+  },
+  {
+   "id": "menu.meme",
+   "kind": "menu",
+   "name": "meme",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "style/memes.json templates for card.meme / card.sticker"
+  },
+  {
+   "id": "menu.mood",
+   "kind": "menu",
+   "name": "mood",
+   "owner": "dzwiekowiec",
+   "check": "long.music_moods",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "music/make_beds.py MOODS for plan music_moods"
+  },
+  {
+   "id": "menu.motion",
+   "kind": "menu",
+   "name": "motion",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "gfx/scene_lib.mjs MOTION sets for a scene \"motion\""
+  },
+  {
+   "id": "menu.palette",
+   "kind": "menu",
+   "name": "palette",
+   "owner": "dzwiekowiec",
+   "check": "long.music_palette",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "music/gen_music.py PALETTES for plan music_palette (a new one each film)"
+  },
+  {
+   "id": "menu.sfx",
+   "kind": "menu",
+   "name": "sfx",
+   "owner": "dzwiekowiec",
+   "check": "long.sfx",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "music/make_beds.py card sounds for spec \"sfx\" [[t, name]]"
+  },
+  {
+   "id": "menu.toon",
+   "kind": "menu",
+   "name": "toon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "gfx/toons/*.svg drawings for card.sticker \"toon\""
+  },
+  {
+   "id": "plan.critic_accept",
+   "kind": "plan",
+   "name": "critic_accept",
+   "owner": "montazysta",
+   "check": "gate:critic.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "critic findings accepted on purpose ({code, msg}); each one is a visible decision in the plan"
   }
  ]
 }

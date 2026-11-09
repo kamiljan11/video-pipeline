@@ -28,10 +28,11 @@ class MapTest(unittest.TestCase):
 
     def copy_root(self) -> Path:
         d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
-        for rel in ("gfx/render.mjs", "gfx/scene_lib.mjs", "build_edl.py", "style/checklist.json", "verify_cut.py",
-                    "master_audio.py", "lip_check.py", "words_check.py", "edl_guard.py", "gfx/scene_check.mjs"):
-            (d / rel).parent.mkdir(parents=True, exist_ok=True); shutil.copy(ROOT / rel, d / rel)
+        for f in [*ROOT.glob("*.py"), *ROOT.glob("gfx/*.mjs"), *ROOT.glob("music/*.py"), *ROOT.glob("gfx/toons/*.svg"),
+                  ROOT / "style" / "checklist.json", ROOT / "style" / "memes.json"]:
+            rel = f.relative_to(ROOT); (d / rel).parent.mkdir(parents=True, exist_ok=True); shutil.copy(f, d / rel)
         shutil.copytree(ROOT / "team" / "roles", d / "team" / "roles")
+        self.assertEqual(C.problems(C.load(), C.discover(d), d), [])  # the copy alone is a clean map
         return d
 
     def test_a_new_card_type_without_an_entry_fails(self):
@@ -46,6 +47,22 @@ class MapTest(unittest.TestCase):
         b = d / "build_edl.py"; b.write_text(b.read_text() + '\n_x = P.get("glitter")\n')
         self.assertTrue(any(p.startswith("plan.glitter:") for p in C.problems(C.load(), C.discover(d), d)))
 
+    def test_a_new_spec_option_or_menu_value_without_an_entry_fails(self):  # round 3 (critic 2026-11-09): options inside a card
+        d = self.copy_root()
+        r = d / "gfx" / "render.mjs"; r.write_text(r.read_text() + "\nconst _x = sp => sp.glow;\n")
+        self.assertIn("opt.glow: in the code, not in style/capabilities.json (add it with an owner, a check and a use)",
+                      C.problems(C.load(), C.discover(d), d))
+        m = d / "style" / "memes.json"; memes = json.loads(m.read_text()); memes["new_one"] = {}; m.write_text(json.dumps(memes))
+        self.assertIn("new_one", C.menus(d)["meme"])  # a menu shows its values live from the code: no entry per value
+
+    def test_the_brief_lists_a_menu(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out): C.main(["brief", "dzwiekowiec"])
+        self.assertIn("menu.palette (pick from): bright, cinematic, drive, lofi, tech", out.getvalue())
+
+    def test_plan_keys_read_as_P_outside_build_edl_are_found(self):
+        self.assertIn("critic_accept", C.discover()["plan"])
+
     def test_entries_need_a_real_owner_a_real_check_and_a_use(self):
         caps = [dict(c) for c in C.load()]
         caps[0] = {**caps[0], "owner": "nobody"}
@@ -53,9 +70,11 @@ class MapTest(unittest.TestCase):
         caps[2] = {**caps[2], "use": {"long": "maybe", "short": "report"}}
         caps.append({"id": "card.ghost", "kind": "card", "name": "ghost", "owner": "operator", "check": "long.punch",
                      "use": {"long": "never", "short": "report"}})
+        caps.append({"id": "card.ghost2", "kind": "card", "name": "ghost2", "owner": "operator", "check": "long.punch",
+                     "use": {"long": "menu", "short": "menu"}, "why": "x"})
         bad = " | ".join(C.problems(caps, C.discover()))
         for want in ("is no role card", "is no style/checklist.json item", "not one of required", "'never' needs a why",
-                     "card.ghost: in style/capabilities.json, no longer in the code"):
+                     "card.ghost: in style/capabilities.json, no longer in the code", "card.ghost2: use 'menu' is for kind menu only"):
             self.assertIn(want, bad)
 
     def test_required_needs_evidence_of_its_own_form(self):
@@ -104,7 +123,14 @@ class CoverageTest(unittest.TestCase):
         specs = {"a": {"type": "scene", "bg": "dots", "els": [{"k": "ring", "anim": "pop"}]}, "b": {"type": "kw"}}
         edl = {"overlays": [{"id": "a", "at": 1, "dur": 3}]}  # "b" is specified but never on screen
         got = C.used({"broll": [{"q": "x"}], "grade": None, "zooms": [], "music_db": 0, "head_track": False, "audio": ""}, edl, specs)
-        self.assertEqual(got, {"plan.broll", "plan.music_db", "card.scene", "bg.dots", "piece.ring", "anim.pop"})  # 0 dB is set
+        self.assertEqual(got, {"plan.broll", "plan.music_db", "card.scene", "bg.dots", "piece.ring", "anim.pop",  # 0 dB is set
+                               "opt.type", "opt.bg", "opt.els"})
+
+    def test_used_counts_spec_options_and_default_entrances(self):
+        specs = {"a": {"type": "scene", "behind": {"ratio": 0.2}, "cam": None, "els": [{"k": "stamp"}, {"k": "text"}]}}
+        got = C.used({}, {"overlays": [{"id": "a"}]}, specs, C.default_anims())
+        self.assertTrue({"opt.behind", "anim.drop", "anim.up"} <= got)  # stamp enters with drop, text with 'up'
+        self.assertNotIn("opt.cam", got)
 
     def test_film_check_runs_it_for_both_forms(self):
         items = {i["id"]: i for i in json.loads((ROOT / "style" / "checklist.json").read_text())["items"]}

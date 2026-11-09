@@ -34,7 +34,11 @@ skipu (45-sekundowy short nie zmieści 15 typów kart; skip z powodem = świadom
 wyłączał też obie blokady (teraz bez wyłącznika), `required` bez dowodu, skip punktu zwalniał wiele funkcji, skan bez
 znacznika = goły traceback (teraz `FAIL` z nazwą pliku; 0 znalezionych = błąd mapy), brak rejestru = `FAIL`, nie traceback.
 **Ryzyko:** skip jako wymówka („nie pasuje”). Kontrola: skipy są w planie, QA-widz i Kamil je widzą; przegląd po filmie v5.
-Funkcja, której skaner nie widzi (opcje wewnątrz specu karty: `behind`, `define`, `chap_style`, `layout`, kamera sceny),
-dalej zależy od checklisty — runda 3 (krytyk kompletności, 24 pozycje) dodaje je do skanu. Rejestr badań leży poza repo
+**Runda 3 (krytyk kompletności, 24 pozycje):** skan czyta też opcje specu (`sp.<klucz>` w `gfx/*.mjs`, `sp.get(...)` w etapach
+Pythona -> `opt.*`, 53; `long` required z dowodem z listy: behind, chap_style, define, find, read_along, canvas_zoom), menu
+(`menu.*`: memy, toony, palety, moody, dźwięki kart, style kart części, zestawy ruchu — wartości z kodu w `brief`, bez
+rozliczania filmu), `P.get` we wszystkich etapach (`critic_accept`), domyślne wejście elementu sceny (DEF_ANIM, inaczej `up`).
+Poza mapą świadomie: pod-pola kluczy planu (np. pola `emph[]`, `broll[]`), pola `story.json`/`clips.json`/`thumbs.json`
+i wyjścia `out.*` (posty, miniatury, artykuł) — pilnuje ich checklista `film_check --out`, uruchamiana na każdym filmie. Rejestr badań leży poza repo
 (`~/Dane/creator-study`), więc test blokady 3 na prawdziwych designach działa tylko na laptopie; na renderze blokuje `run_v4.sh`.
 **Koszt:** skan ~0,1 s; 0 zł. **Metryka:** funkcje `required` nieużyte bez powodu w filmie (cel 0), skipy na film.
