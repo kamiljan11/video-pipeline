@@ -43,6 +43,8 @@ export function place(e, boxes, own = { w: 0, h: 0 }) {
   }
   if (END_KINDS.includes(e.k)) {
     const a = isRef(e.from) ? centre(box(e.from)) : e.from, z = isRef(e.to) ? centre(box(e.to)) : e.to;
+    for (const [k, v] of [['from', a], ['to', z]])
+      if (!(Array.isArray(v) && v.length === 2 && v.every(Number.isFinite))) throw new Error(`${e.k}: "${k}" = [x, y] or a piece id, got ${JSON.stringify(e[k])}`);
     if (isRef(e.from)) out.from = e.k === 'cursor' ? a.map(Math.round) : edgePoint(box(e.from), ...z);
     if (isRef(e.to)) out.to = e.k === 'cursor' ? z.map(Math.round) : edgePoint(box(e.to), ...a);
   }

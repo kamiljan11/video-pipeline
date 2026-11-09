@@ -59,12 +59,13 @@ export function clashes(sp, rects, share = 0.12) {
 // Runs on the spec as written, before resolveAnchors turns ids into numbers (_on/_from/_to keep them).
 export function handPlaced(sp) {
   const out = [];
-  [...(sp._held ?? []), ...(sp.els ?? [])].forEach((e, i) => {
+  const held = (sp._held ?? []).map((e, i) => [e, `_held[${i}] (kept from "${sp.extends}")`]);
+  [...held, ...(sp.els ?? []).map((e, i) => [e, `els[${i}]`])].forEach(([e, where]) => {
     const named = k => typeof e[k] === 'string' || typeof e[`_${k}`] === 'string';
     if (['ring', 'stamp', 'check'].includes(e.k) && !named('on'))
-      out.push(`${sp.id}: els[${i}] (${e.k}) placed by hand at x/y: give it "on": the id of the piece it marks (gfx/anchor_lib.mjs)`);
+      out.push(`${sp.id}: ${where} (${e.k}) placed by hand at x/y: give it "on": the id of the piece it marks (gfx/anchor_lib.mjs)`);
     if (['line', 'cursor'].includes(e.k) && !named('from') && !named('to'))
-      out.push(`${sp.id}: els[${i}] (${e.k}) joins two hand points: name the piece at one end at least ("from"/"to": an id)`);
+      out.push(`${sp.id}: ${where} (${e.k}) joins two hand points: name the piece at one end at least ("from"/"to": an id)`);
   });
   return out;
 }

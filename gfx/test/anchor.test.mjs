@@ -33,6 +33,7 @@ test('a ring takes its target box, a stamp lands on its upper right, a cursor go
   assert.deepEqual([st.x, st.y, st.on, st._on], [1800, 255, undefined, 'db']);
   assert.deepEqual(place({ k: 'cursor', from: [0, 0], to: 'db' }, boxes).to, [1800, 400]);
   assert.throws(() => place({ k: 'ring', on: 'nope' }, boxes), /"nope": no piece with this id on the scene/);
+  assert.throws(() => place({ k: 'line', from: 'db' }, boxes), /line: "to" = \[x, y\] or a piece id, got undefined/);
 });
 
 test('only pieces given an id string are attached; a scene without them is left alone', () => {
