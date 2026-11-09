@@ -2761,6 +2761,18 @@
    "why": "what the piece shows or where it sits (its content), not an effect to choose"
   },
   {
+   "id": "pfx.x_at",
+   "kind": "pfx",
+   "name": "x_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "check piece: the tick turns into a red X at x_at (an action instead of the word NO, visual upgrade item 4)"
+  },
+  {
    "id": "pfx.rows.hl",
    "kind": "pfx",
    "name": "rows.hl",

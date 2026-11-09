@@ -364,7 +364,8 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
     `line` linia rysowana od `from` do `to` (`curve`, `d` = czas rysowania, `arrow: false` bez kropki na końcu, `head: "arrow"`
     = grot zamiast kropki, `packet_at` + `packet_d` = kropka „pakiet” jadąca po linii).
   - `stat` z `count: {from, to, d, at, pre, suf}`: liczba nabija się od `from` do `to` w `d` s (np. 0 → 92 z `suf: "%"`).
-  - `check` ptaszek: kółko i ptaszek rysują się, iskry rozbiegają się (`size`). `ring` odręczne obramowanie pudełka
+  - `check` ptaszek: kółko i ptaszek rysują się, iskry rozbiegają się (`size`); `x_at` = w tej sekundzie ptaszek zamienia się
+    w czerwony X i znak drga (akcja zamiast słowa „nie”; `toggle` + `back_at` = przełącznik odskakuje na czerwono). `ring` odręczne obramowanie pudełka
     `x, y, w, h` (`pad`, `d`, `shape`): płaskie (szerokość >= 3x wysokość, np. wiersz) = szkicowa ramka z dwóch pociągnięć
     pióra, reszta = kółko; `shape: "underline"` podkreślenie, `"box"`/`"circle"` wymusza kształt (`gfx/rough_lib.mjs`, kształt
     z ziarna = ten sam w każdej klatce i stillu). Wiersz mierzony po tekście, nie po całej szerokości okna. `cursor` kursor jedzie z `from` do `to`, klika w `click_at` (fala w miejscu kliknięcia).

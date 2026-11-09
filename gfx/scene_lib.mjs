@@ -152,9 +152,10 @@ export function checkScene(sp) {
     if (FREE.includes(e.k)) {
       if (!pt(e.from) || !pt(e.to)) bad.push(`${n}: "from" and "to" = [x, y] or a piece id ("e1", a row "md.0"; gfx/anchor_lib.mjs resolveAnchors places it)`);
     } else if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) bad.push(`${n}: "x" and "y" are required${['ring', 'stamp', 'check'].includes(e.k) ? ' (or "on": a piece id, placed by gfx/anchor_lib.mjs resolveAnchors)' : ''}`);
-    for (const key of ['click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at'])
+    for (const key of ['click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at', 'x_at'])
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
     if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
+    if (e.k === 'check' && e.x_at !== undefined && !(e.x_at >= num(e.at, 0) + 0.6)) bad.push(`${n}: "x_at" = after the tick has drawn ("at" + 0.6 s or later)`);
     if (e.k === 'toggle' && e.back_at !== undefined && !(e.back_at > num(e.on_at, num(e.at, 0) + 0.8))) bad.push(`${n}: "back_at" = after the switch flips on ("on_at")`);
     if (e.k === 'ring' && !(e.w > 0 && e.h > 0)) bad.push(`${n}: "w" and "h" = the box to circle`);
     if (e.k === 'ring' && e.shape !== undefined && !['circle', 'box', 'underline'].includes(e.shape)) bad.push(`${n}: "shape" = "circle", "box" or "underline", got ${JSON.stringify(e.shape)}`);
@@ -330,10 +331,18 @@ const PIECES = {
       const a = (i * 36 + 13) * Math.PI / 180, d = sz * (0.62 + 0.09 * (i % 3));
       return `<i class="pt" style="background:${tn};--dx:${(Math.cos(a) * d).toFixed(0)}px;--dy:${(Math.sin(a) * d).toFixed(0)}px;animation:scpart .45s ${EASE_IN} ${f2(at + 0.3)}s both"></i>`;
     }).join('');
+    // x_at (visual upgrade item 4, "action instead of a word"): the tick turns into an X, the mark goes red and shakes once;
+    // the same two-segment path (M L M L) on both sides so CSS interpolates "d"; without x_at the card is drawn byte for byte as before
+    const xa = e.x_at !== undefined ? num(e.x_at, at + 1) : null, u = uid(e), P = (x, y) => `${f2(sz * x)} ${f2(sz * y)}`;
+    const xcss = xa === null ? '' : `<style>@keyframes ${u}x{to{d:path("M${P(0.33, 0.33)} L${P(0.67, 0.67)} M${P(0.67, 0.33)} L${P(0.33, 0.67)}");stroke:${TONES.bad}}}`
+      + `@keyframes ${u}c{to{stroke:${TONES.bad};fill:${TONES.bad}}}@keyframes ${u}s{0%,100%{transform:none}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}</style>`;
+    const tick = xa === null
+      ? `<path d="M${f2(sz * 0.3)} ${f2(sz * 0.52)} L${f2(sz * 0.45)} ${f2(sz * 0.66)} L${f2(sz * 0.72)} ${f2(sz * 0.36)}" fill="none" stroke="${tn}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:${tk};stroke-dashoffset:${tk};animation:scdraw .22s ${m.draw} ${f2(at + 0.26)}s forwards"/>`
+      : `<path d="M${P(0.3, 0.52)} L${P(0.45, 0.66)} M${P(0.45, 0.66)} L${P(0.72, 0.36)}" fill="none" stroke="${tn}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:${(sz * 1.2).toFixed(0)};stroke-dashoffset:${(sz * 1.2).toFixed(0)};animation:scdraw .22s ${m.draw} ${f2(at + 0.26)}s forwards,${u}x .32s ${EASE_POP} ${f2(xa)}s forwards"/>`;
     return { style: `width:${sz}px;height:${sz}px;`,
-      inner: `<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}" style="overflow:visible">`
-        + `<circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="${tn}" fill-opacity=".14" stroke="${tn}" stroke-width="7" style="stroke-dasharray:${c};stroke-dashoffset:${c};transform:rotate(-90deg);transform-origin:center;animation:scdraw .28s ${m.draw} ${f2(at)}s forwards"/>`
-        + `<path d="M${f2(sz * 0.3)} ${f2(sz * 0.52)} L${f2(sz * 0.45)} ${f2(sz * 0.66)} L${f2(sz * 0.72)} ${f2(sz * 0.36)}" fill="none" stroke="${tn}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" style="stroke-dasharray:${tk};stroke-dashoffset:${tk};animation:scdraw .22s ${m.draw} ${f2(at + 0.26)}s forwards"/></svg>`
+      inner: `${xcss}<svg viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}" style="overflow:visible${xa === null ? '' : `;animation:${u}s .3s ease-out ${f2(xa + 0.1)}s both`}">`
+        + `<circle cx="${sz / 2}" cy="${sz / 2}" r="${r}" fill="${tn}" fill-opacity=".14" stroke="${tn}" stroke-width="7" style="stroke-dasharray:${c};stroke-dashoffset:${c};transform:rotate(-90deg);transform-origin:center;animation:scdraw .28s ${m.draw} ${f2(at)}s forwards${xa === null ? '' : `,${u}c .24s ${EASE_IN} ${f2(xa)}s forwards`}"/>`
+        + `${tick}</svg>`
         + `<i class="bst" style="border-color:${tn};animation:scburst .4s ${EASE_IN} ${f2(at + 0.3)}s both"></i>${sparks}` };
   },
   cursor: (e, { esc, at, tn, m }) => {  // moves from -> to, arriving at click_at; presses; a ripple where it clicked
