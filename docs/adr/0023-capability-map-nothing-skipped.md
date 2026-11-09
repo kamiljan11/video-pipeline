@@ -54,6 +54,12 @@ układu w 16:9). `use` poprawione: `card.end` + `plan.end` = grupa `end` (long.e
 report (C9 w critic.py łapie liczby bez źródła); note, sticker, toon, define, upto, dim_done w shorcie -> never (render odrzuca
 canvas "v"); compact, pill, face_box, face_corner w longu -> never (działają tylko w 9:16). Stary long 2026-11-04: 7 braków
 (count, list, beats, broll, grade, sfx_duck, read_along).
+**Runda 6 (krytyk rundy 5, bez regresji, 8 drobnych):** `"want"` = liczą się tylko te wartości (`caption_emph: "key"`,
+`hook_pos: "mid"`, `end: "platform"`): ustawienie wartości domyślnej nie jest już „użyciem”; `read_along` wymagany na
+elementach sceny (`pfx.read_along`), bo tam patrzy long.read_along (opcja karty web -> report); pola list specu
+(`opt.cam.*`, `opt.canvas_zoom.*`); skan kart łapie `a || b` i `switch`, skan Pythona `spec.get`, `specs[o["id"]].get`,
+`spec["a"]["b"]` (bez `long`/`shorts` z thumbs.json); `hook_dur` -> report (domyślne 3 s), logo* w shorcie -> never.
+Stary long 2026-11-04: 6 braków (count, list, beats, broll, grade, sfx_duck); short s01: 3 (kw, beats, sfx_duck).
 Punkty listy na poziomie warn (long.define, long.note, long.read_along…) stają się blokadą przez `required` — świadomie: funkcja
 ma być użyta albo pominięta z powodem.
 Poza mapą świadomie: pod-pola kluczy planu (np. pola `emph[]`, `broll[]`), pola `story.json`/`clips.json`/`thumbs.json`

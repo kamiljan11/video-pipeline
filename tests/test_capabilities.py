@@ -268,7 +268,7 @@ class RoundFiveTest(unittest.TestCase):  # completeness critic round 4 (2026-11-
         caps = C.load()
         missing = lambda have: C.coverage(caps, "long", have, {})[0]
         self.assertNotIn("plan.end", missing({"card.end"}))
-        self.assertNotIn("card.end", missing({"plan.end"}))
+        self.assertNotIn("card.end", missing({"plan.end", "plan.end=platform"}))  # round 6: only end "platform" replaces the card
         self.assertNotIn("plan.next_video", missing(set()))  # report: long.end reads it only with end "platform"
         self.assertNotIn("plan.part_framing", missing({"plan.zoom_every_s"}))
         self.assertIn("plan.part_framing", missing(set()))
@@ -281,6 +281,47 @@ class RoundFiveTest(unittest.TestCase):  # completeness critic round 4 (2026-11-
             self.assertEqual(by[i]["use"]["long"], "never", i)
         self.assertEqual(by["plan.verified_claims"]["use"]["short"], "report")
         self.assertEqual(C.check_of(by["plan.caption_emph"], "short"), "short.options")
+
+
+class RoundSixTest(unittest.TestCase):  # completeness critic round 5 (2026-11-09)
+    def test_a_default_value_does_not_count_where_the_gate_wants_another(self):
+        caps = C.load()
+        miss = lambda plan: C.coverage(caps, "short", C.used(plan, {"overlays": []}, {}), {})[0]
+        self.assertIn("plan.caption_emph", miss({"caption_emph": "active"}))
+        self.assertNotIn("plan.caption_emph", miss({"caption_emph": "key"}))
+        self.assertIn("plan.hook_pos", miss({"hook_pos": "top"}))
+        self.assertNotIn("plan.hook_pos", miss({"hook_pos": "mid"}))
+        long_miss = lambda plan: C.coverage(caps, "long", C.used(plan, {"overlays": []}, {}), {})[0]
+        self.assertIn("card.end", long_miss({"end": "card"}))  # only "platform" replaces the end card
+        self.assertNotIn("card.end", long_miss({"end": "platform"}))
+
+    def test_read_along_is_asked_of_the_scene_pieces_where_the_gate_looks(self):
+        sp = {"type": "scene", "els": [{"k": "term", "out": ["ok"], "read_along": [[1, 0]]}]}
+        miss = C.coverage(C.load(), "long", C.used({}, {"overlays": [{"id": "s"}]}, {"s": sp}), {})[0]
+        self.assertNotIn("pfx.read_along", miss)
+        self.assertNotIn("opt.read_along", miss)
+
+    def test_fields_of_spec_lists_are_found_and_counted(self):
+        f = C.discover()
+        self.assertTrue({"cam.z", "cam.move", "canvas_zoom.k", "canvas_zoom.on", "behind.edl"} <= f["opt"])
+        have = C.used({}, {"overlays": [{"id": "s"}]}, {"s": {"type": "scene", "canvas_zoom": [{"t": 1, "on": "a", "k": 1.2}]}})
+        self.assertTrue({"opt.canvas_zoom", "opt.canvas_zoom.k", "opt.canvas_zoom.on"} <= have)
+
+    def test_other_ways_of_naming_a_card_or_reading_a_spec_are_found(self):
+        d = copy_root(self)
+        r = d / "gfx" / "render.mjs"
+        r.write_text(r.read_text().replace("const html = sp => {", "const html = sp => {\n  if (sp.type === 'quiz' || sp.type === 'poll') return '';", 1))
+        p = d / "post_check.py"
+        p.write_text(p.read_text() + '\nx = spec.get("zeta")\ny = self.specs[o["id"]].get("eta")\nz = spec["theta"]["iota"]\nw = spec.get("long")\n')
+        f = C.discover(d)
+        self.assertTrue({"quiz", "poll"} <= f["card"])
+        self.assertTrue({"zeta", "eta", "theta.iota"} <= f["opt"])
+        self.assertNotIn("long", f["opt"])  # thumbs.json's lists, outside the map
+
+    def test_want_needs_a_list_of_strings_and_a_why(self):
+        caps = [dict(c) for c in C.load()]
+        c = next(x for x in caps if x["id"] == "plan.hook_pos"); c["want"] = "mid"
+        self.assertIn('plan.hook_pos: "want" = a list of the values that count (strings) and a why', C.problems(caps, C.discover()))
 
 
 if __name__ == "__main__":

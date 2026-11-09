@@ -1,5 +1,5 @@
 {
- "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form. Kinds opt (a key inside a card/scene spec) and menu (a list the role picks from, shown by brief, not counted per film) added in round 3 (2026-11-09). Round 4: kind pfx (a field of a scene piece, els[]); \"group\": one of the members of that form is enough (long.explainers needs a scene, float, slide or web card; long.memes a meme or sticker); a cap skip needs >= 10 characters and an existing id. Round 5: spec keys read by any stage (*.py), fields of objects inside a piece (pfx.rows.*, msgs.*, count.*, badge.*), groups end (card.end / plan.end) and framing (part_framing / zoom_every_s), never-uses where the renderer refuses the canvas.",
+ "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form. Kinds opt (a key inside a card/scene spec) and menu (a list the role picks from, shown by brief, not counted per film) added in round 3 (2026-11-09). Round 4: kind pfx (a field of a scene piece, els[]); \"group\": one of the members of that form is enough (long.explainers needs a scene, float, slide or web card; long.memes a meme or sticker); a cap skip needs >= 10 characters and an existing id. Round 5: spec keys read by any stage (*.py), fields of objects inside a piece (pfx.rows.*, msgs.*, count.*, badge.*), groups end (card.end / plan.end) and framing (part_framing / zoom_every_s), never-uses where the renderer refuses the canvas. Round 6: \"want\" = only these values count (caption_emph key, hook_pos mid, end platform: a default does not); fields of spec lists (opt.cam.*, opt.canvas_zoom.*); read_along required on the scene pieces, where long.read_along looks.",
  "caps": [
   {
    "id": "card.chap",
@@ -604,7 +604,10 @@
     "long": "never",
     "short": "required"
    },
-   "why": "short.options (S9) FAILs unless caption_emph == \"key\"; captions are burned in only on shorts, the long has none"
+   "why": "short.options (S9) wants caption_emph \"key\"; the default \"active\" is not the research choice, so only \"key\" counts. Captions are burned in only on shorts, the long has none",
+   "want": [
+    "key"
+   ]
   },
   {
    "id": "plan.caption_emph_scale",
@@ -700,8 +703,11 @@
     "long": "required",
     "short": "never"
    },
-   "why": "long.end (film_check.end_ok) passes with an end card OR plan end \"platform\"; one of the two is enough. A short ends on its last word (short.end)",
-   "group": "end"
+   "why": "long.end (film_check.end_ok) passes with an end card OR plan end \"platform\"; only \"platform\" replaces the card (group end). A short ends on its last word (short.end)",
+   "group": "end",
+   "want": [
+    "platform"
+   ]
   },
   {
    "id": "plan.end_hold",
@@ -834,28 +840,31 @@
    "check": "short.hook",
    "use": {
     "long": "never",
-    "short": "required"
+    "short": "report"
    },
-   "why": "the on-screen hook card is a short feature (short.hook); the long opens on the cut"
+   "why": "hook length, default 3.0 s (build_edl.py); no gate reads it"
   },
   {
    "id": "plan.hook_pos",
    "kind": "plan",
    "name": "hook_pos",
    "owner": "producent-shortow",
-   "check": "short.hook_early",
+   "check": "short.options",
    "use": {
     "long": "never",
     "short": "required"
    },
-   "why": "the on-screen hook card is a short feature (short.hook_early); the long opens on the cut"
+   "why": "short.options (S8) wants hook_pos \"mid\" (the hook in the middle band); the default \"top\" does not count",
+   "want": [
+    "mid"
+   ]
   },
   {
    "id": "plan.hook_show",
    "kind": "plan",
    "name": "hook_show",
    "owner": "producent-shortow",
-   "check": "short.hook",
+   "check": "short.options",
    "use": {
     "long": "never",
     "short": "required"
@@ -1631,8 +1640,9 @@
    "check": "gate:gfx/render.mjs",
    "use": {
     "long": "report",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "read only by the end card's brand row (gfx/render.mjs endBrand); a short has no end card (short.end)"
   },
   {
    "id": "opt.logo_h",
@@ -1642,8 +1652,9 @@
    "check": "gate:gfx/render.mjs",
    "use": {
     "long": "report",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "read only by the end card's brand row (gfx/render.mjs endBrand); a short has no end card (short.end)"
   },
   {
    "id": "opt.logo_sub",
@@ -1653,8 +1664,9 @@
    "check": "gate:gfx/render.mjs",
    "use": {
     "long": "report",
-    "short": "report"
-   }
+    "short": "never"
+   },
+   "why": "read only by the end card's brand row (gfx/render.mjs endBrand); a short has no end card (short.end)"
   },
   {
    "id": "opt.meme",
@@ -1757,9 +1769,10 @@
     "short": "gate:gfx/render.mjs"
    },
    "use": {
-    "long": "required",
+    "long": "report",
     "short": "report"
-   }
+   },
+   "why": "the web card's read_along (webshot marks); long.read_along checks only scene pieces (pfx.read_along)"
   },
   {
    "id": "opt.recap",
@@ -2037,7 +2050,8 @@
    "use": {
     "long": "required",
     "short": "report"
-   }
+   },
+   "why": "long.end_bookend: the last 30 s show a picture of the first 30 s; spec bookend names it. Reusing a card of the first 30 s also passes the item: then skip cap.opt.bookend with that reason."
   },
   {
    "id": "opt.cta",
@@ -2148,6 +2162,161 @@
     "short": "never"
    },
    "why": "sticker \"cut\": true = the character without its background (cutout.py); the sticker card is 16:9 only"
+  },
+  {
+   "id": "opt.cam.keep",
+   "kind": "opt",
+   "name": "cam.keep",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.move",
+   "kind": "opt",
+   "name": "cam.move",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.on",
+   "kind": "opt",
+   "name": "cam.on",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.pad",
+   "kind": "opt",
+   "name": "cam.pad",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.t",
+   "kind": "opt",
+   "name": "cam.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.x",
+   "kind": "opt",
+   "name": "cam.x",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.y",
+   "kind": "opt",
+   "name": "cam.y",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.z",
+   "kind": "opt",
+   "name": "cam.z",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.zmax",
+   "kind": "opt",
+   "name": "cam.zmax",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.d",
+   "kind": "opt",
+   "name": "canvas_zoom.d",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.k",
+   "kind": "opt",
+   "name": "canvas_zoom.k",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.on",
+   "kind": "opt",
+   "name": "canvas_zoom.on",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.t",
+   "kind": "opt",
+   "name": "canvas_zoom.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.behind.edl",
+   "kind": "opt",
+   "name": "behind.edl",
+   "owner": "technik",
+   "check": "gate:behind.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the EDL whose frames cut the speaker out (behind.py reads spec[\"behind\"][\"edl\"]); set with behind, nothing to choose"
   },
   {
    "id": "pfx.anim",
@@ -2544,11 +2713,12 @@
    "kind": "pfx",
    "name": "read_along",
    "owner": "motion-designer",
-   "check": "gate:gfx/scene_lib.mjs",
+   "check": "long.read_along",
    "use": {
-    "long": "report",
+    "long": "required",
     "short": "report"
-   }
+   },
+   "why": "long.read_along (film_check.read_along_used) wants the said rows of term/win/file pieces lit: the pieces' read_along (gfx_events.scene_times)"
   },
   {
    "id": "pfx.rot",

@@ -32,6 +32,12 @@ PIECE_JS = ("gfx/scene_lib.mjs", "gfx/anchor_lib.mjs")  # fields of a scene piec
 # fields of objects inside a piece (round 4 critic: a row's mark, a chat line's side, a counter's suffix were invisible):
 # (piece field, start marker, end marker, variable) in gfx/scene_lib.mjs; id = pfx.<field>.<key>
 NESTED = (("rows", "function row(", "\n}", "o"), ("msgs", "  chat: (e", "\n  }),", "g"), ("count", "  stat: (e", "\n  },", "c"))
+# fields of the objects in a scene spec's lists (round 5 critic: a zoom's k / d / on, a camera stop's z / move were invisible):
+# (spec option, start marker, end marker, variable) in gfx/scene_lib.mjs; id = opt.<option>.<key>
+SPEC_NESTED = (("cam", "    sp.cam.forEach((s, i) => {", "\n    });", "s"), ("cam", "export function camKeyframes(", "\n}\n", "s"),
+               ("cam", "export function frameStops(", "\n}\n", "s"), ("cam", "export function soloKeys(", "\n}\n", "s"),
+               ("canvas_zoom", "    else sp.canvas_zoom.forEach((z, i) => {", "\n    });", "z"))
+THUMBS_SPEC = {"long", "shorts"}  # `spec` also names thumbs.json ({long: [...], shorts: [...]}), outside the map (ADR-0023)
 SKIP_MIN = 10  # = film_check.SKIP_MIN: a reason, not "ok" (round 3 critic: a 1-character cap skip passed)
 
 
@@ -54,7 +60,8 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
     scene = (root / "gfx" / "scene_lib.mjs").read_text()
     build = (root / "build_edl.py").read_text()
     body = _between(render, "const html = sp => {", "\n};\n", "gfx/render.mjs")
-    cards = set(re.findall(r"if \(sp\.type === '(\w+)'\) (?:return|\{)", body)) | set(re.findall(r"sp\.type === '(\w+)' \?", body))
+    # every `sp.type === 'x'` of the dispatcher (also `a || b` and ternaries) and `case 'x':` of a switch (round 5 critic)
+    cards = set(re.findall(r"sp\.type === '(\w+)'", body)) | set(re.findall(r"case '(\w+)':", body) if "switch (sp.type)" in body else [])
     pieces = set(re.findall(r"'(\w+)'", _between(scene, "export const KINDS = [", "]", "gfx/scene_lib.mjs")))
     bgs = set(re.findall(r"'(\w+)'", _between(scene, "export const BGS = [", "]", "gfx/scene_lib.mjs")))
     anims = set(re.findall(r"(\w+): 'sc\w+ ", _between(scene, "const ANIMS = {", "};", "gfx/scene_lib.mjs")))
@@ -78,7 +85,9 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
         opts |= set(re.findall(r"""["'](\w+)["'] (?:not )?in sp\b""", t))
     for py in (p for p in root.glob("*.py") if p.name != "capabilities.py"):  # a spec read off the table: self.specs.get(id, {}).get("k"); a nested option: spec["behind"].get("k")
         t = py.read_text()
-        opts |= set(re.findall(r"""\bspecs?(?:\[[^\]]+\]|\.get\([^)]*\))\.get\(["'](\w+)["']\)""", t))
+        opts |= set(re.findall(r"""\bspecs?(?:\[(?:[^\[\]]|\[[^\]]*\])+\]|\.get\([^)]*\))\.get\(["'](\w+)["']\)""", t))
+        opts |= set(re.findall(r"""\bspec\.get\(["'](\w+)["']""", t)) - THUMBS_SPEC
+        opts |= {f"{a}.{b}" for a, b in re.findall(r"""\bspec\[["'](\w+)["']\]\[["'](\w+)["']\]""", t)}
         opts |= {f"{a}.{b}" for a, b in re.findall(r"""\bspec\[["'](\w+)["']\]\.get\(["'](\w+)["']""", t)}
     build_box = re.search(r"BOX_KEYS = \(\((.*)\)\)", build)
     if build_box: opts |= set(re.findall(r'\("(\w+)"', "(" + build_box.group(1)))
@@ -88,6 +97,8 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
     for field, start, end, var in NESTED:
         pfx |= {f"{field}.{k}" for k in re.findall(rf"\b{var}\.(\w+)", _between(lib, start, end, PIECE_JS[0]))}
     pfx |= {f"badge.{k}" for k in re.findall(r"\be\.badge\.(\w+)", lib)}
+    for opt, start, end, var in SPEC_NESTED:
+        opts |= {f"{opt}.{k}" for k in re.findall(rf"\b{var}\??\.(\w+)", _between(lib, start, end, PIECE_JS[0]))}
     opts |= {k for k, rel in SPEC_HAND.items() if (root / rel).exists() and f'"{k}"' in (root / rel).read_text()}
     return {"card": cards, "piece": pieces, "bg": bgs, "anim": anims, "plan": keys, "opt": opts, "pfx": pfx,
             "menu": {m for m, vals in menus(root).items() if vals}}
@@ -151,6 +162,8 @@ def problems(caps: list[dict], found: dict[str, set[str]], root: Path = ROOT) ->
             if use.get(f) == "required" and not c.get("why") and not (it.get("why") and it.get("fmt") in (f, "out")):
                 bad.append(f"{cid}: required in the {f} without evidence (a why, or a {f} checklist item with a why as its check)")
         if "never" in use.values() and not c.get("why"): bad.append(f"{cid}: 'never' needs a why")
+        if "want" in c and not (isinstance(c["want"], list) and c["want"] and all(isinstance(w, str) for w in c["want"]) and c.get("why")):
+            bad.append(f"{cid}: \"want\" = a list of the values that count (strings) and a why")
         if (c.get("kind") == "menu") != all(use.get(f) == "menu" for f in FORMS):
             bad.append(f"{cid}: use 'menu' is for kind menu only, and a menu is 'menu' in every form")
     for kind, names in found.items():
@@ -170,11 +183,14 @@ def used(plan: dict, edl: dict, specs: dict, def_anim: dict[str, str] | None = N
     """ids of the capabilities a film uses: cards, their options and scene parts on screen (EDL overlays), plan keys set;
     a piece without its own "anim" enters with its default one (def_anim, else 'up')"""
     out = {f"plan.{k}" for k, v in plan.items() if _set(v)}
+    out |= {f"plan.{k}={v}" for k, v in plan.items() if isinstance(v, str) and v}  # the value, for a map entry's "want"
     for o in edl.get("overlays", []):
         sp = specs.get(o["id"], {})
         out.add(f"card.{sp.get('type')}")
         out |= {f"opt.{k}" for k, v in sp.items() if _set(v)}
         out |= {f"opt.{k}.{x}" for k, v in sp.items() if isinstance(v, dict) for x, y in v.items() if _set(y)}  # behind.clean
+        out |= {f"opt.{k}.{x}" for k, v in sp.items() if isinstance(v, list) and k not in ("els", "_held")  # pieces = pfx below
+                for d in v if isinstance(d, dict) for x, y in d.items() if _set(y)}  # cam[].z, canvas_zoom[].k
         if sp.get("bg"): out.add(f"bg.{sp['bg']}")
         for e in sp.get("els") or []:
             out.add(f"piece.{e.get('k')}")
@@ -192,7 +208,9 @@ def coverage(caps: list[dict], form: str, have: set[str], skip: dict) -> tuple[l
     One reason per feature: a skip of a checklist item does not waive the features it checks (long.graphics checks kw, maxim,
     gfx and broll; one sentence must not let b-roll go, the 2026-11-04 miss)"""
     def own(c: dict) -> bool:
-        return c["id"] in have or len(str(skip.get(f"cap.{c['id']}", "")).strip()) >= SKIP_MIN
+        want = c.get("want")
+        hit = any(f"{c['id']}={w}" in have for w in want) if want else c["id"] in have
+        return hit or len(str(skip.get(f"cap.{c['id']}", "")).strip()) >= SKIP_MIN
 
     def done(c: dict) -> bool:  # a "group" (one of: float/scene/slide/web explain a part) is done by any member of that form
         g = c.get("group")
