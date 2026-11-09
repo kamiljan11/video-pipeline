@@ -2042,6 +2042,18 @@
    "why": "Kamil note 19: long.meme_review / short.meme_review (fail level) demand it for every meme on screen; no meme, nothing to review"
   },
   {
+   "id": "plan.retakes_ok",
+   "kind": "plan",
+   "name": "retakes_ok",
+   "owner": "montazysta",
+   "check": "long.retakes",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "a phrase said twice on purpose, named one at a time; unused = no repeat on purpose (long/short.retakes cuts the worse take otherwise)"
+  },
+  {
    "id": "opt.bookend",
    "kind": "opt",
    "name": "bookend",

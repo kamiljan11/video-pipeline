@@ -486,6 +486,27 @@ class Film:
                         if w.get("text", "").strip() and kept(w["offsets"]["from"] / 1000)]
         return self._fw
 
+    def retakes_left(self, n: int = 4, window: float = 20.0):
+        """Kamil 2026-11-09 "jak dwa razy coś mówię, bo się pomyliłem, to wytnij i zostaw lepszą wersję": the same n words
+        said twice within `window` s of FILM time = a retake the cut kept. A repeat on purpose is named in plan
+        "retakes_ok": {"<the n words>": "why (>= 10 chars)"}, one phrase at a time (no switch for the whole film)"""
+        ok = {" ".join(map(norm_word, k.split())): v for k, v in (self.plan.get("retakes_ok") or {}).items()
+              if isinstance(v, str) and len(v.strip()) >= SKIP_MIN}
+        fw = sorted((t, norm_word(w)) for t, w in self.film_words())
+        fw = [(t, w) for t, w in fw if w]
+        seen: dict[str, float] = {}
+        runs: list[list] = []  # one retake repeats several overlapping n-word groups: one run [first t, again t, words]
+        prev = False
+        for i in range(len(fw) - n + 1):
+            t, key = fw[i][0], " ".join(w for _, w in fw[i:i + n])
+            again = key in seen and t - seen[key] <= window
+            if again and prev: runs[-1][2].append(fw[i + n - 1][1])
+            elif again: runs.append([seen[key], t, key.split()])
+            prev = again
+            seen[key] = t
+        bad = [f"'{' '.join(w)}' at {a:.0f} s and {b:.0f} s" for a, b, w in runs if not any(k in " ".join(w) for k in ok)]
+        return not bad, ("retake kept (cut the worse take, or name it in plan retakes_ok): " + "; ".join(bad[:8])) if bad else "no phrase said twice"
+
     def story(self) -> dict:
         p = self.work / "story.json"
         return load(p, "story.json") if p.exists() else {}

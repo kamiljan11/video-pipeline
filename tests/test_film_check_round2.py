@@ -55,6 +55,19 @@ class LongResearchTest(unittest.TestCase):
         ok, detail = self.film(ovs, specs, said={15: "dwa"}, story=STORY).roadmap_in_opening()
         self.assertFalse(ok); self.assertIn("number 3 is not said", detail)
 
+    def test_a_retake_the_cut_kept_fails_and_a_named_repeat_passes(self):  # Kamil 2026-11-09: cut the worse take
+        fill = {i: f"w{i}" for i in range(40)}  # every other second a different word (the default "słowo" repeats)
+        take = ["to", "jest", "bardzo", "ważne", "zdanie"]
+        said = {**fill, **dict(enumerate([*take, "no", *take]))}
+        ok, detail = self.film([], [], said=said, length=40).retakes_left()
+        self.assertFalse(ok); self.assertIn("'to jest bardzo ważne zdanie' at 0 s and 6 s", detail)  # the whole repeated run
+        self.assertEqual(detail.count(" at "), 1)  # one retake = one line, not one per overlapping run
+        far = {**fill, **dict(enumerate(take)), **{30 + i: w for i, w in enumerate(take)}}
+        self.assertTrue(self.film([], [], said=far, length=40).retakes_left()[0])  # 30 s apart: a callback, not a retake
+        named = self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "said twice on purpose for emphasis"})
+        self.assertTrue(named.retakes_left()[0])
+        self.assertFalse(self.film([], [], said=said, length=40, retakes_ok={"to jest bardzo ważne": "ok"}).retakes_left()[0])
+
     def test_l3_the_announced_parts_are_the_road_when_marked(self):  # Kamil 2026-11-09: "trzy pomysły" in 13 chapters, no skip
         parts = [{"id": "intro", "title": "Wstęp", "start_word": 0, "chap": False}, {"id": "pr", "title": "Problem", "start_word": 30}] + \
                 [{"id": f"p{i}", "title": t, "start_word": 60 + 60 * i, "roadmap": True} for i, t in enumerate(("Szlaban", "Blizna", "Dowód"))] + \

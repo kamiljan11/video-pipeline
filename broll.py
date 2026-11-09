@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 
 import stock
+import timeline
 from beatfx import load_grammar
 from beats import kept_order, load_words, sentences
 
@@ -27,15 +28,9 @@ FRAME = {"short": ("portrait", 1080, 1920), "long": ("landscape", 1920, 1080)}
 
 
 def src2out(segments, t):
-    """Output time of source time t (same rule as build_edl.py: a cut moment maps to the next kept frame)."""
-    acc = 0.0
-    for s in segments:
-        if t < s["in"]:
-            return acc
-        if t <= s["out"]:
-            return acc + t - s["in"]
-        acc += s["out"] - s["in"]
-    return acc
+    """Output time of source time t: timeline.src2out, the one place for it (a copy here placed b-roll wrong once pieces
+    were out of source order, 2026-11-09)"""
+    return timeline.src2out(t, segments, False)
 
 
 def topic_of(word, topics):

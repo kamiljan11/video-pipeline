@@ -722,6 +722,22 @@
    "op": "true",
    "no_skip": "skip the features one by one (\"cap.<id>\": why), never the whole map",
    "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': every required feature of style/capabilities.json is used or skipped with a reason (the 2026-11-04 long had no b-roll, grade or sfx_duck)"
+  },
+  {
+   "id": "long.retakes",
+   "fmt": "long",
+   "metric": "retakes_left",
+   "op": "true",
+   "no_skip": "name each phrase said twice on purpose in plan retakes_ok, never the whole film",
+   "why": "Kamil 2026-11-09 'jak dwa razy cos mowie bo sie pomylilem to wtedy wytnij i zostaw lepsza wersje': the same 4 words twice within 20 s of the film = a retake the cut kept"
+  },
+  {
+   "id": "short.retakes",
+   "fmt": "short",
+   "metric": "retakes_left",
+   "op": "true",
+   "no_skip": "name each phrase said twice on purpose in plan retakes_ok, never the whole film",
+   "why": "Kamil 2026-11-09 'jak dwa razy cos mowie bo sie pomylilem to wtedy wytnij i zostaw lepsza wersje': the same 4 words twice within 20 s of the film = a retake the cut kept"
   }
  ]
 }

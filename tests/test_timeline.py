@@ -34,6 +34,14 @@ class TimelineTest(unittest.TestCase):
 
 
 class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with raw piece lengths (up to 287 ms off on 2026-11-04)
+    def test_src2out_follows_pieces_out_of_source_order(self):  # 2026-11-09 v5: promise moved before the problem
+        segs = [{"in": 0.0, "out": 2.0}, {"in": 10.0, "out": 12.0}, {"in": 4.0, "out": 6.0}]  # film: 0-2, 10-12, 4-6
+        self.assertAlmostEqual(T.src2out(11.0, segs, False), 3.0)
+        self.assertAlmostEqual(T.src2out(5.0, segs, False), 5.0)  # was 2.0: every time before 10 s stuck to piece 2
+        self.assertAlmostEqual(T.src2out(3.0, segs, False), 4.0)  # in a gap: the piece next in the source (4 s), film 4
+        self.assertAlmostEqual(T.src2out(8.0, segs, False), 2.0)  # gap before 10 s: piece 2 starts at film 2
+        self.assertAlmostEqual(T.src2out(99, segs, False), 6.0)
+
     def test_film_times_follow_whole_frame_pieces(self):
         import film_check
         segs = [{"in": 0.0, "out": 1.016, "zoom": 1.0}, {"in": 2.0, "out": 3.016, "zoom": {"a": 1.0, "b": 1.2, "t0": 0.5}},

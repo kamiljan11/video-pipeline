@@ -35,14 +35,17 @@ def total(segments: list[dict], exact: bool) -> float:
 
 def src2out(t: float, segments: list[dict], exact: bool) -> float:
     """film time of source time t: inside a piece the time runs 1:1 from the piece start (clamped to the piece's film
-    length), between pieces it sticks to the next piece start"""
-    acc = 0.0
+    length), between pieces it sticks to the start of the piece that comes next IN THE SOURCE, after all of them to the
+    film end. Pieces may be out of source order (the 2026-11-04 v5 long plays the promise at 109 s before the problem at
+    38 s): the first version returned at the first piece starting after t, so every source time before that piece got
+    its film start and 38 s of the problem part sat on one instant (found by film_check long.retakes, 2026-11-09)"""
+    acc, nxt = 0.0, None
     for s in segments:
-        if t < s["in"]: return acc
         L = piece_len(s, exact)
-        if t <= s["out"]: return acc + min(t - s["in"], L)
+        if s["in"] <= t <= s["out"]: return acc + min(t - s["in"], L)
+        if s["in"] > t and (nxt is None or s["in"] < nxt[0]): nxt = (s["in"], acc)
         acc += L
-    return acc
+    return nxt[1] if nxt else acc
 
 
 def concat_list(files: list[str], seconds: list[float | None]) -> str:
