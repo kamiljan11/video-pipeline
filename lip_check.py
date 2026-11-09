@@ -13,8 +13,8 @@ is found in the film's picture near the planned time, and the recording's voice 
 sound lag - picture lag (> 0: the voice after the lips). Only pieces where both match well (r >= R_MIN) count; a zoom
 or a crop that changes the motion lowers r and the piece is left out, said, never guessed.
 
-Problems (exit 1): median desync over --median-ms, any counted piece over --max-ms, or no piece counted (fewer than
-MIN_PIECES = WARN).
+Problems (exit 1): median desync over --median-ms, any counted piece over --max-ms, or pieces there but none counted (fewer
+than MIN_PIECES counted, or no piece without a card at all = WARN). run_v4.sh: LIP_CHECK=off skips it, logged.
 """
 import json
 import subprocess
@@ -90,8 +90,10 @@ def measure(edl: dict, film: str) -> list[dict]:
 
 def judge(rows: list[dict], max_ms: float, median_ms: float) -> list[str]:
     good = [r for r in rows if r["r_picture"] >= R_MIN and r["r_sound"] >= R_MIN]
-    if not good:
-        return [f"lips not measurable: 0 of {len(rows)} pieces matched (r >= {R_MIN})"]
+    if not rows:  # no piece of MIN_LEN s without a card (an all-card short): nothing to compare, said in main, no FAIL
+        return []
+    if not good:  # pieces there, none matched: a zoom or crop changed the motion, or picture and sound are off
+        return [f"lips not measurable: 0 of {len(rows)} pieces matched (r >= {R_MIN}); rows above, LIP_CHECK=off with a reason to skip"]
     bad = []
     med = float(np.median([r["desync_ms"] for r in good]))
     if abs(med) > median_ms: bad.append(f"voice {'after' if med > 0 else 'before'} the lips by {abs(med):.0f} ms (median of {len(good)} pieces)")
@@ -120,6 +122,7 @@ def main(argv: list[str]) -> int:
     good = [r["desync_ms"] for r in rows if r["r_picture"] >= R_MIN and r["r_sound"] >= R_MIN]
     print(f"lips: {len(good)}/{len(rows)} pieces counted, median {np.median(good) if good else float('nan'):+.1f} ms, "
           f"{len(bad)} problems {'OK' if not bad else 'FAIL'}")
+    if not rows: print(f"  WARN lips: no piece of {MIN_LEN:.0f} s without a card, not measured (the long measures the same code)")
     if 0 < len(good) < MIN_PIECES: print(f"  WARN lips: only {len(good)} piece(s) counted (a median wants {MIN_PIECES})")
     for b in bad: print(f"  problem: {b}")
     return 1 if bad else 0

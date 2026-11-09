@@ -63,3 +63,9 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | stemy głosu / podkładu | dwa osobne ślady audio (sam głos i muzyka+efekty) wyrenderowane z grafu `assemble.audio.args.json`; z nich `words_check` mierzy, o ile dB głos jest nad podkładem |
 | „not measured” | `words_check` nie mógł zmierzyć flagi (brak stemów, brak miejsca na osi, ffmpeg padł): zostaje FAIL |
 | „not judged” | `short.punch` przy < 10 s twarzy z miejscem na punch: wynik 99 z tym opisem w raporcie, short oceniają reguły kart (ADR-0021) |
+
+## Synchronizacja obrazu i dźwięku (ADR-0022)
+- **desync** — o ile ms głos gotowego filmu jest za (+) albo przed (−) ustami, względem nagrania; `lip_check.py` mierzy go na kawałkach bez kart (ruch obrazu + obwiednia głosu).
+- **siatka klatek nagrania** — czasy klatek `v0 + k/30` (film 2026-11-04: `v0` = 0,033 s, dźwięk od 0); `timeline.snap_in` stawia `-ss` tuż przed najbliższą klatką, żeby obraz i dźwięk kawałka zaczynały się w tym samym miejscu.
+- **opóźnienie łańcucha audio** — ile ms filtry `audio` planu przesuwają głos (afftdn 25 ms, alimiter 5 ms bez `latency=1`); `av_latency.chain_ms` mierzy je sygnałem testowym, `assemble.py` je odcina.
+

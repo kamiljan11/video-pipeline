@@ -58,6 +58,7 @@ class JudgeTest(unittest.TestCase):
         self.assertIn("not measurable", lip_check.judge([self.row(0, r=0.3)], 45, 20)[0])
         self.assertEqual(lip_check.judge([self.row(5), self.row(0, r=0.3)], 45, 20), [])  # a short: one piece decides
         self.assertTrue(lip_check.judge([self.row(47)], 45, 20))
+        self.assertEqual(lip_check.judge([], 45, 20), [])  # an all-card short: nothing to compare, WARN in main, no FAIL
 
 
 @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")

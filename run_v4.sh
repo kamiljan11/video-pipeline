@@ -4,6 +4,12 @@
 WORK=$1; OUT=$2; shift 2
 VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
 
+# lip_check: the finished film's voice against its lips, measured on the recording (2026-11-09: voice 46 ms late).
+# LIP_CHECK=off skips it, logged (a film whose lips cannot be matched, e.g. zoomed in on every piece)
+lips_ok() {
+  if [ "${LIP_CHECK:-on}" = off ]; then echo "LIP_CHECK=off: lip_check skipped for $1" >> "$R/render.log"; return 0; fi
+  python3 $VP/lip_check.py "edl_$1.json" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED lip_check $1" >> "$R/render.log"; return 1; }
+}
 # words_check: no word lost by the cut (plan text vs rough) or by the sound (rough vs film). Kamil 2026-11-08 "0:04 uciales
 # moje gadanie ... juz ktorys raz". WORDS_CHECK=off skips it, logged (a quick preview render)
 words_ok() {
@@ -88,7 +94,7 @@ for n in "$@"; do
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" >> "$R/render.log" 2>&1 \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
-    && { python3 $VP/lip_check.py edl_$n.json "$R/$n/$f" >> "$R/render.log" 2>&1 || { echo "FAILED lip_check $n" >> "$R/render.log"; false; }; } \
+    && lips_ok "$n" "$R/$n/$f" \
     && words_ok "$n" "$R/$n/$f" \
     && mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; then
     echo "DONE $n" >> "$R/render.log"
