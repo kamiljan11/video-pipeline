@@ -24,7 +24,9 @@
 
 **Round 2 (2026-11-08), pola story.json, które sprawdza film_check**
 - Bramka tematu (plan 1 2.8): long = 1 szukane narzędzie albo wynik (`## Fraza kluczowa` w long.md, out.titles); newsy idą do shortów i postów.
-- Intro kończy zdanie-most = `start_word` części 1, część 1 do 90 s (L4, long.first_part_by); w 50 s pada liczba części + karta `list` z tyloma pozycjami (L3, long.roadmap).
+- Intro kończy zdanie-most = `start_word` części 1, część 1 do 90 s (L4, long.first_part_by); w 50 s pada liczba części + karta `list` z tyloma pozycjami (L3, long.roadmap). Mówca zapowiada mniej części, niż
+  jest rozdziałów („trzy pomysły” w 13 rozdziałach) -> zapowiedziane części dostają `"roadmap": true`, karta `list` wymienia je; bez skipu
+  (Kamil 2026-11-09: „we don't want to skip things”).
 - `cta_after_part: k` = jedno CTA ofertowe po części k (L6, long.cta_place); recap jako część `"kind": "recap"`/`"combine"` albo karta `"recap": true` <= 10 s (L7, long.recap).
 - `action_word` w części = słowo, gdzie pada komenda/prompt do wypróbowania; karta kw/slide <= 2 s od niego (L23, long.action_word).
 - plan: `"end": "platform"` + `"next_video"` = koniec bez naszej karty, następny film nazwany w ostatnich 30 s (L5, long.end); `"sources": {id: url}` dla każdego `verified_claims` (L20, out.sources).

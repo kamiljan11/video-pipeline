@@ -55,6 +55,18 @@ class LongResearchTest(unittest.TestCase):
         ok, detail = self.film(ovs, specs, said={15: "dwa"}, story=STORY).roadmap_in_opening()
         self.assertFalse(ok); self.assertIn("number 3 is not said", detail)
 
+    def test_l3_the_announced_parts_are_the_road_when_marked(self):  # Kamil 2026-11-09: "trzy pomysły" in 13 chapters, no skip
+        parts = [{"id": "intro", "title": "Wstęp", "start_word": 0, "chap": False}, {"id": "pr", "title": "Problem", "start_word": 30}] + \
+                [{"id": f"p{i}", "title": t, "start_word": 60 + 60 * i, "roadmap": True} for i, t in enumerate(("Szlaban", "Blizna", "Dowód"))] + \
+                [{"id": "x", "title": "Narzędzia", "start_word": 300}]
+        ovs = [{"id": "map", "at": 20, "dur": 6}]
+        specs = [{"id": "map", "type": "list", "text": "Trzy pomysły", "items": ["Szlaban", "Blizna", "Dowód"]}]
+        self.assertTrue(self.film(ovs, specs, said={15: "trzy"}, story={"parts": parts}).roadmap_in_opening()[0])
+        ok, detail = self.film(ovs, specs, said={15: "pięć"}, story={"parts": [{**p, "roadmap": False} for p in parts]}).roadmap_in_opening()
+        self.assertFalse(ok); self.assertIn("no list card with 5 items", detail)  # unmarked: all 5 content parts count
+        ok, detail = self.film(ovs, specs, said={15: "trzy"}, story={"parts": [{**parts[0], "roadmap": True}] + parts[1:]}).roadmap_in_opening()
+        self.assertFalse(ok); self.assertIn("on a part without a chapter: Wstęp", detail)
+
     def test_l4_first_part_start(self):
         self.assertEqual(self.film([], [], story=STORY).first_part_at(), 60.0)
 

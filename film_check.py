@@ -519,9 +519,15 @@ class Film:
 
     def roadmap_in_opening(self, within: float = 50):
         """L3: in the first 50 s the number of parts is said and a list card shows that many items (Hormozi, Graham:
-        the viewer knows the road)"""
-        n = len(self.content_parts())
-        if n < 2: return False, f"{n} content parts in story.json"
+        the viewer knows the road). Parts marked "roadmap": true in story.json = the ones the speaker announces ("trzy pomysły"
+        in a 13-chapter film, Kamil 2026-11-09: no skip, the road he names is listed); without marks every content part counts"""
+        p = self.work / "story.json"
+        marked = {pt.get("title", pt.get("id", "?")) for pt in (load(p, "story.json").get("parts", []) if p.exists() else [])
+                  if isinstance(pt, dict) and pt.get("roadmap") is True}
+        content = {t for t, _, _ in self.content_parts()}
+        if marked - content: return False, f'"roadmap": true on a part without a chapter: {", ".join(sorted(marked - content))}'
+        n = len(marked) if marked else len(content)
+        if n < 2: return False, f"{n} {'announced' if marked else 'content'} parts in story.json"
         said = {NUMBER_WORDS.get(norm_word(w), -1) for t, w in self.film_words() if t <= within}
         lists = [len(self.specs[o["id"]].get("items", [])) for o in self.ovs if o["at"] <= within and self.typ(o) == "list"]
         bad = ([f"the number {n} is not said in the first {within:.0f} s"] if n not in said else []) + \
