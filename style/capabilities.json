@@ -2667,6 +2667,17 @@
    }
   },
   {
+   "id": "pfx.out_start",
+   "kind": "pfx",
+   "name": "out_start",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
    "id": "pfx.packet_at",
    "kind": "pfx",
    "name": "packet_at",

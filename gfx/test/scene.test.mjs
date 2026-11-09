@@ -207,3 +207,12 @@ test('frameStops in Node: a stop frames its piece plus the one still being read;
   assert.deepEqual(centre(['c'], 6.5).box, [0, 600, 200, 700]);
   assert.throws(() => sceneFit({ x: 0, y: 0, w: 10, h: 10 }, camKeyframes.toString(), null), /frameStops/);
 });
+
+test('term: "out_start" starts the output, "out_at" makes the terminal leave; "out_at" alone keeps doing both (old specs)', () => {
+  const term = more => scene(ok([{ k: 'term', id: 't', x: 0, y: 0, cmd: 'ls', out: ['a'], ...more }]), esc, icon);
+  const delays = h => [...h.matchAll(/class="ol"[^>]*animation:\S+ \S+ ([\d.]+)s both/g)].map(m => m[1]);
+  assert.deepEqual(delays(term({ out_start: 1.5, out_at: 4 })), ['1.50']);  // output at 1.5, leaves at 4
+  assert.match(term({ out_start: 1.5, out_at: 4 }), /4\.00s forwards/);
+  assert.deepEqual(delays(term({ out_at: 4 })), ['4.00']);  // legacy: out_at is the output start too
+  assert.deepEqual(checkScene(ok([{ k: 'term', x: 0, y: 0, cmd: 'ls', out_start: 9 }])).length, 1);  // out_start is a time 0..dur
+});

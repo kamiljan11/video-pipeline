@@ -130,3 +130,29 @@ test('a stamp sits on or right against a piece on screen with it; one alone in e
   const ring = { id: 'r', dur: 6, els: [{ k: 'ring', at: 0 }, { k: 'stamp', text: 'X', at: 2 }] };              // an overlay does not host a stamp
   assert.equal(stampProblems(ring, [{ i: 0, x: 0, y: 0, w: 800, h: 300 }, { i: 1, x: 100, y: 200, w: 400, h: 100 }]).length, 1);
 });
+
+test('ring: a "box" ring on a flat row and an "underline" ring are measured on their own shape, not an ellipse (motion-designer 2026-11-09)', () => {
+  const row = { i: 0, x: 100, y: 200, w: 900, h: 60, s: 'wiersz tabeli ze słowami' };  // wider than 3x its height: drawn as a rough box
+  const els = [{ k: 'file', id: 'f', at: 0 }, { k: 'ring', x: 100, y: 200, w: 900, h: 60, at: 2 }];
+  const box = { id: 'b', dur: 6, els };
+  assert.deepEqual(drawProblems(box, [{ i: 0, x: 80, y: 180, w: 940, h: 100 }], [row]), []);  // the corners of the row sit outside the ellipse, inside the box
+  const under = { id: 'u', dur: 6, els: [els[0], { k: 'ring', shape: 'underline', x: 100, y: 200, w: 900, h: 60, at: 2 }] };
+  assert.deepEqual(drawProblems(under, [{ i: 0, x: 80, y: 180, w: 940, h: 100 }], [row]), []);  // the line runs under the words, not through them
+  const through = drawProblems(under, [{ i: 0, x: 80, y: 180, w: 940, h: 200 }], [row, { ...row, y: 262, h: 30 }]);
+  assert.equal(through.length, 1); assert.match(through[0], /underline .* runs through/);  // a second line sits where the pen runs
+  const cut = drawProblems(box, [{ i: 0, x: 80, y: 180, w: 1200, h: 100 }], [{ ...row, w: 1100 }]);  // a line that leaves the box is still cut
+  assert.match(cut.join('\n'), /not inside the drawn box/);
+  const empty = drawProblems({ id: 'e', dur: 6, els: [{ k: 'ring', shape: 'box', x: 100, y: 200, w: 300, h: 80, at: 0 }] }, [], []);
+  assert.match(empty.join('\n'), /circles nothing/);
+});
+
+test('a stamp on its own piece (on: id) is not a clash with it, but still is one with another piece (motion-designer 2026-11-09)', () => {
+  const stamp = { k: 'stamp', text: 'BLOKOWANE', on: 'n1', at: 2 }, node = { k: 'node', id: 'n1', text: 'polecenie', at: 0 };
+  const r = [{ i: 0, x: 100, y: 200, w: 500, h: 120 }, { i: 1, x: 300, y: 170, w: 400, h: 90 }];  // the stamp lays over the node's top edge
+  assert.deepEqual(clashes(sp([node, stamp]), r), []);
+  assert.deepEqual(clashes(sp([node, { ...stamp, on: undefined, _on: 'n1.0' }]), r), []);  // placed by anchor_lib: _on, a row of the piece
+  const other = clashes(sp([{ ...node, id: 'n2' }, stamp]), r);
+  assert.equal(other.length, 1); assert.match(other[0], /a stamp on words/);
+  const chip = clashes(sp([node, { k: 'chip', id: 'c', text: 'ryzyko', at: 0 }, stamp]), [r[0], { i: 1, x: 700, y: 200, w: 300, h: 100 }, { i: 2, x: 800, y: 170, w: 300, h: 90 }]);
+  assert.equal(chip.length, 1); assert.match(chip[0], /c \(chip/);
+});

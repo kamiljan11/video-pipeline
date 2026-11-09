@@ -152,7 +152,7 @@ export function checkScene(sp) {
     if (FREE.includes(e.k)) {
       if (!pt(e.from) || !pt(e.to)) bad.push(`${n}: "from" and "to" = [x, y] or a piece id ("e1", a row "md.0"; gfx/anchor_lib.mjs resolveAnchors places it)`);
     } else if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) bad.push(`${n}: "x" and "y" are required${['ring', 'stamp', 'check'].includes(e.k) ? ' (or "on": a piece id, placed by gfx/anchor_lib.mjs resolveAnchors)' : ''}`);
-    for (const key of ['click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at', 'x_at'])
+    for (const key of ['click_at', 'on_at', 'back_at', 'out_at', 'out_start', 'strike_at', 'hl_at', 'packet_at', 'x_at'])
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
     if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
     if (e.k === 'check' && e.x_at !== undefined && !(e.x_at >= num(e.at, 0) + 0.6)) bad.push(`${n}: "x_at" = after the tick has drawn ("at" + 0.6 s or later)`);
@@ -291,7 +291,7 @@ const PIECES = {
   win: winFile,
   file: winFile,
   term: (e, { esc, at, tn, m }) => {
-    const cmdAt = num(e.cmd_at, at + 0.5), typed = e.cmd.length / TYPE_CPS, outAt = num(e.out_at, cmdAt + typed + 0.35);
+    const cmdAt = num(e.cmd_at, at + 0.5), typed = e.cmd.length / TYPE_CPS, outAt = num(e.out_start, num(e.out_at, cmdAt + typed + 0.35));  // out_start = the output starts; out_at = the terminal leaves (old specs: out_at alone still starts the output too)
     const rd = readSpans(e);
     const lines = (e.out ?? []).map((l, i) => `<div class="ol${(e.hl ?? []).includes(i) ? ' hot' : ''}" style="animation:${m.outLine} ${f2(outAt + i * m.lineStep)}s both">`
       + `${readBand(rd[i])}${(e.hl ?? []).includes(i) ? `<span class="rhl" style="background:${tn};animation:${m.hl} ${f2(num(e.hl_at, outAt + (e.out.length) * m.lineStep + 0.4))}s both"></span>` : ''}<span>${esc(l)}</span></div>`).join('');
@@ -442,7 +442,7 @@ function piece(e, esc, icon, m = MOTION.legacy) {
 // must still land before 0; a seeked frame shows its final state. render.mjs and scene_check.mjs call this on the whole
 // specs file; a spec without "extends" comes back as the same object (drawn byte for byte as before).
 const PAST = 600;
-const TIME_KEYS = ['gone', 'dim', 'click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at', 'cmd_at'];
+const TIME_KEYS = ['gone', 'dim', 'click_at', 'on_at', 'back_at', 'out_at', 'out_start', 'strike_at', 'hl_at', 'packet_at', 'cmd_at'];
 export function shiftPiece(e, d) {
   const add = v => (typeof v === 'number' ? +(v + d).toFixed(3) : v), s = JSON.parse(JSON.stringify(e));
   s.at = +(pieceAt(e) + d).toFixed(3);

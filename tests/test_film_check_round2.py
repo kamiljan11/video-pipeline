@@ -48,6 +48,21 @@ class LongResearchTest(unittest.TestCase):
         bad = [b for b in f.pace_flat(block_s=600)[1].split("; ") if b.startswith("pause")]
         self.assertEqual(bad, ["pause 2.4 s at 3 s with nothing on screen"])
 
+    def test_l2_pieces_out_of_source_order_give_no_false_pause(self):  # motion-designer 2026-11-09: "38.8 s pause at 44 s"
+        """source words 5 and 6 are 1 s apart in the source but 21 s apart in the film (the piece after 5 is source 20-40);
+        in FILM order every word follows the next within 1.1 s, so no pause"""
+        ws = [{"offsets": {"from": i * 1000, "to": i * 1000 + 400}, "text": f" w{i}"} for i in range(40)]
+        (self.d / "w.json").write_text(json.dumps({"transcription": ws}))
+        segs = [{"in": 0.0, "out": 5.5, "zoom": 1.0}, {"in": 20.0, "out": 40.0, "zoom": 1.0}, {"in": 5.5, "out": 20.0, "zoom": 1.0}]
+        (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": []}))
+        (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "gfx_specs": "specs.json"}))
+        (self.d / "specs.json").write_text("[]")
+        f = film_check.Film(self.d, "long")
+        spans = f.film_word_spans()
+        self.assertEqual(spans, sorted(spans))
+        bad = [b for b in f.pace_flat(block_s=600)[1].split("; ") if b.startswith("pause")]
+        self.assertEqual(bad, [])
+
     def test_l3_roadmap_said_and_listed(self):
         ovs = [{"id": "map", "at": 20, "dur": 6}]
         specs = [{"id": "map", "type": "list", "text": "Plan", "items": ["Szlaban", "Blizna", "Dowód"]}]

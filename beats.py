@@ -376,6 +376,9 @@ def make_gfx(plan, beats, W, grammar, specs):
         text, sub = stat_card(b["word"], W, order, d)
         spec = {"id": gid, "type": "kw", "text": text, "sub": sub, "icon": pick_icon(b.get("text", ""), grammar),
                 "dur": grammar["auto_gfx"].get("dur", 2.5), "quote": True, "beat": b["type"]}
+        # held at least its reading time (film_check.reading_need, the one rule): "100+" with its sub line needs 4.8 s, not 2.5 (2026-11-09)
+        from film_check import reading_need
+        spec["dur"] = round(max(spec["dur"], reading_need(spec)), 2)
         if fmt == "short":
             spec["canvas"] = "v"
         new.append(spec)

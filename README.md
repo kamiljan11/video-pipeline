@@ -357,6 +357,8 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
   - `win` okno z kropkami (`title`, `icon`, `rows`), `file` plik (`name`, `badge: {text, tone, at}`, `rows`). Wiersz: `"~60"` = szara
     kreska na 60 % szerokości, `"tekst"`, albo `{"t", "mark": "ok"|"bad"|"warn", "mark_at", "hl": true, "hl_at", "tone"}`; `step` = odstęp wejścia wierszy.
   - `term` terminal: `cmd` pisze się literami (28 znaków/s od `cmd_at`), potem `out` linia po linii, linie z `hl` dostają podświetlenie.
+    `out_start` = kiedy zaczyna się wyjście; `out_at` = kiedy terminal znika (wspólna chwila niżej). Stare specy z samym `out_at` na `term`
+    działają jak dotąd (ta chwila jest wtedy i startem wyjścia, i zniknięciem); podaj `out_start`, żeby je rozdzielić.
     **`out` to prawdziwy wynik polecenia**, przepisany z terminala; skrót oznacz „…”. Nigdy wymyślony.
   - `chip` pigułka z ikoną (`icon` z lucide, `text`), `node` duża ikona z podpisem (`icon`, `text`, `sub`, `size`), `you` osoba („Ty”),
     `chat` dymki (`msgs: [{who: "me"|"ai", t}]`, `t` = tekst albo `"~70"`), `stamp` pieczątka (`text`, `rot`), `text` napis
@@ -453,7 +455,7 @@ Duże słowo ZA głową mówiącego (głowa zasłania środek napisu). Karta dow
 klatkach filmu POD kartą (nagranie cięte i kadrowane jak w `assemble.py`, którego `vf_for` czyta). Wynik zastępuje `<id>.mov`
 (oryginał: `<id>.front.mov`), więc `assemble.py` i odtwarzacz panelu po prostu nakładają kartę.
 ```json
-{"id": "b02_bol", "type": "float", "dur": 3.2, "html": "<div class=\"bw\" style=\"top:170px;font-size:380px\">BÓL</div>",
+{"id": "b02_bol", "type": "float", "dur": 3.2, "html": "<div class=\"p\" style=\"left:0;right:0;text-align:center;top:170px;font-size:380px;font-weight:900;color:#fff\">BÓL</div>",
  "behind": {"edl": "edl_long.json"}}
 ```
 - Uruchamiają go `gfx/render.mjs` (po renderze kart; EDL jeszcze niezbudowany albo niepasujący do karty = komunikat „left for run_v4.sh”, reszta grafik idzie dalej;

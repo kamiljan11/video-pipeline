@@ -182,7 +182,7 @@ def zoom_steps(edl: dict) -> list[float]:
 
 
 NOT_READ = {"id", "type", "icon", "tone", "k", "bg", "anim", "file", "owner", "layout", "cam", "img", "src", "sfx", "font", "mark",
-            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to"}  # not read text
+            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to", "icons"}  # not read text
 
 
 def read_words(spec) -> int:
@@ -467,13 +467,14 @@ class Film:
 
     # ---- round 2 long research (creator-study/round2/PLAN2.md L1-L24); each item names its ledger id ----
     def film_word_spans(self) -> list[tuple[float, float]]:
-        """(film start, film end) of every kept word, in the order of film_words"""
+        """(film start, film end) of every kept word, sorted by film time (EDL pieces may play out of source order)"""
         if not hasattr(self, "_fws"):
             raw = load(self.work / self.plan["words"], "words")["transcription"] if self.plan.get("words") else []
             segs, ex = self.edl["segments"], exact(self.edl)
             kept = lambda t: any(sg["in"] <= t <= sg["out"] for sg in segs)
             self._fws = [(src2out(segs, w["offsets"]["from"] / 1000, ex), src2out(segs, w["offsets"]["to"] / 1000, ex)) for w in raw
                          if w.get("text", "").strip() and kept(w["offsets"]["from"] / 1000)]
+            self._fws.sort()
         return self._fws
 
     def film_words(self) -> list[tuple[float, str]]:

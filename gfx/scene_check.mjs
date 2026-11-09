@@ -11,6 +11,7 @@ import { opener, resolveAnchors } from './anchor_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
+import { autoShape } from './rough_lib.mjs';
 
 // pieces meant to sit on others: a stamp lands on a card, a check or ring marks it, a cursor points at it, a line joins them
 export const OVERLAY_KINDS = new Set(['stamp', 'check', 'ring', 'cursor', 'line']);
@@ -42,7 +43,10 @@ export function clashes(sp, rects, share = 0.12) {
     if (ix <= 0 || iy <= 0) continue;
     // a stamp lands on its card, but never on another piece's words (2026-11-08: BLOKOWANE over "okienka", NIE PRZEMYCISZ
     // over the risk chip, both missed because every overlay was skipped)
-    const stampOnWords = (ea.k === 'stamp' && TEXT_KINDS.has(eb.k)) || (eb.k === 'stamp' && TEXT_KINDS.has(ea.k));
+    // a stamp overlaps the top edge of the piece it is attached to ("on": id or "id.<row>", placed by anchor_lib) by design:
+    // that pair is not a clash, a clash with any other piece still is
+    const own = (st, other) => st.k === 'stamp' && other.id !== undefined && String(st.on ?? st._on ?? '').split('.')[0] === other.id;
+    const stampOnWords = (ea.k === 'stamp' && TEXT_KINDS.has(eb.k) && !own(ea, eb)) || (eb.k === 'stamp' && TEXT_KINDS.has(ea.k) && !own(eb, ea));
     if (stampOnWords && ix > TOUCH && iy > TOUCH) { out.push(`${sp.id}: ${name(A.i)} covers ${name(B.i)} (${Math.round(ix)}x${Math.round(iy)} px, a stamp on words)`); continue; }
     if (OVERLAY_KINDS.has(ea.k) || OVERLAY_KINDS.has(eb.k)) continue;
     const small = Math.min(A.w * A.h, B.w * B.h);
@@ -96,7 +100,32 @@ export function drawProblems(sp, rects, texts) {
   const out = [], on = (e, f) => { const [a0, a1] = window_(e, sp.dur), [b0, b1] = window_(f, sp.dur); return a0 < b1 && b0 < a1; };
   const label = i => `${sp.els[i].id ?? `#${i}`} (${sp.els[i].k})`;
   sp.els.forEach((e, i) => {
-    if (e.k === 'ring') {  // the ring is drawn as an ellipse (scene_lib ring: pad 24, radius 0.97-1.03, ry up to +5 %, stroke 7)
+    if (e.k === 'ring') {
+      const shape = e.shape ?? autoShape(e.w, e.h);  // scene_lib ring: a flat row (w >= 3h) is drawn as a rough box, "underline" as a line under the box
+      const nonOverlay = B => B.i !== i && !OVERLAY_KINDS.has(sp.els[B.i].k) && on(e, sp.els[B.i]);
+      if (shape !== 'circle') {  // measured on the shape that is drawn (rough_lib roughBox pad 14 / roughUnderline pad 10), not on an ellipse
+        const pad = e.pad ?? (shape === 'box' ? 14 : 10), meets = (B, x0, y0, x1, y1) => B.x < x1 && B.x + B.w > x0 && B.y < y1 && B.y + B.h > y0;
+        let held = 0;
+        for (const T of texts) {
+          if (T.i === i || !on(e, sp.els[T.i])) continue;
+          if (shape === 'box') {
+            const [x0, y0, x1, y1] = [e.x - pad, e.y - pad, e.x + e.w + pad, e.y + e.h + pad];  // the pen's centre line: a word is inside it or clear of it
+            if (!meets(T, x0 - STROKE, y0 - STROKE, x1 + STROKE, y1 + STROKE)) continue;
+            if (T.x >= x0 + STROKE && T.y >= y0 + STROKE && T.x + T.w <= x1 - STROKE && T.y + T.h <= y1 - STROKE) held++;
+            else out.push(`${sp.id}: ring ${label(i)} cuts the words of ${label(T.i)} (line ${Math.round(T.x)},${Math.round(T.y)} ${Math.round(T.w)}x${Math.round(T.h)} is not inside the drawn box): box the whole line or move it`);
+          } else {  // underline: the stroke runs under the box; it must not run through a word, and the words it underlines sit in the box above it
+            const yy = e.y + e.h + pad;
+            if (meets(T, e.x - 4, yy - STROKE, e.x + e.w + 4, yy + STROKE + 5)) out.push(`${sp.id}: ring ${label(i)} cuts the words of ${label(T.i)} (the underline at y ${Math.round(yy)} runs through line ${Math.round(T.x)},${Math.round(T.y)} ${Math.round(T.w)}x${Math.round(T.h)}): move it`);
+            else if (meets(T, e.x, e.y, e.x + e.w, e.y + e.h)) held++;
+          }
+        }
+        const box = rects.some(B => nonOverlay(B) && (shape === 'box'
+          ? B.x >= e.x - pad && B.y >= e.y - pad && B.x + B.w <= e.x + e.w + pad && B.y + B.h <= e.y + e.h + pad  // a whole piece in the box
+          : meets(B, e.x - pad, e.y - pad, e.x + e.w + pad, e.y + e.h + pad)));  // an underline sits under a piece it touches
+        if (!held && !box) out.push(`${sp.id}: ring ${label(i)} circles nothing (no line of words, no piece inside ${e.x},${e.y} ${e.w}x${e.h})`);
+        return;
+      }
+      // the ring is drawn as an ellipse (scene_lib ring: pad 24, radius 0.97-1.03, ry up to +5 %, stroke 7)
       const pad = e.pad ?? 24, cx = e.x + e.w / 2, cy = e.y + e.h / 2, rx = e.w / 2 + pad, ry = e.h / 2 + pad;
       const inner = ([x, y]) => ((x - cx) / (rx * 0.97 - STROKE)) ** 2 + ((y - cy) / (ry * 0.97 - STROKE)) ** 2 <= 1;
       const ox = rx * 1.03 + STROKE, oy = ry * 1.03 * 1.05 + STROKE;  // nearest point of a box to the centre, in the circle space of the outer ellipse
@@ -108,7 +137,7 @@ export function drawProblems(sp, rects, texts) {
         if (corners(T).every(inner)) held++;
         else out.push(`${sp.id}: ring ${label(i)} cuts the words of ${label(T.i)} (line ${Math.round(T.x)},${Math.round(T.y)} ${Math.round(T.w)}x${Math.round(T.h)} is not inside the drawn ellipse): circle the whole line or move it`);
       }
-      const box = rects.some(B => B.i !== i && !OVERLAY_KINDS.has(sp.els[B.i].k) && on(e, sp.els[B.i])
+      const box = rects.some(B => nonOverlay(B)
         && B.x >= e.x - pad && B.y >= e.y - pad && B.x + B.w <= e.x + e.w + pad && B.y + B.h <= e.y + e.h + pad);  // a whole piece in the ring's box
       if (!held && !box) out.push(`${sp.id}: ring ${label(i)} circles nothing (no line of words, no piece inside ${e.x},${e.y} ${e.w}x${e.h})`);
     }

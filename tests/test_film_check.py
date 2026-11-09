@@ -375,6 +375,7 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(film_check.full_spans(edl, specs), [(0, 7.02), (7.5, 9.5)])  # back to back = one screen; kw and float are not
         self.assertEqual(film_check.read_words(specs["f"]), 3)  # css out, a word drawn letter by letter is one word
         self.assertEqual(film_check.read_words(specs["a"]), 15)  # "node" is a piece kind, not text
+        self.assertEqual(film_check.read_words({"type": "list", "text": "Plan", "items": ["a b", "c"], "icons": ["shield", "bolt-circle", "x"]}), 4)  # icons are not words
         ovs, sp, segs = self.full_long()
         self.project(ovs, sp, segs)
         f = film_check.Film(self.d, "long")

@@ -327,6 +327,20 @@ class HookShowTest(unittest.TestCase):  # ledger S16
             self.assertTrue(w - 0.2 <= o["at"] <= w + 1e-3, (o, w))
 
 
+class StatCardReadingTest(unittest.TestCase):  # role 8 2026-11-09: a "100+" card came for 2.5 s against a 4.8 s need
+    def test_a_number_card_is_held_its_reading_time(self):
+        from film_check import reading_need
+        text = "Mam dziś ponad 100 blizn w systemie, każda to jedna zasada z prawdziwego błędu."
+        W = [(1.0 + 0.45 * k, 1.35 + 0.45 * k, " " + w) for k, w in enumerate(text.split())]
+        plan = {"keeps": [[0, len(W) - 1]], "vertical": True, "name": "s1"}
+        real = json.loads((Path(beats.__file__).parent / "style" / "grammar.json").read_text())
+        grammar = {**GRAMMAR, "detect": {**real["detect"], "gfx_min_gap": 4.0}, "auto_gfx": {"short": ["stat"], "dur": 2.5}}
+        specs = beats.make_gfx(plan, [{"type": "stat", "word": 3, "text": text}], W, grammar, [])
+        self.assertEqual(len(specs), 1)
+        self.assertGreaterEqual(specs[0]["dur"], round(reading_need(specs[0]), 2))
+        self.assertGreaterEqual(specs[0]["dur"], 2.5)
+
+
 class SplitFullTest(unittest.TestCase):  # ledger S19
     def setUp(self):
         self.W = [(1.0, 1.5, " a"), (1.6, 2.9, " b"), (3.0, 3.5, " c"), (4.05, 4.5, " d")]
