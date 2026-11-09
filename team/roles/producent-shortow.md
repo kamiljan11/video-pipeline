@@ -8,6 +8,10 @@
 - Upscale cropa: lanczos + lekkie wyostrzenie (`grade` unsharp), bez AI upscalera.
 - `music_palette` ustawione.
 
+- Sceny shorta rysuje motion designer (karta `motion-designer.md`): wyjście od sceny longa na tych samych słowach, przerysowanej na
+  9:16 nad ramką twarzy, kawałki wchodzą na swoich słowach. Szablon „2-3 chipy na pustym płótnie” to nie scena (2026-11-09:
+  36 takich scen w 18 shortach przeszło bramki; przerysowane od nowa). Zobacz stillsy (`stills.py plan_<clip>.json`) przed oddaniem.
+
 **Gotowe gdy:** `film_check` short.* OK dla każdego klipu (w tym short.scenes = `gfx/scene_check.mjs` na scenach shorta).
 Plan generowany skryptem po raz drugi zachowuje klucze innych ról (dźwięk: audio, master, music_*, sfx_*): przeczytaj stary plan i
 nadpisz tylko swoje pola (2026-11-09: regeneracja 18 planów skasowała klucze dźwiękowca).
