@@ -7,6 +7,7 @@
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
 import { camKeyframes, colFollow, frameStops, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { opener, resolveAnchors } from './anchor_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
@@ -50,6 +51,21 @@ export function clashes(sp, rects, share = 0.12) {
     const words = TEXT_KINDS.has(ea.k) && TEXT_KINDS.has(eb.k) && ix > TOUCH && iy > TOUCH;
     if (words || (small > 0 && (ix * iy) / small > share)) out.push(`${sp.id}: ${name(A.i)} covers ${name(B.i)} (${Math.round(ix)}x${Math.round(iy)} px)`);
   }
+  return out;
+}
+
+// visual upgrade item 2 (2026-11-09): a ring, stamp or check names the piece it marks ("on": id / "id.<row>"), a line or a
+// cursor names at least one piece it joins or points at: hand coordinates missed their target (s13 ring, NOTES_LOG 15/16/18).
+// Runs on the spec as written, before resolveAnchors turns ids into numbers (_on/_from/_to keep them).
+export function handPlaced(sp) {
+  const out = [];
+  [...(sp._held ?? []), ...(sp.els ?? [])].forEach((e, i) => {
+    const named = k => typeof e[k] === 'string' || typeof e[`_${k}`] === 'string';
+    if (['ring', 'stamp', 'check'].includes(e.k) && !named('on'))
+      out.push(`${sp.id}: els[${i}] (${e.k}) placed by hand at x/y: give it "on": the id of the piece it marks (gfx/anchor_lib.mjs)`);
+    if (['line', 'cursor'].includes(e.k) && !named('from') && !named('to'))
+      out.push(`${sp.id}: els[${i}] (${e.k}) joins two hand points: name the piece at one end at least ("from"/"to": an id)`);
+  });
   return out;
 }
 
@@ -274,7 +290,9 @@ async function main() {
   // "extends" (S11) on the whole file first: the scene it goes on from may be filtered out by [id ...]
   const specs = resolveExtends(JSON.parse(fs.readFileSync(specFile, 'utf8'))).filter(s => s.type === 'scene' && (!only.length || only.includes(s.id)));
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
-  const bad = [], motion = specs.flatMap(motionLint), legacy = specs.filter(s => s.motion !== 'tokens').length;
+  const hand = specs.flatMap(handPlaced);  // before the ids become numbers
+  try { await resolveAnchors(specs, opener(browser), esc, icon); } catch (e) { await browser.close(); console.log(`CLASH ${e.message}`); process.exit(1); }
+  const bad = [...hand], motion = specs.flatMap(motionLint), legacy = specs.filter(s => s.motion !== 'tokens').length;
   try {
     for (const sp of specs) {
       const v = sp.canvas === 'v';

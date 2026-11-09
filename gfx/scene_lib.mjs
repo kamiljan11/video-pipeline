@@ -149,8 +149,8 @@ export function checkScene(sp) {
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
     const pt = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
     if (FREE.includes(e.k)) {
-      if (!pt(e.from) || !pt(e.to)) bad.push(`${n}: "from" and "to" = [x, y]`);
-    } else if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) bad.push(`${n}: "x" and "y" are required`);
+      if (!pt(e.from) || !pt(e.to)) bad.push(`${n}: "from" and "to" = [x, y] or a piece id ("e1", a row "md.0"; gfx/anchor_lib.mjs resolveAnchors places it)`);
+    } else if (!Number.isFinite(e.x) || !Number.isFinite(e.y)) bad.push(`${n}: "x" and "y" are required${['ring', 'stamp', 'check'].includes(e.k) ? ' (or "on": a piece id, placed by gfx/anchor_lib.mjs resolveAnchors)' : ''}`);
     for (const key of ['click_at', 'on_at', 'back_at', 'out_at', 'strike_at', 'hl_at', 'packet_at'])
       if (e[key] !== undefined && !(typeof e[key] === 'number' && e[key] >= 0 && e[key] < dur)) bad.push(`${n}: "${key}" = seconds 0..dur, got ${JSON.stringify(e[key])}`);
     if (e.pulse_at !== undefined && ![].concat(e.pulse_at).every(t => typeof t === 'number' && t >= 0 && t < dur)) bad.push(`${n}: "pulse_at" = seconds 0..dur (one or a list)`);
@@ -384,7 +384,7 @@ const PIECES = {
     if (Math.abs(dx) < 1) { dx = x2 - x1; dy = y2 - y1; }
     const ang = (Math.atan2(dy, dx) * 180 / Math.PI).toFixed(1), hat = f2(at + num(e.d, 0.7) - 0.05);
     const head = e.arrow === false ? '' : e.head === 'arrow'
-      ? `<g transform="translate(${x2} ${y2}) rotate(${ang})"><path d="M4 0 L-30 -17 L-22 0 L-30 17 Z" fill="${tn}" style="transform-box:fill-box;transform-origin:right center;animation:scpop .14s ${EASE_POP} ${hat}s both"/></g>`
+      ? `<g transform="translate(${x2} ${y2}) rotate(${ang})"><path d="M4 0 L-30 -17 L-22 0 L-30 17 Z" style="fill:${tn};stroke:none;transform-box:fill-box;transform-origin:right center;animation:scpop .14s ${EASE_POP} ${hat}s both"/></g>`
       : `<circle cx="${x2}" cy="${y2}" r="9" fill="${tn}" style="animation:scfade .2s ${f2(at + num(e.d, 0.7))}s both"/>`;
     const pk = e.packet_at !== undefined ? `<i class="pk" style="background:${tn};color:${tn};offset-path:path('${d}');animation:scpath ${f2(num(e.packet_d, 0.8))}s ${EASE_MOVE} ${f2(e.packet_at)}s both"></i>` : '';
     return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${Math.min(x1, x2)} ${Math.min(y1, y2)} ${Math.abs(x2 - x1)} ${Math.abs(y2 - y1)}" viewBox="0 0 ${W} ${H}" style="overflow:visible"><path d="${d}" stroke="${tn}" style="stroke-dasharray:${len.toFixed(0)};stroke-dashoffset:${len.toFixed(0)};animation:scdraw ${f2(num(e.d, 0.7))}s ${m.lineDraw} ${f2(at)}s forwards"/>${head}</svg>${pk}` };

@@ -41,7 +41,7 @@ SIDE_MAX_ELS, SHIFT_MAX, RECAP, SPEAKER_BACK = _style()
 # gfx/scene_check.mjs readProblems READ_MIN_S; 2026-11-08 the s08 punch line "TYLKO NA PAPIERZE" came in 0.8 s before its card ended)
 PIECE_READ_MIN, PIECE_READ_BASE, PIECE_READ_WORD = 1.2, 0.6, 0.25
 _TEXT_KEYS = {"text", "words", "t", "rows", "label", "title", "name", "sub", "head", "suf", "out", "cmd", "value", "pre", "lines", "msgs", "items"}
-_NOT_TEXT = {"k", "id", "tone", "icon", "anim", "mark", "who", "on", "owner", "extends"}
+_NOT_TEXT = {"k", "id", "tone", "icon", "anim", "mark", "who", "on", "owner", "extends", "from", "to"}
 
 
 def piece_words(e) -> int:

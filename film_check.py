@@ -64,7 +64,7 @@ def load(p: Path, what: str):
 TEXT_CARDS = ("kw", "lower", "maxim", "cta")  # words only: a sticker or meme carries a picture (judged in content_review)
 # "on", "owner", "extends": piece / film / scene ids (a camera stop "on": ["au"]), not words: a new camera is not a new text (2026-11-08)
 TEXT_SKIP_KEYS = {"id", "type", "file", "icon", "bg", "tone", "anim", "k", "src", "url", "photo", "layout", "who", "mark", "head", "font",
-                  "on", "owner", "extends"}
+                  "on", "owner", "extends", "from", "to"}  # "from"/"to": a line or cursor attached to piece ids (gfx/anchor_lib.mjs)
 
 
 def says_nothing(title: str, sub: str) -> bool:
@@ -173,7 +173,7 @@ def zoom_steps(edl: dict) -> list[float]:
 
 
 NOT_READ = {"id", "type", "icon", "tone", "k", "bg", "anim", "file", "owner", "layout", "cam", "img", "src", "sfx", "font", "mark",
-            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side"}  # not read text
+            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to"}  # not read text
 
 
 def read_words(spec) -> int:

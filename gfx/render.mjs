@@ -12,6 +12,7 @@ import { COUNT_DELAY, FADE_OUT, countFrom, countParts, countSeconds, fmtNum, num
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
 import { camKeyframes, colFollow, frameStops, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { opener, resolveAnchors } from './anchor_lib.mjs';
 import { esc, icon, prose } from './html_lib.mjs';
 import { chapHtml, checkCard, listHtml, lowerHtml, noteHtml, usesCardsLib } from './cards_lib.mjs';
 const [specFile, outDir, mode, ...only] = process.argv.slice(2);
@@ -245,6 +246,8 @@ if (specs.some(s => s.type === 'web')) {
   catch { console.error('FAILED gfx: page capture for "web" cards (lines FAILED webshot above)'); process.exit(1); }
 }
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
+// pieces attached to ids get their numbers before any key, still or frame (anchor_lib.mjs, visual upgrade item 2)
+try { await resolveAnchors(specs, opener(browser), esc, icon); } catch (e) { console.error(`FAILED gfx ${e.message}`); await browser.close(); process.exit(1); }
 fs.mkdirSync(outDir, { recursive: true });
 function keyFor(sp) {
   const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'sticker' && sp.toon !== undefined ? toonStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
