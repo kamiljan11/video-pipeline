@@ -57,10 +57,12 @@ def main(argv: list[str]) -> int:
     path = research_gate.LEDGER
     try: ledger = [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
     except OSError as e: print(f"FAIL research ledger {path} not readable ({e.strerror}): research_gate.LEDGER / RESEARCH_LEDGER"); return 1
+    except ValueError as e: print(f"FAIL research ledger {path}: a line is not JSON ({e}); fix or restore it (restic), nothing was added"); return 1
     try: gone = missing(DESIGNS, ledger)
     except ValueError as e: print(f"FAIL {e}"); return 1
     if argv[0] == "sync" and gone:
         with path.open("a", encoding="utf-8") as f:
+            if path.stat().st_size and not path.read_bytes().endswith(b"\n"): f.write("\n")  # a last line without its newline would glue to the first new row
             for i in gone: f.write(json.dumps(i, ensure_ascii=False) + "\n")
         print(f"design_ledger: {len(gone)} row(s) added as todo to {path}")
         return 0

@@ -631,7 +631,10 @@
     "long": "never",
     "short": "required"
    },
-   "why": "captions are burned in only on shorts (short.captions); the long has none"
+   "why": "captions are burned in only on shorts (short.captions); the long has none. Counts only as true: the gate is `caption_pop is True` (critic round 6)",
+   "want": [
+    "true"
+   ]
   },
   {
    "id": "plan.caption_v",
@@ -842,7 +845,7 @@
     "long": "never",
     "short": "report"
    },
-   "why": "hook length, default 3.0 s (build_edl.py); no gate reads it"
+   "why": "hook length, default 3.0 s (build_edl.py); critic.py C2 reads it (a 9:16 card under the hook title for hook_dur s), no checklist item does"
   },
   {
    "id": "plan.hook_pos",
@@ -869,7 +872,7 @@
     "long": "never",
     "short": "required"
    },
-   "why": "the on-screen hook card is a short feature (short.hook); the long opens on the cut"
+   "why": "the hook's nouns shown as pictures (round 2 S16): short.options fails when hook_show_report names missing assets; required rests on S16, not on the gate (critic round 6)"
   },
   {
    "id": "plan.hook_show_report",

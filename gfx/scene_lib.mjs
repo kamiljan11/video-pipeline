@@ -8,8 +8,8 @@
 // left, zoom z). Pieces are measured in the browser (render.mjs calls sceneFit), so nobody has to guess their size.
 
 import { EASE, F, STAGGER, sec } from './motion_tokens.mjs';
-import { keepTogether as kt } from './html_lib.mjs';
-import { annotation, autoShape, seedOf } from './rough_lib.mjs';  // rough box / underline (visual upgrade item 3)  // a short Polish word stays with its neighbour when a line wraps (side column)
+import { keepTogether as kt } from './html_lib.mjs';  // a short Polish word stays with its neighbour when a line wraps (side column)
+import { annotation, autoShape, seedOf } from './rough_lib.mjs';  // rough box / underline (visual upgrade item 3)
 
 export const W = 2560, H = 1440;
 // the PiP circle (assemble.py: pip_size 600, margin 72, 20 px up) + its 40 px frame, with some air

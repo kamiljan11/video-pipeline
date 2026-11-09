@@ -712,6 +712,7 @@
    "fmt": "long",
    "metric": "capabilities_missing",
    "op": "true",
+   "no_skip": "skip the features one by one (\"cap.<id>\": why), never the whole map",
    "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': every required feature of style/capabilities.json is used or skipped with a reason (the 2026-11-04 long had no b-roll, grade or sfx_duck)"
   },
   {
@@ -719,6 +720,7 @@
    "fmt": "short",
    "metric": "capabilities_missing",
    "op": "true",
+   "no_skip": "skip the features one by one (\"cap.<id>\": why), never the whole map",
    "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': every required feature of style/capabilities.json is used or skipped with a reason (the 2026-11-04 long had no b-roll, grade or sfx_duck)"
   }
  ]

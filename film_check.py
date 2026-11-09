@@ -1105,6 +1105,9 @@ class Out:
 
 def judge(obj, item: dict) -> tuple[str, str]:
     skip = (obj.plan.get("skip") or {}).get(item["id"])
+    # "no_skip": an item that is itself a list of reasons (the capability map) has no off switch: one sentence on
+    # long.capabilities waived every required feature at once (pg-review 2026-11-09 code-1); its "no_skip" says what to do
+    if item.get("no_skip") and skip is not None: return "FAIL", f'"skip": {{"{item["id"]}": ...}} is not allowed: {item["no_skip"]}'
     if isinstance(skip, str) and len(skip.strip()) >= SKIP_MIN: return "SKIP", skip.strip()
     fn = getattr(obj, item["metric"], None)
     if fn is None: raise SystemExit(f"film_check: style/checklist.json {item['id']}: unknown metric {item['metric']!r}")

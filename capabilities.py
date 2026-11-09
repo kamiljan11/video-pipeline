@@ -136,7 +136,11 @@ def default_anims(root: Path = ROOT) -> dict[str, str]:
 
 
 def load(path: Path = MAP) -> list[dict]:
-    return json.loads(path.read_text(encoding="utf-8"))["caps"]
+    data = json.loads(path.read_text(encoding="utf-8"))
+    caps = data.get("caps") if isinstance(data, dict) else None
+    if not isinstance(caps, list) or not all(isinstance(c, dict) and {"id", "use"} <= c.keys() for c in caps):
+        raise ValueError(f'{path.name}: {{"caps": [{{"id", "use", ...}}, ...]}} (review 2026-11-09 data-2: a KeyError named no file)')
+    return caps
 
 
 def problems(caps: list[dict], found: dict[str, set[str]], root: Path = ROOT) -> list[str]:
@@ -164,6 +168,8 @@ def problems(caps: list[dict], found: dict[str, set[str]], root: Path = ROOT) ->
         if "never" in use.values() and not c.get("why"): bad.append(f"{cid}: 'never' needs a why")
         if "want" in c and not (isinstance(c["want"], list) and c["want"] and all(isinstance(w, str) for w in c["want"]) and c.get("why")):
             bad.append(f"{cid}: \"want\" = a list of the values that count (strings) and a why")
+        if "want" in c and c.get("kind") != "plan":  # used() names values of plan keys only: a want elsewhere could never be met
+            bad.append(f"{cid}: \"want\" is for kind plan only (critic round 6: an opt/pfx want is never met)")
         if (c.get("kind") == "menu") != all(use.get(f) == "menu" for f in FORMS):
             bad.append(f"{cid}: use 'menu' is for kind menu only, and a menu is 'menu' in every form")
     for kind, names in found.items():
@@ -184,6 +190,7 @@ def used(plan: dict, edl: dict, specs: dict, def_anim: dict[str, str] | None = N
     a piece without its own "anim" enters with its default one (def_anim, else 'up')"""
     out = {f"plan.{k}" for k, v in plan.items() if _set(v)}
     out |= {f"plan.{k}={v}" for k, v in plan.items() if isinstance(v, str) and v}  # the value, for a map entry's "want"
+    out |= {f"plan.{k}=true" for k, v in plan.items() if v is True}  # a gate that passes on `is True` only (caption_pop)
     for o in edl.get("overlays", []):
         sp = specs.get(o["id"], {})
         out.add(f"card.{sp.get('type')}")
@@ -237,18 +244,23 @@ def main(argv: list[str]) -> int:
         for b in bad: print(f"FAIL {b}")
         print(f"capabilities: {len(load())} in the map, {len(bad)} problems {'OK' if not bad else 'FAIL'}")
         return 1 if bad else 0
+    try: all_caps = load()
+    except (OSError, ValueError) as e: print(f"FAIL {e}"); return 1
     if argv[:1] == ["brief"] and len(argv) == 2:
-        mine, lists = [c for c in load() if c["owner"] == argv[1]], menus()
+        mine, lists = [c for c in all_caps if c["owner"] == argv[1]], menus()
         for c in mine:
             if c["kind"] == "menu": print(f"- {c['id']} (pick from): {', '.join(lists.get(c['name'], []))}"); continue
             print(f"- {c['id']}: long {c['use']['long']}, short {c['use']['short']}; check {check_of(c, 'long')}/{check_of(c, 'short')}" + (f"; {c['why']}" if c.get("why") else ""))
         return 0 if mine else 1
     if argv[:1] == ["map"] and len(argv) >= 3:
-        work, caps = Path(argv[1]), load()
+        work, caps = Path(argv[1]), all_caps
         for name in argv[2:]:
-            plan = json.loads((work / f"plan_{name}.json").read_text())
-            edl = json.loads((work / plan.get("edl_out", f"edl_{name}.json")).read_text())
-            specs = {s["id"]: s for s in json.loads((work / plan["gfx_specs"]).read_text())} if plan.get("gfx_specs") else {}
+            try:
+                plan = json.loads((work / f"plan_{name}.json").read_text())
+                edl = json.loads((work / plan.get("edl_out", f"edl_{name}.json")).read_text())
+                specs = {s["id"]: s for s in json.loads((work / plan["gfx_specs"]).read_text())} if plan.get("gfx_specs") else {}
+            except (OSError, ValueError, KeyError, TypeError) as e:
+                print(f"FAIL capabilities map {name}: {work}/plan_{name}.json, its edl_out or gfx_specs cannot be read ({e})"); return 1
             form = "short" if plan.get("vertical") else "long"
             miss, idle = coverage(caps, form, used(plan, edl, specs, default_anims()), plan.get("skip", {}))
             skips = {k: v for k, v in plan.get("skip", {}).items() if k.startswith("cap.")}

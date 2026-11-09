@@ -183,6 +183,15 @@ class DesignLedgerTest(unittest.TestCase):
         self.assertEqual(rows[1]["status"], "todo")
         self.assertEqual(self.run_main(d, led, "check")[0], 0)
 
+    def test_a_broken_ledger_line_fails_by_name_and_a_row_never_glues_to_the_last(self):  # pg-review 2026-11-09 data-1
+        d = self.doc("<!-- ledger-forms: long -->\n## Order of work\n1. **Lines** drawn\n")
+        bad = d / "bad.jsonl"; bad.write_text('{"id": "a"}\n{"id": \n')
+        rc, out = self.run_main(d, bad, "check")
+        self.assertEqual(rc, 1); self.assertIn("a line is not JSON", out)
+        led = d / "ledger.jsonl"; led.write_text(json.dumps({"id": "other", "status": "done"}))  # no newline at the end
+        self.assertEqual(self.run_main(d, led, "sync")[0], 0)
+        self.assertEqual([json.loads(x)["id"] for x in led.read_text().splitlines()], ["other", "design:2026-01-01-x:1:long"])
+
     def test_a_missing_ledger_is_a_fail_line_not_a_traceback(self):
         d = self.doc("no plan here\n")
         rc, out = self.run_main(d, d / "nope.jsonl", "check")
@@ -317,6 +326,22 @@ class RoundSixTest(unittest.TestCase):  # completeness critic round 5 (2026-11-0
         self.assertTrue({"quiz", "poll"} <= f["card"])
         self.assertTrue({"zeta", "eta", "theta.iota"} <= f["opt"])
         self.assertNotIn("long", f["opt"])  # thumbs.json's lists, outside the map
+
+    def test_want_is_for_plan_entries_and_true_counts_as_a_value(self):  # critic round 6
+        caps = [dict(c) for c in C.load()]
+        c = next(x for x in caps if x["id"] == "opt.bookend"); c["want"] = ["x"]
+        self.assertIn('opt.bookend: "want" is for kind plan only (critic round 6: an opt/pfx want is never met)', C.problems(caps, C.discover()))
+        miss = lambda plan: C.coverage(C.load(), "short", C.used(plan, {"overlays": []}, {}), {})[0]
+        self.assertIn("plan.caption_pop", miss({"caption_pop": "yes"}))  # the gate passes on `is True` only
+        self.assertNotIn("plan.caption_pop", miss({"caption_pop": True}))
+
+    def test_a_broken_map_or_a_missing_plan_is_a_fail_line(self):  # pg-review 2026-11-09 data-2
+        d = Path(tempfile.mkdtemp(prefix="capmap-")); self.addCleanup(shutil.rmtree, d, True)
+        (d / "m.json").write_text('{"cap": []}')
+        with self.assertRaisesRegex(ValueError, r'm.json: \{"caps"'): C.load(d / "m.json")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out): rc = C.main(["map", str(d), "nofilm"])
+        self.assertEqual(rc, 1); self.assertIn("FAIL capabilities map nofilm", out.getvalue())
 
     def test_want_needs_a_list_of_strings_and_a_why(self):
         caps = [dict(c) for c in C.load()]

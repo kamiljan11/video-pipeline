@@ -68,4 +68,8 @@ Dziury poza mapą bez bramki (krytyk r3, do decyzji): podpisy autorów b-rolla w
 różnorodność typów grafik postów (`post_gfx` list/quote/bars/split/table), pokrętła tylko w EDL (pip_size, sub_style, music_offset); miniatury: `accent: "thumb"` (TH8) nic nie zmienia, dopóki
 motyw nie ma tokenu `--acc-thumb` (kolor wybiera Kamil), a `arrow` jest opcją bez bramki (krytyk r4). Rejestr badań leży poza repo
 (`~/Dane/creator-study`), więc test blokady 3 na prawdziwych designach działa tylko na laptopie; na renderze blokuje `run_v4.sh`.
+Odtworzenie rejestru (pg-review 2026-11-09 product-1): plik = `research_gate.LEDGER` (zmienna `RESEARCH_LEDGER`), jeden wiersz
+JSON na ustalenie `{id, src, form, rule, target, status, ref}`. Zginął -> `restic restore` z karty SD (README, tabela FAILED); bez kopii
+pusty plik + `python3 design_ledger.py sync` odtwarza wiersze designów jako `todo` (research_gate wtedy blokuje render, dopóki
+każdy wiersz nie dostanie statusu z dowodem) — wiersze badań twórców (round2) trzeba wtedy odtworzyć ze `~/Dane/creator-study`.
 **Koszt:** skan ~0,1 s; 0 zł. **Metryka:** funkcje `required` nieużyte bez powodu w filmie (cel 0), skipy na film.

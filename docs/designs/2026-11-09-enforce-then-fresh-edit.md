@@ -39,3 +39,6 @@ Measured costs: long assemble 17 min with cache (more from zero), words_check cu
 - clap test: ~15 s, 5 claps in front of the camera with the normal recorder (camera v4l2 vs mic pulse = 2 clocks; lip_check
   cannot see a recorder offset because it compares against the recording)
 - `sketch` font + background; whisper without the thread cap at night
+- map holes without a gate (ADR-0023, pg-review 2026-11-09 product-3): b-roll author credits in the description, variety of post
+  graphic types (`post_gfx`), EDL-only knobs (pip_size, sub_style, music_offset), `--acc-thumb` colour for thumbs accent "thumb",
+  thumbs `arrow` without a gate; meme max_age 8 years (assumed); rembg/isnet for non-human memes (= a new model download)

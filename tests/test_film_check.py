@@ -116,7 +116,10 @@ class FilmCheckTest(unittest.TestCase):
         segs = segments or [{"src": "A", "in": 0.0, "out": 600.0, "zoom": 1.0}]
         (self.d / "edl_long.json").write_text(json.dumps({"segments": segs, "overlays": overlays, "gfx_lead": -0.12}))  # build_edl copies plan gfx_lead
         (self.d / "specs.json").write_text(json.dumps(specs))
-        plan["skip"] = {"long.capabilities": "fixture film: feature coverage has its own tests (test_capabilities.py)", **plan.get("skip", {})}
+        # long.capabilities cannot be skipped (no_skip): the fixture skips each required feature by name, as a plan must
+        import capabilities
+        plan["skip"] = {**{f"cap.{c['id']}": "fixture film: feature coverage has its own tests (test_capabilities.py)"
+                           for c in capabilities.load() if c["use"]["long"] == "required"}, **plan.get("skip", {})}
         kinds = {sp["id"]: sp.get("type") for sp in specs}  # note 19: every meme on screen reviewed, its sentence said (words w<i> at i s)
         plan.setdefault("meme_review", {o["id"]: {"sentence": " ".join(f"w{int(o['at']) + i}" for i in range(3)), "why": "fixture: the meme fits this line",
                                                   "year": datetime.datetime.now(datetime.UTC).year - 2, "source": "https://knowyourmeme.com/fixture"}
@@ -178,6 +181,25 @@ class FilmCheckTest(unittest.TestCase):
                      music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
         r, rep = self.run_check("long")
         self.assertEqual(r.returncode, 0, json.dumps({k: v for k, v in rep.items() if v["status"] != "OK"}, ensure_ascii=False))
+
+    def test_the_capability_map_runs_on_the_film_and_has_no_off_switch(self):  # pg-review 2026-11-09 code-1, code-2
+        import film_check
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segs)
+        plan = json.loads((self.d / "plan_long.json").read_text())
+        item = next(i for i in json.loads(film_check.CHECKLIST.read_text())["items"] if i["id"] == "long.capabilities")
+
+        def judged(skip):
+            (self.d / "plan_long.json").write_text(json.dumps({**plan, "skip": skip}))
+            return film_check.judge(film_check.Film(self.d, "long"), item)
+        self.assertEqual(judged(plan["skip"])[0], "OK")
+        rest = {k: v for k, v in plan["skip"].items() if k != "cap.plan.grade"}
+        st, detail = judged(rest)  # one required feature neither used nor skipped: named
+        self.assertEqual(st, "FAIL"); self.assertIn("plan.grade", detail)
+        st, detail = judged({**plan["skip"], "cap.plan.gradee": "a typo waives nothing at all"})
+        self.assertEqual(st, "FAIL"); self.assertIn("cap.plan.gradee: no such capability", detail)
+        st, detail = judged({**rest, "long.capabilities": "one sentence for the whole map is not a reason"})
+        self.assertEqual(st, "FAIL"); self.assertIn("is not allowed", detail)
 
     def test_a_one_word_card_that_says_nothing_fails(self):  # Kamil 2026-11-08 on "Najwięcej"
         import film_check
