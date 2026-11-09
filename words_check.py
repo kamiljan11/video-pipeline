@@ -15,7 +15,6 @@ gate); verify_cut.py flagged only runs of 2+ words and ran by hand. Here:
         rendered as two stems shows the voice MASK_DB over music+sfx at that word (then WARN: whisper misheard)
 """
 import difflib
-import hashlib
 import json
 import os
 import re
@@ -28,6 +27,7 @@ import numpy as np
 
 import timeline
 from cpu_budget import heavy_threads, low_priority
+from progress import progress_file
 
 W = str(Path(__file__).resolve().parent)  # whisper.cpp and the models live in the pipeline repo
 SPEECH_DB = -40.0  # mean level of a said word in rough.mkv (speech measured -15..-25 dB, the cut-out pauses -51..-61 dB)
@@ -53,13 +53,7 @@ def transcribe(media: str) -> list[str]:
     return words
 
 
-PROGRESS_DIR = Path.home() / ".cache/vp-progress"  # whisper --print-progress for the widget, never next to a delivered film
 REHEAR_MAX = 6  # short-window re-hearings a check (2 whisper passes each): a run with more flags fails, it does not stall
-
-
-def progress_file(media: str, pid: int) -> Path:
-    """where whisper's progress of media goes (render_status reads the same name)"""
-    return PROGRESS_DIR / f"{hashlib.sha1(os.path.abspath(media).encode()).hexdigest()[:16]}.{pid}.progress"
 
 
 def _whisper(media: str, timeout: int = 7200) -> list[str]:
@@ -281,9 +275,13 @@ def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: 
             kept.append(f"{line} (whisper did not hear it; voice {snr:.1f} dB over the music at {span[0]:.2f} s)")
         elif snr is not None and rough and final and reheard_n >= REHEAR_MAX:
             still.append(line + f" (music within {snr:.1f} dB at {span[0]:.2f} s; not re-heard: over {REHEAR_MAX} flags)")
-        elif snr is not None and rough and final and (reheard_n := reheard_n + 1) and (why := reheard(
-                gone, expected[max(0, i - 2):i] + expected[i + len(gone):i + len(gone) + 2], rough, final, *span)):
-            kept.append(f"{line} ({why} at {span[0]:.2f} s; music within {snr:.1f} dB)")
+        elif snr is not None and rough and final:
+            reheard_n += 1  # counts every attempt, a heard one too: the budget is whisper time
+            why = reheard(gone, expected[max(0, i - 2):i] + expected[i + len(gone):i + len(gone) + 2], rough, final, *span)
+            if why:
+                kept.append(f"{line} ({why} at {span[0]:.2f} s; music within {snr:.1f} dB)")
+            else:
+                still.append(line + f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)")
         else:
             still.append(line + (f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)" if snr is not None
                                  else f" (no speech to measure at {span[0]:.2f} s)"))

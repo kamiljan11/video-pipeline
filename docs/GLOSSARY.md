@@ -59,3 +59,7 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | nie kandydat (`odd_face`) | klatka, której `frame_pick.py` w ogóle nie bierze na miniaturę ani okładkę: wzrok w bok, w dół lub w górę, przymknięte oczy, dziubek, wciągnięte usta, głowa odwrócona lub przechylona (MediaPipe, ADR-0020) |
 | blendshapes | 52 liczby 0..1 z MediaPipe Face Landmarker opisujące ruch twarzy (np. `eyeLookOutLeft`, `eyeBlinkLeft`, `mouthPucker`, `jawOpen`); `frame_pick.expression` liczy z nich wzrok i minę |
 | yaw / pitch / roll | obrót głowy w stopniach: w bok / góra-dół / przechył (macierz MediaPipe); okładka: najwyżej 10° / 12° / 9° |
+| mishear | whisper nie usłyszał słowa, które w filmie jest wyraźne (głos ≥ 10 dB nad muzyką albo słychać je w krótkim oknie); `words_check sound` daje wtedy WARN, nie FAIL (ADR-0021) |
+| stemy głosu / podkładu | dwa osobne ślady audio (sam głos i muzyka+efekty) wyrenderowane z grafu `assemble.audio.args.json`; z nich `words_check` mierzy, o ile dB głos jest nad podkładem |
+| „not measured” | `words_check` nie mógł zmierzyć flagi (brak stemów, brak miejsca na osi, ffmpeg padł): zostaje FAIL |
+| „not judged” | `short.punch` przy < 10 s twarzy z miejscem na punch: wynik 99 z tym opisem w raporcie, short oceniają reguły kart (ADR-0021) |

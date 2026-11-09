@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 
+import progress
+
 CG = Path(f"/sys/fs/cgroup/user.slice/user-{os.getuid()}.slice/user@{os.getuid()}.service")
 # defaults until this run measures its own: 18 shorts in 44 min on 2026-11-07 (render-v4.service), the stamp + out_gate
 # tail a few minutes. Once two shorts are done their mean replaces SHORT_S (eta short_times)
@@ -213,11 +215,9 @@ def _all_pipeline_procs() -> dict[int, list[str]]:
 
 
 def _whisper_progress(args: list[str]) -> float | None:
-    """words_check writes whisper's --print-progress to ~/.cache/vp-progress (words_check.progress_file)"""
-    from words_check import PROGRESS_DIR, progress_file
+    """words_check writes whisper's --print-progress to ~/.cache/vp-progress (progress.progress_file)"""
     for a in args:
-        stem = progress_file(a, 0).name.split(".")[0]
-        for f in PROGRESS_DIR.glob(glob.escape(stem) + ".*.progress") if a.startswith("/") else ():
+        for f in progress.PROGRESS_DIR.glob(glob.escape(progress.progress_key(a)) + ".*.progress") if a.startswith("/") else ():
             try:
                 if time.time() - f.stat().st_mtime < 600:
                     return whisper_pct(f.read_text(errors="replace")[-2000:])

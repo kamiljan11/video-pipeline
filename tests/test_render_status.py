@@ -141,16 +141,16 @@ class Processes(unittest.TestCase):  # Kamil 2026-11-08 "na tym widgecie to powi
         self.assertTrue(R.queue(FILMS, [], "s02", False, busy)[0]["now"])
 
     def test_progress_file_is_found_in_the_cache(self):
-        import words_check
+        import progress
         d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
-        real = words_check.PROGRESS_DIR
+        real = progress.PROGRESS_DIR
         try:
-            words_check.PROGRESS_DIR = d
-            words_check.progress_file(str(d / "f [1].mp4"), 123).write_text("progress = 30%\nprogress = 60%\n")
+            progress.PROGRESS_DIR = d
+            progress.progress_file(str(d / "f [1].mp4"), 123).write_text("progress = 30%\nprogress = 60%\n")
             self.assertEqual(R._whisper_progress(["python3", "words_check.py", "sound", str(d / "rough.mkv"), str(d / "f [1].mp4")]), 0.6)
             self.assertIsNone(R._whisper_progress(["python3", "words_check.py", "sound", str(d / "x.mp4")]))
         finally:
-            words_check.PROGRESS_DIR = real
+            progress.PROGRESS_DIR = real
 
     def test_whisper_pct_and_total_pct(self):
         self.assertEqual(R.whisper_pct("whisper_print_progress_callback: progress =  5%\n... progress = 45%\n"), 0.45)

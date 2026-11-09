@@ -31,4 +31,6 @@ Zmiana progu wymaga nowego pomiaru i testu (`tests/test_word_tools.py`, `tests/t
 (przepuszcza prawdziwe zgubione słowa); liczenie punch-inów na minutę filmu (kara za karty, w których punch nie powstaje).
 **Ryzyko:** WARN zamiast FAIL dla słowa, które człowiek też by przeoczył przy 10-20 dB. Kontrola: Kamil ogląda przed publikacją
 (out_v4 zostaje lokalnie); każde WARN jest wypisane z czasem i dB.
+**Koszt:** stemy = 1 przebieg ffmpeg grafu audio (ok. 1-2 min na longu); ponowne słuchanie najwyżej 6 x 2 przebiegi whisper
+krótkiego okna (timeout 600 s każdy) na check. Koszt cykliczny: 0 zł (lokalnie).
 **Metryka:** słowa z WARN, które Kamil uzna za niesłyszalne (cel 0).
