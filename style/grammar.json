@@ -524,7 +524,7 @@
   "": "hash"
  },
  "broll": {
-  "_doc": "b-roll from free stock video (broll.py + stock.py): a concrete thing said in the kept text (topics: regex on ONE lowercased word, first match wins, so put specific stems first) gets dur s of matching footage from that word on. Only formats listed here (long has none: its b-roll is shot by hand). Never in a sentence holding a moment from avoid (the face carries it: RESEARCH rules 1, 10), never under a graphic, not before not_before s (hook title), min_gap s apart, at most max_share of the film, at most per_topic per query. Evidence: RESEARCH.md rule 9 (literal illustration), S12 (~35-50% coverage helps, >60-70% hurts), shorts shots <5 s.",
+  "_doc": "b-roll from free stock video (broll.py + stock.py): a concrete thing said in the kept text (topics: regex on ONE lowercased word, first match wins, so put specific stems first) gets dur s of matching footage from that word on. Only formats listed here. long (Kamil 2026-11-09 'we dont want to skip things', no hand-shot footage): sparse, max_share 0.08, min_gap 30 s, only between the drawn cards (most of the long is cards). Never in a sentence holding a moment from avoid (the face carries it: RESEARCH rules 1, 10), never under a graphic, not before not_before s (hook title), min_gap s apart, at most max_share of the film, at most per_topic per query. Evidence: RESEARCH.md rule 9 (literal illustration), S12 (~35-50% coverage helps, >60-70% hurts), shorts shots <5 s.",
   "provider": "pexels",
   "short": {
    "dur": 2.5,
@@ -695,6 +695,23 @@
     "^prac(a|y|ę|ą)$",
     "busy office workplace"
    ]
-  ]
+  ],
+  "long": {
+   "dur": 3.0,
+   "lead": 0.0,
+   "min_gap": 30.0,
+   "max_share": 0.08,
+   "not_before": 30.0,
+   "per_topic": 1,
+   "avoid": [
+    "hook",
+    "confession",
+    "cta",
+    "stat",
+    "maxim",
+    "question",
+    "define"
+   ]
+  }
  }
 }

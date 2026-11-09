@@ -487,6 +487,25 @@ class Film:
                         if w.get("text", "").strip() and kept(w["offsets"]["from"] / 1000)]
         return self._fw
 
+    def scenes_valid(self):
+        """the drawn scenes this film shows pass gfx/scene_check.mjs (spec rules, clashes): run_v4.sh stops at that step
+        otherwise, after every role signed off (2026-11-09: 8 of 18 short plans had 'canvas_zoom runs into the camera move')"""
+        import tempfile
+        used = {o["id"] for o in self.ovs}
+        scenes = [sp for i, sp in self.specs.items() if i in used and sp.get("type") == "scene"]
+        if not scenes: return True, "no drawn scene"
+        with tempfile.TemporaryDirectory(prefix="fc-scenes-") as d:
+            f = Path(d) / "scenes.json"
+            f.write_text(json.dumps(scenes, ensure_ascii=False))
+            try:
+                r = subprocess.run(["node", str(ROOT / "gfx" / "scene_check.mjs"), str(f)], capture_output=True, text=True,
+                                   timeout=900, check=False)
+            except (OSError, subprocess.TimeoutExpired) as e:
+                return False, f"gfx/scene_check.mjs did not run: {e}"
+        lines = (r.stdout + r.stderr).strip().splitlines()
+        msg = next((x for x in lines if x.startswith("Error")), None) or next((x for x in lines if "scene_check:" in x), lines[-1] if lines else "")
+        return r.returncode == 0, msg
+
     def retakes_left(self, n: int = 4, window: float = 20.0):
         """Kamil 2026-11-09 "jak dwa razy coś mówię, bo się pomyliłem, to wytnij i zostaw lepszą wersję": the same n words
         said twice within `window` s of FILM time = a retake the cut kept. A repeat on purpose is named in plan

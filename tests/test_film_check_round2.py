@@ -91,6 +91,16 @@ class LongResearchTest(unittest.TestCase):
         kto = {**fill, **dict(enumerate(["kto", "jest", "bardzo", "ważne", "x", "kto", "jest", "bardzo", "ważne"]))}
         self.assertFalse(self.film([], [], said=kto, length=40, retakes_ok={"to jest bardzo ważne": "said twice on purpose for emphasis"}).retakes_left()[0])
 
+    def test_a_scene_scene_check_rejects_fails_the_film(self):  # 2026-11-09: 8 of 18 shorts passed with scenes run_v4 rejects
+        good = {"id": "sc", "type": "scene", "dur": 6, "els": [{"k": "chip", "id": "c", "x": 0, "y": 500, "text": "exit 2", "tone": "bad", "at": 2}]}
+        bad = {**good, "canvas_zoom": [{"t": 1, "on": "c", "k": 5}]}  # k 1.05..1.6
+        ok, detail = self.film([{"id": "sc", "at": 10, "dur": 6}], [good]).scenes_valid()
+        self.assertTrue(ok, detail)
+        ok, detail = self.film([{"id": "sc", "at": 10, "dur": 6}], [bad]).scenes_valid()
+        self.assertFalse(ok); self.assertIn("canvas_zoom[0]", detail)
+        self.assertTrue(self.film([], [bad]).scenes_valid()[0])  # a scene the film does not show is not its problem
+        self.assertEqual(self.film([], []).scenes_valid(), (True, "no drawn scene"))
+
     def test_l3_the_announced_parts_are_the_road_when_marked(self):  # Kamil 2026-11-09: "trzy pomysły" in 13 chapters, no skip
         parts = [{"id": "intro", "title": "Wstęp", "start_word": 0, "chap": False}, {"id": "pr", "title": "Problem", "start_word": 30}] + \
                 [{"id": f"p{i}", "title": t, "start_word": 60 + 60 * i, "roadmap": True} for i, t in enumerate(("Szlaban", "Blizna", "Dowód"))] + \

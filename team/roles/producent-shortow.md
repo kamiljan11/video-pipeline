@@ -8,4 +8,6 @@
 - Upscale cropa: lanczos + lekkie wyostrzenie (`grade` unsharp), bez AI upscalera.
 - `music_palette` ustawione.
 
-**Gotowe gdy:** `film_check` short.* OK dla każdego klipu.
+**Gotowe gdy:** `film_check` short.* OK dla każdego klipu (w tym short.scenes = `gfx/scene_check.mjs` na scenach shorta).
+Plan generowany skryptem po raz drugi zachowuje klucze innych ról (dźwięk: audio, master, music_*, sfx_*): przeczytaj stary plan i
+nadpisz tylko swoje pola (2026-11-09: regeneracja 18 planów skasowała klucze dźwiękowca).

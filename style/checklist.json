@@ -724,6 +724,22 @@
    "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': every required feature of style/capabilities.json is used or skipped with a reason (the 2026-11-04 long had no b-roll, grade or sfx_duck)"
   },
   {
+   "id": "long.scenes",
+   "fmt": "long",
+   "metric": "scenes_valid",
+   "op": "true",
+   "no_skip": "a rejected scene does not render",
+   "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': 8 of 18 short plans passed film_check with scenes gfx/scene_check.mjs rejects; run_v4.sh would stop at its scene_check step"
+  },
+  {
+   "id": "short.scenes",
+   "fmt": "short",
+   "metric": "scenes_valid",
+   "op": "true",
+   "no_skip": "a rejected scene does not render",
+   "why": "Kamil 2026-11-09 'a da sie system enforcowac zeby nie pominal rzeczy': 8 of 18 short plans passed film_check with scenes gfx/scene_check.mjs rejects; run_v4.sh would stop at its scene_check step"
+  },
+  {
    "id": "long.retakes",
    "fmt": "long",
    "metric": "retakes_left",

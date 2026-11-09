@@ -151,7 +151,7 @@ class FilmCheckTest(unittest.TestCase):
         for k, at in enumerate((0.5, 200.5, 400.5)):
             ovs.append({"id": f"c{k}", "at": at, "dur": 3}); specs.append({"id": f"c{k}", "type": "chap"})
         for k in range(6):  # an animated explanation every 100 s
-            ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 12}); specs.append({"id": f"s{k}", "type": "scene"})
+            ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 12}); specs.append({"id": f"s{k}", "type": "scene", "dur": 12, "els": [{"k": "chip", "id": "c", "x": 0, "y": 500, "text": "exit 2", "at": 2}]})  # drawable: long.scenes runs scene_check
         for k, at in enumerate(range(20, 600, 6)):  # cards beside him cover most of the film: face_full <= 0.35
             ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw", "title": f"{k + 2} kroki"})
         for k, at in enumerate((2, 5)):
