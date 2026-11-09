@@ -345,6 +345,18 @@ class MemeReviewTest(FilmFixture):  # Kamil note 19: a meme fits its sentence an
         for part in ("not said while the card is up", '"why" = why', "more than 8 years old", '"source" = a URL'):
             self.assertIn(part, d)
 
+    def test_a_plan_value_that_is_not_a_table_and_words_out_of_order_are_named(self):
+        self.assertIn('plan "meme_review" = ', self.reviewed([{"m": {}}])[1])
+        now = film_check.datetime.datetime.now(film_check.datetime.UTC).year
+        jumbled = {"m": {"sentence": "odpada montaż ręczny", "why": "odrzucenie starego sposobu pracy", "year": now - 1, "source": "httpx"}}
+        ok, d = self.reviewed(jumbled)
+        self.assertFalse(ok)
+        self.assertIn("1/3 words in order", d); self.assertIn('"source" = a URL', d)
+
+    def test_a_toon_still_needs_its_sentence(self):
+        ok, d = self.reviewed({"m": {"why": "kot przy klawiaturze = robota sama"}}, sp=[{"id": "m", "type": "sticker", "toon": "cat_typing"}])
+        self.assertFalse(ok); self.assertIn('"sentence" = the line', d)
+
     def test_our_own_toon_needs_no_year_or_source(self):
         ok, d = self.reviewed({"m": {"sentence": "ręczny montaż odpada", "why": "kot przy klawiaturze = robota sama"}},
                               sp=[{"id": "m", "type": "sticker", "toon": "cat_typing"}])

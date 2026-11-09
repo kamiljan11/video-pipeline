@@ -19,8 +19,10 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
+from collections import deque
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +33,7 @@ CATALOGUE = ROOT / "style" / "memes.json"
 WARM = 6  # times the still is fed to the matting model; its recurrent state needs a few frames to settle on a person
 TOL = 24.0  # flat: colour distance (RGB, 0..441) from the border median that still counts as background
 BORDER_STD_MAX = 18.0  # flat: a border whose colours spread more than this is no plain background
+SAFE = re.compile(r"[a-z0-9_]+")  # = memes.py / render.mjs slugs: no path out of render/memes
 LOW = 0.2  # person: matte values under this are noise (faint lines along panel borders of a multi-panel meme, preview 2026-11-09)
 EDGE = 3  # px cleared each side of a crop edge inside the picture
 COVER_MIN, COVER_MAX = 0.08, 0.92  # share of a crop the character keeps; outside = the cut found nothing / everything
@@ -57,7 +60,9 @@ def write_png(rgba: np.ndarray, out: Path) -> None:
     tmp = out.with_suffix(".part.png")
     p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{w}x{h}", "-i", "-",
                         "-frames:v", "1", str(tmp)], input=rgba.tobytes(), capture_output=True, check=False)
-    if p.returncode: raise CutError(f"ffmpeg cannot write {out.name}: {p.stderr.decode()[:160]}")
+    if p.returncode:
+        tmp.unlink(missing_ok=True)
+        raise CutError(f"ffmpeg cannot write {out.name}: {p.stderr.decode()[:160]}")
     tmp.replace(out)
 
 
@@ -72,15 +77,18 @@ def flat_alpha(rgb: np.ndarray) -> np.ndarray:
     if float(border.std(axis=0).max()) > BORDER_STD_MAX:
         raise CutError(f"the border is not one plain colour (spread {float(border.std(axis=0).max()):.0f} > {BORDER_STD_MAX:.0f})")
     close = np.linalg.norm(rgb.astype(np.float32) - np.median(border, axis=0), axis=2) <= TOL
-    bg = np.zeros_like(close)
-    bg[0], bg[-1], bg[:, 0], bg[:, -1] = close[0], close[-1], close[:, 0], close[:, -1]
-    while True:
-        grown = bg.copy()
-        grown[1:] |= bg[:-1]; grown[:-1] |= bg[1:]; grown[:, 1:] |= bg[:, :-1]; grown[:, :-1] |= bg[:, 1:]
-        grown &= close
-        if (grown == bg).all(): break
-        bg = grown
-    return (~bg).astype(np.float32)
+    # one breadth-first pass from every close border pixel (a whole-array growth step per pixel of a winding background was
+    # thousands of passes on a 1 MP crop, review 2026-11-09); background enclosed by the figure (between arm and body) stays
+    h, w = close.shape
+    bg = np.zeros(h * w, bool)
+    flat, todo = close.ravel(), deque()
+    for i in {*range(w), *range((h - 1) * w, h * w), *range(0, h * w, w), *range(w - 1, h * w, w)}:
+        if flat[i]: bg[i] = True; todo.append(i)
+    while todo:
+        i = todo.popleft(); y, x = divmod(i, w)
+        for j, ok in ((i - w, y > 0), (i + w, y < h - 1), (i - 1, x > 0), (i + 1, x < w - 1)):
+            if ok and flat[j] and not bg[j]: bg[j] = True; todo.append(j)
+    return (~bg.reshape(h, w)).astype(np.float32)
 
 
 def person_alpha(rgb: np.ndarray) -> np.ndarray:
@@ -99,15 +107,19 @@ def person_alpha(rgb: np.ndarray) -> np.ndarray:
 
 
 def cut(slug: str, method: str, memes: Path = MEMES, catalogue: Path = CATALOGUE) -> dict:
+    if not SAFE.fullmatch(slug): raise CutError(f"slug {slug!r} = [a-z0-9_]+ (as memes.py names them)")
     meta_f = memes / f"{slug}.json"
     if not meta_f.exists(): raise CutError(f"{meta_f} missing: python3 memes.py add {slug}")
     meta = json.loads(meta_f.read_text(encoding="utf-8"))
     # the crops render.mjs uses: style/memes.json wins, else the picture's own json (a picture placed by hand)
     crops = json.loads(catalogue.read_text(encoding="utf-8")).get(slug, {}).get("sticker") or meta.get("sticker")
     if not crops: raise CutError(f'"{slug}" has no "sticker" crops (style/memes.json or {meta_f.name}): nothing to cut out')
+    if not re.fullmatch(r"[a-z0-9_]+\.(jpg|png)", str(meta.get("img", ""))): raise CutError(f'{meta_f.name}: "img" = <slug>.jpg|png, got {meta.get("img")!r}')
     pic = memes / meta["img"]
     rgba = read_rgba(pic)
     h, w = rgba.shape[:2]
+    if method != "alpha" and float((rgba[..., 3] < 128).mean()) >= 0.05:  # the hidden colour under transparency is usually black
+        raise CutError(f"{pic.name} already has transparency: use --method alpha")
     if method == "alpha":
         alpha = rgba[..., 3].astype(np.float32) / 255
         if float((alpha < 0.5).mean()) < 0.05: raise CutError(f"{pic.name} has no transparency (method alpha needs a cut-out PNG)")

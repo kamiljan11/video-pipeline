@@ -533,7 +533,7 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
   karta istniała od 10-31 i żaden film jej nie użył (Kamil 4.11: „memów nie ma”). Testy: `tests/test_meme.py`, `gfx/test/meme.test.mjs`; wzorzec i kolejka pozostałych ruchów „pro”: `style/REF-shorts-memes.md`.
   **Przegląd memów (notatka Kamila 19):** każdy mem/naklejka na ekranie ma w planie `"meme_review": {"<id karty>": {"sentence":
   "zdanie, które ilustruje", "why": "dlaczego pasuje", "year": 2021, "source": "https://…"}}`; zdanie musi paść, gdy karta stoi
-  (60 % słów, od 6 s przed do 2 s po), mem starszy niż `max_age` lat (checklista `long.meme_review`/`short.meme_review`, `args`,
+  (60 % słów w tej kolejności, od 6 s przed do 2 s po), mem starszy niż `max_age` lat (checklista `long.meme_review`/`short.meme_review`, `args`,
   domyślnie 8) = wymień; własny `toon` bez roku i źródła.
   **Naklejka bez tła (`"cut": true`, karta `sticker` 16:9):** postać bez prostokąta zdjęcia, z białą obwódką po swoim konturze.
   Wycięcie robi `matte/.venv/bin/python cutout.py <slug>` (`--method person` = ludzie przez model RVM z `matte/models`, bez nowej

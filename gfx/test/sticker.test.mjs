@@ -139,5 +139,5 @@ test('"cut": true shows the character without its rectangle; a missing or stale 
   assert.match(render([{ id: 'c2', type: 'sticker', dur: 2, meme: 'cutme', cut: true }]).stderr + '', /"cut": made from another picture .*cutout\.py cutme/);
   fs.writeFileSync(path.join(lib, 'cutme.json'), JSON.stringify(meta));
   assert.match(render([{ id: 'c3', type: 'sticker', dur: 2, meme: 'cutme', cut: true }]).stderr + '', /"cut": no cut-out yet/);
-  assert.match(render([{ id: 'c4', type: 'sticker', dur: 2, meme: 'rg', cut: 'yes' }]).stderr + '', /"cut" = true/);
+  assert.match(render([{ id: 'c4', type: 'sticker', dur: 2, meme: 'rg', cut: 'yes' }]).stderr + '', /"cut" = true .*, false or left out/);
 });

@@ -203,8 +203,8 @@ function sticker(sp) {
   if (!Array.isArray(texts) || !texts.every(t => typeof t === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
   const n = Math.max(1, texts.length), ats = sp.at ?? [];
   if (!(Array.isArray(ats) && ats.every(t => typeof t === 'number' && t >= 0 && t < sp.dur))) throw bad(`"at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
+  if (sp.cut !== undefined && typeof sp.cut !== 'boolean') throw bad(`"cut" = true (the character without its background, cutout.py), false or left out, got ${JSON.stringify(sp.cut)}`);
   const chipH = texts.length ? 200 : 0, img = sp.cut === true ? cutImg(sp, m) : m.img;
-  if (sp.cut !== undefined && sp.cut !== true) throw bad(`"cut" = true (the character without its background, cutout.py) or left out, got ${JSON.stringify(sp.cut)}`);
   // cut: no white card behind the character, a white sticker edge drawn around its own outline (four hard drop-shadows)
   const picCut = sp.cut === true ? ';border:0;background:none;box-shadow:none;border-radius:0;overflow:hidden;filter:drop-shadow(10px 0 0 #fff) drop-shadow(-10px 0 0 #fff) drop-shadow(0 10px 0 #fff) drop-shadow(0 -10px 0 #fff) drop-shadow(0 22px 40px rgba(0,0,0,.45))' : '';
   return '<div class="float">' + Array.from({ length: n }, (_, i) => {

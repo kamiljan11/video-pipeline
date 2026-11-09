@@ -134,6 +134,14 @@ def norm_word(w: str) -> str:
     return re.sub(r"[^\w]", "", w.lower())
 
 
+def in_order(want: list[str], heard: list[str]) -> int:
+    """how many of `want` occur in `heard` in the same order (greedy; a word not heard is skipped, the place kept)"""
+    pos, n = 0, 0
+    for w in want:
+        if w in heard[pos:]: pos += heard[pos:].index(w) + 1; n += 1
+    return n
+
+
 def src2out(segments: list[dict], t: float, exact: bool = False) -> float:
     """source time -> film time (timeline.py: whole-frame pieces with seg_exact); a time inside a cut maps to the start
     of the next kept piece"""
@@ -353,20 +361,21 @@ class Film:
         cards = [o for o in self.ovs if self.typ(o) in ("meme", "sticker")]
         if not cards: return True, "no meme cards"
         rev, bad, now = self.plan.get("meme_review") or {}, [], datetime.datetime.now(datetime.UTC).year
+        if not isinstance(rev, dict): return False, f'plan "meme_review" = {{"<card id>": {{...}}}}, got {type(rev).__name__}'
         for o in cards:
             r, sp, cid = rev.get(o["id"]), self.specs.get(o["id"], {}), o["id"]
             if not isinstance(r, dict): bad.append(f'{cid}: no plan meme_review entry {{"sentence", "why", "year", "source"}}'); continue
             words = [w for w in map(norm_word, str(r.get("sentence", "")).split()) if len(w) >= 3]
-            heard = {norm_word(w) for t, w in self.film_words() if o["at"] - window <= t <= o["at"] + self.ov_dur(o) + 2}
+            heard = [norm_word(w) for t, w in self.film_words() if o["at"] - window <= t <= o["at"] + self.ov_dur(o) + 2]
+            got = in_order(words, heard)  # in the order said, not a bag of common words found anywhere (review 2026-11-09)
             if not words: bad.append(f'{cid}: "sentence" = the line the meme illustrates')
-            elif sum(w in heard for w in words) < said_share * len(words):
-                bad.append(f"{cid}: the sentence is not said while the card is up ({sum(w in heard for w in words)}/{len(words)} words)")
+            elif got < said_share * len(words): bad.append(f"{cid}: the sentence is not said while the card is up ({got}/{len(words)} words in order)")
             if len(str(r.get("why", "")).strip()) < 15: bad.append(f'{cid}: "why" = why this meme fits that sentence (>= 15 characters)')
             if sp.get("toon") is not None: continue  # our own drawing: no age, no source
             y = r.get("year")
             if not (isinstance(y, int) and 1990 <= y <= now): bad.append(f'{cid}: "year" = the year the meme started, got {y!r}')
             elif now - y > max_age: bad.append(f"{cid}: the meme is from {y}, more than {max_age} years old (note 19: change it)")
-            if not str(r.get("source", "")).startswith("http"): bad.append(f'{cid}: "source" = a URL for the year (e.g. its knowyourmeme page)')
+            if not re.match(r"https?://\S+\.\S+", str(r.get("source", ""))): bad.append(f'{cid}: "source" = a URL for the year (e.g. its knowyourmeme page)')
         return not bad, "; ".join(bad[:6]) or f"{len(cards)} memes reviewed"
     # a separate screen too often "rozprasza" (Kamil 2026-11-05, v2 long: 62 full-screen cards, every 21 s, 63 % of the time)
     def full_screen_share(self):

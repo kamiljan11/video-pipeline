@@ -72,6 +72,27 @@ class CutoutTest(unittest.TestCase):
         out = cutout.read_rgba(self.d / "panels.cut.png")
         self.assertEqual([int(out[y, 100, 3]) for y in (90, 97, 100, 102, 110)], [255, 0, 0, 0, 255])
 
+    def test_unsafe_names_and_a_transparent_picture_for_the_wrong_method_are_refused(self):
+        with self.assertRaisesRegex(cutout.CutError, r"slug '\.\./x' = \[a-z0-9_\]\+"):
+            cutout.cut("../x", "flat", self.d, self.cat)
+        rgba = np.zeros((100, 100, 4), np.uint8); rgba[30:70, 30:70] = (9, 9, 9, 255)
+        cutout.write_png(rgba, self.d / "clear.png")
+        (self.d / "clear.json").write_text(json.dumps({"img": "clear.png", "sticker": [[0, 0, 1, 1]]}))
+        with self.assertRaisesRegex(cutout.CutError, r"already has transparency: use --method alpha"):
+            cutout.cut("clear", "flat", self.d, self.cat)
+        (self.d / "clear.json").write_text(json.dumps({"img": "../clear.png", "sticker": [[0, 0, 1, 1]]}))
+        with self.assertRaisesRegex(cutout.CutError, r'"img" = <slug>.jpg\|png'):
+            cutout.cut("clear", "alpha", self.d, self.cat)
+
+    def test_a_winding_background_on_a_large_crop_is_quick(self):
+        rgb = np.full((1000, 1000, 3), 250, np.uint8)
+        for x in range(50, 950, 100): rgb[50:950, x:x + 40] = (30, 30, 200)  # comb teeth: the background winds between them
+        picture(self.d, "comb", rgb, [[0, 0, 1, 1]])
+        import time
+        t = time.monotonic(); c = cutout.cut("comb", "flat", self.d, self.cat)
+        self.assertLess(time.monotonic() - t, 20)
+        self.assertAlmostEqual(c["cover"][0], 9 * 40 * 900 / 1e6, places=2)
+
     def test_cli_names_the_failure_in_one_line(self):
         r = subprocess.run([sys.executable, str(ROOT / "cutout.py"), "ghost", "--method", "flat"], capture_output=True, text=True,
                            env={"VP_MEMES": str(self.d), "PATH": "/usr/bin:/bin:" + str(Path.home() / ".local/bin")}, check=False)
