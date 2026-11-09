@@ -251,7 +251,10 @@ def main(argv: list[str]) -> int:
         for c in mine:
             if c["kind"] == "menu": print(f"- {c['id']} (pick from): {', '.join(lists.get(c['name'], []))}"); continue
             print(f"- {c['id']}: long {c['use']['long']}, short {c['use']['short']}; check {check_of(c, 'long')}/{check_of(c, 'short')}" + (f"; {c['why']}" if c.get("why") else ""))
-        return 0 if mine else 1
+        if not mine:
+            if not (ROOT / "team" / "roles" / f"{argv[1]}.md").exists(): print(f"FAIL no role card team/roles/{argv[1]}.md"); return 1
+            print(f"- {argv[1]}: no feature of the map (its artefact is outside it, ADR-0023: checked by film_check --out)")
+        return 0
     if argv[:1] == ["map"] and len(argv) >= 3:
         work, caps = Path(argv[1]), all_caps
         for name in argv[2:]:

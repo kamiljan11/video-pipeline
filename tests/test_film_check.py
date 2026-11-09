@@ -681,6 +681,18 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class ShortLengthTest(unittest.TestCase):  # 2026-11-09: the 30-55 s rule of producent-shortow.md had no gate
+    def test_a_short_outside_30_55_s_fails(self):
+        import film_check as F
+        items = {i["id"]: i for i in json.loads(F.CHECKLIST.read_text())["items"]}
+
+        class Obj:
+            def __init__(self, n): self.plan: dict = {}; self.n = n
+            def film_len(self): return self.n
+        self.assertEqual([F.judge(Obj(n), items["short.length_min"])[0] for n in (20.4, 30.0)], ["FAIL", "OK"])
+        self.assertEqual([F.judge(Obj(n), items["short.length_max"])[0] for n in (55.0, 61.2)], ["OK", "FAIL"])
+
+
 class JudgeLevelTest(unittest.TestCase):
     def test_a_warn_level_item_prints_warn_and_never_fails(self):  # review 2026-11-07: product-2 (face_full n=1)
         import film_check as F

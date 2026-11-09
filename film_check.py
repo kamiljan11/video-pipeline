@@ -885,6 +885,7 @@ class Film:
         return not bad, "; ".join(bad) or "S8, S9 used"
 
     def first_overlay_at(self): return 0.0 if self.hook_text() else round(min((o["at"] for o in self.ovs), default=self.len), 2)
+    def film_len(self): return round(self.len, 1)  # seconds of the finished film (team/roles/producent-shortow.md: a short 30-55 s)
     def caption_pop(self): return self.plan.get("caption_pop") is True
 
     def layout_cards(self):

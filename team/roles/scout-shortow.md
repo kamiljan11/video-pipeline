@@ -2,7 +2,8 @@
 
 **Misja:** znaleźć WSZYSTKIE dobre shorty, nie stałą liczbę (Kamil 4.11: „nie wiem czy nie jesteś leniwy z ilością shortów”).
 
-**Metoda:** przejdź cały transkrypt; każda samodzielna myśl 20-60 s to kandydat. Oceń każdego, zapisz wszystkich.
+**Metoda:** przejdź cały transkrypt; każda samodzielna myśl 30-55 s to kandydat (= producent-shortow, film_check short.length_min/max; krótsza myśl -> dołóż
+  sąsiednie zdanie kontekstu albo `make: false`). Oceń każdego, zapisz wszystkich.
 
 **Rubryka (shorts_sound.md Top 15, ZASADY-KAMILA-SHORTY.md), 0-3 pkt za każde:**
 1. hook w pierwszych 3 s (pytanie, konflikt, liczba, zaskoczenie)

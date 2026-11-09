@@ -60,6 +60,12 @@ class MapTest(unittest.TestCase):
         m = d / "style" / "memes.json"; memes = json.loads(m.read_text()); memes["new_one"] = {}; m.write_text(json.dumps(memes))
         self.assertIn("new_one", C.menus(d)["meme"])  # a menu shows its values live from the code: no entry per value
 
+    def test_a_role_with_no_feature_says_so_and_an_unknown_role_fails(self):  # 2026-11-09: scout-shortow exited 1, silent
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out): rc = C.main(["brief", "scout-shortow"])
+        self.assertEqual(rc, 0); self.assertIn("no feature of the map", out.getvalue())
+        with contextlib.redirect_stdout(io.StringIO()): self.assertEqual(C.main(["brief", "nobody"]), 1)
+
     def test_the_brief_lists_a_menu(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out): C.main(["brief", "dzwiekowiec"])

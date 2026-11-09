@@ -738,6 +738,22 @@
    "op": "true",
    "no_skip": "name each phrase said twice on purpose in plan retakes_ok, never the whole film",
    "why": "Kamil 2026-11-09 'jak dwa razy cos mowie bo sie pomylilem to wtedy wytnij i zostaw lepsza wersje': the same 4 words twice within 20 s of the film = a retake the cut kept"
+  },
+  {
+   "id": "short.length_min",
+   "fmt": "short",
+   "metric": "film_len",
+   "op": ">=",
+   "value": 30,
+   "why": "team/roles/producent-shortow.md 'dlugosc 30-55 s' had no gate; the 2026-11-04 v5 scout proposed 7 shorts of 20-27 s (scout card said 20-60 s)"
+  },
+  {
+   "id": "short.length_max",
+   "fmt": "short",
+   "metric": "film_len",
+   "op": "<=",
+   "value": 55,
+   "why": "team/roles/producent-shortow.md 'dlugosc 30-55 s' had no gate; the 2026-11-04 v5 scout proposed 7 shorts of 20-27 s (scout card said 20-60 s)"
   }
  ]
 }
