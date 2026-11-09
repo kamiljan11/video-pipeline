@@ -191,17 +191,39 @@ class ConfirmAudibleTest(unittest.TestCase):
 
     def test_reheard_compares_the_same_short_window(self):
         real = C._whisper_window
+        ar = ["a", "b"]  # the words around the gap
         try:
             C._whisper_window = lambda m, t0, d: ["a", "b"]
-            self.assertTrue(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # the same: whisper misheard the whole film
+            self.assertTrue(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # the same: whisper misheard the whole film
             C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "b"]
-            self.assertFalse(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # gone in the film's window too
-            C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "x", "c"]
-            self.assertTrue(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # the word is heard in the film
+            self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # gone in the film's window too
+            C._whisper_window = lambda m, t0, d: ["a", "x", "b"] if "rough" in m else ["a", "x", "b", "c"]
+            self.assertTrue(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # the word is heard in the film
+            C._whisper_window = lambda m, t0, d: ["q", "r"]
+            self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # same text, wrong place: no proof
             C._whisper_window = lambda m, t0, d: None
-            self.assertFalse(C.reheard(["x"], "rough.mkv", "film.mp4", 10.0, 12.0))  # no whisper: stays a problem
+            self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # no whisper: stays a problem
         finally:
             C._whisper_window = real
+
+    def test_rehearing_stops_at_the_budget(self):  # each re-hearing = 2 whisper passes: many flags fail fast, not stall the night
+        saved = {k: getattr(C, k) for k in ("stems", "voice_over_bed", "locate", "reheard", "REHEAR_MAX")}
+        calls = []
+        try:
+            C.stems = lambda a: (np.zeros(10, np.float32), np.zeros(10, np.float32))
+            C.voice_over_bed = lambda v, b, t0, t1: 5.0  # under MASK_DB: only a re-hearing could clear it
+            C.locate = lambda *a, **k: (1.0, 2.0)
+            C.reheard = lambda *a: calls.append(a) or True
+            C.REHEAR_MAX = 1
+            exp = ["aa", "bb", "cc", "dd", "ee", "ff", "gg", "hh", "ii", "jj", "kk"]
+            heard = [x for x in exp if x not in ("cc", "ii")]
+            bad = [f"missing: {C.context(exp, 2, 1)} | heard: -", f"missing: {C.context(exp, 8, 1)} | heard: -"]
+            still, kept = C.confirm_audible(bad, exp, heard, {"toks": exp, "times": [], "segments": []}, Path("x.json"), "rough.mkv", "film.mp4")
+        finally:
+            for k, v in saved.items(): setattr(C, k, v)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(kept), 1); self.assertEqual(len(still), 1)
+        self.assertIn("not re-heard", still[0])
 
     def test_no_stems_keeps_the_problem(self):
         bad = ["missing: a b c [[dd]] e f g | heard: -"]

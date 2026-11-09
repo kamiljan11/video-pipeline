@@ -15,6 +15,7 @@ gate); verify_cut.py flagged only runs of 2+ words and ran by hand. Here:
         rendered as two stems shows the voice MASK_DB over music+sfx at that word (then WARN: whisper misheard)
 """
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -28,7 +29,7 @@ import numpy as np
 import timeline
 from cpu_budget import heavy_threads, low_priority
 
-W = "/home/kamil-jan/video-pipeline"
+W = str(Path(__file__).resolve().parent)  # whisper.cpp and the models live in the pipeline repo
 SPEECH_DB = -40.0  # mean level of a said word in rough.mkv (speech measured -15..-25 dB, the cut-out pauses -51..-61 dB)
 MASK_DB = 10.0  # voice over music+sfx at a said word; the misheard words of 2026-11-08 s02/s04 sat 25-38 dB above the bed
 SR = 16000
@@ -52,14 +53,24 @@ def transcribe(media: str) -> list[str]:
     return words
 
 
-def _whisper(media: str) -> list[str]:
+PROGRESS_DIR = Path.home() / ".cache/vp-progress"  # whisper --print-progress for the widget, never next to a delivered film
+REHEAR_MAX = 6  # short-window re-hearings a check (2 whisper passes each): a run with more flags fails, it does not stall
+
+
+def progress_file(media: str, pid: int) -> Path:
+    """where whisper's progress of media goes (render_status reads the same name)"""
+    return PROGRESS_DIR / f"{hashlib.sha1(os.path.abspath(media).encode()).hexdigest()[:16]}.{pid}.progress"
+
+
+def _whisper(media: str, timeout: int = 7200) -> list[str]:
     with tempfile.TemporaryDirectory() as tmp:
         wav = os.path.join(tmp, "a.wav")
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", media, "-vn", "-ac", "1", "-ar", "16000", wav], check=True, timeout=1800)
         # render_status reads the % for the widget; one file a run (cut and sound may hear the same media at once), and a
         # folder we cannot write only loses the %, never the check
-        prog = Path(f"{media}.whisper.{os.getpid()}.progress")
+        prog = progress_file(media, os.getpid())
         try:
+            prog.parent.mkdir(parents=True, exist_ok=True)
             pf = prog.open("w")
         except OSError as e:
             print(f"words_check: no progress file {prog}: {e}", file=sys.stderr)
@@ -67,7 +78,7 @@ def _whisper(media: str) -> list[str]:
         try:
             subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl",
                             "-t", str(heavy_threads()), "-pp", "-otxt", "-of", os.path.join(tmp, "a"), wav],
-                           stdout=subprocess.DEVNULL, stderr=pf or subprocess.DEVNULL, check=True, preexec_fn=low_priority, timeout=7200)
+                           stdout=subprocess.DEVNULL, stderr=pf or subprocess.DEVNULL, check=True, preexec_fn=low_priority, timeout=timeout)
         finally:
             if pf is not None:
                 pf.close(); prog.unlink(missing_ok=True)
@@ -227,18 +238,19 @@ def _whisper_window(media: str, t0: float, d: float) -> list[str] | None:
         try:
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{t0:.3f}", "-t", f"{d:.3f}", "-i", media, "-vn", "-ac", "1",
                             "-ar", "16000", clip], check=True, timeout=300)
-            return _whisper(clip)
+            return _whisper(clip, timeout=600)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
             print(f"words_check: no short-window whisper of {media} at {t0:.2f} s: {e}", file=sys.stderr)
             return None
 
 
-def reheard(gone: list[str], rough: str, final: str, t0: float, t1: float) -> bool:
-    """the last word on a flag: whisper the same short window of the cut and of the film. Same words, or the missing
-    words heard in the film's window = whisper misheard the whole film (2026-11-08 long: "to jest to co się dzieje" at
-    443 s was not in the cut's own window either; the outro read the same word for word in both)"""
+def reheard(gone: list[str], around: list[str], rough: str, final: str, t0: float, t1: float) -> bool:
+    """the last word on a flag: whisper the same short window of the cut and of the film. The words around the gap
+    (around) must be heard in the film's window, so the window sits on the right place; then the same words in both,
+    or the missing words heard in the film = whisper misheard the whole film (2026-11-08 long: "to jest to co się
+    dzieje" at 443 s was not in the cut's own window either; the outro read the same word for word in both)"""
     a, b = _whisper_window(rough, max(t0 - 1.0, 0.0), t1 - t0 + 2.0), _whisper_window(final, max(t0 - 1.0, 0.0), t1 - t0 + 2.0)
-    if a is None or b is None:
+    if a is None or b is None or not around or not all(w in b for w in around):
         return False
     return a == b or all(w in b for w in gone)
 
@@ -251,7 +263,7 @@ def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: 
     st = stems(args_json)
     if st is None:
         return bad, []
-    still, kept = [], []
+    still, kept, reheard_n = [], [], 0
     for i, gone, _ in missing(expected, heard):
         line = next((x for x in bad if x.startswith(f"missing: {context(expected, i, len(gone))} ")), None)
         if line is None:
@@ -263,9 +275,11 @@ def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: 
             still.append(line + " (no place on the timeline to measure)")
         elif snr is not None and snr >= MASK_DB:
             kept.append(f"{line} (whisper did not hear it; voice {snr:.1f} dB over the music at {span[0]:.2f} s)")
-        elif rough and final and reheard(gone, rough, final, *span):
-            kept.append(f"{line} (the same in a short window of the cut and the film at {span[0]:.2f} s; music within "
-                        f"{snr if snr is not None else float('nan'):.1f} dB)")
+        elif snr is not None and rough and final and reheard_n >= REHEAR_MAX:
+            still.append(line + f" (music within {snr:.1f} dB at {span[0]:.2f} s; not re-heard: over {REHEAR_MAX} flags)")
+        elif snr is not None and rough and final and (reheard_n := reheard_n + 1) and reheard(
+                gone, expected[max(0, i - 2):i] + expected[i + len(gone):i + len(gone) + 2], rough, final, *span):
+            kept.append(f"{line} (the same in a short window of the cut and the film at {span[0]:.2f} s; music within {snr:.1f} dB)")
         else:
             still.append(line + (f" (music within {snr:.1f} dB of the voice at {span[0]:.2f} s)" if snr is not None
                                  else f" (no speech to measure at {span[0]:.2f} s)"))

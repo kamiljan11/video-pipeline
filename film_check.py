@@ -215,6 +215,7 @@ def cover_spans(edl: dict) -> list[tuple[float, float]]:
 
 
 PUNCH_ROOM = 1.08  # face_track zmax at or under this: no visible punch fits under the head limit
+FACE_MIN_S = 10.0  # under this much punchable face a short has nothing to punch into (ADR-0021)
 
 
 def covered(spans: list[tuple[float, float]], end: float) -> float:
@@ -305,13 +306,13 @@ class Film:
         spans = cover_spans(self.edl)
         face = 0.0
         for sg, st in zip(self.edl["segments"], timeline.starts(self.edl["segments"], exact(self.edl)), strict=True):
-            if sg.get("zmax", 1.38) <= PUNCH_ROOM:
+            if "zmax" in sg and sg["zmax"] <= PUNCH_ROOM:  # no zmax = face_track never limited it: the shot must carry punches
                 continue
             end = st + timeline.piece_len(sg, exact(self.edl))
             face += (end - st) - covered([(max(a, st) - st, min(b, end) - st) for a, b in spans if b > st and a < end], end - st)
-        if face < 10.0: return 99.0
+        if face < FACE_MIN_S: return 99.0, f"{face:.1f} s of face with room for a punch (< {FACE_MIN_S:.0f} s): not judged, the card rules judge this short"
         on_face = [t for t in punches(self.edl) if not any(a <= t < b for a, b in spans)]  # a canvas zoom inside a card is not one
-        return round(len(on_face) / (face / 60), 2)
+        return round(len(on_face) / (face / 60), 2), ""
     def behind_cards(self): return sum(1 for o in self.ovs if "behind" in self.specs.get(o["id"], {}))
 
     def behind_cover_max(self):

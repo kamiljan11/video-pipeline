@@ -7,6 +7,7 @@ ile zrenderowalo i ile trzeba czekac do konca na calosc contentow").
 Read-only: the unit's processes (cgroup), the stage-2 ffmpeg's read position in rough.mkv (/proc/<pid>/fdinfo: how far
 into the film it has encoded) and the finished files in the out dirs. The pure functions take plain data so they test
 without a running render (tests/test_render_status.py)."""
+import glob
 import itertools
 import json
 import os
@@ -212,9 +213,11 @@ def _all_pipeline_procs() -> dict[int, list[str]]:
 
 
 def _whisper_progress(args: list[str]) -> float | None:
-    """words_check writes whisper's --print-progress next to the media it hears (<media>.whisper.<pid>.progress)"""
+    """words_check writes whisper's --print-progress to ~/.cache/vp-progress (words_check.progress_file)"""
+    from words_check import PROGRESS_DIR, progress_file
     for a in args:
-        for f in Path(a).parent.glob(Path(a).name + ".whisper.*.progress") if a.startswith("/") else ():
+        stem = progress_file(a, 0).name.split(".")[0]
+        for f in PROGRESS_DIR.glob(glob.escape(stem) + ".*.progress") if a.startswith("/") else ():
             try:
                 if time.time() - f.stat().st_mtime < 600:
                     return whisper_pct(f.read_text(errors="replace")[-2000:])

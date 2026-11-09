@@ -62,15 +62,19 @@ class FilmCheckUsesTimelineTest(unittest.TestCase):  # film_check measured with 
         segs = [{"in": 0.0, "out": 46.4, "zoom": {"a": 1.0, "b": 1.12, "t0": 42.0, "t1": 42.3}}]
         f = film_check.Film.__new__(film_check.Film)  # only len and edl are read
         f.len, f.edl = 46.4, {"segments": segs, "overlays": ovs, "seg_exact": True}
-        self.assertEqual(f.punches_per_face_min(), round(1 / ((46.4 - 34.3) / 60), 2))  # ~5 a face minute
+        self.assertEqual(f.punches_per_face_min()[0], round(1 / ((46.4 - 34.3) / 60), 2))  # ~5 a face minute
         self.assertLess(f.punches_per_min(), 3)  # the old measure: 1.29 a film minute
         f.edl["overlays"] = [{**ovs[0], "zooms": [7.0, 9.0]}, *ovs[1:]]  # zooms inside a card: not on the face
-        self.assertEqual(f.punches_per_face_min(), round(1 / ((46.4 - 34.3) / 60), 2))
+        self.assertEqual(f.punches_per_face_min()[0], round(1 / ((46.4 - 34.3) / 60), 2))
         f.edl["overlays"] = [{"at": 0.0, "dur": 40.0}]
-        self.assertEqual(f.punches_per_face_min(), 99.0)
+        self.assertEqual(f.punches_per_face_min()[0], 99.0)
         f.edl["overlays"] = ovs
         f.edl["segments"] = [{**segs[0], "zmax": 1.0}]  # the head fills the frame: no punch fits (2026-11-08 s17)
-        self.assertEqual(f.punches_per_face_min(), 99.0)  # 6.4 s of face: the card rules judge it
+        v, why = f.punches_per_face_min()
+        self.assertEqual(v, 99.0)  # 6.4 s of face: the card rules judge it
+        self.assertIn("not judged", why)  # shown in the report, never a silent pass
+        f.edl["segments"] = segs  # no zmax: face_track never limited the shot, it must carry punches
+        self.assertEqual(f.punches_per_face_min()[0], round(1 / ((46.4 - 34.3) / 60), 2))
 
 
 class ConcatListTest(unittest.TestCase):
