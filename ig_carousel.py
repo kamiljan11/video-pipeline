@@ -9,7 +9,8 @@ Per post with "make": true in posts.json (text: <posts-dir>/<id>/linkedin.json, 
                              post text ONCE; an existing file is kept, so a hand edit wins (--regen derives it again)
   <out>/<id>/caption.json    {"text", "hashtags", "alt": [one per slide]}: the post with "link w bio" for the link
   <out>/<id>/slide_NN.png/.txt   rendered by `node gfx/carousel_gfx.mjs` (skipped with --no-render)
-Deriving never writes a word of its own except the fixed call line and the swipe hint (CALL, SWIPE below): the hook slide is
+Deriving never writes a word of its own except the fixed call line, the swipe hint and, only when the post has a link, the
+"link w bio" line (CALL, SWIPE, BIO below): the hook slide is
 the post's first paragraph, an idea slide is one to three sentences of the body, the call slide is the post's closing
 question. So every number on a slide is a number of the post, and ig_check.py --words holds it against the film.
 Hashtags: posts.json item "hashtags_ig", else --tags, else style/brand.json "instagram_hashtags"."""
@@ -25,7 +26,9 @@ import post_check
 
 ROOT = Path(__file__).resolve().parent
 BRAND = ROOT / "style" / "brand.json"
-IDEAS = (3, 8)         # idea slides: a hook + 3..8 ideas + a call = 5..10 slides
+_LIMITS = json.loads((Path(__file__).resolve().parent / "style" / "platform_limits.json").read_text(encoding="utf-8"))["instagram"]
+IDEAS = (_LIMITS["slides_ok"][0] - 2, _LIMITS["slides_ok"][1] - 2)  # a hook + ideas + a call = slides_ok (ig_check warns outside)
+HOOK_MAX = 160         # characters of the hook slide (gfx/carousel_gfx.mjs checkCarousel)
 IDEA_MAX = 260         # characters of one idea (gfx/carousel_gfx.mjs IDEA_MAX)
 SHORT = 50             # a sentence shorter than this joins its neighbour: one idea needs more than a few words
 CALL = "Napisz w komentarzu"   # the ONE call of the last slide (ig_check CTA); the question above it is what to answer
@@ -102,16 +105,31 @@ def derive(text: str, author: str, theme: str = "cetus") -> dict:
     if not IDEAS[0] <= lo <= hi <= IDEAS[1]: raise ValueError(f"line 1 promises {n} things, a carousel has {IDEAS[0]}-{IDEAS[1]} idea slides")
     ideas = group([s for p in rest for s in sentences(p)], lo, hi)
     brand = author.split("·")[-1].strip() if "·" in author else ""
-    call = {"type": "call", "title": close or "", "call": CALL, "bio": BIO}
+    call = {"type": "call", "title": close or "", "call": CALL, **({"bio": BIO} if URL.search(text) else {})}  # "link w bio" only when the caption has a link to point to
     if not close: del call["title"]
     spec = {"theme": theme, "author": author,
             "slides": [{"type": "hook", **({"kicker": brand} if brand else {}), "title": hook, "sub": SWIPE},
                        *({"type": "idea", "text": t} for t in ideas), call]}
-    for s in spec["slides"]:
-        if s["type"] == "idea" and has_call(s["text"]): raise ValueError(f"an idea slide holds a call ({s['text'][:40]}...): the call belongs on the last slide only")
-    last = " ".join(v for k, v in spec["slides"][-1].items() if k != "type")
-    if len(ig_check.CTA.findall(last)) != 1: raise ValueError(f"the last slide must hold exactly one call, has: {ig_check.CTA.findall(last)}")
+    check(spec)
     return spec
+
+
+def check(car: dict) -> None:
+    """the rules a carousel spec keeps, derived or edited by hand (review 2026-11-10: a bad hand edit failed only in the node
+    step, after caption.json was written); ValueError names the first broken rule"""
+    sl = car.get("slides") if isinstance(car, dict) else None  # named car: capabilities.py reads a variable named spec as a gfx card
+    if not isinstance(sl, list) or len(sl) < 2 or sl[0].get("type") != "hook" or sl[-1].get("type") != "call":
+        raise ValueError("carousel.json: slides = a hook first, a call last")
+    ideas = [x for x in sl[1:-1] if x.get("type") == "idea"]
+    if len(ideas) != len(sl) - 2 or not IDEAS[0] <= len(ideas) <= IDEAS[1]:
+        raise ValueError(f"carousel.json: {len(sl) - 2} slides between hook and call, want {IDEAS[0]}-{IDEAS[1]} idea slides")
+    if len(str(sl[0].get("title", ""))) > HOOK_MAX: raise ValueError(f"the hook is {len(str(sl[0].get('title', '')))} characters, at most {HOOK_MAX}: shorten the first paragraph")
+    for x in ideas:
+        t = str(x.get("text", ""))
+        if not t or len(t) > IDEA_MAX: raise ValueError(f"an idea of {len(t)} characters (1-{IDEA_MAX}): {t[:50]}")
+        if has_call(t): raise ValueError(f"an idea slide holds a call ({t[:40]}...): the call belongs on the last slide only")
+    last = " ".join(str(v) for k, v in sl[-1].items() if k != "type")
+    if len(ig_check.CTA.findall(last)) != 1: raise ValueError(f"the last slide must hold exactly one call, has: {ig_check.CTA.findall(last)}")
 
 
 def has_call(t: str) -> bool:
@@ -135,7 +153,9 @@ def build(post_id: str, text: str, out: Path, author: str, tags: list[str], rege
     d = out / post_id
     d.mkdir(parents=True, exist_ok=True)
     f = d / "carousel.json"
-    if f.exists() and not regen: spec = json.loads(f.read_text(encoding="utf-8"))
+    if f.exists() and not regen:
+        spec = json.loads(f.read_text(encoding="utf-8"))
+        check(spec)  # a hand edit is kept, but it keeps the same rules (before caption.json is written)
     else:
         spec = derive(text, author)
         f.write_text(json.dumps(spec, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")

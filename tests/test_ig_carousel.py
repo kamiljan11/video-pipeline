@@ -36,19 +36,19 @@ class SentencesTest(unittest.TestCase):
 
 class DeriveTest(unittest.TestCase):
     def test_spec_shape_and_words_from_the_post(self):
-        s = C.derive(POST, "Kamil Jan · Higher Minds")
+        s = C.derive(POST, "Kamil Jan · Higher Mind")
         sl = s["slides"]
         self.assertTrue(5 <= len(sl) <= 10)
         self.assertEqual((sl[0]["type"], sl[-1]["type"]), ("hook", "call"))
         self.assertEqual(sl[0]["title"], POST.split("\n")[0])
-        self.assertEqual(sl[0]["kicker"], "Higher Minds")
+        self.assertEqual(sl[0]["kicker"], "Higher Mind")
         self.assertEqual(sl[-1]["title"], "Którą blokadę u siebie obchodzisz?")
         self.assertTrue(all(x["type"] == "idea" for x in sl[1:-1]))
         self.assertNotIn("http", json.dumps(s))
         self.assertIn("Decyzja jest moja.", " ".join(x["text"] for x in sl[1:-1]))
 
     def test_exactly_one_call_on_the_last_slide_and_none_before(self):
-        s = C.derive(POST, "Kamil Jan · Higher Minds")
+        s = C.derive(POST, "Kamil Jan · Higher Mind")
         last = " ".join(v for k, v in s["slides"][-1].items() if k != "type")
         self.assertEqual(len(ig_check.CTA.findall(last)), 1)
         self.assertIn("link w bio", last)
@@ -57,12 +57,39 @@ class DeriveTest(unittest.TestCase):
 
     def test_hook_count_sets_the_number_of_idea_slides(self):
         post = POST.replace("Najtrudniej było mi się nauczyć, kiedy przestać pilnować AI.", "Pięć rzeczy, których nauczyłem się o blokadach.")
-        s = C.derive(post, "Kamil Jan · Higher Minds")
+        s = C.derive(post, "Kamil Jan · Higher Mind")
         self.assertEqual(len(s["slides"]) - 2, 5)
 
     def test_a_post_with_too_few_paragraphs_is_refused(self):
         with self.assertRaises(ValueError):
             C.derive("Jedno zdanie.", "Kamil Jan")
+
+
+class ReviewFixesTest(unittest.TestCase):  # code review 2026-11-10
+    def test_a_long_hook_is_refused_before_anything_is_written(self):
+        with self.assertRaises(ValueError) as e:
+            C.derive(POST.replace(POST.split("\n")[0], "x" * 170 + "."), "Kamil Jan")
+        self.assertIn("hook", str(e.exception))
+
+    def test_no_link_in_the_post_means_no_link_w_bio_on_the_slide(self):
+        post = "\n\n".join(p for p in POST.split("\n\n") if "http" not in p)
+        self.assertNotIn("bio", C.derive(post, "Kamil Jan")["slides"][-1])
+        self.assertIn("bio", C.derive(POST, "Kamil Jan")["slides"][-1])
+
+    def test_a_bad_hand_edit_fails_before_caption_json(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            spec = C.derive(POST, "Kamil Jan")
+            spec["slides"] = spec["slides"][:2] + spec["slides"][-1:]
+            (d / "p").mkdir()
+            (d / "p" / "carousel.json").write_text(json.dumps(spec), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                C.build("p", POST, d, "Kamil Jan", [])
+            self.assertFalse((d / "p" / "caption.json").exists())
+
+    def test_the_idea_range_comes_from_platform_limits(self):
+        lim = json.loads((Path(C.__file__).parent / "style" / "platform_limits.json").read_text(encoding="utf-8"))["instagram"]["slides_ok"]
+        self.assertEqual(C.IDEAS, (lim[0] - 2, lim[1] - 2))
 
 
 class CaptionTest(unittest.TestCase):
@@ -72,7 +99,7 @@ class CaptionTest(unittest.TestCase):
         self.assertIn("Cały system opisany krok po kroku: link w bio", t)
 
     def test_alt_one_per_slide_with_the_slide_words(self):
-        s = C.derive(POST, "Kamil Jan · Higher Minds")
+        s = C.derive(POST, "Kamil Jan · Higher Mind")
         alt = C.alt_texts(s)
         self.assertEqual(len(alt), len(s["slides"]))
         self.assertIn("okładka", alt[0])
@@ -81,12 +108,12 @@ class CaptionTest(unittest.TestCase):
     def test_build_keeps_a_hand_edited_spec_unless_regen(self):
         with tempfile.TemporaryDirectory() as t:
             out = Path(t)
-            spec = C.build("p1", POST, out, "Kamil Jan · Higher Minds", ["#ai"])
+            spec = C.build("p1", POST, out, "Kamil Jan · Higher Mind", ["#ai"])
             spec["slides"][1]["text"] = "Moja poprawka."
             (out / "p1" / "carousel.json").write_text(json.dumps(spec, ensure_ascii=False))
-            again = C.build("p1", POST, out, "Kamil Jan · Higher Minds", ["#ai"])
+            again = C.build("p1", POST, out, "Kamil Jan · Higher Mind", ["#ai"])
             self.assertEqual(again["slides"][1]["text"], "Moja poprawka.")
-            fresh = C.build("p1", POST, out, "Kamil Jan · Higher Minds", ["#ai"], regen=True)
+            fresh = C.build("p1", POST, out, "Kamil Jan · Higher Mind", ["#ai"], regen=True)
             self.assertNotEqual(fresh["slides"][1]["text"], "Moja poprawka.")
             cap = json.loads((out / "p1" / "caption.json").read_text())
             self.assertEqual((cap["hashtags"], len(cap["alt"])), (["#ai"], len(fresh["slides"])))
