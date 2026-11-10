@@ -14,7 +14,10 @@ STUB = """import os, sys
 name = os.path.basename(sys.argv[0])
 log = os.environ["RUNV4_LOG"]
 open(log, "a").write(name + "\\n")
-if os.environ.get("FAIL_" + name.split(".")[0]):
+plan = name == "words_check.py" and sys.argv[1:2] == ["plan"]  # the preflight before assemble fails on its own switch
+if os.environ.get("FAIL_" + name.split(".")[0]) and not plan:
+    sys.exit(1)
+if os.environ.get("FAIL_words_plan") and plan:
     sys.exit(1)
 if os.environ.get("FAIL_phase") and "--phase" in sys.argv:  # film_check's "behind" phase only
     sys.exit(1)
@@ -182,6 +185,13 @@ class RunV4GateTest(unittest.TestCase):
         self.assertFalse((self.out / "film.mp4").exists())
         render, calls = self.run_v4(rc=0, WORDS_CHECK="off")
         self.assertIn("WORDS_CHECK=off: words_check skipped for x", render)
+        self.assertIn("DONE x", render)
+
+    def test_a_plan_the_checks_cannot_read_renders_nothing(self):  # 2026-11-10: the long's words_check crashed after 50 min
+        render, calls = self.run_v4(rc=1, FAIL_words_plan="1")
+        self.assertIn("FAILED words_check plan x", render)
+        self.assertNotIn("assemble.py", calls)
+        render, calls = self.run_v4(rc=0, WORDS_CHECK="off", FAIL_words_plan="1")
         self.assertIn("DONE x", render)
 
     def test_open_research_renders_nothing(self):  # research_gate before build_edl (2026-11-08: 0/24 Long items in the long)

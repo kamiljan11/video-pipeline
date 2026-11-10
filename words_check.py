@@ -312,11 +312,24 @@ def plan_times(edl_txt: Path) -> dict | None:
             "segments": json.loads(edl_json.read_text(encoding="utf-8"))["segments"]}
 
 
+def preflight(edl_txt: Path) -> int:
+    """read the plan the way cut and sound do when they confirm a flag (plan_times), so a plan they cannot read fails
+    before the render, not after it: 1 when a file is missing or the plan's tokens do not line up with edl_<n>.txt"""
+    loc = plan_times(edl_txt)
+    if loc is None:
+        print(f"words plan: FAIL no plan, EDL or words next to {edl_txt}"); return 1
+    if len(loc["times"]) != len(loc["toks"]):
+        print(f"words plan: FAIL {len(loc['toks'])} tokens in {edl_txt}, {len(loc['times'])} timed from the plan"); return 1
+    print(f"words plan: {len(loc['toks'])} tokens timed, {len(loc['segments'])} pieces OK"); return 0
+
+
 def main(argv: list[str]) -> int:
     out = None
     edl = None
     if "--json" in argv: i = argv.index("--json"); out = argv[i + 1]; argv = argv[:i] + argv[i + 2:]
     if "--edl" in argv: i = argv.index("--edl"); edl = argv[i + 1]; argv = argv[:i] + argv[i + 2:]
+    if len(argv) == 2 and argv[0] == "plan":  # run_v4 before assemble: the code the checks run after the render, on this
+        return preflight(Path(argv[1]))       # film's plan, in a second (2026-11-10: a 3-field keep crashed it after 50 min)
     if len(argv) != 3 or argv[0] not in ("cut", "sound"):
         print("usage: words_check.py cut <edl.txt> <rough.mkv> | sound <rough.mkv> <final.mp4> [--edl edl_<n>.txt] [--json out.json]",
               file=sys.stderr); return 2

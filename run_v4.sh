@@ -91,6 +91,11 @@ for n in "$@"; do
   f=$(python3 -c "import json;print(json.load(open('edl_$n.json'))['out_name'])")
   # out_name comes from the plan (Syncthing): a bare file name only, never a path out of OUTDIR
   case "$f" in ""|*/*|.*) echo "FAILED out_name $n" >> "$R/render.log"; failed="$failed $n"; continue;; esac
+  # the post-render checks read the plan too (words_check confirms a flag from it): read it now, not after the render
+  # (2026-11-10: the long's [w0, w1, {"t1"}] keeps crashed words_check after 50 min of render)
+  if [ "${WORDS_CHECK:-on}" != off ]; then
+    python3 $VP/words_check.py plan "edl_$n.txt" >> "$R/render.log" 2>&1 || { echo "FAILED words_check plan $n" >> "$R/render.log"; failed="$failed $n"; continue; }
+  fi
   rm -f "$R/$n/rough.mkv"
   # av_check: no voice dropped, sound in step with the cut before graphics (film 2026-11-04: 0.65 s lost in long + 4 shorts)
   # sync_check: every piece of the cut where build_edl timed its cards and subtitles (timeline.py; 2026-11-04: up to 287 ms off)

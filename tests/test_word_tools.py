@@ -119,6 +119,22 @@ class ConfirmKeptTest(unittest.TestCase):
         words = [{"text": " Ala", "offsets": {"from": 10000, "to": 10300}}, {"text": " ma", "offsets": {"from": 10400, "to": 10600}}]
         self.assertEqual(C.token_times({"keeps": [[0, 0, {"t0": 9.9}], [1, 1]]}, words), [(10.0, 10.3), (10.4, 10.6)])
 
+    def test_plan_mode_reads_the_plan_before_the_render(self):  # run_v4 preflight; v5 long crashed only after 50 min
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        words = [{"text": " Ala", "offsets": {"from": 10000, "to": 10300}}, {"text": " ma", "offsets": {"from": 10400, "to": 10600}},
+                 {"text": " kota", "offsets": {"from": 10700, "to": 11000}}]
+        (d / "x.cw.json").write_text(json.dumps({"transcription": words}), encoding="utf-8")
+        (d / "plan_f.json").write_text(json.dumps({"words": "x.cw.json", "keeps": [[0, 1, {"t1": 10.65}], [2, 2]]}), encoding="utf-8")
+        (d / "edl_f.json").write_text(json.dumps({"segments": [{"in": 9.9, "out": 10.65}, {"in": 10.7, "out": 11.1}]}), encoding="utf-8")
+        (d / "edl_f.txt").write_text("Ala ma\nkota\n", encoding="utf-8")
+        run = lambda: subprocess.run([sys.executable, str(Path(C.__file__)), "plan", str(d / "edl_f.txt")], capture_output=True, text=True, check=False)
+        r = run()
+        self.assertEqual((r.returncode, r.stdout.strip()), (0, "words plan: 3 tokens timed, 2 pieces OK"), r.stderr)
+        (d / "edl_f.txt").write_text("Ala ma kota i psa\n", encoding="utf-8")  # text that the plan does not time
+        self.assertEqual(run().returncode, 1)
+        (d / "plan_f.json").unlink()
+        self.assertEqual(run().returncode, 1)
+
     @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
     def test_speech_kept_silence_and_cut_out_stay(self):
         d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
