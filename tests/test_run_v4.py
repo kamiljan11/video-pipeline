@@ -278,6 +278,13 @@ class RunV4GateTest(unittest.TestCase):
         render, _ = self.run_v4(rc=1, DRY="1", FAIL_dry_pass="1")
         self.assertIn("FAILED dry_run pass x", render)
 
+    def test_the_stages_of_a_run_are_timed_in_the_work_folder(self):  # Kamil 2026-11-10: a film's hours measured, not guessed
+        self.run_v4(DRY="1")
+        marks = [ln.split(" ", 1) for ln in (self.work / "timeline.log").read_text().splitlines()]
+        self.assertEqual([m[1] for m in marks], ["run dry x", "gfx", "plan x", "beds x", "assemble x", "checks x", "end "])
+        for when, _ in marks:
+            self.assertRegex(when, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d")
+
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")
         self.assertIn("WARN film_check off x", render)

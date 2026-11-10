@@ -18,6 +18,10 @@ words_ok() {
   python3 $VP/words_check.py sound "$R/$1/rough.mkv" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED words_check sound $1" >> "$R/render.log"; return 1; }
 }
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
+# timeline.log in the work folder: when each stage of each film started, so a film's hours are measured, not guessed
+# (Kamil 2026-11-10 "ile czasu mniej zejdzie"; watch_render.py reads it for a stalled run too)
+tl() { echo "$(date -Is) $*" >> timeline.log; }
+tl run "${DRY:+dry }$*"
 # the films are moved to OUT at the very end: a relative OUT counts from WORK (after the cd), so check it before 20 min of
 # render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
 { [ -d "$OUT" ] && [ -w "$OUT" ]; } || { echo "FAILED out: no writable folder $OUT seen from $WORK (a relative OUT counts from the work folder)" | tee -a "$R/render.log" >&2
@@ -38,6 +42,7 @@ fi
 if [ -f gfx_specs.json ] && grep -q '"type": *"scene"' gfx_specs.json; then
   if [ "${SCENE_CHECK:-on}" = off ]; then echo "WARN scene_check off" >> "$R/render.log"
   else
+    tl scene_check
     timeout "${SCENE_CHECK_TIMEOUT:-600}" node $VP/gfx/scene_check.mjs gfx_specs.json >> gfx.log 2>&1; rc=$?
     if [ $rc -ne 0 ]; then
       why="gfx.log: CLASH lines"; [ $rc -eq 124 ] && why="timeout ${SCENE_CHECK_TIMEOUT:-600} s, Chrome hung"
@@ -45,6 +50,7 @@ if [ -f gfx_specs.json ] && grep -q '"type": *"scene"' gfx_specs.json; then
     fi
   fi
 fi
+tl gfx
 if [ -f gfx_specs.json ] && ! node $VP/gfx/render.mjs gfx_specs.json gfx >> gfx.log 2>&1; then
   # graphics are shared by every film of the project: none renders with missing or stale cards
   echo "FAILED gfx (gfx.log)" >> "$R/render.log"; echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1
@@ -52,6 +58,7 @@ fi
 failed=""  # films with a FAILED step: the .otio below must not come from a stale long EDL; exit 1 at the end
 for n in "$@"; do
   L="$R/critic_$n.log"; : > "$L"
+  tl plan "$n"
   # research_gate: research meant for this form must be in the film (done = a film_check item measures it) before a render.
   # Kamil 2026-11-08 "dlaczego nic nie weszlo!?" (0 of 24 Long items in the 2026-11-04 long). RESEARCH_GATE=off = logged
   form=$(python3 -c "import json,sys; print('shorts' if json.load(open(sys.argv[1])).get('vertical') else 'long')" "plan_$n.json" 2>/dev/null || echo long)
@@ -92,10 +99,12 @@ for n in "$@"; do
   if [ "${DRY:-}" != 1 ]; then
     python3 $VP/dry_run.py need . "$n" >> "$R/render.log" 2>&1 || { echo "FAILED dry_run $n (run it with DRY=1 first)" >> "$R/render.log"; failed="$failed $n"; continue; }
   fi
+  tl beds "$n"
   $PY $VP/music/make_beds.py edl_$n.json "$R/beds_$n" >> "$R/render.log" 2>&1 || { echo "FAILED make_beds $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # "behind" cards of THIS film (behind.py --edl): the speaker cut out on its final EDL (the gfx render above ran before the
   # critic's fixes); a card whose window did not change is skipped
   if [ -f gfx_specs.json ] && grep -q '"behind"' gfx_specs.json; then
+    tl behind "$n"
     timeout 3600 $VP/matte/.venv/bin/python $VP/behind.py gfx_specs.json gfx --edl "edl_$n.json" >> "$R/render.log" 2>&1 || { echo "FAILED behind $n" >> "$R/render.log"; failed="$failed $n"; continue; }
     # what the cut-out hides (behind.py <id>.cover.json): text or a drawing behind the head must stay readable
     if [ "${FILM_CHECK:-on}" != off ]; then
@@ -116,7 +125,8 @@ for n in "$@"; do
   # lip_check: the finished film's voice vs its lips, against the recording (Kamil 2026-11-09 "dalej long ma opoznienie":
   # voice 46 ms after the lips, max 65 ms, no other gate compared picture with sound)
   dry=(); [ "${DRY:-}" = 1 ] && dry=(--dry)
-  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 \
+  tl assemble "$n"
+  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
     && lips_ok "$n" "$R/$n/$f" \
@@ -145,6 +155,7 @@ if [[ "${DRY:-}" != 1 && " $* " == *" long "* && " $failed " != *" long "* ]] &&
   $PY $VP/to_otio.py edl_long.json "$OUT/${lf%.mp4}_do_kdenlive.otio" >> "$R/render.log" 2>&1 \
     || { echo "FAILED to_otio long" >> "$R/render.log"; failed="$failed long"; }
 fi
+tl end "${failed:+failed:$failed}"
 echo ALL_DONE >> "$R/render.log"
 # any failed film -> exit 1, so a render started from a terminal or a task sees it too (the panel also checks "DONE <film>")
 [ -z "$failed" ] || { echo "FAILED_FILMS$failed" >> "$R/render.log"; exit 1; }
