@@ -14,6 +14,7 @@ import { loadTheme } from './theme_lib.mjs';
 import { camKeyframes, colFollow, frameStops, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { opener, resolveAnchors } from './anchor_lib.mjs';
 import { esc, icon, prose } from './html_lib.mjs';
+import os from 'os'; import { pageCount, shot } from './pace_lib.mjs';
 import { chapHtml, checkCard, listHtml, lowerHtml, noteHtml, usesCardsLib } from './cards_lib.mjs';
 const [specFile, outDir, mode, ...only] = process.argv.slice(2);
 const STILLS = mode === '--stills';
@@ -317,7 +318,7 @@ async function one(sp) {
     const sd = `${outDir}/stills`, t = stillTime(sp); fs.mkdirSync(sd, { recursive: true });
     await page.evaluate(t => { document.getAnimations().forEach(a => { a.pause(); a.currentTime = t * 1000; }); if (window.__seek) window.__seek(t);
       return new Promise(res => requestAnimationFrame(() => res())); }, t);
-    await page.screenshot({ path: `${sd}/${sp.id}.png`, omitBackground: true });
+    await shot(page, { path: `${sd}/${sp.id}.png`, omitBackground: true }, sp.id);
     fs.writeFileSync(`${sd}/${sp.id}.key`, key ?? ''); fs.writeFileSync(`${sd}/${sp.id}.t`, String(t));
     await page.close(); return;
   }
@@ -334,7 +335,7 @@ async function one(sp) {
       // screenshot can show the previous state (count test: frame 5, the bar's first grow frame, differed between runs)
       return new Promise(res => requestAnimationFrame(() => res()));
     }, [t, sp.dur, FADE_OUT]);
-    await page.screenshot({ path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true });
+    await shot(page, { path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true }, `${sp.id} frame ${f}`);
   }
   await page.close();
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
@@ -342,7 +343,10 @@ async function one(sp) {
   if (key) fs.writeFileSync(stamp, key); else fs.rmSync(stamp, { force: true });
   console.log('gfx', sp.id);
 }
-const q = [...specs]; await Promise.all([0,1,2,3,4,5].map(async () => { while (q.length) await one(q.shift()); }));
+// pages from the free cores (gfx/pace_lib.mjs): another job's load means fewer pages, not 30 s timeouts on all of them
+const PAGES = pageCount(os.cpus().length, os.loadavg()[0], process.env.GFX_PAGES ?? '');
+console.log(`gfx pages ${PAGES} (cpus ${os.cpus().length}, load ${os.loadavg()[0].toFixed(1)})`);
+const q = [...specs]; await Promise.all(Array.from({ length: PAGES }, async () => { while (q.length) await one(q.shift()); }));
 await browser.close();
 // "behind" cards: behind.py cuts the speaker out of each one's alpha (text behind the head); skipped when nothing changed
 if (!STILLS && specs.some(sp => sp.behind)) {
