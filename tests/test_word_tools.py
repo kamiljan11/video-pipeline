@@ -115,6 +115,10 @@ class ConfirmKeptTest(unittest.TestCase):
         words = [{"text": " Ala", "offsets": {"from": 10000, "to": 10300}}, {"text": " kamiljan.com", "offsets": {"from": 10400, "to": 11000}}]
         self.assertEqual(C.token_times({"keeps": [[0, 1]]}, words), [(10.0, 10.3), (10.4, 11.0), (10.4, 11.0)])
 
+    def test_token_times_read_a_keep_with_its_t0_t1_overrides(self):  # v5 long 2026-11-10: [w0, w1, {"t1": ...}] crashed
+        words = [{"text": " Ala", "offsets": {"from": 10000, "to": 10300}}, {"text": " ma", "offsets": {"from": 10400, "to": 10600}}]
+        self.assertEqual(C.token_times({"keeps": [[0, 0, {"t0": 9.9}], [1, 1]]}, words), [(10.0, 10.3), (10.4, 10.6)])
+
     @unittest.skipUnless(shutil.which("ffmpeg"), "no ffmpeg")
     def test_speech_kept_silence_and_cut_out_stay(self):
         d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)

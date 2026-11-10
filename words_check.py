@@ -111,8 +111,8 @@ def token_times(plan: dict, words: list[dict]) -> list[tuple[float, float]]:
     """source (start, end) of every token of the plan text, in the order norm() reads edl_<n>.txt (build_edl joins the
     kept words' text); [] when the tokens do not line up one to one (then nothing is confirmed, the check stays as strict)"""
     out = []
-    for a, b in plan["keeps"]:
-        for i in range(a, b + 1):
+    for k in plan["keeps"]:  # [w0, w1] or [w0, w1, {"t0", "t1"}] (build_edl.py plan format)
+        for i in range(k[0], k[1] + 1):
             w = words[i]; out += [(w["offsets"]["from"] / 1000, w["offsets"]["to"] / 1000)] * len(norm(w["text"]))
     return out
 
