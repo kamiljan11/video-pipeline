@@ -117,11 +117,21 @@ def token_times(plan: dict, words: list[dict]) -> list[tuple[float, float]]:
     return out
 
 
-def film_time(segments: list[dict], t: float) -> float | None:
-    """film time of source time t: the piece that holds it (seg_exact lengths), None when t was cut out"""
-    for s, start in zip(segments, timeline.starts(segments, True), strict=True):
+# a word start this far before a piece's in-point counts from the in-point: transcript starts run early (v5 s04 2026-11-10:
+# "Claude" stamped 279.786 s, before "W" at 279.890 s, speech from 279.87 s, the piece from 279.814 s in silence)
+WORD_LEAD = 0.15
+
+
+def film_time(segments: list[dict], t: float, lead: float = 0.0) -> float | None:
+    """film time of source time t: the piece that holds it (seg_exact lengths); a piece starting at most `lead` s after t
+    gives its own start; None when t was cut out"""
+    starts = timeline.starts(segments, True)
+    for s, start in zip(segments, starts, strict=True):
         if s["in"] <= t <= s["out"]:
             return start + (t - s["in"])
+    for s, start in zip(segments, starts, strict=True):
+        if 0 < s["in"] - t <= lead:
+            return start
     return None
 
 
@@ -153,7 +163,9 @@ def confirm_kept(bad: list[str], expected: list[str], times: list[tuple[float, f
             continue
         # word starts only: the transcript's end times run late (2026-11-08 "Claude." ended 0.1 s after its piece, the
         # cut-out pause after it was silence, -60 dB)
-        f0, f1 = film_time(segments, times[i][0]), film_time(segments, times[i + len(gone) - 1][0])
+        f0, f1 = film_time(segments, times[i][0], WORD_LEAD), film_time(segments, times[i + len(gone) - 1][0], WORD_LEAD)
+        if f0 is not None and f1 is not None and f1 < f0:  # word starts out of order in the transcript
+            f0, f1 = f1, f0
         if f0 is None or f1 is None:
             still.append(line + " (cut out)")
             continue

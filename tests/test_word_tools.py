@@ -106,6 +106,11 @@ class ConfirmKeptTest(unittest.TestCase):
         self.assertEqual(C.film_time(list(SEGS), 21.0), 3.0)
         self.assertIsNone(C.film_time(list(SEGS), 15.0))  # cut out
 
+    def test_a_word_starting_just_before_a_piece_counts_from_the_piece(self):  # v5 s04: "Claude" stamped 28 ms early
+        self.assertEqual(C.film_time(list(SEGS), 19.9, C.WORD_LEAD), 2.0)
+        self.assertIsNone(C.film_time(list(SEGS), 19.9))  # without the lead: as strict as before
+        self.assertIsNone(C.film_time(list(SEGS), 19.8, C.WORD_LEAD))  # 0.2 s before: really cut out
+
     def test_token_times_follow_norm(self):
         words = [{"text": " Ala", "offsets": {"from": 10000, "to": 10300}}, {"text": " kamiljan.com", "offsets": {"from": 10400, "to": 11000}}]
         self.assertEqual(C.token_times({"keeps": [[0, 1]]}, words), [(10.0, 10.3), (10.4, 11.0), (10.4, 11.0)])
