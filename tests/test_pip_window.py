@@ -121,7 +121,7 @@ class PipRenderTest(unittest.TestCase):
             "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(card))
         head = [0.4, 0.25, 0.6, 0.7]
         edl = {"sources": {"A": str(src)}, "w": self.W, "h": self.H, "src_w": self.W, "src_h": self.H, "seg_exact": True,
-               "head_track": True, "face": [0.5, 0.42], "pip_size": 120, "out_name": "final.mp4",
+               "head_track": True, "face": [0.5, 0.42], "pip_size": 120, "out_name": "final.mp4", "tail": 10,
                "segments": [{"src": "A", "in": 0.0, "out": 2.5, "zoom": 1.0, "face": [0.5, 0.42], "head": head},
                             {"src": "A", "in": 2.5, "out": 4.0, "zoom": 1.0, "face": [0.5, 0.42], "head": head}],
                "overlays": [{"file": str(card), "at": 2.6, "dur": 1.3, "id": "c", "pip": True}]}
@@ -138,7 +138,7 @@ class PipRenderTest(unittest.TestCase):
         n = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
                             "stream=nb_read_packets", "-of", "csv=p=0", str(tmp / "final.mp4")],
                            capture_output=True, text=True, check=True).stdout.strip()
-        self.assertEqual(int(n), 120)
+        self.assertEqual(int(n), 120 + 300)  # the film and a 10 s tail to the frame (tpad on a 1/30 time base)
 
 
 

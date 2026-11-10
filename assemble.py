@@ -258,7 +258,10 @@ THEME = edl.get("theme")  # build_edl from work/theme.json (themes.py): accent o
 # drawbox evaluates its w once, so that bar stands full width from the first frame
 pbar = (f",drawbox=x=0:y=ih-8:w=iw*min(t/{body:.3f}\\,1):h=8:color=0x{themes.bar_hex(THEME)}@0.85:t=fill:enable=lt(t\\,{body:.3f})"
         if edl.get("progress") and edl.get("progress") != "fill" else "")
-fc.append(f"[0:v]{grade}" + (f",tpad=stop_mode=clone:stop_duration={tail}" if tail else "") + pbar + "[v0]")
+# the tail: settb first, or tpad steps its clones 33 ms (the 1/1000 time base of rough.mkv) instead of 1/30 s and two of every
+# 300 land on the same frame and are dropped (v5 long: "last window has 4089 frames, not 4091"); the windows cut this same text
+TAIL_PAD = f",settb=1/{chunks.FPS},tpad=stop_mode=clone:stop_duration={tail}" if tail else ""
+fc.append(f"[0:v]{grade}" + TAIL_PAD + pbar + "[v0]")
 last = "v0"
 if edl.get("progress") == "fill":  # overlay evaluates x on every frame
     fc.append(f"color=c=0x{themes.bar_hex(THEME)}@0.85:s={W}x8:r=30,format=rgba[pbar]")
@@ -436,7 +439,7 @@ def picture_in_windows():
     total = round(body * chunks.FPS)
     wins = chunks.windows(total, CHUNK)
     cdir = os.path.join(out, "chunks"); os.makedirs(cdir, exist_ok=True)
-    pad = f",tpad=stop_mode=clone:stop_duration={tail}" if tail else ""
+    pad = TAIL_PAD
     enc = ["-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p"]
     parts = []
     for n, w in enumerate(wins):
