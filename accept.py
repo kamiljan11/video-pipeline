@@ -28,11 +28,17 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def cut(work: Path) -> str:
+    """the long's cut in this work folder (edl_long.json); "" when there is none"""
+    p = work / "edl_long.json"
+    return sha256(p) if p.is_file() else ""
+
+
 def write(work: Path, film: Path, said: str) -> str:
     """"" and the record on disk, or why not"""
     if not waivers.SAID.match(said): return f"whose words and when: 'Kamil YYYY-MM-DD: his sentence', got {said!r}"
     if not film.is_file(): return f"no film {film}"
-    rec = {"film": str(film.resolve()), "sha256": sha256(film), "commit": manifest.head(), "said": said,
+    rec = {"film": str(film.resolve()), "sha256": sha256(film), "cut": cut(work), "commit": manifest.head(), "said": said,
            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
     (work / NAME).write_text(json.dumps(rec, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     return ""
@@ -47,6 +53,8 @@ def check(work: Path) -> str:
     film = Path(rec.get("film", ""))
     if not film.is_file(): return f"the accepted long is gone: {film}"
     if sha256(film) != rec.get("sha256"): return f"{film.name} changed after Kamil accepted it: he watches the new one, then accept.py write"
+    # the accepted file may sit untouched while the long was cut again and rendered elsewhere (pg-review 2026-11-10 security-2)
+    if rec.get("cut", "") != cut(work): return "the long was cut again after Kamil accepted it (edl_long.json changed): render it, he watches it, then accept.py write"
     return ""
 
 

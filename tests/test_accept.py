@@ -31,6 +31,13 @@ class AcceptTest(unittest.TestCase):
         self.film.write_bytes(b"film v2")
         self.assertIn("changed after Kamil accepted it", accept.check(self.work))
 
+    def test_a_long_cut_again_needs_a_new_acceptance(self):  # pg-review 2026-11-10 security-2: the old file sits untouched
+        (self.work / "edl_long.json").write_text('{"segments": [1]}', encoding="utf-8")
+        accept.write(self.work, self.film, SAID)
+        self.assertEqual(accept.check(self.work), "")
+        (self.work / "edl_long.json").write_text('{"segments": [2]}', encoding="utf-8")
+        self.assertIn("cut again", accept.check(self.work))
+
     def test_a_deleted_long_is_named(self):
         accept.write(self.work, self.film, SAID)
         self.film.unlink()

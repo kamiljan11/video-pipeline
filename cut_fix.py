@@ -7,6 +7,8 @@ project (kden_export.py makes that project from the EDL); may be typed by hand t
 Kamil 2026-11-10: "ucinasz za duzo momentami ... musze miec mozliwosc przesuwana klipow zeby np odzyskac jakas czesc".
 An edge that no longer exists (the keeps changed since the export) stops the build, named: a moved cut is never dropped unseen.
 """
+from collections.abc import Sequence
+
 TOL = 0.02       # s: `old` comes from an EDL rounded to 1 ms and a 30 fps timeline; closer than one frame = the same edge
 MIN_PIECE = 0.2  # s: a piece dragged shorter than this is a mistake on the timeline, not a cut
 
@@ -38,3 +40,20 @@ def apply(segs: list[list], fixes: list[list[float]]) -> int:
             raise CutFixError(f"cut_fix: the pieces at {before[i - 1][0]:.3f} s and {before[i][0]:.3f} s overlap after the move "
                               f"({segs[i - 1][1]:.3f} > {s[0]:.3f}): the same words would play twice")
     return len(fixes)
+
+
+def same_words(before: list[tuple[float, float]], segs: list[list], words: Sequence, kept: set[int]) -> None:
+    """a moved edge may bring back or trim air and word tails, never a whole word: captions, the film's text and the
+    word checks follow the plan's keeps, so a word that enters or leaves the film must enter or leave keeps too
+    (pg-review 2026-11-10 data-1: restored speech had no caption). words[i] = (start, end, text), recording seconds."""
+    def inside(i: int, pieces) -> bool:
+        mid = (words[i][0] + words[i][1]) / 2
+        return any(p[0] <= mid <= p[1] for p in pieces)
+    said = [i for i in range(len(words)) if str(words[i][2]).strip()]
+    back = [i for i in said if i not in kept and inside(i, segs) and not inside(i, before)]
+    gone = [i for i in said if i in kept and inside(i, before) and not inside(i, segs)]
+    for ids, what, do in ((back, "brings back", "add them to"), (gone, "cuts", "take them out of")):
+        if ids:
+            text = " ".join(str(words[i][2]).strip() for i in ids[:8])
+            raise CutFixError(f"cut_fix: a moved edge {what} the words {ids[0]}-{ids[-1]} ('{text}'{' ...' if len(ids) > 8 else ''}): "
+                              f"{do} the plan's keeps (captions and the word checks follow keeps), then export the Kdenlive project again")

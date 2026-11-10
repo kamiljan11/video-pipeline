@@ -45,6 +45,16 @@ class CutFixTest(unittest.TestCase):
         with self.assertRaisesRegex(cut_fix.CutFixError, "under 0.2 s"):
             cut_fix.apply(self.segs(), [[8.96, 7.1]])
 
+    WORDS = ((5.4, 5.9, " raz"), (6.1, 6.7, " dwa"), (6.85, 7.0, " trzy"), (7.1, 7.6, " cztery"), (8.0, 8.9, " piec"))
+
+    def test_air_and_word_tails_may_move_whole_words_may_not(self):  # pg-review 2026-11-10 data-1: restored speech had no caption
+        before = [(5.3, 6.788), (7.062, 8.96)]
+        cut_fix.same_words(before, [[5.3, 6.85, "pause"], [7.062, 8.96, "end"]], self.WORDS, {0, 1, 3, 4})  # 60 ms more air
+        with self.assertRaisesRegex(cut_fix.CutFixError, r"brings back the words 2-2 \('trzy'\): add them to the plan's keeps"):
+            cut_fix.same_words(before, [[5.3, 7.0, "pause"], [7.062, 8.96, "end"]], self.WORDS, {0, 1, 3, 4})
+        with self.assertRaisesRegex(cut_fix.CutFixError, r"cuts the words 4-4 \('piec'\): take them out of"):
+            cut_fix.same_words(before, [[5.3, 6.788, "pause"], [7.062, 8.2, "end"]], self.WORDS, {0, 1, 3, 4})
+
     def test_a_bad_value_is_named(self):
         for bad in ("x", [[1]], [[1, "2"]], [[True, 2]], [[-1, 2]]):
             with self.assertRaises(cut_fix.CutFixError, msg=bad): cut_fix.check(bad)
@@ -115,6 +125,20 @@ class KdenliveRoundTripTest(unittest.TestCase):
     def test_an_edge_moved_twice_keeps_its_first_place(self):  # build_edl looks for the edge it computes itself
         self.assertEqual(kden_import.merged([[6.788, 7.0]], [[7.0, 7.2], [40.0, 39.0]]), [[6.788, 7.2], [40.0, 39.0]])
         self.assertEqual(kden_import.merged([[6.788, 7.0]], [[7.0, 6.788]]), [])  # dragged back
+
+    def test_a_chapter_start_inside_one_piece_is_not_a_cut(self):  # framing.py splits a piece there: build_edl has no edge to move
+        edl = {**EDL, "segments": [{"src": "A", "in": 5.0, "out": 8.0}, {"src": "A", "in": 8.0, "out": 12.0}]}
+        self.edl.write_text(json.dumps(edl), encoding="utf-8")
+        kden_export.main([str(self.edl), str(self.proj)])
+        self.drag('in="240" out="359"', 'in="230" out="359"')
+        self.assertEqual(kden_import.main([str(self.proj), str(self.plan)]), 1)
+        self.assertNotIn("cut_fix", json.loads(self.plan.read_text(encoding="utf-8")))
+
+    def test_every_import_keeps_the_plan_it_replaced(self):
+        self.drag('in="159" out="203"', 'in="159" out="209"')
+        kden_import.main([str(self.proj), str(self.plan)])
+        self.assertEqual(json.loads(Path(str(self.plan) + ".last_kden").read_text(encoding="utf-8")), {"keeps": [[0, 5]]})
+        self.assertFalse(Path(str(self.plan) + ".tmp").exists())
 
     def test_a_removed_piece_is_named_and_nothing_is_written(self):
         self.drag('<entry producer="src_A" in="159" out="203"/>', "")

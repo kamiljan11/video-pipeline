@@ -24,6 +24,9 @@ modułów teraz (brak danych, które nigdy nic nie łapią — decyzja po 2 film
 renderu już niesie commit, drugi mechanizm = drugie miejsce do rozjechania).
 
 **Ryzyko:** kontrola ust i dźwięku na obrazie 640 px może dawać inny wynik niż na pełnym (do zmierzenia na fragmencie, faza 7);
-sesja ma zapis do repo, więc obejście jest technicznie możliwe, ale każde = commit, który unieważnia próbny render i zostaje w historii.
+sesja ma zapis do repo, więc obejście kodu jest technicznie możliwe, ale każde = commit, który unieważnia próbny render i zostaje w historii.
+Zgoda Kamila (`waivers` w planie, `ACCEPTED_long.json`) to tekst „Kamil RRRR-MM-DD: …” w plikach folderu roboczego, które są poza gitem:
+chroni przed pomyłką i zostawia nazwany ślad w `render.log` (`SKIPPED_GATES`) i w raporcie, ale sesja z zapisem do folderu może go wpisać
+bez commita (pg-review 2026-11-10 security-1, potwierdzone). Kanał, którego sesja nie zapisze, = osobna decyzja Kamila (zmiana w `~/.claude`, fraza CONTROL_PLANE).
 
 **Rollback:** `git revert` commitów fazy 1–2 na `feat/long-lite`; `run_v4.sh` wraca do renderu bez próbnego.

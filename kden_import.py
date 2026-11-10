@@ -54,9 +54,13 @@ def moved(base: dict, now: list[tuple[int, int]]) -> list[list[float]]:
         raise KdenImportError(f"the timeline has {len(now)} pieces of the recording, the export had {len(pieces)}: pieces were removed, added "
                            "or split. Only moved edges are imported; undo that on the timeline, or change the plan's keeps and export again")
     out = []
-    for (_, b_in, b_out), (n_in, n_out) in zip(pieces, now):
+    for k, ((_, b_in, b_out), (n_in, n_out)) in enumerate(zip(pieces, now)):
         if n_in != round(b_in * fps): out.append([b_in, round(n_in / fps, 3)])
         if n_out != round(b_out * fps): out.append([b_out, round(n_out / fps, 3)])
+        # two pieces that meet in the recording are one piece split at a chapter start (framing.py), not a cut: build_edl
+        # has no edge there to move (pg-review 2026-11-10 data-3)
+        if k and pieces[k - 1][0] == pieces[k][0] and abs(pieces[k - 1][2] - b_in) < 1e-6 and (n_in != round(b_in * fps) or now[k - 1][1] != round(b_in * fps)):
+            raise KdenImportError(f"the edge at {b_in:.3f} s is a chapter start inside one piece, not a cut: put it back and move the nearest real cut")
     return out
 
 
@@ -88,11 +92,14 @@ def main(argv: list[str]) -> int:
     print(f"kden_import: {len(new)} cut edge(s) moved, film {gain:+.2f} s; plan cut_fix: {len(fixes)} edge(s)")
     for o, n in new: print(f"  {o:.3f} -> {n:.3f} s")
     if check or not new: return 0
-    before = Path(str(plan_p) + ".before_kden")
-    if not before.exists(): shutil.copy2(plan_p, before)
+    before, last = Path(str(plan_p) + ".before_kden"), Path(str(plan_p) + ".last_kden")
+    if not before.exists(): shutil.copy2(plan_p, before)  # the plan before any import
+    shutil.copy2(plan_p, last)                            # the plan before this import
     plan["cut_fix"] = fixes
-    plan_p.write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print(f"kden_import: wrote {plan_p} (the plan before: {before.name})")
+    tmp = Path(str(plan_p) + ".tmp")  # written whole, then swapped in: a kill mid-write never leaves half a plan
+    tmp.write_text(json.dumps(plan, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    os.replace(tmp, plan_p)
+    print(f"kden_import: wrote {plan_p} (before any import: {before.name}, before this one: {last.name})")
     return 0
 
 

@@ -96,7 +96,10 @@ for t0, t1, a in ranges:
         rs[j:j + 2] = [[rs[j][0], rs[j + 1][1], rs[j + 1][2]]]
     segs += rs
 if "cut_fix" in P:  # cut edges moved by hand on the Kdenlive timeline (cut_fix.py, kden_import.py)
-    try: print("cut_fix moved", cut_fix.apply(segs, P["cut_fix"]), "cut edges")
+    _before = [(s[0], s[1]) for s in segs]
+    try:
+        print("cut_fix moved", cut_fix.apply(segs, P["cut_fix"]), "cut edges")
+        cut_fix.same_words(_before, segs, W, {i for k in P["keeps"] for i in range(k[0], k[1] + 1)})
     except cut_fix.CutFixError as e: sys.exit(str(e))
 # zoom: toggle only on real jump cuts (removed > 0.8 s of source) -> hides the jump
 zs = P.get("zooms", [1.0, 1.15]); zi = 0; out = []; prev_end = None

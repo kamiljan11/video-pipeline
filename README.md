@@ -92,6 +92,21 @@ checks the EDL again before ffmpeg runs. A bad value stops the build with the ke
 | `face_target_y` | 0.3..0.6, vertical films only | height of the face centre in a zoomed 9:16 crop (default 0.40). Set it close to where the face sits in the recording (about 0.48 for a seated talking head), or the head jumps between zoomed and unzoomed shots. A 16:9 plan ignores it with a warning. Changing it re-cuts the segments on the next render |
 | `punch_headroom` | `"hair"` (default) \| `"face"` | what a zoom keeps in frame (`face_track.py`): the whole head with its hair, or brow to chin. `"face"` lets a punch-in cut the top of the head; use it when the speaker sits close and the head fills the frame (film 2026-11-04: 0.61 punch-ins a minute with `"hair"`, 2.06 with `"face"`, ADR-0012) |
 
+## Render order of a film (ADR-0025)
+
+One long = one dry run + one full render, on code that does not change in between.
+
+| step | command | what it gives |
+|---|---|---|
+| 1. dry run | `DRY=1 bash run_v4.sh <work> <out> long` | the film at 640 px with its full sound, every check after the render (`av_check`, `sync_check`, `lip_check`, `words_check`); writes `<work>/dry_long.json`, nothing goes to `<out>` |
+| 2. full render | `bash run_v4.sh <work> <out> long` | refuses (`FAILED dry_run`) without a passed dry run of this film on this commit, this `edl_long.json` and this `gfx_specs.json` |
+| 3. cut edges by hand | `python3 kden_export.py <work>/edl_long.json <x>.kdenlive --music … --sfx …`, Kamil drags edges with the Ripple tool and saves, `python3 kden_import.py <x>.kdenlive <work>/plan_long.json` | moved edges land in the plan as `cut_fix` (`[[old, new], …]` seconds in the recording); an edge that brings back or cuts a whole word stops `build_edl.py` and names the words to add to / take out of `keeps` |
+| 4. acceptance | `python3 accept.py write <work> <out>/long/long.mp4 "Kamil YYYY-MM-DD: <his sentence>"` | any film other than the long (`run_v4.sh … s01`) waits for it; a long cut or rendered again needs a new one |
+| watch a run | `python3 watch_render.py render/render.log <work>/timeline.log <work>/gfx.log render/long` | one line at the end: `DONE …` (exit 0), `FAILED …` (1), `STALL …` (3, nothing changed for `--stall` seconds, default 900) |
+
+- A gate switched off (`LIP_CHECK=off`, `WORDS_CHECK=off`, `FILM_CHECK=off`, `SCENE_CHECK=off`, `RESEARCH_GATE=off`) renders nothing unless the plan has `"waivers": {"lip_check": "Kamil YYYY-MM-DD: <his sentence>"}`; every `render.log` run starts with `SKIPPED_GATES: …`.
+- `<work>/timeline.log`: when each stage of each film started (`run`, `scene_check`, `gfx`, `plan`, `beds`, `behind`, `assemble`, `checks`, `end`).
+
 ## Quick start (Ubuntu)
 
 The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author's machine; the path is written into
