@@ -114,7 +114,8 @@ class PipRenderTest(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp(prefix="pip-tags-"))
         src, card = tmp / "src.mp4", tmp / "card.mov"
         run("-f", "lavfi", "-i", f"color=c=0x202020:s={self.W}x{self.H}:r=30:d=4", "-f", "lavfi", "-i", "sine=f=220:d=4",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-colorspace", "bt470bg", "-color_range", "tv",
+            "-vf", "setparams=colorspace=bt470bg:color_primaries=bt470bg:color_trc=bt470bg:range=tv",  # -color_trc rejects bt470bg
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-shortest", str(src))
         run("-f", "lavfi", "-i", f"color=c=blue:s={self.W}x{self.H}:r=30:d=1.3,format=yuva444p10le", "-c:v", "prores_ks",
             "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(card))
@@ -129,10 +130,11 @@ class PipRenderTest(unittest.TestCase):
                            capture_output=True, text=True, check=False, env={**os.environ, "VP_CHUNK_S": "2"})
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         self.assertTrue((tmp / "chunks").is_dir(), "the film went through the windows")  # VP_CHUNK_S reaches the one-run test
-        spaces = {subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_space",
-                                  "-of", "csv=p=0", str(f)], capture_output=True, text=True, check=True).stdout.strip()
+        spaces = {subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                                  "stream=color_space,color_primaries,color_transfer", "-of", "csv=p=0", str(f)],
+                                 capture_output=True, text=True, check=True).stdout.strip()
                   for f in (tmp / "pipsegs").glob("*.mkv")}
-        self.assertEqual(spaces, {"bt470bg"})  # black pieces carry the recording's tags
+        self.assertEqual(spaces, {"bt470bg,bt470bg,bt470bg"})  # black pieces carry all the recording's tags
         n = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
                             "stream=nb_read_packets", "-of", "csv=p=0", str(tmp / "final.mp4")],
                            capture_output=True, text=True, check=True).stdout.strip()

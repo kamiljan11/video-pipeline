@@ -165,12 +165,15 @@ starts = [0.0]
 for sg in edl["segments"][:-1]: starts.append(starts[-1] + seg_len(sg))
 
 
+# ffprobe field -> setparams option. setparams sets the frame's tags (libx264 writes them from the frames) and takes
+# ffprobe's names as they are; -color_trc/-color_primaries as encoder options were not written at all (ffmpeg 8, review
+# 2026-11-10 code-1: and -color_trc rejects ffprobe's "bt470bg")
 COLOUR_KEYS = {"color_space": "colorspace", "color_primaries": "color_primaries", "color_transfer": "color_trc",
-               "color_range": "color_range"}  # ffprobe field -> ffmpeg output option
+               "color_range": "range"}
 
 
 def colour_tags(path: str) -> dict[str, str]:
-    """{ffmpeg option: value} of the colour tags the file's video stream names (unknown ones left out)"""
+    """{setparams option: value} of the colour tags the file's video stream names (unknown ones left out)"""
     r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
                         "stream=" + ",".join(COLOUR_KEYS), "-of", "json", path], capture_output=True, text=True, check=True)
     st = (json.loads(r.stdout).get("streams") or [{}])[0]
@@ -194,8 +197,8 @@ def head_track(name, wins, size, fill):
     # joined track made ffmpeg 8 rebuild the stage-2 graph mid-window (setpts from 0 again; film 2026-11-04 v5 long lost
     # 20 s at 980 s). The tags name the black pieces, so pieces made without them are not reused.
     tags = colour_tags(next(iter(edl["sources"].values()))) if not gone else colour_tags(rough)
-    tag_args = [a for k, v in tags.items() for a in (f"-{k}", v)]
-    tag_name = "-".join(tags.values()) or "untagged"
+    set_tags = ",setparams=" + ":".join(f"{k}={v}" for k, v in tags.items()) if tags else ""
+    tag_name = "-".join(f"{k}={v}" for k, v in tags.items()) or "untagged"
 
     def cut(i):
         s, t0 = edl["segments"][i], starts[i]; d = seg_len(s)
@@ -222,8 +225,8 @@ def head_track(name, wins, size, fill):
             src = ["-ss", f"{ss:.4f}", "-i", edl["sources"][s["src"]]]
             vf = ("setpts=PTS-STARTPTS," if EXACT else "") + f"crop={side}:{side}:{x}:{y},scale={size}:{size}:flags=lanczos,setsar=1,fps=30"
         if not os.path.exists(dst):
-            subprocess.run(["ffmpeg", "-v", "error", "-y", *src, "-vf", vf, *frames, "-an", "-c:v", "libx264", *SEG_ENC,
-                            "-pix_fmt", "yuv420p", *tag_args, dst + ".part.mkv"], check=True)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", *src, "-vf", vf + set_tags, *frames, "-an", "-c:v", "libx264",
+                            *SEG_ENC, "-pix_fmt", "yuv420p", dst + ".part.mkv"], check=True)
             os.replace(dst + ".part.mkv", dst)
         return dst
 
