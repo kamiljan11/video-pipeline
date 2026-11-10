@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -105,6 +106,37 @@ class PipRenderTest(unittest.TestCase):
                               f"format=rgb24,crop=1:1:{self.W // 4}:{self.H // 4}", "-f", "rawvideo", "-"],
                              capture_output=True, check=True).stdout
         self.assertGreater(raw[1], 150, list(raw))  # the green b-roll, not the window's track
+
+    def test_a_window_starting_on_black_track_keeps_every_frame(self):
+        """film 2026-11-04 v5 long: the black pieces of pip.mkv had no colour tags, the cut ones bt470bg from the recording;
+        the tag change mid-track made ffmpeg 8 rebuild the stage-2 graph, setpts started again from 0 and the last window
+        lost 20 s of the film (980-1000 s). A window starting on black that reaches a cut piece must keep every frame."""
+        tmp = Path(tempfile.mkdtemp(prefix="pip-tags-"))
+        src, card = tmp / "src.mp4", tmp / "card.mov"
+        run("-f", "lavfi", "-i", f"color=c=0x202020:s={self.W}x{self.H}:r=30:d=4", "-f", "lavfi", "-i", "sine=f=220:d=4",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-colorspace", "bt470bg", "-color_range", "tv",
+            "-c:a", "aac", "-shortest", str(src))
+        run("-f", "lavfi", "-i", f"color=c=blue:s={self.W}x{self.H}:r=30:d=1.3,format=yuva444p10le", "-c:v", "prores_ks",
+            "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(card))
+        head = [0.4, 0.25, 0.6, 0.7]
+        edl = {"sources": {"A": str(src)}, "w": self.W, "h": self.H, "src_w": self.W, "src_h": self.H, "seg_exact": True,
+               "head_track": True, "face": [0.5, 0.42], "pip_size": 120, "out_name": "final.mp4",
+               "segments": [{"src": "A", "in": 0.0, "out": 2.5, "zoom": 1.0, "face": [0.5, 0.42], "head": head},
+                            {"src": "A", "in": 2.5, "out": 4.0, "zoom": 1.0, "face": [0.5, 0.42], "head": head}],
+               "overlays": [{"file": str(card), "at": 2.6, "dur": 1.3, "id": "c", "pip": True}]}
+        (tmp / "edl.json").write_text(json.dumps(edl))
+        r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(tmp / "edl.json"), str(tmp)],
+                           capture_output=True, text=True, check=False, env={**os.environ, "VP_CHUNK_S": "2"})
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertTrue((tmp / "chunks").is_dir(), "the film went through the windows")  # VP_CHUNK_S reaches the one-run test
+        spaces = {subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_space",
+                                  "-of", "csv=p=0", str(f)], capture_output=True, text=True, check=True).stdout.strip()
+                  for f in (tmp / "pipsegs").glob("*.mkv")}
+        self.assertEqual(spaces, {"bt470bg"})  # black pieces carry the recording's tags
+        n = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                            "stream=nb_read_packets", "-of", "csv=p=0", str(tmp / "final.mp4")],
+                           capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(int(n), 120)
 
 
 

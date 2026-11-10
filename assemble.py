@@ -165,6 +165,22 @@ starts = [0.0]
 for sg in edl["segments"][:-1]: starts.append(starts[-1] + seg_len(sg))
 
 
+COLOUR_KEYS = {"color_space": "colorspace", "color_primaries": "color_primaries", "color_transfer": "color_trc",
+               "color_range": "color_range"}  # ffprobe field -> ffmpeg output option
+
+
+def colour_tags(path: str) -> dict[str, str]:
+    """{ffmpeg option: value} of the colour tags the file's video stream names (unknown ones left out)"""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                        "stream=" + ",".join(COLOUR_KEYS), "-of", "json", path], capture_output=True, text=True, check=True)
+    st = (json.loads(r.stdout).get("streams") or [{}])[0]
+    return {opt: st[k] for k, opt in COLOUR_KEYS.items() if st.get(k) not in (None, "", "unknown")}
+
+
+def colour_key(path: str) -> tuple[tuple[str, str], ...]:
+    return tuple(sorted(colour_tags(path).items()))
+
+
 def head_track(name, wins, size, fill):
     """<out>/<name>.mkv, frame for frame with rough.mkv: a size x size square cut from the recording around each piece's
     head (gfx_types.pip_window) where a window in `wins` is on screen, black elsewhere. Pieces are cached in <out>/<name>segs/"""
@@ -174,11 +190,18 @@ def head_track(name, wins, size, fill):
     if gone:  # a panel preview of a film whose recording went to the cloud: the square from rough.mkv at the film face point
         print(f"assemble: {name} preview from rough.mkv (recording missing: {', '.join(gone)}), framing not checked", file=sys.stderr)
 
+    # every piece carries the recording's colour tags: black pieces had none, cut ones bt470bg, and the tag change in the
+    # joined track made ffmpeg 8 rebuild the stage-2 graph mid-window (setpts from 0 again; film 2026-11-04 v5 long lost
+    # 20 s at 980 s). The tags name the black pieces, so pieces made without them are not reused.
+    tags = colour_tags(next(iter(edl["sources"].values()))) if not gone else colour_tags(rough)
+    tag_args = [a for k, v in tags.items() for a in (f"-{k}", v)]
+    tag_name = "-".join(tags.values()) or "untagged"
+
     def cut(i):
         s, t0 = edl["segments"][i], starts[i]; d = seg_len(s)
         n = max(1, round(d * 30)); frames = ["-frames:v", str(n)] if EXACT else ["-t", f"{d:.3f}"]
         if not any(a < t0 + d and b > t0 for a, b in wins):
-            dst = os.path.join(seg_dir, f"{i:04d}_{d:.3f}_{size}_black{'_x' if EXACT else ''}.mkv")
+            dst = os.path.join(seg_dir, f"{i:04d}_{d:.3f}_{size}_black-{tag_name}{'_x' if EXACT else ''}.mkv")
             src = ["-f", "lavfi", "-i", f"color=c=black:s={size}x{size}:r=30"]; vf = "setsar=1"
         elif gone:
             side = int(min(W, H) * 0.8) // 2 * 2  # 9:16 too: the width bounds it
@@ -200,12 +223,15 @@ def head_track(name, wins, size, fill):
             vf = ("setpts=PTS-STARTPTS," if EXACT else "") + f"crop={side}:{side}:{x}:{y},scale={size}:{size}:flags=lanczos,setsar=1,fps=30"
         if not os.path.exists(dst):
             subprocess.run(["ffmpeg", "-v", "error", "-y", *src, "-vf", vf, *frames, "-an", "-c:v", "libx264", *SEG_ENC,
-                            "-pix_fmt", "yuv420p", dst + ".part.mkv"], check=True)
+                            "-pix_fmt", "yuv420p", *tag_args, dst + ".part.mkv"], check=True)
             os.replace(dst + ".part.mkv", dst)
         return dst
 
     with ThreadPoolExecutor(6) as ex:
         files = list(ex.map(cut, range(len(edl["segments"]))))
+        found = set(ex.map(colour_key, files))
+    if len(found) > 1:  # one track, one set of tags (see above): a mix here loses frames in stage 2
+        sys.exit(f"assemble: {name} pieces carry different colour tags {sorted(found)} ({seg_dir})")
     lst = os.path.join(out, f"{name}_concat.txt")
     Path(lst).write_text(timeline.concat_list([os.path.abspath(p) for p in files], [seg_len(sg) for sg in edl["segments"]]))
     track = os.path.join(out, f"{name}.mkv")
@@ -354,7 +380,10 @@ audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20d
 # the voice chain's own delay (afftdn 25 ms, an alimiter without latency=1 5 ms) cut off its start, so the voice stays on
 # the lips (film 2026-11-04 long: +40 ms, Kamil 2026-11-09); measured on a test signal, the chain is the plan's data
 _lat = av_latency.chain_ms(audio)
-va = (f"[0:a]{audio}" + (f",atrim=start={_lat / 1000:.4f},asetpts=PTS-STARTPTS" if _lat > 0 else "") + ",aresample=48000"
+# asetpts=N/SR/TB: loudnorm gives its last ~3 s (the look-ahead flush) a time stamp 35 ms late, the AAC encoder fills the jump
+# with one long packet and the end of the voice plays 35 ms after the lips (shorts 2026-11-10, av_check "56 ms audio packet");
+# time from the sample count is exact, no sample is added or dropped
+va = (f"[0:a]{audio},asetpts=N/SR/TB" + (f",atrim=start={_lat / 1000:.4f},asetpts=PTS-STARTPTS" if _lat > 0 else "") + ",aresample=48000"
       + (f",apad=pad_dur={tail}" if tail else ""))
 # the sound is mixed in its OWN ffmpeg run, not in the picture graph: in one run with ~100 card inputs ffmpeg 8 dropped
 # 0.65 s of the voice where the first card ended (film 2026-11-04 long, 3.09 s: one 0.676 s AAC packet, "Przez" gone,
@@ -402,7 +431,7 @@ def picture_in_windows():
     stopped half-way goes on from there. Every window but the last must hold exactly its frames, or the join would shift
     the picture against the sound."""
     total = round(body * chunks.FPS)
-    wins = chunks.windows(total, float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)))
+    wins = chunks.windows(total, CHUNK)
     cdir = os.path.join(out, "chunks"); os.makedirs(cdir, exist_ok=True)
     pad = f",tpad=stop_mode=clone:stop_duration={tail}" if tail else ""
     enc = ["-c:v", "libx264", *OUT_ENC, "-pix_fmt", "yuv420p"]
@@ -437,7 +466,8 @@ def picture_in_windows():
 subprocess.run(aargs, check=True)
 # <out>/chunks/ keeps the windows of the last run (a rerun with the same inputs reuses them); deleting it is always safe.
 # one run when the film fits in one window or for a panel preview; VP_CHUNK_S=0 forces the one run (the old way)
-if PROXY or float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S)) <= 0 or len(chunks.windows(round(body * chunks.FPS))) == 1:
+CHUNK = float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S))  # the same window length for the one-run test and the windows
+if PROXY or CHUNK <= 0 or len(chunks.windows(round(body * chunks.FPS), CHUNK)) == 1:
     subprocess.run(args, check=True)
 else:
     picture_in_windows()

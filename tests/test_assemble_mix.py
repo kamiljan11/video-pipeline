@@ -179,3 +179,25 @@ class AssembleMixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LoudnormStampTest(unittest.TestCase):
+    """shorts 2026-11-10: loudnorm stamped its last ~3 s (look-ahead flush) 35 ms late over a rough.mkv joined from pieces
+    of uneven length; the AAC encoder filled the jump with one 56 ms packet and av_check failed every short"""
+
+    def test_pieces_of_uneven_length_keep_the_sound_gapless(self):
+        import av_check  # after the path insert: the scripts are not a package
+        tmp = Path(tempfile.mkdtemp(prefix="assemble-loudnorm-"))
+        src = tmp / "src.mp4"
+        ffmpeg("-f", "lavfi", "-i", f"color=c=black:s={W}x{H}:r=30:d=10", "-f", "lavfi",
+               "-i", "sine=f=220:d=10,volume='0.5+0.4*sin(2*PI*t*3)':eval=frame",
+               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src))
+        cuts = [(0.0, 1.013), (1.4, 3.67), (3.9, 4.811), (5.0, 8.807), (8.9, 9.9)]
+        edl = {"sources": {"A": str(src)}, "segments": [{"src": "A", "in": a, "out": b} for a, b in cuts], "w": W, "h": H,
+               "src_w": W, "src_h": H, "out_name": "final.mp4", "seg_exact": True}
+        self.assertEqual(edl_guard.problems(edl), [])
+        (tmp / "edl.json").write_text(json.dumps(edl))
+        r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(tmp / "edl.json"), str(tmp)],
+                           capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertEqual(av_check.check(str(tmp / "final.mp4")), [])
