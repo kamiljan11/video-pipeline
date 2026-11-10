@@ -188,7 +188,7 @@ def main(argv: list[str]) -> int:
             post = json.loads((a.posts_dir / p["id"] / "linkedin.json").read_text(encoding="utf-8"))
             spec_g = json.loads((a.posts_dir / p["id"] / "grafika.json").read_text(encoding="utf-8")) if (a.posts_dir / p["id"] / "grafika.json").exists() else {}
             build(p["id"], post["text"], a.out, spec_g.get("author", "Kamil Jan · Higher Mind"), p.get("hashtags_ig", default_tags), a.regen)
-            dirs.append(str(a.out / p["id"]))
+            dirs.append(str((a.out / p["id"]).resolve()))  # node runs in ROOT: a relative --out would miss (2026-11-10)
         except (OSError, ValueError, KeyError) as e:
             print(f"ig_carousel: {p['id']}: {e}", file=sys.stderr); failed += 1
     if dirs: print(f"ig_carousel: {len(dirs)} carousels written to {a.out}")

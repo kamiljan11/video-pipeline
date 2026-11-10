@@ -107,6 +107,24 @@ class ReviewFixesTest(unittest.TestCase):  # code review 2026-11-10
         self.assertEqual(C.IDEAS, (lim[0] - 2, lim[1] - 2))
 
 
+class RenderCallTest(unittest.TestCase):
+    def test_a_relative_out_reaches_the_renderer_as_an_absolute_path(self):  # v5 2026-11-10: ENOENT, slides stayed old
+        import os
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t)
+            (d / "posts" / "p1").mkdir(parents=True)
+            (d / "posts" / "p1" / "linkedin.json").write_text(json.dumps({"text": POST}), encoding="utf-8")
+            (d / "posts.json").write_text(json.dumps({"items": [{"id": "p1", "make": True}]}), encoding="utf-8")
+            cwd = os.getcwd(); os.chdir(d); self.addCleanup(os.chdir, cwd)
+            with mock.patch.object(C.subprocess, "run", return_value=mock.Mock(returncode=0)) as run:
+                rc = C.main(["--posts", "posts.json", "--posts-dir", "posts", "--out", "ig"])
+            self.assertEqual(rc, 0)
+            dirs = run.call_args.args[0][2:]
+            self.assertEqual(dirs, [str((d / "ig" / "p1").resolve())])
+            self.assertTrue(Path(dirs[0], "carousel.json").exists())
+
+
 class CaptionTest(unittest.TestCase):
     def test_link_becomes_link_w_bio(self):
         t = C.caption_text(POST)
