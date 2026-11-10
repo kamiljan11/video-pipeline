@@ -195,7 +195,8 @@ def head_track(name, wins, size, fill):
 
     # every piece carries the recording's colour tags: black pieces had none, cut ones bt470bg, and the tag change in the
     # joined track made ffmpeg 8 rebuild the stage-2 graph mid-window (setpts from 0 again; film 2026-11-04 v5 long lost
-    # 20 s at 980 s). The tags name the black pieces, so pieces made without them are not reused.
+    # 20 s at 980 s). The tags name the black pieces, so pieces made without them are not reused. One track = one set: a
+    # film from several recordings takes the first one's tags for every piece (setparams relabels, it does not convert).
     tags = colour_tags(next(iter(edl["sources"].values()))) if not gone else colour_tags(rough)
     set_tags = ",setparams=" + ":".join(f"{k}={v}" for k, v in tags.items()) if tags else ""
     tag_name = "-".join(f"{k}={v}" for k, v in tags.items()) or "untagged"
@@ -234,7 +235,8 @@ def head_track(name, wins, size, fill):
         files = list(ex.map(cut, range(len(edl["segments"]))))
         found = set(ex.map(colour_key, files))
     if len(found) > 1:  # one track, one set of tags (see above): a mix here loses frames in stage 2
-        sys.exit(f"assemble: {name} pieces carry different colour tags {sorted(found)} ({seg_dir})")
+        sys.exit(f"assemble: {name} pieces carry different colour tags {sorted(found)} ({seg_dir}; pieces cut before the"
+                 " recording's tags changed: delete that folder, the next run cuts them again)")
     lst = os.path.join(out, f"{name}_concat.txt")
     Path(lst).write_text(timeline.concat_list([os.path.abspath(p) for p in files], [seg_len(sg) for sg in edl["segments"]]))
     track = os.path.join(out, f"{name}.mkv")

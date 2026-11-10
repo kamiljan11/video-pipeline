@@ -177,10 +177,6 @@ class AssembleMixTest(unittest.TestCase):
                 self.assertTrue(any("head_track" in p for p in edl_guard.problems({**base, "head_track": bad})))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class LoudnormStampTest(unittest.TestCase):
     """shorts 2026-11-10: loudnorm stamped its last ~3 s (look-ahead flush) 35 ms late over a rough.mkv joined from pieces
     of uneven length; the AAC encoder filled the jump with one 56 ms packet and av_check failed every short"""
@@ -201,3 +197,7 @@ class LoudnormStampTest(unittest.TestCase):
                            capture_output=True, text=True, check=False)
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         self.assertEqual(av_check.check(str(tmp / "final.mp4")), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
