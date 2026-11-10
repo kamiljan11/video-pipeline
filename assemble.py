@@ -27,7 +27,10 @@ except edl_guard.EdlError as e:
     sys.exit(f"assemble.py {sys.argv[1]}: {e}")
 os.makedirs(out, exist_ok=True)
 # --proxy (editing panel preview): same compositing, fast low-quality encodes, output scaled to 640 px on the long side
-PROXY = "--proxy" in sys.argv[3:]
+# --dry (run_v4.sh DRY=1, dry_run.py): the small picture, but the film's own sound (master included) and the recording
+# required, so the checks after the render judge what the full render will sound like
+DRY = "--dry" in sys.argv[3:]
+PROXY = DRY or "--proxy" in sys.argv[3:]
 SEG_ENC = ["-preset", "ultrafast", "-crf", "26"] if PROXY else ["-preset", "veryfast", "-crf", "12"]
 # EDL "seg_exact" (plan key, via build_edl): frame-exact segments. Without it every segment's picture is rounded to frames
 # and starts 1 frame late while its sound is exact; the joins add up and the picture drifts up to ~1 s behind the voice
@@ -189,7 +192,7 @@ def head_track(name, wins, size, fill):
     head (gfx_types.pip_window) where a window in `wins` is on screen, black elsewhere. Pieces are cached in <out>/<name>segs/"""
     seg_dir = os.path.join(out, f"{name}segs"); os.makedirs(seg_dir, exist_ok=True)
     gone = sorted(p for p in edl["sources"].values() if not os.path.exists(p))
-    if gone and not PROXY: sys.exit(f"assemble: {name} is cut from the recording, missing: {', '.join(gone)}")
+    if gone and (DRY or not PROXY): sys.exit(f"assemble: {name} is cut from the recording, missing: {', '.join(gone)}")
     if gone:  # a panel preview of a film whose recording went to the cloud: the square from rough.mkv at the film face point
         print(f"assemble: {name} preview from rough.mkv (recording missing: {', '.join(gone)}), framing not checked", file=sys.stderr)
 
@@ -481,7 +484,7 @@ else:
     picture_in_windows()
 subprocess.run(margs, check=True)
 os.remove(vpart); os.remove(apart)
-if "master" in edl and not PROXY:  # the whole mix to its loudness and true peak (master_audio.py, plan "master", {} = defaults); previews stay quick
+if "master" in edl and (DRY or not PROXY):  # the whole mix to its loudness and true peak (master_audio.py, plan "master", {} = defaults); previews stay quick
     import master_audio
     rep = master_audio.master_in_place(final, edl["master"])
     print("master", rep["before"], "->", rep["after"])

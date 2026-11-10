@@ -1165,6 +1165,18 @@
    }
   },
   {
+   "id": "plan.waivers",
+   "kind": "plan",
+   "name": "waivers",
+   "owner": "montazysta",
+   "check": "gate:waivers.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "Kamil's own words for a gate switched off in run_v4.sh (ADR-0025); typed in after he said it, never written by a tool"
+  },
+  {
    "id": "plan.sources",
    "kind": "plan",
    "name": "sources",

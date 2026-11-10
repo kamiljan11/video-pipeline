@@ -22,6 +22,16 @@ cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
 { [ -d "$OUT" ] && [ -w "$OUT" ]; } || { echo "FAILED out: no writable folder $OUT seen from $WORK (a relative OUT counts from the work folder)" | tee -a "$R/render.log" >&2
   echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 2; }
+# a gate switched off needs Kamil's words in every film's plan (waivers.py, ADR-0025): no off switch for this check.
+# 2026-11-04 v5: LIP_CHECK=off on 5 shorts left only a log line
+OFF=(); for g in LIP_CHECK WORDS_CHECK FILM_CHECK SCENE_CHECK RESEARCH_GATE; do [ "${!g:-on}" = off ] && OFF+=("${g,,}"); done
+echo "SKIPPED_GATES: ${OFF[*]:-none}" >> "$R/render.log"
+if [ ${#OFF[@]} -gt 0 ]; then
+  for n in "$@"; do
+    python3 $VP/waivers.py "plan_$n.json" "${OFF[@]}" >> "$R/render.log" 2>&1 || { echo "FAILED waivers $n (gates off: ${OFF[*]})" >> "$R/render.log"
+      echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1; }
+  done
+fi
 # fail-fast for every film (ADR-0002): a failed step never renders a stale or unclamped EDL, the film gets no DONE
 # scenes laid out in Chrome first: two pieces covering each other on screen (labels run together) stop the run, named.
 # timeout: a hung Chrome must not hold the run without a log line. SCENE_CHECK=off (logged) only for a clash judged false
@@ -78,6 +88,10 @@ for n in "$@"; do
     # soft items (checklist "level": "warn") pass, but they must be seen where the render is watched, not only in the critic log
     grep "^WARN" "$L" | sed "s/^/[$n] /" >> "$R/render.log" || true
   fi
+  # the full render only after a small one of this film passed every check on this code (dry_run.py, ADR-0025): no off switch
+  if [ "${DRY:-}" != 1 ]; then
+    python3 $VP/dry_run.py need . "$n" >> "$R/render.log" 2>&1 || { echo "FAILED dry_run $n (run it with DRY=1 first)" >> "$R/render.log"; failed="$failed $n"; continue; }
+  fi
   $PY $VP/music/make_beds.py edl_$n.json "$R/beds_$n" >> "$R/render.log" 2>&1 || { echo "FAILED make_beds $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # "behind" cards of THIS film (behind.py --edl): the speaker cut out on its final EDL (the gfx render above ran before the
   # critic's fixes); a card whose window did not change is skipped
@@ -101,12 +115,19 @@ for n in "$@"; do
   # sync_check: every piece of the cut where build_edl timed its cards and subtitles (timeline.py; 2026-11-04: up to 287 ms off)
   # lip_check: the finished film's voice vs its lips, against the recording (Kamil 2026-11-09 "dalej long ma opoznienie":
   # voice 46 ms after the lips, max 65 ms, no other gate compared picture with sound)
-  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" >> "$R/render.log" 2>&1 \
+  dry=(); [ "${DRY:-}" = 1 ] && dry=(--dry)
+  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
     && lips_ok "$n" "$R/$n/$f" \
     && words_ok "$n" "$R/$n/$f" \
-    && mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; then
+    && { [ "${DRY:-}" = 1 ] || { mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; }; }; then
+    if [ "${DRY:-}" = 1 ]; then  # the small film is not a film: nothing goes to OUT, no stamp; the record opens the full render
+      rm -f "$R/$n/$f"
+      if python3 $VP/dry_run.py pass . "$n" >> "$R/render.log" 2>&1; then echo "DRY_OK $n" >> "$R/render.log"
+      else echo "FAILED dry_run pass $n" >> "$R/render.log"; failed="$failed $n"; fi
+      continue
+    fi
     echo "DONE $n" >> "$R/render.log"
     # manifest: the film names the pipeline commit that made it (film_check --out: out.manifest; Kamil 2026-11-08
     # "inne materialy tez nowe logiki robiles czy wszystko po starych poszlo??")
@@ -119,7 +140,7 @@ for n in "$@"; do
   echo "--- po renderze ---" >> "$L"; nice python3 $VP/critic.py plan_$n.json --video "$OUT/$f" >> "$L" 2>&1
 done
 # the Kdenlive project only from the long rendered in THIS run (never from a stale edl_long.json)
-if [[ " $* " == *" long "* && " $failed " != *" long "* ]] && [ -f edl_long.json ]; then
+if [[ "${DRY:-}" != 1 && " $* " == *" long "* && " $failed " != *" long "* ]] && [ -f edl_long.json ]; then
   lf=$(python3 -c "import json;print(json.load(open('edl_long.json'))['out_name'])")
   $PY $VP/to_otio.py edl_long.json "$OUT/${lf%.mp4}_do_kdenlive.otio" >> "$R/render.log" 2>&1 \
     || { echo "FAILED to_otio long" >> "$R/render.log"; failed="$failed long"; }

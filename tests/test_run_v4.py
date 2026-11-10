@@ -23,7 +23,13 @@ if os.environ.get("FAIL_phase") and "--phase" in sys.argv:  # film_check's "behi
     sys.exit(1)
 if os.environ.get("FAIL_report") and "--report" in sys.argv:  # research_gate on the film_check report only
     sys.exit(1)
+if name == "dry_run.py":
+    open(log, "a").write("dry_run:" + sys.argv[1] + "\\n")
+    if os.environ.get("FAIL_dry_" + sys.argv[1]):
+        sys.exit(1)
 if name == "assemble.py":
+    if "--dry" in sys.argv:
+        open(log, "a").write("assemble:--dry\\n")
     os.makedirs(sys.argv[2], exist_ok=True)
     open(os.path.join(sys.argv[2], "film.mp4"), "w").write("x")
 """
@@ -38,7 +44,7 @@ class RunV4GateTest(unittest.TestCase):
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
-                    "research_gate.py", "manifest.py", "capabilities.py", "design_ledger.py"):
+                    "research_gate.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -227,6 +233,50 @@ class RunV4GateTest(unittest.TestCase):
     def test_a_failed_stamp_fails_the_film(self):
         render, _ = self.run_v4(rc=1, FAIL_manifest="1")
         self.assertIn("FAILED manifest x", render)
+
+    def test_a_gate_off_without_kamils_waiver_renders_nothing(self):  # 2026-11-04 v5: LIP_CHECK=off on 5 shorts, a log line only
+        render, calls = self.run_v4(rc=1, LIP_CHECK="off", FAIL_waivers="1")
+        self.assertIn("SKIPPED_GATES: lip_check", render)
+        self.assertIn("FAILED waivers x (gates off: lip_check)", render)
+        self.assertEqual(calls, ["waivers.py"])
+
+    def test_every_run_names_the_gates_that_are_off(self):
+        render, calls = self.run_v4()
+        self.assertIn("SKIPPED_GATES: none", render)
+        self.assertNotIn("waivers.py", calls)
+
+    def test_gates_off_with_a_waiver_are_named_and_the_film_renders(self):
+        render, calls = self.run_v4(LIP_CHECK="off", WORDS_CHECK="off")
+        self.assertIn("SKIPPED_GATES: lip_check words_check", render)
+        self.assertEqual(calls[0], "waivers.py")
+        self.assertIn("DONE x", render)
+
+    def test_no_passed_dry_run_no_full_render(self):  # 2026-11-04 long: 5 full renders, the checks ran after each
+        render, calls = self.run_v4(rc=1, FAIL_dry_need="1")
+        self.assertIn("FAILED dry_run x", render)
+        self.assertNotIn("assemble.py", calls)
+        self.assertNotIn("make_beds.py", calls)
+
+    def test_a_dry_run_runs_every_check_and_leaves_no_film(self):
+        render, calls = self.run_v4(DRY="1")
+        self.assertIn("DRY_OK x", render)
+        self.assertNotIn("DONE x", render)
+        self.assertEqual(list(self.out.iterdir()), [])
+        self.assertIn("assemble:--dry", calls)
+        self.assertIn("dry_run:pass", calls)
+        self.assertNotIn("dry_run:need", calls)
+        for gate in ("av_check.py", "sync_check.py", "lip_check.py", "words_check.py"):
+            self.assertIn(gate, calls)
+        self.assertNotIn("manifest.py", calls)
+
+    def test_a_dry_run_with_a_failed_check_opens_nothing(self):
+        render, calls = self.run_v4(rc=1, DRY="1", FAIL_av_check="1")
+        self.assertNotIn("DRY_OK x", render)
+        self.assertNotIn("dry_run:pass", calls)
+
+    def test_a_dry_run_that_cannot_be_recorded_fails(self):
+        render, _ = self.run_v4(rc=1, DRY="1", FAIL_dry_pass="1")
+        self.assertIn("FAILED dry_run pass x", render)
 
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")
