@@ -672,6 +672,18 @@
    "why": "off by default (edges.py); repairs dips at cut edges; all 2026-11-04 plans set it"
   },
   {
+   "id": "plan.cut_fix",
+   "kind": "plan",
+   "name": "cut_fix",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "cut edges Kamil moved on the Kdenlive timeline (kden_import.py); unused = he moved none"
+  },
+  {
    "id": "plan.edl_out",
    "kind": "plan",
    "name": "edl_out",

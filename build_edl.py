@@ -11,6 +11,7 @@ import re
 import sys
 from pathlib import Path
 
+import cut_fix
 import edges
 import edl_guard
 import framing
@@ -94,6 +95,9 @@ for t0, t1, a in ranges:
         j = k - 1 if k == len(rs) - 1 or (k > 0 and rs[k][0] - rs[k - 1][1] < rs[k + 1][0] - rs[k][1]) else k
         rs[j:j + 2] = [[rs[j][0], rs[j + 1][1], rs[j + 1][2]]]
     segs += rs
+if "cut_fix" in P:  # cut edges moved by hand on the Kdenlive timeline (cut_fix.py, kden_import.py)
+    try: print("cut_fix moved", cut_fix.apply(segs, P["cut_fix"]), "cut edges")
+    except cut_fix.CutFixError as e: sys.exit(str(e))
 # zoom: toggle only on real jump cuts (removed > 0.8 s of source) -> hides the jump
 zs = P.get("zooms", [1.0, 1.15]); zi = 0; out = []; prev_end = None
 EXACT = bool(P.get("seg_exact"))  # assemble.py cuts whole frames then: film times come from timeline.py, never from EDL lengths
