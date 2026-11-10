@@ -5,5 +5,11 @@
   "site": "KamilJan.com",
   "lower_sub": "Inżynier automatyzacji i wdrożeń AI · KamilJan.com",
   "description_footer": "Strona: https://KamilJan.com",
-  "_doc_footer": "description_footer: the last line of every long description (desc_check.py Y5); one place for it."
+  "_doc_footer": "description_footer: the last line of every long description (desc_check.py Y5); one place for it.",
+  "instagram_hashtags": [
+    "#claudecode",
+    "#programowanie",
+    "#ai"
+  ],
+  "_doc_instagram": "instagram_hashtags: the default tags of every carousel caption (ig_carousel.py; platform limit 5, ig_check WARN above 3); a post overrides with posts.json 'hashtags_ig'."
 }

@@ -66,7 +66,7 @@ export function checkPostGfx(g) {
   return bad;
 }
 
-const css = (theme) => {
+export const css = (theme) => {
   const c = readTheme(theme, undefined, 'grafika.json').css;  // name and tokens checked: one goes into a path, the other into <style>
   return `@font-face{font-family:M;src:url(${pathToFileURL(FONT).href})}
 :root{${Object.entries(c).map(([k, v]) => `${k}:${v}`).join(';')}}

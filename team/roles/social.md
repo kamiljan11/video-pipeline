@@ -22,8 +22,8 @@ Ocena 0-3: samodzielność, konkret, kontrowersja/nowość, da się pokazać gra
 
 ## Instagram (`ig_check.py` = round 2 IG1, IG2, IG4, IG6)
 
-- Karuzela = slajdy posta LinkedIn (te same, 1080x1350), ostatni slajd z JEDNYM wezwaniem (zapisz / wyślij / skomentuj) i "link w bio": link w podpisie na Instagramie nie jest klikalny.
+- Karuzela = 5-10 slajdów 1080x1350 z TEKSTU posta (`python3 ig_carousel.py --posts work/posts.json --posts-dir out/posts --out out/instagram`; `carousel.json` per post = hak, 3-8 myśli po 1-2 zdania, wezwanie; ręczna edycja zostaje, `--regen` liczy od nowa), ostatni slajd z JEDNYM wezwaniem (zapisz / wyślij / skomentuj) i "link w bio": link w podpisie na Instagramie nie jest klikalny.
 - `caption.json`: tekst posta z "link w bio" zamiast linków, 3 hashtagi (limit platformy 5), `alt` = jeden opis na slajd.
 - Reels = shorty: `reels/<short>.json`, linia 1 = tytuł shorta, potem teza, na końcu "link w bio".
 - Sprawdzenie: `python3 ig_check.py --words <words json> <out>/instagram` (exit 0 = można pokazać Kamilowi). Publikacja tylko po jego OK.
-- Odstępstwa od PLAN2: limity w `style/platform_limits.json` (jedna tabela na formę, X2) zamiast `style/instagram.json`; 2 wezwania na ostatnim slajdzie = WARN, nie FAIL (SYNTH2-instagram sekcja 0: tylko limity platformy i liczby blokują). Otwarte: IG3 (własny render slajdów `carousel_lib.mjs` po merge `feat/linkedin-carousel`, decyzja Kamila; do tego czasu strony PDF karuzeli LinkedIn -> PNG), IG5 (pas siatki x 34-1046), IG7 (Insights 4 tyg.).
+- Odstępstwa od PLAN2: limity w `style/platform_limits.json` (jedna tabela na formę, X2) zamiast `style/instagram.json`; 2 wezwania na ostatnim slajdzie = WARN, nie FAIL (SYNTH2-instagram sekcja 0: tylko limity platformy i liczby blokują). Otwarte: IG3 zrobione 2026-11-10 (`gfx/carousel_gfx.mjs`, bez PDF), IG5 (pas siatki x 34-1046), IG7 (Insights 4 tyg.).
