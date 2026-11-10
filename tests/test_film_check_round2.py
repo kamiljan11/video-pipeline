@@ -376,6 +376,15 @@ class CardUseTest(FilmFixture):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new ca
         self.assertTrue(f.define_used()[0]); self.assertTrue(f.note_used()[0])
         self.assertTrue(self.film([], sp).define_used()[0])  # no cue word: no define card needed
 
+    def test_a_web_card_whose_source_line_points_to_the_description_counts_as_the_note(self):
+        words = [(83.0, "opisie.")]
+        web = [{"id": "w", "type": "web", "src": "Źródło: GitHub · repo · link w opisie"}]
+        self.assertTrue(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], web, words).note_used()[0])
+        bare = [{"id": "w", "type": "web", "src": "Źródło: GitHub · repo"}]
+        self.assertFalse(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], bare, words).note_used()[0])  # a screen alone is not the pointer
+        scene = [{"id": "w", "type": "scene", "src": "link w opisie"}]
+        self.assertFalse(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], scene, words).note_used()[0])  # only a web card's source line
+
     def test_scene_zoom_items_and_panel_moves(self):
         sp = [{"id": "s", "type": "scene", "els": []}, {"id": "w", "type": "web"}]
         f = self.film([{"id": "s", "at": 0, "dur": 8}, {"id": "w", "at": 20, "dur": 9, "moves": [23.0]}], sp)

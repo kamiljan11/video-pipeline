@@ -733,6 +733,7 @@ class Film:
 
     CUE_DEFINE = re.compile(r"^(czyli|znaczy)$", re.IGNORECASE)
     CUE_NOTE = re.compile(r"^(opisie|opisu|zastrze\w*|link\w*)$", re.IGNORECASE)
+    SRC_NOTE = re.compile(r"\b(w opisie|link\w*)\b", re.IGNORECASE)  # a web card's source line that carries the pointer
 
     def define_used(self):
         """round 2 L12: a term the speaker explains ("czyli", "to znaczy") gets a define card (lower + "define": term +
@@ -743,9 +744,11 @@ class Film:
 
     def note_used(self, near: float = 10):
         """round 2 L21: a pointer said aloud ("w opisie", "link", "zastrzeżenie") shows a note card (or the cta) within
-        10 s, so a viewer who only reads still gets it"""
+        10 s, so a viewer who only reads still gets it; a web card whose source line says it ("... · link w opisie", the
+        screen of the repo being pointed to, 2026-11-10 w_repo) shows the pointer too"""
         cues = [t for t, w in self.film_words() if self.CUE_NOTE.match(w.strip(".,!?"))]
-        shown = [o["at"] for o in self.ovs if o.get("variant") == "note" or self.typ(o) == "cta"]
+        shown = [o["at"] for o in self.ovs if o.get("variant") == "note" or self.typ(o) == "cta"
+                 or (self.typ(o) == "web" and self.SRC_NOTE.search(str(self.specs.get(o["id"], {}).get("src", ""))))]
         bad = [t for t in cues if not any(abs(a - t) <= near for a in shown)]
         return not bad, f"said without a note card at {', '.join(f'{t:.0f} s' for t in bad[:6])}" if bad else f"{len(cues)} pointers, all shown"
 
