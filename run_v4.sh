@@ -26,6 +26,13 @@ tl run "${DRY:+dry }$*"
 # render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
 { [ -d "$OUT" ] && [ -w "$OUT" ]; } || { echo "FAILED out: no writable folder $OUT seen from $WORK (a relative OUT counts from the work folder)" | tee -a "$R/render.log" >&2
   echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 2; }
+# the long first: any other film of the recording only after Kamil accepted the long he watched (accept.py, ADR-0025)
+for n in "$@"; do
+  [ "$n" = long ] && continue
+  python3 $VP/accept.py check . >> "$R/render.log" 2>&1 || { echo "FAILED accept: $n waits for the accepted long" >> "$R/render.log"
+    echo ALL_DONE >> "$R/render.log"; echo "FAILED_FILMS $*" >> "$R/render.log"; exit 1; }
+  break
+done
 # a gate switched off needs Kamil's words in every film's plan (waivers.py, ADR-0025): no off switch for this check.
 # 2026-11-04 v5: LIP_CHECK=off on 5 shorts left only a log line
 OFF=(); for g in LIP_CHECK WORDS_CHECK FILM_CHECK SCENE_CHECK RESEARCH_GATE; do [ "${!g:-on}" = off ] && OFF+=("${g,,}"); done

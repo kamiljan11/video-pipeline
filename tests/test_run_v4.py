@@ -44,7 +44,7 @@ class RunV4GateTest(unittest.TestCase):
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
-                    "research_gate.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py"):
+                    "research_gate.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -67,9 +67,9 @@ class RunV4GateTest(unittest.TestCase):
         self.out.mkdir()
         (self.work / "edl_x.json").write_text(json.dumps({"out_name": "film.mp4"}))
 
-    def run_v4(self, rc: int = 0, **env: str) -> tuple[str, list[str]]:
+    def run_v4(self, rc: int = 0, film: str = "x", **env: str) -> tuple[str, list[str]]:
         log = self.tmp / "calls.log"
-        r = subprocess.run(["bash", str(self.vp / "run_v4.sh"), str(self.work), str(self.out), "x"], check=False, timeout=60,
+        r = subprocess.run(["bash", str(self.vp / "run_v4.sh"), str(self.work), str(self.out), film], check=False, timeout=60,
                            env={**os.environ, "RUNV4_LOG": str(log), **env}, capture_output=True, text=True)
         self.assertEqual(r.returncode, rc, r.stderr)
         return (self.vp / "render" / "render.log").read_text(), log.read_text().split() if log.exists() else []
@@ -79,12 +79,12 @@ class RunV4GateTest(unittest.TestCase):
         render, calls = self.run_v4(rc=1, FAIL_scene_check="1")
         self.assertIn("FAILED scene_check", render)
         self.assertIn("FAILED_FILMS x", render)
-        self.assertEqual(calls, ["scene_check.mjs"])  # no graphics, no film step
+        self.assertEqual(calls, ["accept.py", "scene_check.mjs"])  # no graphics, no film step
 
     def test_clean_scenes_go_on_to_the_render(self):
         (self.work / "gfx_specs.json").write_text(json.dumps(SCENE))
         render, calls = self.run_v4()
-        self.assertEqual(calls[:2], ["scene_check.mjs", "render.mjs"])
+        self.assertEqual(calls[:3], ["accept.py", "scene_check.mjs", "render.mjs"])
         self.assertIn("DONE x", render)
 
     def test_no_scene_card_no_scene_check(self):
@@ -238,7 +238,7 @@ class RunV4GateTest(unittest.TestCase):
         render, calls = self.run_v4(rc=1, LIP_CHECK="off", FAIL_waivers="1")
         self.assertIn("SKIPPED_GATES: lip_check", render)
         self.assertIn("FAILED waivers x (gates off: lip_check)", render)
-        self.assertEqual(calls, ["waivers.py"])
+        self.assertEqual(calls, ["accept.py", "waivers.py"])
 
     def test_every_run_names_the_gates_that_are_off(self):
         render, calls = self.run_v4()
@@ -248,7 +248,7 @@ class RunV4GateTest(unittest.TestCase):
     def test_gates_off_with_a_waiver_are_named_and_the_film_renders(self):
         render, calls = self.run_v4(LIP_CHECK="off", WORDS_CHECK="off")
         self.assertIn("SKIPPED_GATES: lip_check words_check", render)
-        self.assertEqual(calls[0], "waivers.py")
+        self.assertEqual(calls[:2], ["accept.py", "waivers.py"])
         self.assertIn("DONE x", render)
 
     def test_no_passed_dry_run_no_full_render(self):  # 2026-11-04 long: 5 full renders, the checks ran after each
@@ -284,6 +284,17 @@ class RunV4GateTest(unittest.TestCase):
         self.assertEqual([m[1] for m in marks], ["run dry x", "gfx", "plan x", "beds x", "assemble x", "checks x", "end "])
         for when, _ in marks:
             self.assertRegex(when, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d")
+
+    def test_no_other_film_before_the_long_is_accepted(self):  # Kamil 2026-11-10: the rest only after "jedz dalej"
+        render, calls = self.run_v4(rc=1, FAIL_accept="1")
+        self.assertIn("FAILED accept: x waits for the accepted long", render)
+        self.assertEqual(calls, ["accept.py"])
+
+    def test_the_long_itself_needs_no_acceptance(self):
+        (self.work / "edl_long.json").write_text(json.dumps({"out_name": "film.mp4"}))
+        render, calls = self.run_v4(film="long", FAIL_accept="1")
+        self.assertIn("DONE long", render)
+        self.assertNotIn("accept.py", calls)
 
     def test_film_check_off_is_logged_and_skipped(self):
         render, calls = self.run_v4(FILM_CHECK="off", FAIL_film_check="1")

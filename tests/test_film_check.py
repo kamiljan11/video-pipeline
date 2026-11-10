@@ -154,7 +154,7 @@ class FilmCheckTest(unittest.TestCase):
             ovs.append({"id": f"s{k}", "at": 10 + 100 * k, "dur": 12}); specs.append({"id": f"s{k}", "type": "scene", "dur": 12, "els": [{"k": "chip", "id": "c", "x": 0, "y": 500, "text": "exit 2", "at": 2}]})  # drawable: long.scenes runs scene_check
         for k, at in enumerate(range(20, 600, 6)):  # cards beside him cover most of the film: face_full <= 0.35
             ovs.append({"id": f"k{k}", "at": at, "dur": 4}); specs.append({"id": f"k{k}", "type": "kw", "title": f"{k + 2} kroki"})
-        for k, at in enumerate((2, 5)):
+        for k, at in enumerate((2, 305)):  # spread over the film (long.effect_spread)
             ovs.append({"id": f"b{k}", "at": at, "dur": 2.5}); specs.append({"id": f"b{k}", "type": "float", "behind": {"edl": "edl_long.json"}})
         for k, at in enumerate((150, 350, 550)):
             ovs.append({"id": f"m{k}", "at": at, "dur": 3}); specs.append({"id": f"m{k}", "type": "sticker", "meme": "drake"})  # beside him, not a screen

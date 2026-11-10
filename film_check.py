@@ -156,6 +156,13 @@ def body_len(edl: dict) -> float:
     return timeline.total(edl["segments"], exact(edl))
 
 
+# the film's own look, wanted from start to end; web shots, memes and stickers follow what is said (measured on the
+# 2026-11-04 long: web 3/0/2 per third with nothing to show in the middle), so they are not judged
+SPREAD_TYPES = ("float", "kw", "scene")
+SPREAD_ALL, SPREAD_MIN_S = 4, 180.0
+SPREAD_NAMES = ("first", "middle", "last")
+
+
 def punches(edl: dict) -> list[float]:
     """film times of punch-in zooms: an animated zoom inside a piece (build_edl emph) or an editing-grammar punch"""
     out = []
@@ -344,6 +351,26 @@ class Film:
         on_face = [t for t in punches(self.edl) if not any(a <= t < b for a, b in spans)]  # a canvas zoom inside a card is not one
         return round(len(on_face) / (face / 60), 2), ""
     def behind_cards(self): return sum(1 for o in self.ovs if "behind" in self.specs.get(o["id"], {}))
+
+    def effect_spread(self):
+        """every kind of effect the film uses is spread over the film, not spent in its first minutes (Kamil 2026-11-10:
+        "na poczatku sa jakies efekty potem juz o nich zapominasz"). Kinds: SPREAD_TYPES cards, cards behind the speaker,
+        punch-ins. A kind used >= SPREAD_ALL times must be in every third of the film, used 2-3 times in two thirds; a
+        kind used once and a film under SPREAD_MIN_S are not judged."""
+        if self.len < SPREAD_MIN_S: return True, ""
+        kinds: dict[str, list[float]] = {"punch": punches(self.edl)}
+        for o in self.ovs:
+            if self.typ(o) in SPREAD_TYPES: kinds.setdefault(self.typ(o), []).append(o["at"])
+            if "behind" in self.specs.get(o["id"], {}): kinds.setdefault("behind", []).append(o["at"])
+        bad = []
+        for kind, at in sorted(kinds.items()):
+            if len(at) < 2: continue
+            hit = {min(int(t / self.len * 3), 2) for t in at}
+            need = 3 if len(at) >= SPREAD_ALL else 2
+            if len(hit) < need:
+                gone = ", ".join(SPREAD_NAMES[i] for i in range(3) if i not in hit)
+                bad.append(f"{kind} ({len(at)}x) missing in the {gone} third")
+        return not bad, "; ".join(bad)
 
     def behind_cover_max(self):
         """the worst share of a "behind" text card the speaker hides (behind.py writes <id>.cover.json next to the card);

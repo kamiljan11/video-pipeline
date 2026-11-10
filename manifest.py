@@ -23,7 +23,7 @@ NOT_CODE = (":(exclude)docs", ":(exclude)tests", ":(exclude)*.md")
 FILM_DIRS = ("long", "shorts")
 # code that never touches a film or its checks (the materials' tools, this stamp): a change here does not make long/ or
 # shorts/ stale (2026-11-10: an ig_carousel path fix would have re-rendered the 18 min long). Anything not listed counts.
-NOT_FILM = ("manifest.py", "watch_render.py", "ig_carousel.py", "ig_check.py", "post_check.py", "article_check.py", "desc_check.py", "publish_post.py",
+NOT_FILM = ("manifest.py", "watch_render.py", "accept.py", "kden_export.py", "kden_import.py", "ig_carousel.py", "ig_check.py", "post_check.py", "article_check.py", "desc_check.py", "publish_post.py",
                  "utm.py", "thumb_check.py", "gfx/carousel_gfx.mjs", "gfx/post_gfx.mjs", "gfx/thumbs.mjs")
 SKIP = {"manifest.json", "RAPORT.md"}  # top-level entries of out that are not made by a pipeline step
 

@@ -50,6 +50,13 @@
    "why": "Seconds without a card, punch-in or b-roll; film 2 had 166 s"
   },
   {
+   "id": "long.effect_spread",
+   "fmt": "long",
+   "metric": "effect_spread",
+   "op": "true",
+   "why": "Kamil 2026-11-10: 'na poczatku sa jakies efekty potem juz o nich zapominasz': separate screens, side screens, keywords, cards behind the head and punch-ins in every third of the film (used 2-3 times: in two thirds)"
+  },
+  {
    "id": "long.opening",
    "fmt": "long",
    "metric": "events_first_60s",

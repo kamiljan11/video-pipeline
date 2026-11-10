@@ -28,6 +28,23 @@ class LongResearchTest(unittest.TestCase):
         if story: (self.d / "story.json").write_text(json.dumps(story))
         return film_check.Film(self.d, "long")
 
+    def test_effects_spent_in_the_first_minutes_are_named(self):  # Kamil 2026-11-10: "potem juz o nich zapominasz"
+        specs = [{"id": "s", "type": "scene"}, {"id": "k", "type": "kw"}, {"id": "b", "type": "lower", "behind": {}}, {"id": "w", "type": "web"}]
+        card = lambda i, at: {"id": i, "at": float(at), "dur": 3.0}
+        even = [card("s", t) for t in (20, 150, 250, 400, 550)] + [card("k", 30), card("k", 500)] + [card("b", 100), card("b", 300), card("b", 520)]
+        self.assertEqual(self.film(even + [card("w", t) for t in (10, 20, 30, 40)], specs).effect_spread(), (True, ""))  # web shots follow the talk
+        early = [card("s", t) for t in (20, 60, 100, 150)] + [card("k", 30), card("k", 90)] + [card("b", 100), card("b", 300), card("b", 520)]
+        ok, detail = self.film(early, specs).effect_spread()
+        self.assertFalse(ok)
+        self.assertIn("scene (4x) missing in the middle, last third", detail)
+        self.assertIn("kw (2x) missing in the middle, last third", detail)  # two uses: wanted in two thirds
+        self.assertNotIn("behind", detail)
+
+    def test_one_use_and_a_short_film_are_not_judged_for_spread(self):
+        specs = [{"id": "s", "type": "scene"}]
+        self.assertEqual(self.film([{"id": "s", "at": 5.0, "dur": 3.0}], specs).effect_spread(), (True, ""))
+        self.assertEqual(self.film([{"id": "s", "at": float(t), "dur": 3.0} for t in (1, 5, 9, 13)], specs, length=120).effect_spread(), (True, ""))
+
     def test_l2_pace_names_a_slow_block_and_an_empty_pause(self):
         f = self.film([], [], length=600)
         ok, _ = f.pace_flat()
