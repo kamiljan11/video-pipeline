@@ -21,6 +21,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 NOT_CODE = (":(exclude)docs", ":(exclude)tests", ":(exclude)*.md")
 FILM_DIRS = ("long", "shorts")
+# code that never touches a film or its checks (the materials' tools, this stamp): a change here does not make long/ or
+# shorts/ stale (2026-11-10: an ig_carousel path fix would have re-rendered the 18 min long). Anything not listed counts.
+NOT_FILM = ("manifest.py", "ig_carousel.py", "ig_check.py", "post_check.py", "article_check.py", "desc_check.py", "publish_post.py",
+                 "utm.py", "thumb_check.py", "gfx/carousel_gfx.mjs", "gfx/post_gfx.mjs", "gfx/thumbs.mjs")
 SKIP = {"manifest.json", "RAPORT.md"}  # top-level entries of out that are not made by a pipeline step
 
 
@@ -37,10 +41,11 @@ def dirty() -> bool:
     return bool(git("status", "--porcelain", "--", ".", *NOT_CODE).stdout.strip())
 
 
-def code_changed(commit: str) -> str | None:
-    """None when the code at `commit` equals HEAD's; else a short reason"""
+def code_changed(commit: str, film: bool = False) -> str | None:
+    """None when the code at `commit` equals HEAD's (for a film: leaving out NOT_FILM); else a short reason"""
     if git("cat-file", "-e", f"{commit}^{{commit}}").returncode: return f"unknown commit {commit[:12]}"
-    r = git("diff", "--name-only", commit, "HEAD", "--", ".", *NOT_CODE)
+    skip = [f":(exclude){f}" for f in NOT_FILM] if film else []
+    r = git("diff", "--name-only", commit, "HEAD", "--", ".", *NOT_CODE, *skip)
     files = r.stdout.split()
     return f"code changed since {commit[:7]}: {', '.join(files[:4])}{' ...' if len(files) > 4 else ''}" if files else None
 
@@ -76,8 +81,9 @@ def check(out: Path) -> list[str]:
         if not e: bad.append(f"{name}: no stamp (made outside the pipeline, or before manifest.py)"); continue
         if e.get("dirty"): bad.append(f"{name}: made with uncommitted code ({e.get('commit', '')[:7]})"); continue
         c = e.get("commit", "")
-        if c not in cache: cache[c] = code_changed(c)
-        if cache[c]: bad.append(f"{name}: {cache[c]}")
+        film = folder != out and folder.name in FILM_DIRS
+        if (c, film) not in cache: cache[c, film] = code_changed(c, film)
+        if cache[c, film]: bad.append(f"{name}: {cache[c, film]}")
     return bad
 
 

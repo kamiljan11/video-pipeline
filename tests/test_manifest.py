@@ -61,6 +61,13 @@ class ManifestTest(unittest.TestCase):
         self.commit("docs/n.md", "m\n"); self.commit("tests/test_a.py", "pass\n"); self.commit("README.md", "r\n")
         self.assertEqual(manifest.check(self.out), [])
 
+    def test_a_material_tool_change_leaves_the_films_current(self):  # 2026-11-10: ig_carousel fix vs the long
+        self.stamp_all()
+        self.commit("ig_carousel.py", "y = 1\n"); self.commit("gfx/thumbs.mjs", "//\n")
+        self.assertEqual([b.split(":")[0] for b in manifest.check(self.out)], ["thumbnails"])
+        self.commit("gfx/render.mjs", "//\n")  # film code: every part is stale again
+        self.assertEqual(len(manifest.check(self.out)), 3)
+
     def test_a_stamp_from_uncommitted_code_fails(self):
         (self.repo / "a.py").write_text("x = 3\n")
         self.stamp_all()
