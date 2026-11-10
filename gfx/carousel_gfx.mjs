@@ -14,6 +14,7 @@ import { CSP, W, H, css } from './post_gfx.mjs';
 import { isMain } from './cli.mjs';
 
 export const SLIDES = [5, 10];  // slides_ok in style/platform_limits.json "instagram" (ig_check warns outside)
+export const HOOK_MAX = 160;    // characters of the hook slide (= ig_carousel.HOOK_MAX)
 export const IDEA_MAX = 260;    // characters of one idea: longer is two ideas
 const FIELDS = { hook: ['kicker', 'title', 'sub'], idea: ['head', 'text'], call: ['title', 'call', 'bio'] };
 
@@ -39,7 +40,7 @@ export function checkCarousel(c) {
     const need = { hook: 'title', idea: 'text', call: 'call' }[s.type];
     if (typeof s[need] !== 'string' || !s[need].trim()) bad.push(`${at}: "${need}" is empty`);
     if (s.type === 'idea' && typeof s.text === 'string' && s.text.length > IDEA_MAX) bad.push(`${at}: ${s.text.length} characters, one idea is at most ${IDEA_MAX}: split it`);
-    if (s.type === 'hook' && typeof s.title === 'string' && s.title.length > 160) bad.push(`${at}: the hook is ${s.title.length} characters, at most 160`);
+    if (s.type === 'hook' && typeof s.title === 'string' && s.title.length > HOOK_MAX) bad.push(`${at}: the hook is ${s.title.length} characters, at most ${HOOK_MAX}`);
   });
   if (c.theme !== undefined && (typeof c.theme !== 'string' || !/^[a-z0-9-]{1,40}$/.test(c.theme))) bad.push('"theme" = a name from style/themes, like "cetus"');
   if (c.author !== undefined && typeof c.author !== 'string') bad.push('"author" = a string');

@@ -384,6 +384,9 @@ class CardUseTest(FilmFixture):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new ca
         self.assertFalse(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], bare, words).note_used()[0])  # a screen alone is not the pointer
         scene = [{"id": "w", "type": "scene", "src": "link w opisie"}]
         self.assertFalse(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], scene, words).note_used()[0])  # only a web card's source line
+        linkedin = [{"id": "w", "type": "web", "src": "Źródło: LinkedIn · post"}]
+        self.assertFalse(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], linkedin, words).note_used()[0])  # review 2026-11-10 code-1
+        self.assertTrue(self.film([], [], [(5.0, "LinkedIn")]).note_used()[0])  # a spoken "LinkedIn" is not a pointer word
 
     def test_scene_zoom_items_and_panel_moves(self):
         sp = [{"id": "s", "type": "scene", "els": []}, {"id": "w", "type": "web"}]

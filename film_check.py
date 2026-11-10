@@ -732,8 +732,8 @@ class Film:
         return not bad, f"chap cards without chap_style: {', '.join(bad[:6])}" if bad else f"{len(chaps)} chap cards drawn as the map"
 
     CUE_DEFINE = re.compile(r"^(czyli|znaczy)$", re.IGNORECASE)
-    CUE_NOTE = re.compile(r"^(opisie|opisu|zastrze\w*|link\w*)$", re.IGNORECASE)
-    SRC_NOTE = re.compile(r"\b(w opisie|link\w*)\b", re.IGNORECASE)  # a web card's source line that carries the pointer
+    CUE_NOTE = re.compile(r"^(opisie|opisu|zastrze\w*|link(?:i|u|a|iem|ach|ów)?)$", re.IGNORECASE)  # "link", "linku"...; not "LinkedIn"
+    SRC_NOTE = re.compile(r"\bw opisie\b", re.IGNORECASE)  # a web card's source line that carries the pointer ("link w opisie"); review 2026-11-10: not "LinkedIn"
 
     def define_used(self):
         """round 2 L12: a term the speaker explains ("czyli", "to znaczy") gets a define card (lower + "define": term +

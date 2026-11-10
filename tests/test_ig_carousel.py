@@ -87,6 +87,21 @@ class ReviewFixesTest(unittest.TestCase):  # code review 2026-11-10
                 C.build("p", POST, d, "Kamil Jan", [])
             self.assertFalse((d / "p" / "caption.json").exists())
 
+    def test_a_slide_that_is_not_an_object_is_a_named_error(self):  # review 2026-11-10 code-2/data-1
+        with self.assertRaises(ValueError):
+            C.check({"slides": ["x", "y"]})
+
+    def test_a_post_id_that_leaves_out_is_refused(self):  # review 2026-11-10 security-1
+        with tempfile.TemporaryDirectory() as t:
+            for bad in ("../x", "/tmp/x", "a/b", ""):
+                with self.assertRaises(ValueError):
+                    C.build(bad, POST, Path(t), "Kamil Jan", [])
+
+    def test_python_and_the_renderer_keep_the_same_limits(self):  # review 2026-11-10 code-3
+        js = (Path(C.__file__).parent / "gfx" / "carousel_gfx.mjs").read_text(encoding="utf-8")
+        for name in ("HOOK_MAX", "IDEA_MAX"):
+            self.assertIn(f"export const {name} = {getattr(C, name)};", js)
+
     def test_the_idea_range_comes_from_platform_limits(self):
         lim = json.loads((Path(C.__file__).parent / "style" / "platform_limits.json").read_text(encoding="utf-8"))["instagram"]["slides_ok"]
         self.assertEqual(C.IDEAS, (lim[0] - 2, lim[1] - 2))

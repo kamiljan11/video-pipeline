@@ -37,7 +37,7 @@ flowchart LR
 | Framing | `face_track.py`, `head_check.py` | face tracking for 16:9 and 9:16 crops, zoom limits that keep the head in frame |
 | Critic | `critic.py` | 13 checks: static stretches, overlay collisions, hook timing, choppy shots, caption length, end screen, loudness (-14 LUFS), clipped speech, unverified numbers on screen, editing grammar, b-roll, dead air and loud cuts at edges; `--fix` rewrites the plan |
 | Safety | `edl_guard.py` | an EDL may carry only numbers, local paths and allow-listed filters into ffmpeg ([ADR-0006](docs/adr/0006-edl-guard.md)) |
-| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists, explainer scenes with a camera) rendered by Chrome to ProRes 4444 with alpha ; pages at once = free cores / 4, 1-6 (`gfx/pace_lib.mjs`; `GFX_PAGES=<n>` overrides), a slow screenshot waits 30 / 90 / 240 s before the card fails (night 2026-11-10: 6 pages under another job's load timed out on every try) |
+| Motion cards | `gfx/render.mjs` | HTML/CSS cards (keywords, numbers, maxims, web pages, lists, explainer scenes with a camera) rendered by Chrome to ProRes 4444 with alpha; pages at once = free cores / 4, 1-6 (`gfx/pace_lib.mjs`; `GFX_PAGES=<n>` overrides, 1-16), a slow screenshot waits 30 / 90 / 240 s before the card fails (night 2026-11-10: 6 pages under another job's load timed out on every try) |
 | Text behind the speaker | `behind.py` | RobustVideoMatting matte, the card sits between the background and the person ([ADR-0005](docs/adr/0005-text-behind-speaker.md)) |
 | B-roll | `broll.py`, `stock.py` | free Pexels clips where the speech names a concrete thing; credits for the description |
 | Music | `music/make_beds.py` | generated beds and SFX, ducked under the voice |

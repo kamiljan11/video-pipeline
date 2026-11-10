@@ -13,6 +13,7 @@ test('GFX_PAGES overrides, a bad value is refused', () => {
   assert.equal(pageCount(32, 40, '4'), 4);
   assert.throws(() => pageCount(32, 4, '0'), /GFX_PAGES/);
   assert.throws(() => pageCount(32, 4, 'x'), /GFX_PAGES/);
+  assert.throws(() => pageCount(32, 4, '500'), /GFX_PAGES/);  // review 2026-11-10: capped at PAGES_CAP
 });
 
 const timeout = () => Object.assign(new Error('page.screenshot: Timeout 30000ms exceeded.'), { name: 'TimeoutError' });

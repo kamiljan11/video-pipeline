@@ -28,6 +28,7 @@ ROOT = Path(__file__).resolve().parent
 BRAND = ROOT / "style" / "brand.json"
 _LIMITS = json.loads((Path(__file__).resolve().parent / "style" / "platform_limits.json").read_text(encoding="utf-8"))["instagram"]
 IDEAS = (_LIMITS["slides_ok"][0] - 2, _LIMITS["slides_ok"][1] - 2)  # a hook + ideas + a call = slides_ok (ig_check warns outside)
+POST_ID = re.compile(r"[a-z0-9][a-z0-9_-]*")  # review 2026-11-10 security-1: an id like ../x wrote outside --out
 HOOK_MAX = 160         # characters of the hook slide (gfx/carousel_gfx.mjs checkCarousel)
 IDEA_MAX = 260         # characters of one idea (gfx/carousel_gfx.mjs IDEA_MAX)
 SHORT = 50             # a sentence shorter than this joins its neighbour: one idea needs more than a few words
@@ -118,6 +119,7 @@ def check(car: dict) -> None:
     """the rules a carousel spec keeps, derived or edited by hand (review 2026-11-10: a bad hand edit failed only in the node
     step, after caption.json was written); ValueError names the first broken rule"""
     sl = car.get("slides") if isinstance(car, dict) else None  # named car: capabilities.py reads a variable named spec as a gfx card
+    if isinstance(sl, list) and not all(isinstance(x, dict) for x in sl): raise ValueError("carousel.json: every slide is an object")
     if not isinstance(sl, list) or len(sl) < 2 or sl[0].get("type") != "hook" or sl[-1].get("type") != "call":
         raise ValueError("carousel.json: slides = a hook first, a call last")
     ideas = [x for x in sl[1:-1] if x.get("type") == "idea"]
@@ -150,6 +152,7 @@ def alt_texts(spec: dict) -> list[str]:
 
 def build(post_id: str, text: str, out: Path, author: str, tags: list[str], regen: bool = False) -> dict:
     """write carousel.json (kept when it exists) and caption.json of one post; -> the spec"""
+    if not POST_ID.fullmatch(str(post_id)): raise ValueError(f"post id {post_id!r}: want [a-z0-9][a-z0-9_-]* (it names a folder under --out)")
     d = out / post_id
     d.mkdir(parents=True, exist_ok=True)
     f = d / "carousel.json"
@@ -184,7 +187,7 @@ def main(argv: list[str]) -> int:
         try:
             post = json.loads((a.posts_dir / p["id"] / "linkedin.json").read_text(encoding="utf-8"))
             spec_g = json.loads((a.posts_dir / p["id"] / "grafika.json").read_text(encoding="utf-8")) if (a.posts_dir / p["id"] / "grafika.json").exists() else {}
-            build(p["id"], post["text"], a.out, spec_g.get("author", "Kamil Jan · Higher Minds"), p.get("hashtags_ig", default_tags), a.regen)
+            build(p["id"], post["text"], a.out, spec_g.get("author", "Kamil Jan · Higher Mind"), p.get("hashtags_ig", default_tags), a.regen)
             dirs.append(str(a.out / p["id"]))
         except (OSError, ValueError, KeyError) as e:
             print(f"ig_carousel: {p['id']}: {e}", file=sys.stderr); failed += 1
