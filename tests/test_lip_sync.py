@@ -47,6 +47,38 @@ class ChainLatencyTest(unittest.TestCase):
             av_latency.chain_ms("adelay=300", max_ms=200)
 
 
+class PiecesTest(unittest.TestCase):
+    """2026-11-14: cards over 1073 of the long's 1086 s left lip_check 0 pieces, OK without a measurement"""
+
+    def edl(self, overlays):
+        segs = [{"src": 0, "in": 10.0 * k, "out": 10.0 * k + 3.0} for k in range(6)]  # 6 pieces of 3 s, film 0-18 s
+        return {"segments": segs, "overlays": overlays}
+
+    def test_free_pieces_come_first(self):
+        e = self.edl([{"at": 0.0, "dur": 6.0}])  # cards over the first two pieces, four free
+        self.assertEqual([i for i, _ in lip_check.pieces(e)], [2, 3, 4, 5])
+
+    def test_a_film_all_under_cards_is_measured_under_them(self):
+        e = self.edl([{"at": 0.0, "dur": 18.0}])
+        self.assertEqual([i for i, _ in lip_check.pieces(e)], [0, 1, 2, 3, 4, 5])
+
+    def test_too_few_free_pieces_take_the_covered_ones_too(self):
+        e = self.edl([{"at": 0.0, "dur": 12.0}])  # two free pieces < MIN_PIECES
+        self.assertEqual([i for i, _ in lip_check.pieces(e)], [0, 1, 2, 3, 4, 5])
+
+    def test_min_pieces_free_ones_are_enough(self):
+        e = self.edl([{"at": 0.0, "dur": 9.0}])  # three free pieces = MIN_PIECES
+        self.assertEqual([i for i, _ in lip_check.pieces(e)], [3, 4, 5])
+
+    def test_no_piece_long_enough_gives_nothing(self):
+        e = {"segments": [{"src": 0, "in": 0.0, "out": 1.5}] * 4, "overlays": []}
+        self.assertEqual(lip_check.pieces(e), [])
+
+    def test_covered_pieces_that_do_not_match_fail(self):  # measured under cards, never matched = not measurable
+        rows = [{"t": 1.0, "picture_ms": 0.0, "r_picture": 0.3, "sound_ms": 0.0, "r_sound": 0.95, "desync_ms": 0.0}] * 6
+        self.assertIn("not measurable", lip_check.judge(rows, 45, 20)[0])
+
+
 class JudgeTest(unittest.TestCase):
     def row(self, d, r=0.95):
         return {"t": 1.0, "picture_ms": 0.0, "r_picture": r, "sound_ms": d, "r_sound": r, "desync_ms": d}

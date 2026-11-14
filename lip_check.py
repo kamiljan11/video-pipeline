@@ -8,13 +8,13 @@ SOUND with the plan, av_check the voice packets), none compared the PICTURE with
 the voice 40 ms late (afftdn 25 ms + three 5 ms limiter look-aheads) and the picture 0-33 ms early on half the pieces
 (cut at `-ss in` while the recording's frames sit at 0.033 + k/30) = up to 73 ms, two frames.
 
-For every piece with no card over it (>= MIN_LEN s): the recording's picture motion (mean frame difference, 96x54 gray)
+For every piece with no card over it (>= MIN_LEN s; with fewer than MIN_PIECES of those, every piece, cards or not): the recording's picture motion (mean frame difference, 96x54 gray)
 is found in the film's picture near the planned time, and the recording's voice envelope in the film's sound. desync =
 sound lag - picture lag (> 0: the voice after the lips). Only pieces where both match well (r >= R_MIN) count; a zoom
 or a crop that changes the motion lowers r and the piece is left out, said, never guessed.
 
 Problems (exit 1): median desync over --median-ms, any counted piece over --max-ms, or pieces there but none counted (fewer
-than MIN_PIECES counted, or no piece without a card at all = WARN). run_v4.sh: LIP_CHECK=off skips it, logged.
+than MIN_PIECES counted = WARN; no piece of MIN_LEN s at all = WARN). run_v4.sh: LIP_CHECK=off skips it, logged.
 """
 import json
 import subprocess
@@ -59,11 +59,15 @@ def lag(a: np.ndarray, b: np.ndarray, max_lag: int, rate: float) -> tuple[float,
 
 
 def pieces(edl: dict) -> list[tuple[int, float]]:
-    """(segment index, film start) of the pieces with nothing over them, spread over the film"""
-    segs = edl["segments"]; st = timeline.starts(segs, bool(edl.get("seg_exact")))
+    """(segment index, film start) of the pieces with nothing over them, spread over the film; with fewer than MIN_PIECES
+    of those, every piece of MIN_LEN s, cards or not, and the match (r >= R_MIN) decides which count.
+    2026-11-14: the 2026-11-04 long has cards over 1073 of its 1086 s, so it had 0 pieces and lip_check said OK for every
+    long since v5 without measuring; with the cards, 16 of 24 pieces of that long matched (median -18 ms)"""
+    segs = edl["segments"]; ex = bool(edl.get("seg_exact")); st = timeline.starts(segs, ex)
     cov = [(o["at"], o["at"] + o["dur"]) for o in edl.get("overlays", [])]
-    ok = [i for i, s in enumerate(segs) if timeline.piece_len(s, bool(edl.get("seg_exact"))) >= MIN_LEN
-          and not any(a < st[i] + timeline.piece_len(s, bool(edl.get("seg_exact"))) and b > st[i] for a, b in cov)]
+    long_enough = [i for i, s in enumerate(segs) if timeline.piece_len(s, ex) >= MIN_LEN]
+    ok = [i for i in long_enough if not any(a < st[i] + timeline.piece_len(segs[i], ex) and b > st[i] for a, b in cov)]
+    if len(ok) < MIN_PIECES: ok = long_enough
     pick = sorted({ok[int(j)] for j in np.linspace(0, len(ok) - 1, min(PIECES_MAX, len(ok)))}) if ok else []
     return [(i, st[i]) for i in pick]
 
@@ -90,7 +94,7 @@ def measure(edl: dict, film: str) -> list[dict]:
 
 def judge(rows: list[dict], max_ms: float, median_ms: float) -> list[str]:
     good = [r for r in rows if r["r_picture"] >= R_MIN and r["r_sound"] >= R_MIN]
-    if not rows:  # no piece of MIN_LEN s without a card (an all-card short): nothing to compare, said in main, no FAIL
+    if not rows:  # no piece of MIN_LEN s at all: nothing to compare, said in main, no FAIL
         return []
     if not good:  # pieces there, none matched: a zoom or crop changed the motion, or picture and sound are off
         return [f"lips not measurable: 0 of {len(rows)} pieces matched (r >= {R_MIN}); rows above, LIP_CHECK=off with a reason to skip"]
@@ -122,7 +126,7 @@ def main(argv: list[str]) -> int:
     good = [r["desync_ms"] for r in rows if r["r_picture"] >= R_MIN and r["r_sound"] >= R_MIN]
     print(f"lips: {len(good)}/{len(rows)} pieces counted, median {np.median(good) if good else float('nan'):+.1f} ms, "
           f"{len(bad)} problems {'OK' if not bad else 'FAIL'}")
-    if not rows: print(f"  WARN lips: no piece of {MIN_LEN:.0f} s without a card, not measured (the long measures the same code)")
+    if not rows: print(f"  WARN lips: no piece of {MIN_LEN:.0f} s, not measured (the long measures the same code)")
     if 0 < len(good) < MIN_PIECES: print(f"  WARN lips: only {len(good)} piece(s) counted (a median wants {MIN_PIECES})")
     for b in bad: print(f"  problem: {b}")
     return 1 if bad else 0
