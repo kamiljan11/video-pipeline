@@ -18,6 +18,7 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | face_full | udział czasu longa, w którym na twarzy nie ma niczego z EDL (karta, float, sticker, scena, lower, chap, end, b-roll); `film_check` long.face_full <= 0,35 (autor kursu CCC, n=1, do rewizji po szerszym badaniu); liczy każdy overlay, więc jest niższy niż pomiar detektorem twarzy na renderze (twarz widać też w PiP, obok kart kw i stickerów) |
 | faza (`phase`) | punkt `style/checklist.json` sprawdzany osobnym wywołaniem `film_check.py --phase <nazwa>` (`behind`: po `behind.py`) |
 | short / rolka | film 9:16 z fragmentu longa (`plan_<id>.json`, `"vertical": true`); „rolka” = to samo na Instagramie |
+| fragment testowy (`fragment.py`, `FRAGMENT.json`) | okno słów longa (keeps w kolejności odtwarzania) wycięte z `plan_long.json` do nowego work dir, żeby sprawdzić pipeline longa na ~3 min przed renderem całego (long-lite faza 7); != fragment longa na short |
 | karuzela (Instagram) | post z 5-10 slajdów 1080x1350 (`out/instagram/<post>/slide_NN.png` + `caption.json` z `alt[]`), sprawdza `ig_check.py`; slajdy z `carousel.json` (hak, 3-8 myśli, wezwanie), renderuje `ig_carousel.py` + `gfx/carousel_gfx.mjs` |
 | Reel | short wrzucony na Instagram; podpis w `out/instagram/reels/<short>.json`, link „w bio”, bo w podpisie nie jest klikalny |
 | kandydat (`clips.json`, `posts.json`) | fragment albo post oceniony w rubryce 0-3; `"make": true` = musi być w `out/` |
