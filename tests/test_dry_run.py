@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT))
 import dry_run
 
 
-class DryRunTest(unittest.TestCase):
+class _DryRunBase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -24,6 +24,8 @@ class DryRunTest(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
 
+
+class DryRunTest(_DryRunBase):
     def test_no_dry_run_no_render(self):
         self.assertIn("DRY=1 first", dry_run.needed(self.work, "long"))
 
@@ -68,6 +70,36 @@ class DryRunTest(unittest.TestCase):
         self.assertEqual(dry_run.main(["pass", str(self.work), "long"]), 0)
         self.assertEqual(dry_run.main(["need", str(self.work), "long"]), 0)
         self.assertEqual(dry_run.main(["what"]), 2)
+
+
+class DryRunStartCommitTest(_DryRunBase):
+    """2026-11-10: code committed while a dry run ran; the record named the new commit, which the dry run never tested"""
+
+    def test_the_start_commit_is_compared_as_film_code(self):  # a NOT_FILM change (docs) must not refuse the record
+        calls = []
+        with mock.patch.object(dry_run.manifest, "code_changed", lambda commit, film=False: calls.append((commit, film))):
+            self.assertEqual("", dry_run.passed(self.work, "long", "c4c6e3b"))
+        self.assertEqual([("c4c6e3b", True)], calls)
+
+    def test_an_empty_start_commit_is_refused(self):
+        self.assertEqual(1, dry_run.main(["pass", str(self.work), "long", ""]))
+        self.assertFalse(dry_run.record(self.work, "long").exists())
+
+    def test_code_changed_during_the_dry_run_gives_no_record(self):
+        self.git["changed"] = "code changed since c4c6e3b: build_edl.py"
+        why = dry_run.passed(self.work, "long", "c4c6e3b")
+        self.assertIn("during the dry run", why)
+        self.assertFalse(dry_run.record(self.work, "long").exists())
+
+    def test_the_record_names_the_commit_the_dry_run_started_on(self):
+        import json
+        self.assertEqual("", dry_run.passed(self.work, "long", "start99"))
+        rec = json.loads(dry_run.record(self.work, "long").read_text(encoding="utf-8"))
+        self.assertEqual("start99", rec["commit"])
+
+    def test_cli_takes_the_start_commit_for_pass_only(self):
+        self.assertEqual(0, dry_run.main(["pass", str(self.work), "long", "start99"]))
+        self.assertEqual(2, dry_run.main(["need", str(self.work), "long", "start99"]))
 
 
 if __name__ == "__main__":

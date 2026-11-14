@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """dry_run: the full render starts only after a small one passed every check on the same code and the same film.
 
-    python3 dry_run.py pass <work> <film>    after run_v4.sh DRY=1 passed every check: writes <work>/dry_<film>.json
+    python3 dry_run.py pass <work> <film> [<commit>]   after run_v4.sh DRY=1 passed every check: writes <work>/dry_<film>.json;
+                                                      <commit> = HEAD when the dry run started (run_v4.sh passes it)
     python3 dry_run.py need <work> <film>    before the full render: exit 1 unless that file is from this code and this film
 
 Kamil 2026-11-10: the 2026-11-04 long took 5 full renders (30-50 min each) because the checks ran after the render and the
@@ -33,10 +34,15 @@ def record(work: Path, film: str) -> Path:
     return work / f"dry_{film}.json"
 
 
-def passed(work: Path, film: str) -> str:
-    """writes the record and returns ""; a reason instead when the code is not committed (the record could not be traced to a commit)"""
+def passed(work: Path, film: str, started: str = "") -> str:
+    """writes the record and returns ""; a reason instead when the code is not committed (the record could not be traced to a
+    commit) or changed while the dry run ran. 2026-11-10: a dry run started on c4c6e3b, 54e94bf was committed 15 min into it
+    and the record named 54e94bf, code the dry run never ran; `started` (HEAD at the start) is the commit it tested"""
     if manifest.dirty(): return "uncommitted code: commit it, then run the dry run again"
-    rec = {"commit": manifest.head(), "inputs": inputs(work, film), "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
+    if started:
+        why = manifest.code_changed(started, film=True)
+        if why: return f"{why}: the code changed during the dry run, run it again"
+    rec = {"commit": started or manifest.head(), "inputs": inputs(work, film), "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
     if f"edl_{film}.json" not in rec["inputs"]: return f"no edl_{film}.json in {work}"
     record(work, film).write_text(json.dumps(rec, indent=1) + "\n", encoding="utf-8")
     return ""
@@ -58,9 +64,10 @@ def needed(work: Path, film: str) -> str:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3 or argv[0] not in ("pass", "need"): print(__doc__); return 2
+    if not (len(argv) == 3 or (len(argv) == 4 and argv[0] == "pass")) or argv[0] not in ("pass", "need"): print(__doc__); return 2
     work, film = Path(argv[1]), argv[2]
-    why = passed(work, film) if argv[0] == "pass" else needed(work, film)
+    if len(argv) == 4 and not argv[3].strip(): print("dry_run pass: FAIL empty start commit (run_v4.sh could not read HEAD)"); return 1
+    why = passed(work, film, argv[3] if len(argv) == 4 else "") if argv[0] == "pass" else needed(work, film)
     print(f"dry_run {argv[0]} {film}: {'FAIL ' + why if why else 'OK'}")
     return 1 if why else 0
 

@@ -22,6 +22,9 @@ cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # (Kamil 2026-11-10 "ile czasu mniej zejdzie"; watch_render.py reads it for a stalled run too)
 tl() { echo "$(date -Is) $*" >> timeline.log; }
 tl run "${DRY:+dry }$*"
+# the commit this run starts on: a dry run is a pass of THIS code, not of whatever HEAD is when it ends (dry_run.py pass)
+# (empty when git cannot read it: dry_run.py pass then refuses the record, never falls back to the HEAD at the end)
+START_HEAD=$(git -C "$VP" rev-parse HEAD 2>/dev/null)
 # the films are moved to OUT at the very end: a relative OUT counts from WORK (after the cd), so check it before 20 min of
 # render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
 { [ -d "$OUT" ] && [ -w "$OUT" ]; } || { echo "FAILED out: no writable folder $OUT seen from $WORK (a relative OUT counts from the work folder)" | tee -a "$R/render.log" >&2
@@ -141,7 +144,7 @@ for n in "$@"; do
     && { [ "${DRY:-}" = 1 ] || { mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; }; }; then
     if [ "${DRY:-}" = 1 ]; then  # the small film is not a film: nothing goes to OUT, no stamp; the record opens the full render
       rm -f "$R/$n/$f"
-      if python3 $VP/dry_run.py pass . "$n" >> "$R/render.log" 2>&1; then echo "DRY_OK $n" >> "$R/render.log"
+      if python3 $VP/dry_run.py pass . "$n" "$START_HEAD" >> "$R/render.log" 2>&1; then echo "DRY_OK $n" >> "$R/render.log"
       else echo "FAILED dry_run pass $n" >> "$R/render.log"; failed="$failed $n"; fi
       continue
     fi
