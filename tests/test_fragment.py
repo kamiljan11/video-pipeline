@@ -81,10 +81,6 @@ class MainTest(unittest.TestCase):
             with self.assertRaises(SystemExit): fragment.main([str(src), str(dst), "--from-word", "20", "--to-word", "29"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class FragmentProfileTest(unittest.TestCase):
     """film_check: a whole-film item is WARN only in a fragment folder; accept.py never accepts a fragment"""
     def judge(self, work, item):
@@ -121,3 +117,7 @@ class FragmentProfileTest(unittest.TestCase):
             (Path(d) / "FRAGMENT.json").write_text("{}"); film = Path(d) / "long.mp4"; film.write_bytes(b"x")
             self.assertIn("fragment", accept.write(Path(d), film, "Kamil 2026-11-14: dobry long, jedz dalej"))
             self.assertIn("fragment", accept.check(Path(d)))
+
+
+if __name__ == "__main__":
+    unittest.main()

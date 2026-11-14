@@ -131,7 +131,10 @@ def main(argv=None) -> int:
     if (src / "sources").is_dir(): link(src / "sources", dst / "sources")
     acc = src / str(plan.get("gfx_dir") or "gfx") / "stills" / "accepted.json"
     if acc.is_file():
-        keep = {i: k for i, k in json.loads(acc.read_text()).items() if i in {s["id"] for s in sp}}
+        got = json.loads(acc.read_text())
+        if not isinstance(got, dict): sys.exit(f"fragment: {acc} is not {{card id: render key}}")
+        ids = {s["id"] for s in sp}
+        keep = {i: k for i, k in got.items() if i in ids}
         out = dst / str(plan.get("gfx_dir") or "gfx") / "stills"; out.mkdir(parents=True, exist_ok=True)
         (out / "accepted.json").write_text(json.dumps(keep, ensure_ascii=False, indent=1))
     (dst / plan_p.name).write_text(json.dumps(p, ensure_ascii=False, indent=1))

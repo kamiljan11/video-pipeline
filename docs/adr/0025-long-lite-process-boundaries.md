@@ -29,4 +29,10 @@ Zgoda Kamila (`waivers` w planie, `ACCEPTED_long.json`) to tekst „Kamil RRRR-M
 chroni przed pomyłką i zostawia nazwany ślad w `render.log` (`SKIPPED_GATES`) i w raporcie, ale sesja z zapisem do folderu może go wpisać
 bez commita (pg-review 2026-11-10 security-1, potwierdzone). Kanał, którego sesja nie zapisze, = osobna decyzja Kamila (zmiana w `~/.claude`, fraza CONTROL_PLANE).
 
+**Fragment testowy (faza 7, 2026-11-14; Kamil: „chce normalnie dla paru minut tak zeby byl caly proces”):** folder z
+`FRAGMENT.json` (`fragment.py`) przechodzi cały proces na kilku minutach longa. Pozycje checklisty z `"whole_film": true` (liczby i miejsca
+na cały film: memy, belka z imieniem, CTA w środku, recap, mapa funkcji…) dają tam WARN z `FRAGMENT_TAG`, a `research_gate --report` pokazuje
+je jako INFO; WARN we fragmencie != PASS longa. Każda inna bramka (dry run, dźwięk, usta, słowa, stills) działa jak w longu. `accept.py`
+odmawia folderu z `FRAGMENT.json`: fragment nigdy nie jest zaakceptowanym longiem i nie odblokowuje etapu B.
+
 **Rollback:** `git revert` commitów fazy 1–2 na `feat/long-lite`; `run_v4.sh` wraca do renderu bez próbnego.
