@@ -114,6 +114,8 @@ def report_problems(items: list[dict], form: str, report: object) -> tuple[list[
                 if not got: bad.append(f"{i['id']} done, but {cid} has no row for {film} in the report (not measured)")
                 for r in got or []:
                     if r["status"] == "SKIP": info.append(f"INFO {i['id']} {cid} skipped in {film}: {r['detail']}")
+                    # a whole-film check in a fragment test folder (film_check FRAGMENT_TAG, fragment.py): not measurable there
+                    elif r.get("fragment") is True and r["status"] == "WARN": info.append(f"INFO {i['id']} {cid} whole-film, fragment test {film}: {str(r['detail'])[:120]}")
                     elif r["status"] != "OK": bad.append(f"{i['id']} done, but {cid} is {r['status']} in {film}: {str(r['detail'])[:160]}")
     return bad, info
 

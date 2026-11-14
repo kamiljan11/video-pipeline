@@ -103,6 +103,14 @@ class ResearchGateTest(unittest.TestCase):
         bad, _ = rg.report_problems(items, "shorts", rep)
         self.assertEqual(len(bad), 1); self.assertIn("no row for s02", bad[0])  # out.chapters: another format, not here
 
+    def test_a_whole_film_check_of_a_fragment_test_is_info_not_a_miss(self):  # film_check FRAGMENT_TAG row
+        items = [item("L7", "done", "check:long.recap"), item("L8", "done", "check:long.list_said")]
+        rep = [{"film": "long", "id": "long.recap", "status": "WARN", "detail": "fragment test, whole-film item: no recap", "fragment": True},
+               {"film": "long", "id": "long.list_said", "status": "WARN", "detail": "fragment test, whole-film item: x", "fragment": "yes"}]
+        bad, info = rg.report_problems(items, "long", rep)
+        self.assertEqual([b.split()[0] for b in bad], ["L8"])  # only a real true marks it
+        self.assertTrue(any("L7" in i and "fragment" in i for i in info))
+
     def test_an_empty_or_malformed_report_is_refused(self):
         items = [item("L8", "done", "check:long.list_said")]
         for rep in ([], {}, [{"id": "long.list_said"}], ["x"]):

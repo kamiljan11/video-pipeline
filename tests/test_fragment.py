@@ -99,6 +99,16 @@ class FragmentProfileTest(unittest.TestCase):
             self.assertEqual(self.judge(d, {"whole_film": True}), "WARN")
             self.assertEqual(self.judge(d, {}), "FAIL")  # every other item still fails in a fragment
 
+    def test_a_whole_film_warn_level_item_is_tagged_in_a_fragment(self):  # research_gate reads the tag, not level warn
+        import film_check
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "FRAGMENT.json").write_text(json.dumps({"src_work": "/w", "from_word": 1, "to_word": 9}))
+            obj = type("F", (), {"work": Path(d), "plan": {}, "m": lambda self: 1})()
+            st, detail = film_check.judge(obj, {"id": "x", "metric": "m", "op": ">=", "value": 3, "level": "warn", "whole_film": True})
+            self.assertEqual(st, "WARN"); self.assertTrue(detail.startswith(film_check.FRAGMENT_TAG))
+            st, detail = film_check.judge(obj, {"id": "x", "metric": "m", "op": ">=", "value": 3, "level": "warn"})
+            self.assertFalse(detail.startswith(film_check.FRAGMENT_TAG))
+
     def test_a_broken_fragment_record_is_no_fragment(self):
         with tempfile.TemporaryDirectory() as d:
             for bad in ("{", "[]", json.dumps({"src_work": "/w", "from_word": True, "to_word": 9})):

@@ -1198,6 +1198,9 @@ class Out:
         self.warns += [("out.instagram", w) for w in warn]
         return not bad, "; ".join(bad[:8])
 
+FRAGMENT_TAG = "fragment test, whole-film item:"
+
+
 def fragment_of(work: Path) -> dict | None:
     """the FRAGMENT.json fragment.py wrote in this work folder ({src_work, from_word, to_word, ...}); None for a film"""
     p = work / "FRAGMENT.json"
@@ -1231,11 +1234,12 @@ def judge(obj, item: dict) -> tuple[str, str]:
     elif op == "==": ok = v == want
     else: raise SystemExit(f"film_check: {item['id']}: op {op!r}")
     shown = detail or (f"{v} {op} {want}" if op not in ("true",) and want != "all" else "")
-    if not ok and item.get("level") == "warn": return "WARN", f"{v} {op} {want}: {shown}"  # observe: advice until the evidence holds
     # a fragment test (fragment.py, long-lite phase 7) is a few minutes of a long: a count or a place over the whole film
-    # (memes >= 3, the name card, the mid CTA) cannot hold there; it is shown, every other item still fails (Kamil 2026-11-14
+    # (memes >= 3, the name card, the mid CTA, the recap at the end) cannot hold there; it is shown with FRAGMENT_TAG (the
+    # report row says "fragment": true, research_gate --report reads that), every other item still fails (Kamil 2026-11-14
     # "chce normalnie dla paru minut tak zeby byl caly proces"). accept.py never accepts a fragment as the long
-    if not ok and item.get("whole_film") and fragment_of(obj.work): return "WARN", f"fragment test, whole-film item: {shown or f'{v} {op} {want}'}"
+    if not ok and item.get("whole_film") and fragment_of(obj.work): return "WARN", f"{FRAGMENT_TAG} {shown or f'{v} {op} {want}'}"
+    if not ok and item.get("level") == "warn": return "WARN", f"{v} {op} {want}: {shown}"  # observe: advice until the evidence holds
     return ("OK" if ok else "FAIL"), shown
 
 
@@ -1268,6 +1272,7 @@ def main(argv: list[str]) -> int:
             st, detail = judge(obj, it)
             failed += st == "FAIL"
             report.append({"film": name, "id": it["id"], "status": st, "detail": detail, "why": it["why"],
+                           "fragment": st == "WARN" and detail.startswith(FRAGMENT_TAG),
                            "warnings": [w for _, w in getattr(obj, "warns", [])[seen:]]})  # the checker's own advice for this item
     if as_json:
         print(json.dumps(report, ensure_ascii=False, indent=1))

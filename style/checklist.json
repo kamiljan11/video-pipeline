@@ -235,6 +235,7 @@
   },
   {
    "id": "long.roadmap",
+   "whole_film": true,
    "fmt": "long",
    "metric": "roadmap_in_opening",
    "op": "true",
@@ -260,6 +261,7 @@
   },
   {
    "id": "long.recap",
+   "whole_film": true,
    "fmt": "long",
    "metric": "recap",
    "op": "true",
@@ -284,6 +286,7 @@
   },
   {
    "id": "long.end_bookend",
+   "whole_film": true,
    "fmt": "long",
    "metric": "end_bookend",
    "op": "true",
@@ -292,6 +295,7 @@
   },
   {
    "id": "long.action_word",
+   "whole_film": true,
    "fmt": "long",
    "metric": "action_words_shown",
    "op": "true",
