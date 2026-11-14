@@ -102,5 +102,28 @@ class DryRunStartCommitTest(_DryRunBase):
         self.assertEqual(2, dry_run.main(["need", str(self.work), "long", "start99"]))
 
 
+class DryRunBedsTest(_DryRunBase):
+    """2026-11-14: make_beds rewrites edl_<film>.json after the point where the full render checks it"""
+
+    def test_the_beds_written_into_the_edl_do_not_ask_for_a_new_dry_run(self):
+        import json
+        (self.work / "edl_long.json").write_text(json.dumps({"segments": [1], "music": "/r/b/music.wav", "sfx": "/r/b/sfx.wav"}, indent=1))
+        self.assertEqual("", dry_run.passed(self.work, "long"))  # the dry run ends after make_beds
+        (self.work / "edl_long.json").write_text('{"segments": [1]}', encoding="utf-8")  # the full render, before make_beds
+        self.assertEqual("", dry_run.needed(self.work, "long"))
+
+    def test_a_cut_change_still_asks_for_a_new_dry_run(self):
+        (self.work / "edl_long.json").write_text('{"segments": [1], "music": "m.wav"}', encoding="utf-8")
+        dry_run.passed(self.work, "long")
+        (self.work / "edl_long.json").write_text('{"segments": [2]}', encoding="utf-8")
+        self.assertIn("edl_long.json changed", dry_run.needed(self.work, "long"))
+
+    def test_a_file_that_is_not_json_is_hashed_as_bytes(self):
+        (self.work / "gfx_specs.json").write_text("{broken", encoding="utf-8")
+        a = dry_run.digest(self.work / "gfx_specs.json")
+        (self.work / "gfx_specs.json").write_text("{broken!", encoding="utf-8")
+        self.assertNotEqual(a, dry_run.digest(self.work / "gfx_specs.json"))
+
+
 if __name__ == "__main__":
     unittest.main()

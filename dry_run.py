@@ -22,11 +22,26 @@ import manifest
 INPUTS = ("edl_{film}.json", "gfx_specs.json")  # what the render is made of; gfx_specs.json may be absent (a film with no cards)
 
 
+# keys a later stage of the same run writes into edl_<film>.json (music/make_beds.py: the beds' paths, the file rewritten
+# with indent=1). 2026-11-14: the dry run hashed the edl at its end, after make_beds, the full render checks it before
+# make_beds, so every full render was refused ("edl_long.json changed after the dry run")
+DERIVED = ("music", "sfx")
+
+
+def digest(p: Path) -> str:
+    """sha256 of what the render is made of: a JSON object without DERIVED, keys sorted (the layout of the file does not count)"""
+    raw = p.read_bytes()
+    try: obj = json.loads(raw)
+    except ValueError: return hashlib.sha256(raw).hexdigest()  # not JSON: the bytes, a broken file still differs
+    if isinstance(obj, dict): obj = {k: v for k, v in obj.items() if k not in DERIVED}
+    return hashlib.sha256(json.dumps(obj, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
 def inputs(work: Path, film: str) -> dict:
     out = {}
     for name in (n.format(film=film) for n in INPUTS):
         p = work / name
-        if p.exists(): out[name] = hashlib.sha256(p.read_bytes()).hexdigest()
+        if p.exists(): out[name] = digest(p)
     return out
 
 
