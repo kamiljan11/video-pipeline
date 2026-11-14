@@ -146,6 +146,14 @@ class AssembleMixTest(unittest.TestCase):
         self.assertAlmostEqual(none - floor, 12, delta=2.5, msg=(none, floor, hard))  # a quarter of the undipped music = -12 dB
         self.assertGreater(floor - hard, 5, (none, floor, hard))
 
+    def test_sfx_duck_mix_reaches_the_sfx_sidechain(self):
+        out = self.render(music=str(self.tmp / "music.wav"), sfx=str(self.tmp / "sfx.wav"), sfx_duck={"threshold": 0.004, "ratio": 6, "mix": 0.7})
+        graph = json.loads((out.parent / "assemble.audio.args.json").read_text())["audio"]
+        sx = next(p for p in graph[graph.index("-filter_complex") + 1].split(";") if p.endswith("[sx]"))
+        self.assertIn("threshold=0.004:ratio=6", sx); self.assertIn("mix=0.7", sx)
+        base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
+        self.assertTrue(any("sfx_duck" in p for p in edl_guard.problems({**base, "sfx_duck": {"mix": 2}})))
+
     def test_voice_clean_feeds_the_cleaned_voice_to_the_mix(self):
         exe = self.tmp / "deep-filter"  # stands in for DeepFilterNet: the voice 20 dB down
         exe.write_text('#!/bin/sh\nmkdir -p "$3" && ffmpeg -v error -y -i "$4" -af volume=0.1 "$3/$(basename "$4")"\n'); exe.chmod(0o755)
