@@ -251,6 +251,11 @@ Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projek
 9. Tekst za postacią (tylko gdy plan ma karty `"behind"`): `python3 -m venv matte/.venv && matte/.venv/bin/pip install -r matte/requirements.txt`
    + model `matte/models/rvm_resnet50_fp32.onnx` z https://github.com/PeterL1n/RobustVideoMatting/releases/tag/v1.0.0
    (sha256 `25db300fcb6ee27f…`, `behind.py` sprawdza go przy każdym uruchomieniu; decyzja: ADR-0005).
+10. Głos (tylko gdy plan ma `"voice_clean": "dfn"`): binarka DeepFilterNet 0.5.6, plik
+   `deep-filter-0.5.6-x86_64-unknown-linux-musl` z https://github.com/Rikorose/DeepFilterNet/releases/tag/v0.5.6 do
+   `~/.local/share/vp-voice/dfn/deep-filter` (albo ścieżka w zmiennej `VP_DEEP_FILTER`), `chmod +x`, sha256
+   `70775e251eee44c0f2451a1e833326cf8bcbbe304d3e7cd12851e6fce72ef7da`. Bez niej render z tym kluczem kończy się błędem z nazwą
+   ścieżki (`voice_clean.py`); decyzja i pomiary: ADR-0026.
 
 Przed publikacją shorta z b-rollem: linie autorów do opisu filmu (wytyczne API Pexels) = okno „Dobierz b-roll” w panelu albo
 `python3 broll.py plan_<film>.json --credits` w katalogu `work`.
