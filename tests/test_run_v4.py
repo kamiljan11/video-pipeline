@@ -44,7 +44,7 @@ class RunV4GateTest(unittest.TestCase):
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
-                    "research_gate.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py"):
+                    "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -229,6 +229,27 @@ class RunV4GateTest(unittest.TestCase):
         render, calls = self.run_v4(rc=0)
         self.assertIn("DONE x", render)
         self.assertLess(calls.index("assemble.py"), calls.index("manifest.py"))
+
+    def test_the_dry_run_hears_the_cut_for_retakes_and_a_retake_stops_it(self):  # 2026-11-14 fragment at 1:00
+        render, calls = self.run_v4(DRY="1")
+        self.assertLess(calls.index("words_check.py"), calls.index("retake_check.py"))
+        self.assertIn("DRY_OK x", render)
+        render, calls = self.run_v4(rc=1, DRY="1", FAIL_retake_check="1")
+        self.assertIn("FAILED retake_check x", render)
+        self.assertNotIn("DRY_OK x", render.split("FAILED retake_check x")[-1])
+
+    def test_a_long_whose_music_is_not_heard_is_not_done(self):  # 2026-11-14 fragment: bed 48 dB under the voice
+        (self.work / "edl_long.json").write_text(json.dumps({"out_name": "film.mp4"}))
+        render, calls = self.run_v4(rc=1, film="long", FAIL_music_check="1")
+        self.assertIn("FAILED music_check long", render)
+        self.assertNotIn("DONE long", render)
+        (self.work / "plan_x.json").write_text(json.dumps({"vertical": True}))
+        _, calls = self.run_v4(film="x")  # a short (plan "vertical") is not judged by the long's range
+        self.assertEqual(calls.count("music_check.py"), 1)  # the call log keeps both runs: only the long's
+
+    def test_the_final_render_does_not_hear_the_cut_again(self):  # same cut as the dry run (dry_run.py digest)
+        _, calls = self.run_v4()
+        self.assertNotIn("retake_check.py", calls)
 
     def test_the_kdenlive_project_of_the_long_is_stamped_too(self):  # out.manifest: every part of out/ has a stamp
         (self.work / "edl_long.json").write_text(json.dumps({"out_name": "film.mp4"}))  # the stub assemble writes film.mp4

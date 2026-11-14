@@ -34,6 +34,7 @@ import ig_check  # the Instagram carousels and Reel captions (round 2 IG1-IG6)
 import manifest  # which pipeline commit made each film and material
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 import research_gate  # research for thumbnails must be in them
+import retakes  # the same words said twice: a retake the cut kept (also retake_check.py on the cut itself)
 import thumb_check  # the long thumbnails as the feed shows them
 import timeline  # film time of a source time: the one place (frame-exact pieces)
 import title_check  # the A/B/C titles of the long
@@ -130,8 +131,7 @@ NUMBER_WORDS = {"dwa": 2, "dwie": 2, "dwóch": 2, "trzy": 3, "trzech": 3, "czter
                 "sześć": 6, "sześciu": 6, "siedem": 7, "siedmiu": 7, "osiem": 8, "ośmiu": 8, **{str(i): i for i in range(2, 11)}}
 
 
-def norm_word(w: str) -> str:
-    return re.sub(r"[^\w]", "", w.lower())
+norm_word = retakes.norm_word  # one normalisation for every word comparison
 
 
 def in_order(want: list[str], heard: list[str]) -> int:
@@ -544,30 +544,9 @@ class Film:
 
     def retakes_left(self, n: int = 4, window: float = 20.0):
         """Kamil 2026-11-09 "jak dwa razy coś mówię, bo się pomyliłem, to wytnij i zostaw lepszą wersję": the same n words
-        said twice within `window` s of FILM time = a retake the cut kept. A repeat on purpose is named in plan
-        "retakes_ok": {"<the n words>": "why (>= 10 chars)"}, one phrase at a time (no switch for the whole film)"""
-        ok: list[list[str]] = []
-        wrong: list[str] = []  # a named phrase that waives nothing is said, not dropped (review 2026-11-09)
-        for k, v in (self.plan.get("retakes_ok") or {}).items():
-            words = [x for x in map(norm_word, str(k).split()) if x]
-            if len(words) < n: wrong.append(f"retakes_ok {k!r}: name the {n}+ words said twice")
-            elif not (isinstance(v, str) and len(v.strip()) >= SKIP_MIN): wrong.append(f"retakes_ok {k!r}: the reason must say why (>= {SKIP_MIN} characters)")
-            else: ok.append(words)
-        # the key covers the WHOLE repeated run (whole words, in a row): 4 named words do not waive a 20-word retake (review 2026-11-09)
-        named = lambda run: any(k[i:i + len(run)] == run for k in ok for i in range(len(k) - len(run) + 1))
-        fw = sorted((t, norm_word(w)) for t, w in self.film_words())
-        fw = [(t, w) for t, w in fw if w]
-        seen: dict[str, float] = {}
-        runs: list[list] = []  # one retake repeats several overlapping n-word groups: one run [first t, again t, words]
-        prev = False
-        for i in range(len(fw) - n + 1):
-            t, key = fw[i][0], " ".join(w for _, w in fw[i:i + n])
-            again = key in seen and t - seen[key] <= window
-            if again and prev: runs[-1][2].append(fw[i + n - 1][1])
-            elif again: runs.append([seen[key], t, key.split()])
-            prev = again
-            seen[key] = t
-        bad = [f"'{' '.join(w)}' at {a:.0f} s and {b:.0f} s" for a, b, w in runs if not named(w)]
+        said twice within `window` s of FILM time = a retake the cut kept (retakes.py; retake_check.py hears the cut itself,
+        for a take the source transcript lost). A repeat on purpose is named in plan "retakes_ok", one phrase at a time"""
+        bad, wrong = retakes.problems(self.film_words(), self.plan, n, window)
         detail = (["retake kept (cut the worse take, or name it in plan retakes_ok): " + "; ".join(bad[:8])] if bad else []) + wrong
         return not bad and not wrong, "; ".join(detail) or "no phrase said twice"
 

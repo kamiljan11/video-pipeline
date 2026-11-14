@@ -10,11 +10,18 @@ lips_ok() {
   if [ "${LIP_CHECK:-on}" = off ]; then echo "LIP_CHECK=off: lip_check skipped for $1" >> "$R/render.log"; return 0; fi
   python3 $VP/lip_check.py "edl_$1.json" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED lip_check $1" >> "$R/render.log"; return 1; }
 }
+# music_check (long): the music heard under the voice, from assemble's own audio graph (Kamil 2026-11-14 "muzyka tech
+# chyba w tle nie gra": the bed sat 48 dB under the voice). WORDS_CHECK=off does not reach it: no off switch
 # words_check: no word lost by the cut (plan text vs rough) or by the sound (rough vs film). Kamil 2026-11-08 "0:04 uciales
 # moje gadanie ... juz ktorys raz". WORDS_CHECK=off skips it, logged (a quick preview render)
 words_ok() {
   if [ "${WORDS_CHECK:-on}" = off ]; then echo "WORDS_CHECK=off: words_check skipped for $1" >> "$R/render.log"; return 0; fi
   python3 $VP/words_check.py cut "edl_$1.txt" "$R/$1/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED words_check cut $1" >> "$R/render.log"; return 1; }
+  # a retake heard in the cut itself, utterance by utterance (retake_check.py): the source transcript can lose one of two
+  # takes (2026-11-14 fragment at 1:00, Kamil "dwa razy powtorzenie ... zle obciete"). Dry run only: the final has its cut
+  if [ "${DRY:-}" = 1 ]; then
+    python3 $VP/retake_check.py "$R/$1/rough.mkv" "plan_$1.json" >> "$R/render.log" 2>&1 || { echo "FAILED retake_check $1" >> "$R/render.log"; return 1; }
+  fi
   python3 $VP/words_check.py sound "$R/$1/rough.mkv" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED words_check sound $1" >> "$R/render.log"; return 1; }
 }
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
@@ -141,6 +148,7 @@ for n in "$@"; do
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
     && lips_ok "$n" "$R/$n/$f" \
     && words_ok "$n" "$R/$n/$f" \
+    && { [ "$form" != long ] || python3 $VP/music_check.py "$R/$n/assemble.audio.args.json" >> "$R/render.log" 2>&1 || { echo "FAILED music_check $n" >> "$R/render.log"; false; }; } \
     && { [ "${DRY:-}" = 1 ] || { mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; }; }; then
     if [ "${DRY:-}" = 1 ]; then  # the small film is not a film: nothing goes to OUT, no stamp; the record opens the full render
       rm -f "$R/$n/$f"
