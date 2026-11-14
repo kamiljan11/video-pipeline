@@ -70,13 +70,44 @@ class MainTest(unittest.TestCase):
             (src / "r.cw.json").write_text(json.dumps(words)); (src / "r.sil").write_text("")
             (src / "plan_long.json").write_text(json.dumps(PLAN)); (src / "edl_long.json").write_text(json.dumps(EDL))
             (src / "gfx_specs.json").write_text(json.dumps(SPECS)); (src / "story.json").write_text(json.dumps(STORY))
+            (src / "gfx" / "stills").mkdir(parents=True)
+            (src / "gfx" / "stills" / "accepted.json").write_text(json.dumps({"b": "k1", "a": "k2", "q": "k3"}))
             self.assertEqual(fragment.main([str(src), str(dst), "--from-word", "20", "--to-word", "29"]), 0)
             self.assertTrue((dst / "r.cw.json").is_symlink()); self.assertTrue((dst / "r.sil").is_symlink())
             rec = json.loads((dst / "FRAGMENT.json").read_text())
             self.assertEqual((rec["from_word"], rec["to_word"], rec["gfx"]), (20, 29, ["b", "l", "e"]))
             self.assertEqual(json.loads((dst / "plan_long.json").read_text())["keeps"], [[20, 29, {"t0": 19.9, "t1": 29.9}]])
+            self.assertEqual(json.loads((dst / "gfx" / "stills" / "accepted.json").read_text()), {"b": "k1"})  # window cards only
             with self.assertRaises(SystemExit): fragment.main([str(src), str(dst), "--from-word", "20", "--to-word", "29"])
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FragmentProfileTest(unittest.TestCase):
+    """film_check: a whole-film item is WARN only in a fragment folder; accept.py never accepts a fragment"""
+    def judge(self, work, item):
+        import film_check
+        obj = type("F", (), {"work": Path(work), "plan": {}, "m": lambda self: 1})()
+        return film_check.judge(obj, {"id": "x", "metric": "m", "op": ">=", "value": 3, **item})[0]
+
+    def test_whole_film_item_warns_in_a_fragment_and_fails_in_a_film(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self.judge(d, {"whole_film": True}), "FAIL")
+            (Path(d) / "FRAGMENT.json").write_text(json.dumps({"src_work": "/w", "from_word": 1, "to_word": 9}))
+            self.assertEqual(self.judge(d, {"whole_film": True}), "WARN")
+            self.assertEqual(self.judge(d, {}), "FAIL")  # every other item still fails in a fragment
+
+    def test_a_broken_fragment_record_is_no_fragment(self):
+        with tempfile.TemporaryDirectory() as d:
+            for bad in ("{", "[]", json.dumps({"src_work": "/w", "from_word": True, "to_word": 9})):
+                (Path(d) / "FRAGMENT.json").write_text(bad)
+                self.assertEqual(self.judge(d, {"whole_film": True}), "FAIL", bad)
+
+    def test_accept_refuses_a_fragment(self):
+        import accept
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "FRAGMENT.json").write_text("{}"); film = Path(d) / "long.mp4"; film.write_bytes(b"x")
+            self.assertIn("fragment", accept.write(Path(d), film, "Kamil 2026-11-14: dobry long, jedz dalej"))
+            self.assertIn("fragment", accept.check(Path(d)))

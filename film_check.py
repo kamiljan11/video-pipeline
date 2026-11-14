@@ -1198,6 +1198,17 @@ class Out:
         self.warns += [("out.instagram", w) for w in warn]
         return not bad, "; ".join(bad[:8])
 
+def fragment_of(work: Path) -> dict | None:
+    """the FRAGMENT.json fragment.py wrote in this work folder ({src_work, from_word, to_word, ...}); None for a film"""
+    p = work / "FRAGMENT.json"
+    if not p.is_file(): return None
+    try: rec = json.loads(p.read_text())
+    except ValueError: return None
+    ok = isinstance(rec, dict) and isinstance(rec.get("src_work"), str) and all(
+        isinstance(rec.get(k), int) and not isinstance(rec.get(k), bool) for k in ("from_word", "to_word"))
+    return rec if ok else None
+
+
 def judge(obj, item: dict) -> tuple[str, str]:
     skip = (obj.plan.get("skip") or {}).get(item["id"])
     # "no_skip": an item that is itself a list of reasons (the capability map) has no off switch: one sentence on
@@ -1221,6 +1232,10 @@ def judge(obj, item: dict) -> tuple[str, str]:
     else: raise SystemExit(f"film_check: {item['id']}: op {op!r}")
     shown = detail or (f"{v} {op} {want}" if op not in ("true",) and want != "all" else "")
     if not ok and item.get("level") == "warn": return "WARN", f"{v} {op} {want}: {shown}"  # observe: advice until the evidence holds
+    # a fragment test (fragment.py, long-lite phase 7) is a few minutes of a long: a count or a place over the whole film
+    # (memes >= 3, the name card, the mid CTA) cannot hold there; it is shown, every other item still fails (Kamil 2026-11-14
+    # "chce normalnie dla paru minut tak zeby byl caly proces"). accept.py never accepts a fragment as the long
+    if not ok and item.get("whole_film") and fragment_of(obj.work): return "WARN", f"fragment test, whole-film item: {shown or f'{v} {op} {want}'}"
     return ("OK" if ok else "FAIL"), shown
 
 

@@ -1,5 +1,5 @@
 {
- "_doc": "What every film must have before it is rendered (film_check.py <work> <films...>) and what the out folder must hold after (film_check.py <work> --out <out>). Each item: id, fmt (long | short | out), metric (a function in film_check.py), op (>= | <= | == | true), value, level (optional \"warn\": a miss prints WARN and does not fail), why (Kamil's words or a measured reference). A plan may skip an item only with a reason: \"skip\": {\"<id>\": \"why not in this film\"}. Thresholds are data: change them here, not in code. Reference numbers: render/ref/research/teardowns.md (Jeff Su, Ali Abdaal, Kuba Klawiter, Fireship, 2026-11-04).",
+ "_doc": "What every film must have before it is rendered (film_check.py <work> <films...>) and what the out folder must hold after (film_check.py <work> --out <out>). Each item: id, fmt (long | short | out), metric (a function in film_check.py), op (>= | <= | == | true), value, level (optional \"warn\": a miss prints WARN and does not fail), whole_film (optional true: a count or place over the whole film; WARN in a fragment test folder made by fragment.py, FRAGMENT.json), why (Kamil's words or a measured reference). A plan may skip an item only with a reason: \"skip\": {\"<id>\": \"why not in this film\"}. Thresholds are data: change them here, not in code. Reference numbers: render/ref/research/teardowns.md (Jeff Su, Ali Abdaal, Kuba Klawiter, Fireship, 2026-11-04).",
  "items": [
   {
    "id": "long.story",
@@ -105,6 +105,7 @@
   },
   {
    "id": "long.screen_switches",
+   "whole_film": true,
    "fmt": "long",
    "metric": "screen_switches_per_min",
    "op": "<=",
@@ -129,6 +130,7 @@
   },
   {
    "id": "long.screen_share",
+   "whole_film": true,
    "fmt": "long",
    "metric": "full_screen_share",
    "op": "<=",
@@ -161,6 +163,7 @@
   },
   {
    "id": "long.memes",
+   "whole_film": true,
    "fmt": "long",
    "metric": "meme_cards",
    "op": ">=",
@@ -179,6 +182,7 @@
   },
   {
    "id": "long.lower",
+   "whole_film": true,
    "fmt": "long",
    "metric": "lower_matches_brand",
    "op": "true",
@@ -186,6 +190,7 @@
   },
   {
    "id": "long.music_palette",
+   "whole_film": true,
    "fmt": "long",
    "metric": "music_palette_new",
    "op": "true",
@@ -247,6 +252,7 @@
   },
   {
    "id": "long.cta_place",
+   "whole_film": true,
    "fmt": "long",
    "metric": "mid_cta",
    "op": "true",
@@ -716,6 +722,7 @@
   },
   {
    "id": "long.capabilities",
+   "whole_film": true,
    "fmt": "long",
    "metric": "capabilities_missing",
    "op": "true",

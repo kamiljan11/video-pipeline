@@ -37,6 +37,7 @@ def cut(work: Path) -> str:
 def write(work: Path, film: Path, said: str) -> str:
     """"" and the record on disk, or why not"""
     if not waivers.SAID.match(said): return f"whose words and when: 'Kamil YYYY-MM-DD: his sentence', got {said!r}"
+    if (work / "FRAGMENT.json").exists(): return "a fragment test folder (FRAGMENT.json, fragment.py) is never the accepted long"
     if not film.is_file(): return f"no film {film}"
     rec = {"film": str(film.resolve()), "sha256": sha256(film), "cut": cut(work), "commit": manifest.head(), "said": said,
            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
@@ -46,6 +47,7 @@ def write(work: Path, film: Path, said: str) -> str:
 
 def check(work: Path) -> str:
     """"" when the accepted long is still the file Kamil watched; else what is missing"""
+    if (work / "FRAGMENT.json").exists(): return "a fragment test folder (FRAGMENT.json, fragment.py) is never the accepted long"
     p = work / NAME
     if not p.exists(): return f"the long is not accepted yet (no {NAME} in {work}): Kamil watches it first, then accept.py write"
     try: rec = json.loads(p.read_text(encoding="utf-8"))

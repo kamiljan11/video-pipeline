@@ -11,6 +11,8 @@ edge loses its measured t0/t1: that time belongs to the word that is no longer t
 emph, beats, list item_words, story parts) stays only when its word is kept; the end card ("word": "END") stays.
 music_moods are film seconds: shifted by the long's film time of the window start (from the long's EDL), the mood playing
 there starts the fragment. The recording's files (words, silences, wav, video) are linked, never copied or changed.
+Kamil's still acceptance (gfx/stills/accepted.json, stills.py) comes along for the window's cards only: an acceptance is of
+a card's render key, so a card changed since he saw it fails film_check long.stills and render.mjs by name, as in the long.
 Writes DST_WORK/FRAGMENT.json {src_work, from_word, to_word, plan_sha256, keeps, gfx} so the fragment says where it came from.
 """
 from __future__ import annotations
@@ -127,6 +129,11 @@ def main(argv=None) -> int:
     for f in COPY_FILES:
         if (src / f).exists(): (dst / f).write_bytes((src / f).read_bytes())
     if (src / "sources").is_dir(): link(src / "sources", dst / "sources")
+    acc = src / str(plan.get("gfx_dir") or "gfx") / "stills" / "accepted.json"
+    if acc.is_file():
+        keep = {i: k for i, k in json.loads(acc.read_text()).items() if i in {s["id"] for s in sp}}
+        out = dst / str(plan.get("gfx_dir") or "gfx") / "stills"; out.mkdir(parents=True, exist_ok=True)
+        (out / "accepted.json").write_text(json.dumps(keep, ensure_ascii=False, indent=1))
     (dst / plan_p.name).write_text(json.dumps(p, ensure_ascii=False, indent=1))
     if plan.get("gfx_specs"): (dst / plan["gfx_specs"]).write_text(json.dumps(sp, ensure_ascii=False, indent=1))
     if st is not None: (dst / "story.json").write_text(json.dumps(st, ensure_ascii=False, indent=1))
