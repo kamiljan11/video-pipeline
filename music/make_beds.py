@@ -229,7 +229,7 @@ subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_mus
                 str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else []), *pal_args], check=True)
 # the palette this project used: film_check.py keeps the next film from reusing it (Kamil: a new music every film). A fragment
 # test (FRAGMENT.json, fragment.py) is a piece of a film, not a film: 2026-11-14 its entry made the whole long "the same
-# music as the last film", its own
+# music as the last film", although that entry was a piece of the same long. So a fragment test writes no entry.
 if pal and not (Path(edl_p).resolve().parent / "FRAGMENT.json").exists():
     led_p = Path(__file__).resolve().parent.parent / "render" / "music_ledger.json"
     tmp = led_p.with_name(f"{led_p.name}.{os.getpid()}.tmp")

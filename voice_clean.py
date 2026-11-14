@@ -21,6 +21,11 @@ from pathlib import Path
 
 DEFAULT_BIN = Path.home() / ".local/share/vp-voice/dfn/deep-filter"
 CHAIN = "highpass=f=70,loudnorm=I=-14:TP=-1.0:LRA=9"  # assemble.py's default voice chain behind DeepFilterNet
+# The rough cut's sound has small holes between its pieces (each piece's sound ends a fraction of a ms before the next
+# one's timestamp). A wav has no timestamps: written as it comes, the holes close and the voice runs ahead of the picture,
+# more with every cut. Whole long 2026-11-14, 338 pieces: the wav 37 ms shorter than the track, lip_check "voice before
+# the lips by 22 ms (median)", 39 ms at the end of the film. So the holes are filled with silence on the way out.
+KEEP_TIME = "aresample=async=1:min_hard_comp=0.00005:first_pts=0"
 
 
 def binary() -> Path:
@@ -35,7 +40,7 @@ def clean(media: str, dst: str) -> str:
     with tempfile.TemporaryDirectory(prefix="voice-clean-") as tmp:
         raw, outdir = os.path.join(tmp, "voice.wav"), os.path.join(tmp, "out")
         try:
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", media, "-vn", "-ar", "48000", "-c:a", "pcm_s16le", raw], check=True, timeout=3600)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", media, "-vn", "-af", KEEP_TIME, "-ar", "48000", "-c:a", "pcm_s16le", raw], check=True, timeout=3600)
             subprocess.run([str(exe), "-D", "-o", outdir, raw], check=True, capture_output=True, timeout=7200)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
             err = getattr(e, "stderr", b"") or b""

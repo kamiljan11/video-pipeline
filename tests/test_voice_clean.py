@@ -40,6 +40,18 @@ class VoiceCleanTest(unittest.TestCase):
         self.assertAlmostEqual(self.level(Path(dst)), self.level(self.media) - 6.0, delta=1.0)  # the stub's volume=0.5
         self.assertTrue((self.tmp / "args.txt").read_text().startswith("-D -o "))  # -D: the model's delay taken back
 
+    def test_holes_between_the_pieces_stay_as_silence(self):
+        # whole long 2026-11-14: the rough cut's sound had holes between its 338 pieces; closed, the voice ran 39 ms ahead
+        piece, lst, holed = self.tmp / "piece.mkv", self.tmp / "pieces.txt", self.tmp / "holed.mkv"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=220:d=1", "-c:a", "pcm_s16le", str(piece)], check=True)
+        lst.write_text(f"file {piece}\nduration 1.04\nfile {piece}\nduration 1.04\nfile {piece}\n")  # 3 x 1 s, each 40 ms after the last one's end
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(holed)], check=True)
+        with mock.patch.dict(os.environ, {"VP_DEEP_FILTER": str(self.exe)}):
+            out = voice_clean.clean(str(holed), str(self.tmp / "holed.voice.wav"))
+        dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out],
+                                   capture_output=True, text=True, check=True).stdout)
+        self.assertAlmostEqual(dur, 3.08, delta=0.01)  # holes closed: 3.00 s
+
     def test_a_missing_binary_stops_with_its_path(self):
         with mock.patch.dict(os.environ, {"VP_DEEP_FILTER": str(self.tmp / "nope")}), self.assertRaises(SystemExit) as e:
             voice_clean.clean(str(self.media), str(self.tmp / "v.wav"))
