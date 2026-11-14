@@ -4,6 +4,23 @@ Plan: `docs/designs/2026-11-10-long-lite.md`. Order (Kamil 2026-11-10): **system
 
 Every step = commit (Conventional Commits) + `pytest` with `set -o pipefail` rc=0 + ruff. No `--no-verify`, no lint suppression. Branch `feat/long-lite` from `feat/film-v2-motion` (a6bb0c4 + docs). No merge to main without Kamil's phrase. Junk -> `~/Dane/_to_delete/<date>-video-pipeline` + LISTA.txt, `df -h` in the report.
 
+## Status 2026-11-14 (scheduled run video-long-lite-start, laptop)
+
+| phase | status | commit / reason |
+|---|---|---|
+| 1 no selectivity | done (waivers in the plan, `SKIPPED_GATES` line) | bbae4e8 |
+| 2 dry run + freeze | done; fixed twice on the real long: the record names the commit the dry run STARTED on (9d98663), the edl hash leaves out what make_beds writes after the check point (see below) | bbae4e8, 9d98663, + edl-digest fix |
+| 3 timeline + watcher | done; watcher `--stall` 1800 s too short for words_check under load (whisper says nothing for 30-60 min) | 8005df4 |
+| 4.1-4.3 Kdenlive round trip | done (kden_export / kden_import / cut_fix) | 94876e2 |
+| 4.4 snap_tail + entry_check | deferred: edge_fix already moves keep edges, Kamil's Kdenlive cut_fix too; a third mechanism on the same edge without a measurement = conflict (NOTES_LOG 41) | — |
+| 4.5 duck default 0.004 | deferred: the long has 0.004 in its plan; the default is film code, every film stale (NOTES_LOG 38, 42) | — |
+| 5 effect rules | done (`long.effect_spread`) | c4c6e3b |
+| 6 ACCEPTED | gate only in run_v4.sh for now; build_posts / ig_carousel / article / publish_post do not check it yet (NOTES_LOG 43) | c4c6e3b |
+| — lip_check | the long had cards over 1073 of 1086 s: 0 pieces measured, OK, for every long since v5; now measured under the cards (dry run 3: 15/24 pieces, median -14.5 ms) | 9fd8bbf |
+| 7 fragment test | NOT done as a 3 min fragment: the scheduled task ran the whole 2026-11-04 long (work `render/montaz/lite-test-2026-11-10/`) | — |
+
+Runs on the whole long (timeline.log, minutes): dry run 3 on 9fd8bbf = DRY_OK, 92.4 total (plan 0.3, beds 0.9, assemble 23.7, checks 67.0; machine load ~40 from another transcription); full render refused after 0.8 min: `edl_long.json changed after the dry run` — make_beds rewrites the edl after the full render's check point, so no full render could ever pass. Fixed in dry_run.digest (6af5035). Dry run 4 of the whole long on 6af5035 started 14:09 and was stopped at 14:10 (plan stage): order change from Kamil 14.11 ("mial byc render kawalka zeby widziec realnie czy dzialaja logiki zeby pelny zrobic?") -> Phase 7 fragment first, the whole long only after Kamil accepts the fragment. Phase 7 not started: there is no tool that cuts a fragment plan (keeps, gfx, chapter, behind, music of a time window) out of plan_long.json, and this run had ~2 % of its 10 % budget left.
+
 ## Phase 0 — start (session S0, ~0.5 %)
 - 0.1 `get_usage` -> `timeline.log` line `S0 start usage=<pct>`; phase budget: whole rebuild <= 15 % of the weekly limit, stop + report on overrun.
 - 0.2 `git status` clean, `git worktree list`, check that no render is running (`systemctl --user list-units 'vp-*'`).
