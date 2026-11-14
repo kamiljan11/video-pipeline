@@ -227,7 +227,10 @@ if pal is not None and not (isinstance(pal, dict) and isinstance(pal.get("name")
 pal_args = ["--palette", pal["name"], "--key", str(pal.get("key", 0))] if pal else []
 subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_music.py"), os.path.join(od, "music.wav"), f"{total + 1:.2f}",
                 str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else []), *pal_args], check=True)
-if pal:  # the palette this project used: film_check.py keeps the next film from reusing it (Kamil: a new music every film)
+# the palette this project used: film_check.py keeps the next film from reusing it (Kamil: a new music every film). A fragment
+# test (FRAGMENT.json, fragment.py) is a piece of a film, not a film: 2026-11-14 its entry made the whole long "the same
+# music as the last film", its own
+if pal and not (Path(edl_p).resolve().parent / "FRAGMENT.json").exists():
     led_p = Path(__file__).resolve().parent.parent / "render" / "music_ledger.json"
     tmp = led_p.with_name(f"{led_p.name}.{os.getpid()}.tmp")
     try:

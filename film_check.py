@@ -491,7 +491,9 @@ class Film:
         if not isinstance(pal, dict): return False, "no music_palette in the plan: the old bed, the same in every film"
         led = load(LEDGER, "music ledger (render/music_ledger.json, written by make_beds.py)") if LEDGER.exists() else {}
         if not isinstance(led, dict): bad_input(f"music ledger {LEDGER}: an object of entries, got {type(led).__name__}")
-        others = [v for v in led.values() if isinstance(v, dict) and v.get("work") != str(self.work.resolve())]
+        # a fragment test folder is a piece of a film, not the last film (2026-11-14: the fragment of this long refused the long)
+        others = [v for v in led.values() if isinstance(v, dict) and v.get("work") != str(self.work.resolve())
+                  and not (Path(str(v.get("work") or "/nowhere")) / "FRAGMENT.json").exists()]
         if not others: return True, ""
         last = max(others, key=lambda v: v.get("at", ""))
         same = (last.get("name"), last.get("key", 0)) == (pal.get("name"), pal.get("key", 0))

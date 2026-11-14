@@ -476,6 +476,15 @@ class FilmCheckTest(unittest.TestCase):
         _, rep = self.run_check("long")
         self.assertEqual(rep["long.music_palette"]["status"], "OK")  # another key is another piece
 
+    def test_a_fragment_test_folder_is_not_the_last_film(self):  # 2026-11-14: the long's own fragment refused the long
+        ovs, specs, segs = self.full_long()
+        self.project(ovs, specs, segs, sfx_style="v2", music_palette={"name": "lofi", "key": 2},
+                     music_moods=[[0, "story"], [200, "tension"], [400, "upbeat"]])
+        frag = self.d / "fragment-work"; frag.mkdir(); (frag / "FRAGMENT.json").write_text("{}")
+        self.ledger.write_text(json.dumps({"f::long": {"work": str(frag), "film": "long", "name": "lofi", "key": 2, "at": "2026-11-02T10:00:00"}}))
+        _, rep = self.run_check("long")
+        self.assertEqual(rep["long.music_palette"]["status"], "OK")
+
     def test_a_broken_hook_lint_file_is_named_not_a_traceback(self):  # review 2026-11-07: KeyError came from the loop
         import film_check
         import hook_check
