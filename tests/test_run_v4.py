@@ -230,6 +230,11 @@ class RunV4GateTest(unittest.TestCase):
         self.assertIn("DONE x", render)
         self.assertLess(calls.index("assemble.py"), calls.index("manifest.py"))
 
+    def test_the_kdenlive_project_of_the_long_is_stamped_too(self):  # out.manifest: every part of out/ has a stamp
+        (self.work / "edl_long.json").write_text(json.dumps({"out_name": "film.mp4"}))  # the stub assemble writes film.mp4
+        _, calls = self.run_v4(film="long")
+        self.assertEqual(calls[-2:], ["to_otio.py", "manifest.py"])
+
     def test_a_failed_stamp_fails_the_film(self):
         render, _ = self.run_v4(rc=1, FAIL_manifest="1")
         self.assertIn("FAILED manifest x", render)

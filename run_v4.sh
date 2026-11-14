@@ -162,7 +162,10 @@ done
 # the Kdenlive project only from the long rendered in THIS run (never from a stale edl_long.json)
 if [[ "${DRY:-}" != 1 && " $* " == *" long "* && " $failed " != *" long "* ]] && [ -f edl_long.json ]; then
   lf=$(python3 -c "import json;print(json.load(open('edl_long.json'))['out_name'])")
+  # stamped like the film: film_check --out out.manifest asks every part of the out folder for its commit (2026-11-14
+  # fragment test: "long_do_kdenlive.otio: no stamp" on every long since the Kdenlive project moved into OUT)
   $PY $VP/to_otio.py edl_long.json "$OUT/${lf%.mp4}_do_kdenlive.otio" >> "$R/render.log" 2>&1 \
+    && python3 $VP/manifest.py stamp "$OUT" "${lf%.mp4}_do_kdenlive.otio" >> "$R/render.log" 2>&1 \
     || { echo "FAILED to_otio long" >> "$R/render.log"; failed="$failed long"; }
 fi
 tl end "${failed:+failed:$failed}"
