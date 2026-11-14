@@ -19,6 +19,7 @@ import edl_guard  # next to this script: what an EDL may carry into an ffmpeg co
 import gfx_types  # next to this script: where a 9:16 split card puts the face box
 import themes  # next to this script (sys.path[0])
 import timeline  # next to this script: film length of each piece (seg_exact = whole frames)
+import voice_clean  # next to this script: the voice through DeepFilterNet (EDL "voice_clean")
 
 edl = json.loads(Path(sys.argv[1]).read_text()); out = sys.argv[2]
 try:
@@ -387,7 +388,9 @@ if corners:  # after the cards: a ring in the theme accent, the face circle on i
     fc.append(f"[vcr][cbox]overlay={CN['x']}:{CN['y']}:enable={c_en}:shortest=1[vcc]"); last = "vcc"
 if edl.get("subs"):
     fc.append(f"[{last}]subtitles='{edl['subs']}':force_style='{edl.get('sub_style','')}'[vs]"); last = "vs"
-audio = edl.get("audio", "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")
+# with voice_clean "dfn" the default chain has no afftdn and no acompressor: both lowered the measured voice quality (voice_clean.py)
+audio = edl.get("audio", voice_clean.CHAIN if edl.get("voice_clean") == "dfn" else
+                "highpass=f=70,afftdn=nf=-30,acompressor=threshold=-20dB:ratio=3:attack=10:release=150:makeup=2,loudnorm=I=-14:TP=-1.0:LRA=9")
 # the voice chain's own delay (afftdn 25 ms, an alimiter without latency=1 5 ms) cut off its start, so the voice stays on
 # the lips (film 2026-11-04 long: +40 ms, Kamil 2026-11-09); measured on a test signal, the chain is the plan's data
 _lat = av_latency.chain_ms(audio)
@@ -400,19 +403,23 @@ va = (f"[0:a]{audio},asetpts=N/SR/TB" + (f",atrim=start={_lat / 1000:.4f},asetpt
 # 0.65 s of the voice where the first card ended (film 2026-11-04 long, 3.09 s: one 0.676 s AAC packet, "Przez" gone,
 # and every player that plays samples in a row heard the voice 0.65 s before the lips; Kamil 2026-11-08). The sound
 # graph alone has no gap (checked); av_check.py proves it on every film after the mux.
-ainputs = ["-i", rough]; afc = []
+# voice_clean "dfn": the voice of the rough cut through DeepFilterNet first (voice_clean.py), the chain then needs no afftdn
+ainputs = ["-i", voice_clean.clean(rough, os.path.join(out, "rough.voice.wav")) if edl.get("voice_clean") == "dfn" else rough]; afc = []
 if edl.get("music"):
     mo = ["-ss", f"{edl['music_offset']:.3f}"] if edl.get("music_offset") else []  # preview of a slice: beds start mid-way
     ainputs += [*mo, "-i", edl["music"], *mo, "-i", edl["sfx"]]
     afc.append(va + ",asplit=3[vm][vsc][vss]")
     afc.append(f"[1:a]aresample=48000,volume={edl.get('music_db', -13)}dB[mu]")
-    duck = {"threshold": 0.015, "ratio": 6, **edl.get("music_duck", {})}  # how far the music dips under the voice (edl_guard checks)
-    afc.append(f"[mu][vsc]sidechaincompress=threshold={duck['threshold']:g}:ratio={duck['ratio']:g}:attack=30:release=500:makeup=1[mud]")
+    # how far the music dips under the voice (edl_guard checks). mix < 1 = a floor: that share of the ducked music, the rest
+    # undipped, so the music stays at one level under loud and quiet words alike (fragment 2026-11-14: threshold 0.04 /
+    # ratio 2.5 let it back up to 3 dB under a quiet word at 201 s; 0.004 / 8 / mix 0.8 holds it 12-14 dB under its pause level)
+    duck = {"threshold": 0.015, "ratio": 6, "mix": 1, **edl.get("music_duck", {})}
+    afc.append(f"[mu][vsc]sidechaincompress=threshold={duck['threshold']:g}:ratio={duck['ratio']:g}:attack=30:release=500:makeup=1:mix={duck['mix']:g}[mud]")
     # the SFX dip under the voice as the music does: a chapter riser landing on a sentence covered "to co się dzieje" by 3 dB
     # (film 2026-11-04 long, 443 s, c4_dowod); in a pause they play at full level (edl_guard checks sfx_duck like music_duck)
-    sduck = {"threshold": 0.015, "ratio": 6, **edl.get("sfx_duck", {})}
+    sduck = {"threshold": 0.015, "ratio": 6, "mix": 1, **edl.get("sfx_duck", {})}
     afc.append(f"[2:a]aresample=48000,volume={edl.get('sfx_db', -12)}dB[sxr]")
-    afc.append(f"[sxr][vss]sidechaincompress=threshold={sduck['threshold']:g}:ratio={sduck['ratio']:g}:attack=5:release=300:makeup=1[sx]")
+    afc.append(f"[sxr][vss]sidechaincompress=threshold={sduck['threshold']:g}:ratio={sduck['ratio']:g}:attack=5:release=300:makeup=1:mix={sduck['mix']:g}[sx]")
     afc.append("[vm][mud][sx]amix=inputs=3:normalize=0:duration=first,alimiter=limit=0.89:latency=1[a]")  # latency=1: no 5 ms look-ahead delay
 else:
     afc.append(va + "[a]")

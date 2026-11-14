@@ -970,6 +970,18 @@
    "why": "the music dips under the voice (sidechain); words_check.py measures the words stay understood"
   },
   {
+   "id": "plan.voice_clean",
+   "kind": "plan",
+   "name": "voice_clean",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the voice through DeepFilterNet before the chain (voice_clean.py, Kamil 2026-11-14); words_check.py measures the words stay understood"
+  },
+  {
    "id": "plan.music_moods",
    "kind": "plan",
    "name": "music_moods",

@@ -11,7 +11,11 @@ lips_ok() {
   python3 $VP/lip_check.py "edl_$1.json" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED lip_check $1" >> "$R/render.log"; return 1; }
 }
 # music_check (long): the music heard under the voice, from assemble's own audio graph (Kamil 2026-11-14 "muzyka tech
-# chyba w tle nie gra": the bed sat 48 dB under the voice). WORDS_CHECK=off does not reach it: no off switch
+# chyba w tle nie gra": the bed sat 48 dB under the voice). No off switch: WORDS_CHECK=off does not reach it
+music_ok() {
+  [ "$2" = long ] || return 0
+  python3 $VP/music_check.py "$R/$1/assemble.audio.args.json" >> "$R/render.log" 2>&1 || { echo "FAILED music_check $1" >> "$R/render.log"; return 1; }
+}
 # words_check: no word lost by the cut (plan text vs rough) or by the sound (rough vs film). Kamil 2026-11-08 "0:04 uciales
 # moje gadanie ... juz ktorys raz". WORDS_CHECK=off skips it, logged (a quick preview render)
 words_ok() {
@@ -148,7 +152,7 @@ for n in "$@"; do
     && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
     && lips_ok "$n" "$R/$n/$f" \
     && words_ok "$n" "$R/$n/$f" \
-    && { [ "$form" != long ] || python3 $VP/music_check.py "$R/$n/assemble.audio.args.json" >> "$R/render.log" 2>&1 || { echo "FAILED music_check $n" >> "$R/render.log"; false; }; } \
+    && music_ok "$n" "$form" \
     && { [ "${DRY:-}" = 1 ] || { mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; }; }; then
     if [ "${DRY:-}" = 1 ]; then  # the small film is not a film: nothing goes to OUT, no stamp; the record opens the full render
       rm -f "$R/$n/$f"

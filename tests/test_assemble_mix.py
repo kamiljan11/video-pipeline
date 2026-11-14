@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -138,13 +139,31 @@ class AssembleMixTest(unittest.TestCase):
                              capture_output=True, check=True).stdout
         self.assertGreater(raw[0], 60, list(raw))  # the half-transparent red card is in the picture
 
+    def test_duck_mix_is_a_floor_under_the_voice(self):
+        hard = self.music_db_under_voice(music_duck={"threshold": 0.001, "ratio": 20})
+        floor = self.music_db_under_voice(music_duck={"threshold": 0.001, "ratio": 20, "mix": 0.75})
+        none = self.music_db_under_voice(music_duck={"ratio": 1})
+        self.assertAlmostEqual(none - floor, 12, delta=2.5, msg=(none, floor, hard))  # a quarter of the undipped music = -12 dB
+        self.assertGreater(floor - hard, 5, (none, floor, hard))
+
+    def test_voice_clean_feeds_the_cleaned_voice_to_the_mix(self):
+        exe = self.tmp / "deep-filter"  # stands in for DeepFilterNet: the voice 20 dB down
+        exe.write_text('#!/bin/sh\nmkdir -p "$3" && ffmpeg -v error -y -i "$4" -af volume=0.1 "$3/$(basename "$4")"\n'); exe.chmod(0o755)
+        def voice_db(**keys):
+            v = self.render(audio="anull", **keys)
+            r = subprocess.run(["ffmpeg", "-v", "info", "-nostats", "-i", str(v), "-af", "astats=measure_overall=RMS_level:measure_perchannel=none",
+                                "-f", "null", "-"], capture_output=True, text=True, check=True)
+            return float(r.stderr.rsplit("RMS level dB:", 1)[1].split()[0])
+        os.environ["VP_DEEP_FILTER"] = str(exe); self.addCleanup(os.environ.pop, "VP_DEEP_FILTER", None)
+        self.assertAlmostEqual(voice_db() - voice_db(voice_clean="dfn"), 20, delta=1.5)
+
     def test_guard_refuses_bad_music_duck(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
         for bad in ({"threshold": 0}, {"threshold": 0.0001}, {"threshold": 2}, {"ratio": 0.5}, {"ratio": 30}, {"ratio": "6"}, {"knee": 2},
-                    {"ratio": True}, [0.05, 2.5], "0.05", None):
+                    {"ratio": True}, {"mix": 1.5}, {"mix": -0.1}, {"mix": "0.8"}, [0.05, 2.5], "0.05", None):
             with self.subTest(bad=bad):
                 self.assertTrue(any("music_duck" in p for p in edl_guard.problems({**base, "music_duck": bad})))
-        for ok in ({"threshold": 0.05, "ratio": 2.5}, {"threshold": edl_guard.DUCK_MIN_THRESHOLD}, {}):
+        for ok in ({"threshold": 0.05, "ratio": 2.5}, {"threshold": edl_guard.DUCK_MIN_THRESHOLD}, {"threshold": 0.004, "ratio": 8, "mix": 0.8}, {}):
             self.assertEqual(edl_guard.problems({**base, "music_duck": ok}), [], ok)
 
     def test_build_edl_refuses_them_at_plan_time(self):

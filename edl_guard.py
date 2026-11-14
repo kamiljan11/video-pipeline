@@ -71,8 +71,8 @@ DUCK_MIN_THRESHOLD = 0.001  # ffmpeg sidechaincompress refuses below 0.000976563
 
 def duck_ok(v) -> bool:
     """music_duck for assemble.py's sidechaincompress: how far the music dips under the voice"""
-    return (isinstance(v, dict) and set(v) <= {"threshold", "ratio"} and all(num(x) for x in v.values())
-            and DUCK_MIN_THRESHOLD <= v.get("threshold", 0.5) <= 1 and 1 <= v.get("ratio", 2) <= 20)
+    return (isinstance(v, dict) and set(v) <= {"threshold", "ratio", "mix"} and all(num(x) for x in v.values())
+            and DUCK_MIN_THRESHOLD <= v.get("threshold", 0.5) <= 1 and 1 <= v.get("ratio", 2) <= 20 and 0 <= v.get("mix", 1) <= 1)
 
 
 def chain_ok(text, allowed: frozenset) -> bool:
@@ -121,15 +121,17 @@ def problems(edl) -> list[str]:
     if not isinstance(edl.get("head_track", False), bool):  # 1 or "yes" would silently give the old window cut from the zoomed picture
         out.append("head_track: true or false (PiP window and corner circle cut from the recording around the head)")
     if "music_duck" in edl and not duck_ok(edl["music_duck"]):
-        out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
+        out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20, \"mix\": 0 to 1}, all optional, no other keys")
     if "sfx_duck" in edl and not duck_ok(edl["sfx_duck"]):
-        out.append("sfx_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
+        out.append("sfx_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20, \"mix\": 0 to 1}, all optional, no other keys")
     if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:
         out.append(f"tail: 0 to {MAX_TAIL:g} s")
     if "out_name" in edl and not (isinstance(edl["out_name"], str) and OUT_NAME.fullmatch(edl["out_name"])):
         out.append("out_name: a bare file name like film_v2.mp4 (letters, digits, _ . - and an extension; no /, space, Polish letter or leading dot)")
     out += [f"{k}: only the filters {sorted(allowed)}, options with plain values" for k, allowed in (("audio", AUDIO), ("grade", VIDEO))
             if k in edl and not chain_ok(edl[k], allowed)]
+    if edl.get("voice_clean") not in (None, "dfn"):  # voice_clean.py: the voice through DeepFilterNet before the chain
+        out.append("voice_clean: \"dfn\" or absent")
     if not gate_ok(edl.get("audio")):
         out.append(f"audio: agate must be gentle (threshold <= {GATE_MAX_THRESHOLD:g}, range >= {GATE_MIN_RANGE:g}): a hard gate eats quiet word starts")
     for o in edl.get("overlays", []):
