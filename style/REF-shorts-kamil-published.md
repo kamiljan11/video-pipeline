@@ -31,3 +31,6 @@ plany `plans_bak_1031b/plan_cetus_c*.json`). Najlepsze (ostatnie): drFuW0UgxKI, 
 3. Kartka zaczyna się od tytułu i pierwszego wiersza, nie od pustki; tekst >= 35 px na 1080.
 4. Kółko: twarz ciasno (głowa wypełnia koło), granatowe tło, niebieska obwódka, poświata bez koloru koszulki.
 5. Napisy w pasku, wersalikami.
+6. Nie wszystko na kartce (Kamil 2026-11-15: „nie wszystko jest na kartce, są różne sposoby"). Forma karty idzie za treścią:
+   łańcuch kroków = schemat z pudełkami i strzałkami; okno, terminal, przełącznik, czat = okno aplikacji z trzema kropkami;
+   reszta = kartka w linie. Do tego prawdziwe źródło (PDF, strona) i stock na pełny ekran, jak w tabeli wyżej.
