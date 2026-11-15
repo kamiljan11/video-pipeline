@@ -812,7 +812,9 @@ class Film:
         bad = []
         for o, sp in self.scene_specs():
             if sp.get("canvas_zoom") or o.get("zooms"): bad.append(f"{o['id']}: canvas_zoom")
-            on = [c.get("on") for c in sp.get("cam") or [] if c.get("on") not in (None, "*")]
+            raw = sp.get("cam")
+            cams: list = raw if isinstance(raw, list) else []  # "cam": "none" = a still camera, nothing to stop on
+            on = [c.get("on") for c in cams if isinstance(c, dict) and c.get("on") not in (None, "*")]
             if on: bad.append(f"{o['id']}: camera on {on[0]!r} (use \"on\": \"*\")")
         return not bad, "; ".join(bad[:6]) or "every scene whole in the frame"
 

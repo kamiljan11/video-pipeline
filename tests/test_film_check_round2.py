@@ -434,6 +434,7 @@ class CardUseTest(FilmFixture):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new ca
         cam = [{"id": "s", "type": "scene", "els": [], "cam": [{"t": 0, "on": "a"}]}]
         self.assertIn("camera on 'a'", self.film([{"id": "s", "at": 0, "dur": 8}], cam).scene_whole()[1])
         self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8}], [{**cam[0], "cam": [{"t": 0, "on": "*"}]}]).scene_whole()[0])
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8}], [{**cam[0], "cam": "none"}]).scene_whole()[0])  # "cam": "none" = a still camera (README), not a crash
         self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 3], [3, 8]]}], sp).list_items()[0])
         self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 4.5], [4.5, 8]]}], sp).list_items()[0])
 
