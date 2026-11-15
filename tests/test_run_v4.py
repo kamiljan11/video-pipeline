@@ -326,7 +326,9 @@ class RunV4GateTest(unittest.TestCase):
     def test_the_stages_of_a_run_are_timed_in_the_work_folder(self):  # Kamil 2026-11-10: a film's hours measured, not guessed
         self.run_v4(DRY="1")
         marks = [ln.split(" ", 1) for ln in (self.work / "timeline.log").read_text().splitlines()]
-        self.assertEqual([m[1] for m in marks], ["run dry x", "gfx", "plan x", "beds x", "assemble x", "checks x", "end "])
+        self.assertEqual([m[1] for m in marks], ["run dry x", "gfx", "plan x", "beds x", "assemble x", "checks x",  # each check timed apart (2026-11-15: where the hours go)
+                                                  "check av x", "check sync x", "check lips x", "check words_cut x", "check retake x",
+                                                  "check words_sound x", "check music x", "end "])
         for when, _ in marks:
             self.assertRegex(when, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d")
 

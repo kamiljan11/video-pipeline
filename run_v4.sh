@@ -14,19 +14,19 @@ lips_ok() {
 # chyba w tle nie gra": the bed sat 48 dB under the voice). No off switch: WORDS_CHECK=off does not reach it
 music_ok() {
   [ "$2" = long ] || return 0
-  python3 $VP/music_check.py "$R/$1/assemble.audio.args.json" >> "$R/render.log" 2>&1 || { echo "FAILED music_check $1" >> "$R/render.log"; return 1; }
+  tl "check music $1"; python3 $VP/music_check.py "$R/$1/assemble.audio.args.json" >> "$R/render.log" 2>&1 || { echo "FAILED music_check $1" >> "$R/render.log"; return 1; }
 }
 # words_check: no word lost by the cut (plan text vs rough) or by the sound (rough vs film). Kamil 2026-11-08 "0:04 uciales
 # moje gadanie ... juz ktorys raz". WORDS_CHECK=off skips it, logged (a quick preview render)
 words_ok() {
   if [ "${WORDS_CHECK:-on}" = off ]; then echo "WORDS_CHECK=off: words_check skipped for $1" >> "$R/render.log"; return 0; fi
-  python3 $VP/words_check.py cut "edl_$1.txt" "$R/$1/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED words_check cut $1" >> "$R/render.log"; return 1; }
+  tl "check words_cut $1"; python3 $VP/words_check.py cut "edl_$1.txt" "$R/$1/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED words_check cut $1" >> "$R/render.log"; return 1; }
   # a retake heard in the cut itself, utterance by utterance (retake_check.py): the source transcript can lose one of two
   # takes (2026-11-14 fragment at 1:00, Kamil "dwa razy powtorzenie ... zle obciete"). Dry run only: the final has its cut
   if [ "${DRY:-}" = 1 ]; then
-    python3 $VP/retake_check.py "$R/$1/rough.mkv" "plan_$1.json" >> "$R/render.log" 2>&1 || { echo "FAILED retake_check $1" >> "$R/render.log"; return 1; }
+    tl "check retake $1"; python3 $VP/retake_check.py "$R/$1/rough.mkv" "plan_$1.json" >> "$R/render.log" 2>&1 || { echo "FAILED retake_check $1" >> "$R/render.log"; return 1; }
   fi
-  python3 $VP/words_check.py sound "$R/$1/rough.mkv" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED words_check sound $1" >> "$R/render.log"; return 1; }
+  tl "check words_sound $1"; python3 $VP/words_check.py sound "$R/$1/rough.mkv" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED words_check sound $1" >> "$R/render.log"; return 1; }
 }
 # sound_seen.py: sync, words, retake and music checks are not run again on the sound and cut they already passed (the
 # 2026-11-15 long: 78 of 123 min in checks, the full render hearing again what the dry run had passed). The key holds the
@@ -162,10 +162,10 @@ for n in "$@"; do
   dry=(); [ "${DRY:-}" = 1 ] && dry=(--dry)
   tl assemble "$n"
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" \
-    && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
+    && { tl "check av $n"; python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && sound_key "$n" "$R/$n/$f" \
-    && { [ "$SAME" = 1 ] || python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
-    && lips_ok "$n" "$R/$n/$f" \
+    && { [ "$SAME" = 1 ] || { tl "check sync $n"; python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; }; } \
+    && tl "check lips $n" && lips_ok "$n" "$R/$n/$f" \
     && { [ "$SAME" = 1 ] || { words_ok "$n" "$R/$n/$f" && music_ok "$n" "$form" && sound_pass "$n"; }; } \
     && { [ "${DRY:-}" = 1 ] || { mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; }; }; then
     if [ "${DRY:-}" = 1 ]; then  # the small film is not a film: nothing goes to OUT, no stamp; the record opens the full render

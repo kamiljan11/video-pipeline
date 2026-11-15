@@ -2090,6 +2090,18 @@
    "why": "a phrase said twice on purpose, named one at a time; unused = no repeat on purpose (long/short.retakes cuts the worse take otherwise)"
   },
   {
+   "id": "plan.cuts",
+   "kind": "plan",
+   "name": "cuts",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "every run of words a long leaves out, named as a mistake (retake, false start, slip, mic) or Kamil's own cut; unused = nothing cut (Kamil 2026-11-15: a long keeps what was said)"
+  },
+  {
    "id": "plan.overlap_ok",
    "kind": "plan",
    "name": "overlap_ok",

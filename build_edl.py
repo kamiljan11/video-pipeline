@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import cut_fix
+import cuts
 import edges
 import edl_guard
 import framing
@@ -34,7 +35,15 @@ PRE, POST, MINGAP, KEEP_L, KEEP_R = 0.10, 0.16, 0.45, 0.15, 0.12
 # plan key "pads" (optional): more air at cuts, e.g. {"pre": 0.18, "post": 0.28, "keep_l": 0.28, "keep_r": 0.22, "mingap": 0.7}
 # pre/post = sound kept before the first / after the last word of a keep; keep_l/keep_r = pause kept after / before speech
 # where a long pause inside a keep is shortened; mingap = only pauses longer than this are shortened. Absent = defaults above.
-_pads = P.get("pads")
+# the long: only named mistakes are cut, and pauses keep their air (cuts.py, Kamil 2026-11-15); its default pads
+# are the breathing ones
+LONG = Path(sys.argv[1]).name == "plan_long.json"  # the long of a recording (run_v4.sh: plan_<film>.json); shorts and tests are other plans
+_order = cuts.order(P.get("keeps") or [])
+if _order: sys.exit("keeps out of order: " + "; ".join(_order))
+if LONG:
+    _cut = cuts.problems(P, len(W))
+    if _cut: sys.exit("long cut: " + "; ".join(_cut))
+_pads = P.get("pads", cuts.LONG_PADS if LONG else None)
 if _pads is not None:
     if not isinstance(_pads, dict) or set(_pads) - {"pre", "post", "keep_l", "keep_r", "mingap"}:
         sys.exit(f"pads: object with keys pre, post, keep_l, keep_r, mingap, got {_pads!r}")

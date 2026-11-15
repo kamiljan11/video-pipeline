@@ -1,0 +1,48 @@
+"""cuts.py: a long cuts only named mistakes and keeps air between sentences (Kamil 2026-11-15)."""
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+import cuts
+
+
+class CutsTest(unittest.TestCase):
+    def setUp(self):
+        self.PLAN = {"keeps": [[0, 10], [21, 30], [12, 15], [41, 50]], "pads": {"mingap": 0.7, "keep_l": 0.28, "keep_r": 0.22}}
+
+    def test_every_run_left_out_is_found_in_word_order(self):
+        self.assertEqual(cuts.dropped(self.PLAN["keeps"], 60), [(11, 11), (16, 20), (31, 40)])
+
+    def test_an_unnamed_cut_is_a_problem(self):  # the 2026-11-09 edit: 23 spans of digressions out with the retakes
+        bad = cuts.problems(self.PLAN, 60)
+        self.assertEqual(len(bad), 3); self.assertIn("w16-20 is cut and plan \"cuts\" does not name it", bad[1])
+
+    def test_named_mistakes_pass_and_content_does_not(self):
+        ok = {**self.PLAN, "cuts": {"w11-11": "slip: 'te te'", "w16-20": "retake: take 1 of 2", "w31-40": "Kamil 2026-11-09: 92 % not proven"}}
+        self.assertEqual(cuts.problems(ok, 60), [])
+        bad = {**ok, "cuts": {**ok["cuts"], "w31-40": "ramble: a digression"}}
+        self.assertIn("kind one of", cuts.problems(bad, 60)[0])
+        self.assertIn("name a run", cuts.problems({**ok, "cuts": {**ok["cuts"], "31-40": "retake: x"}}, 60)[0])
+        self.assertEqual(cuts.problems({**ok, "cuts": {"w10-45": "retake: one range over all three"}}, 60), [])
+
+    def test_a_tight_pause_is_a_problem_and_the_default_breathes(self):
+        tight = {"keeps": [[0, 10]], "pads": {"mingap": 0.36}}
+        self.assertIn("pads.mingap 0.36", cuts.problems(tight, 20)[0])
+        self.assertEqual(cuts.problems({"keeps": [[0, 10]]}, 20), [])  # no pads: build_edl uses LONG_PADS
+        self.assertIn("pads.mingap 0.45", cuts.problems({"keeps": [[0, 10]], "pads": {"pre": 0.1}}, 20)[0])
+
+
+class OrderTest(unittest.TestCase):
+    def test_a_keep_moved_back_in_the_recording_is_named(self):  # the 2026-11-04 long: w187-232 before w69-166
+        why = cuts.order([[0, 50], [187, 232], [69, 166]])
+        self.assertEqual(len(why), 1)
+        self.assertIn("w69-166 comes after w187-232", why[0])
+
+    def test_keeps_in_word_order_pass(self):
+        self.assertEqual(cuts.order([[0, 50, {"t1": 3.0}], [51, 68], [70, 90]]), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
