@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -48,7 +49,8 @@ class RunV4GateTest(unittest.TestCase):
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
-                    "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py", "sound_seen.py"):
+                    "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py", "sound_seen.py",
+                    "review_player.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -313,6 +315,14 @@ class RunV4GateTest(unittest.TestCase):
         for gate in ("av_check.py", "sync_check.py", "lip_check.py", "words_check.py"):
             self.assertIn(gate, calls)
         self.assertNotIn("manifest.py", calls)
+
+    def test_a_dry_run_with_preview_pops_the_film_up_before_the_checks(self):  # Kamil 2026-11-15: watch, note, then render
+        render, calls = self.run_v4(DRY="1", PREVIEW="1", PREVIEW_RUN="")
+        self.assertIn("PREVIEW x http://127.0.0.1:8791/", render)
+        time.sleep(0.5)  # the player starts in the background; the script puts it right after the assemble
+        self.assertIn("review_player.py", (self.tmp / "calls.log").read_text().split())
+        _, calls = self.run_v4(DRY="1")  # the call log keeps both runs: still the one player of the first
+        self.assertEqual(calls.count("review_player.py"), 1)
 
     def test_a_dry_run_with_a_failed_check_opens_nothing(self):
         render, calls = self.run_v4(rc=1, DRY="1", FAIL_av_check="1")

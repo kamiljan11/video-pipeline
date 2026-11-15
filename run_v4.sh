@@ -46,6 +46,16 @@ cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # timeline.log in the work folder: when each stage of each film started, so a film's hours are measured, not guessed
 # (Kamil 2026-11-10 "ile czasu mniej zejdzie"; watch_render.py reads it for a stalled run too)
 tl() { echo "$(date -Is) $*" >> timeline.log; }
+# PREVIEW=1 with DRY=1: the dry film (the whole edit, small picture) pops up in review_player.py as soon as it is put
+# together, while the checks run: Kamil watches, notes at the pause, the final waits for his notes (2026-11-15). A copy is
+# served, so the checks and a next run never pull it from under the player. PREVIEW_RUN="" runs it in this shell's group.
+preview() {
+  [ "${DRY:-}" = 1 ] && [ "${PREVIEW:-}" = 1 ] || return 0
+  cp "$R/$1/$2" "$R/$1/preview_$2" || return 0
+  systemctl --user stop "vp-review-$1" 2>/dev/null
+  ${PREVIEW_RUN-systemd-run --user --collect --quiet --unit vp-review-$1 --working-directory=$PWD} python3 $VP/review_player.py . "$1" --video "$R/$1/preview_$2" >> "$R/review_$1.log" 2>&1 &
+  echo "PREVIEW $1 http://127.0.0.1:8791/ (notes: review_notes_$1.json)" >> "$R/render.log"; return 0
+}
 tl run "${DRY:+dry }$*"
 # the commit this run starts on: a dry run is a pass of THIS code, not of whatever HEAD is when it ends (dry_run.py pass)
 # (empty when git cannot read it: dry_run.py pass then refuses the record, never falls back to the HEAD at the end)
@@ -161,7 +171,7 @@ for n in "$@"; do
   # voice 46 ms after the lips, max 65 ms, no other gate compared picture with sound)
   dry=(); [ "${DRY:-}" = 1 ] && dry=(--dry)
   tl assemble "$n"
-  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" \
+  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" && preview "$n" "$f" \
     && { tl "check av $n"; python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && sound_key "$n" "$R/$n/$f" \
     && { [ "$SAME" = 1 ] || { tl "check sync $n"; python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; }; } \
