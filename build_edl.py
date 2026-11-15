@@ -351,6 +351,14 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
 HOOK_POS = P.get("hook_pos", "top")
 if HOOK_POS not in ("top", "mid"): sys.exit(f"hook_pos: \"top\" or \"mid\", got {HOOK_POS!r}")
 HOOK_MID_Y = 864  # px of 1920: a 2-line hook (2 x 84 px in its box) spans about 760-970, never into the corner circle
+# plan "hook_y" (fraction of H, wf2:shorts:alex-hormozi:1): the 0.45 H of the study is the chest in a wide shot; our shorts
+# open on a tight face (2026-11-15: 0.45 H = Kamil's mouth in all 18 shorts), so the plan can lift the title over the hair
+_hy = P.get("hook_y")
+if _hy is not None:
+    if isinstance(_hy, bool) or not isinstance(_hy, (int, float)) or not 0.05 <= _hy <= 0.9:
+        sys.exit(f"hook_y: a fraction of the height 0.05..0.9, got {_hy!r}")
+    if HOOK_POS != "mid": sys.exit("hook_y moves the mid hook: set hook_pos \"mid\" too")
+    HOOK_MID_Y = round(1920 * _hy)
 HOOK_PUNCH = None
 if HOOK_POS == "mid":
     if not (P.get("vertical") and P.get("hook_text") and P.get("ass_out")):

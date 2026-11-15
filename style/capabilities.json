@@ -46,9 +46,9 @@
    },
    "use": {
     "long": "required",
-    "short": "never"
+    "short": "menu"
    },
-   "why": "long.end: an end card or plan end \"platform\" (group end). Top shorts end 0.23 s after the last word with no end board (short.end FAILs a short with an end card, 30/30)",
+   "why": "long.end: an end card or plan end \"platform\" (group end). Top shorts end 0.23 s after the last word with no end board (30/30); a short shows one only when its plan carries Kamil's \"end_card\" words (Kamil 2026-11-15: the board pointing to the full film on the channel), 1.5-3.5 s after the last word (short.end)",
    "group": "end"
   },
   {
@@ -737,6 +737,18 @@
    "why": "a short may hold a last card in its tail (short.end, short.last_face); the long ends on the platform end screen (long.end)"
   },
   {
+   "id": "plan.end_card",
+   "kind": "plan",
+   "name": "end_card",
+   "owner": "producent-shortow",
+   "check": "short.end",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "Kamil's words for an end board in a short ('Kamil YYYY-MM-DD: ...'): one end card 1.5-3.5 s after the last word (short.end); without them a short ends on its last word"
+  },
+  {
    "id": "plan.face",
    "kind": "plan",
    "name": "face",
@@ -873,6 +885,18 @@
    "want": [
     "mid"
    ]
+  },
+  {
+   "id": "plan.hook_y",
+   "kind": "plan",
+   "name": "hook_y",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "height of the mid hook as a fraction of H (default 0.45): a tight face shot puts 0.45 H on the mouth, the plan lifts the title over the hair (2026-11-15)"
   },
   {
    "id": "plan.hook_show",

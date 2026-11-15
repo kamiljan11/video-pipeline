@@ -254,7 +254,7 @@ class RoundFourTest(unittest.TestCase):  # completeness critic round 3 (2026-11-
 
     def test_card_end_is_judged_by_the_item_of_its_form(self):
         end = next(c for c in C.load() if c["id"] == "card.end")
-        self.assertEqual((C.check_of(end, "long"), C.check_of(end, "short"), end["use"]["short"]), ("long.end", "short.end", "never"))
+        self.assertEqual((C.check_of(end, "long"), C.check_of(end, "short"), end["use"]["short"]), ("long.end", "short.end", "menu"))
 
 
 class RoundFiveTest(unittest.TestCase):  # completeness critic round 4 (2026-11-09)

@@ -207,6 +207,17 @@ class HookPosTest(unittest.TestCase):  # ledger S8
         self.assertTrue(seg["hook_punch"])
         self.assertGreater(seg["zoom"]["b"], seg["zoom"]["a"] + 0.1)
 
+    def test_hook_y_lifts_the_mid_title_off_a_tight_face(self):
+        e = self.p.edl(**self.keys(hook_pos="mid", hook_y=0.17))
+        (hook,) = self.p.dialogues(1)
+        self.assertEqual(int(found(r"\\pos\(540,(\d+)\)", hook)[0]), 326)
+        self.assertEqual(e["hook_y"], 326)
+
+    def test_hook_y_out_of_range_or_without_mid_stops_the_build(self):
+        for bad in ({"hook_pos": "mid", "hook_y": 1.5}, {"hook_pos": "mid", "hook_y": True}, {"hook_y": 0.2}):
+            r = self.p.run(**self.keys(**bad))
+            self.assertNotEqual(r.returncode, 0, bad); self.assertIn("hook_y", r.stderr)
+
     def test_a_zoom_step_already_there_is_the_picture_change(self):
         out = [{"in": 0.0, "out": 2.9, "zoom": 1.0}, {"in": 4.0, "out": 9.0, "zoom": 1.15}]
         self.assertEqual(framing.hook_punch(out, set(), 3.0, False)["how"], "zoom_step")

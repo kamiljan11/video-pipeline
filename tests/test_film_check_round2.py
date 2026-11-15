@@ -281,6 +281,17 @@ class ShortResearchTest(unittest.TestCase):
         self.assertFalse(ok); self.assertIn("want scene/maxim", detail)
         self.assertFalse(self.short(WORDS, tail=1.2).ends_on_the_last_word(0.6)[0])  # no end_hold: the old 0.6 s rule
 
+    def test_end_card_in_kamils_words_is_one_board_after_the_last_word(self):
+        n, said = len(WORDS), "Kamil 2026-11-15: pominales ekran koncowy ogladnij pelny odcinek na yt"
+        end = [{"id": "e", "type": "end", "canvas": "v"}]
+        self.assertTrue(self.short(WORDS, [{"id": "e", "at": n, "dur": 2.5}], end, tail=2.5, end_card=said).ends_on_the_last_word(0.6)[0])
+        self.assertFalse(self.short(WORDS, [{"id": "e", "at": n, "dur": 2.5}], end, tail=2.5).ends_on_the_last_word(0.6)[0])  # no words
+        self.assertFalse(self.short(WORDS, [{"id": "e", "at": n, "dur": 2.5}], end, tail=2.5, end_card="ok").ends_on_the_last_word(0.6)[0])
+        self.assertFalse(self.short(WORDS, [{"id": "e", "at": n - 2, "dur": 4.5}], end, tail=2.5, end_card=said).ends_on_the_last_word(0.6)[0])  # over speech
+        ok, detail = self.short(WORDS, [{"id": "e", "at": n, "dur": 6}], end, tail=6, end_card=said).ends_on_the_last_word(0.6)
+        self.assertFalse(ok); self.assertIn("tail 1.5-3.5", detail)
+        self.assertFalse(self.short(WORDS, tail=2.5, end_card=said).ends_on_the_last_word(0.6)[0])  # no board
+
     def test_s6_the_end_comes_back_to_the_hook(self):
         self.assertTrue(self.short(WORDS).callback_end()[0])
         self.assertFalse(self.short([*WORDS[:-4], "Tak", "to", "wygląda", "zawsze."]).callback_end()[0])

@@ -38,6 +38,7 @@ import retakes  # the same words said twice: a retake the cut kept (also retake_
 import thumb_check  # the long thumbnails as the feed shows them
 import timeline  # film time of a source time: the one place (frame-exact pieces)
 import title_check  # the A/B/C titles of the long
+import waivers  # Kamil's own words for a rule he set aside (short end_card)
 
 ROOT = Path(__file__).resolve().parent
 CHECKLIST = ROOT / "style" / "checklist.json"
@@ -240,6 +241,7 @@ def cover_spans(edl: dict) -> list[tuple[float, float]]:
 
 
 PUNCH_ROOM = 1.08  # face_track zmax at or under this: no visible punch fits under the head limit
+END_CARD_TAIL = (1.5, 3.5)  # s of an end board after a short's last word when the plan carries Kamil's "end_card" (short.end)
 FACE_MIN_S = 10.0  # under this much punchable face a short has nothing to punch into (ADR-0021)
 
 
@@ -856,6 +858,13 @@ class Film:
             last = [self.typ(o) for o in self.ovs if o["at"] + o["dur"] >= self.len + tail - 0.1]
             ok = isinstance(hold, (int, float)) and 1.0 <= hold <= 1.6 and tail <= hold + 0.05 and bool(last) and all(t in ("scene", "maxim") for t in last)
             return ok and not self.has_end_card(), f"end_hold {hold}, tail {tail:.1f} s, cards in the tail {last or 'none'} (want scene/maxim, hold 1.0-1.6 s)"
+        said = self.plan.get("end_card")
+        if said is not None:  # Kamil 2026-11-15: a short ends on a board pointing to the full film on the channel, in his words
+            ends = [o for o in self.ovs if self.typ(o) == "end"]
+            ok = (isinstance(said, str) and waivers.SAID.match(said) is not None and len(ends) == 1
+                  and END_CARD_TAIL[0] <= tail <= END_CARD_TAIL[1] and ends[0]["at"] >= self.len - 0.05)
+            return ok, (f"end_card ({said!r}): {len(ends)} end card(s), tail {tail:.1f} s (want one end card after the last word, "
+                        f"tail {END_CARD_TAIL[0]}-{END_CARD_TAIL[1]} s, plan end_card 'Kamil YYYY-MM-DD: his words')")
         return (tail <= tail_max and not self.has_end_card()), f"tail {tail:.1f} s, end card {self.has_end_card()}"
     def hook_text(self):  # the hook line from the plan (ASS) or a card on screen from the first half second
         return bool(str(self.plan.get("hook_text", "")).strip()) or any(o["at"] <= 0.5 for o in self.ovs)
