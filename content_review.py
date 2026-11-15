@@ -54,6 +54,31 @@ def spoken(words: list[tuple[float, float, str]], t0: float, t1: float) -> str:
     return " ".join(w for s, _, w in words if t0 - 0.3 <= s <= t1).strip()
 
 
+MEMES = Path(__file__).resolve().parent / "style" / "memes.json"
+
+
+def meme_lines(sp: dict) -> str:
+    """a meme card shows its template's joke, the role of each box beside the text put there, and the wrong use (note 44)"""
+    if sp.get("type") != "meme": return ""
+    t = json.loads(MEMES.read_text(encoding="utf-8")).get(str(sp.get("meme")), {})
+    raw = sp.get("text")
+    texts: list = raw if isinstance(raw, list) else [raw]
+    roles = "".join(f"  - box {i + 1}: {r} <- {texts[i] if i < len(texts) else '(empty)'!r}\n" for i, r in enumerate(t.get("roles") or []))
+    return f"- meme joke: {t.get('joke', '(not in style/memes.json)')}\n{roles}- wrong use: {t.get('misfit', '?')}\n"
+
+
+def scene_lines(sp: dict) -> str:
+    """a drawn scene lists its pieces in order (note 48 "coś bez sensu trochę rysujesz"): each piece must show something
+    the sentence at its second says, else it is cut"""
+    if sp.get("type") != "scene": return ""
+    rows = []
+    for e in sorted(sp.get("els") or [], key=lambda e: float(e.get("at") or 0)):
+        words = " ".join(str(e.get(k)) for k in ("text", "name", "title", "cmd") if e.get(k)) or ", ".join(
+            str(r.get("t") if isinstance(r, dict) else r) for r in e.get("rows") or []) or e.get("on", "")
+        rows.append(f"  - {float(e.get('at') or 0):5.1f} s {e.get('k')}: {str(words)[:80]}\n")
+    return "- pieces (each must show what is said at its second):\n" + "".join(rows)
+
+
 def sheet(work: Path, name: str) -> tuple[str, dict]:
     f = Film(work, name)
     plan = f.plan
@@ -72,7 +97,7 @@ def sheet(work: Path, name: str) -> tuple[str, dict]:
         m, s = divmod(o["at"], 60)
         rows.append(f"### {o['id']} ({sp.get('type')}, {int(m)}:{s:04.1f}, {o['dur']:.1f} s){flag}\n"
                     f"- on screen: {' | '.join(t for t in texts if t.strip())[:400] or '(no words)'}\n"
-                    f"- said: {spoken(W, o['at'], o['at'] + o['dur'])[:400]}\n")
+                    f"- said: {spoken(W, o['at'], o['at'] + o['dur'])[:400]}\n" + meme_lines(sp) + scene_lines(sp))
     md = f"# Content review: {name}\n\n{QUESTIONS}\n\n" + "\n".join(rows)
     return md, hashes
 

@@ -362,8 +362,8 @@ const PIECES = {
       const d = num(e.d, 0.6), gone = e.gone !== undefined ? `;animation:${m.fadeOut} ${f2(e.gone)}s forwards` : '', p = shape === 'box' ? num(e.pad, 14) : 0;
       const bb = shape === 'box' ? `${e.x - p} ${e.y - p} ${e.w + 2 * p} ${e.h + 2 * p}` : `${e.x} ${e.y + e.h} ${e.w} ${num(e.pad, 10) + 8}`;
       // two pen passes, each revealed along its own length (pathLength 1), the second starting before the first ends
-      const strokes = paths.map((pd, i) => `<path d="${pd}" pathLength="1" stroke="${tn}" style="stroke-width:${i ? 4 : 6};stroke-dasharray:1;stroke-dashoffset:1;`
-        + `animation:scdraw ${f2(d * (i ? 0.8 : 1))}s ${m.draw} ${f2(at + i * d * 0.55)}s forwards"/>`).join('');
+      const strokes = paths.map((pd, i) => { const t0 = f2(at + i * d * 0.55); return `<path d="${pd}" pathLength="1" stroke="${tn}" style="stroke-width:${i ? 4 : 6};stroke-dasharray:1 2;stroke-dashoffset:1;opacity:0;`
+        + `animation:scdraw ${f2(d * (i ? 0.8 : 1))}s ${m.draw} ${t0}s forwards,scon .01s linear ${t0}s forwards"/>`; }).join('');
       return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${bb}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}">${strokes}</svg>` };
     }
     const pad = num(e.pad, 24), cx = e.x + e.w / 2, cy = e.y + e.h / 2, rx = e.w / 2 + pad, ry = e.h / 2 + pad;
@@ -371,8 +371,11 @@ const PIECES = {
       const a = -2.2 + (i / 50) * 2 * Math.PI, w = 1 + 0.03 * Math.sin(i * 1.7);
       return `${(cx + Math.cos(a) * rx * w).toFixed(1)} ${(cy + Math.sin(a) * ry * w * (1 + (i / 56) * 0.05)).toFixed(1)}`;
     });
-    const len = (Math.PI * (rx + ry) * 1.2).toFixed(0), gone = e.gone !== undefined ? `;animation:${m.fadeOut} ${f2(e.gone)}s forwards` : '';
-    return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${e.x - pad} ${e.y - pad} ${e.w + 2 * pad} ${e.h + 2 * pad}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}"><path d="M${pts.join(' L')}" stroke="${tn}" style="stroke-width:7;stroke-dasharray:${len};stroke-dashoffset:${len};animation:scdraw ${f2(num(e.d, 0.6))}s ${m.draw} ${f2(at)}s forwards"/></svg>` };
+    // pathLength 1: the dash is exactly the path (a length estimate was short on a flat ellipse, so the circle's end showed
+    // before it was drawn, Kamil 2026-11-15 note 49 "jakby ktoś markerem zaznaczył, gdzie kółko będzie"); hidden until "at"
+    // so no round cap dot shows either
+    const gone = e.gone !== undefined ? `;animation:${m.fadeOut} ${f2(e.gone)}s forwards` : '';
+    return { html: `<svg class="ln"${idAttr(e, esc)} data-bb="${e.x - pad} ${e.y - pad} ${e.w + 2 * pad} ${e.h + 2 * pad}" viewBox="0 0 ${W} ${H}" style="overflow:visible${gone}"><path d="M${pts.join(' L')}" pathLength="1" stroke="${tn}" style="stroke-width:7;stroke-dasharray:1 2;stroke-dashoffset:1;opacity:0;animation:scdraw ${f2(num(e.d, 0.6))}s ${m.draw} ${f2(at)}s forwards,scon .01s linear ${f2(at)}s forwards"/></svg>` };
   },
   say: (e, { esc, tn, m }) => ({  // a kinetic line: each word blurs in when it is said; *em* serif accent, [pill], ~strike~, !red!
     style: `font-size:${num(e.size, 84)}px;${e.w ? '' : 'white-space:nowrap;'}`,
@@ -724,6 +727,7 @@ const SCENE_CSS = `<style>
 @keyframes scgrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes sctype{from{width:0}to{width:calc(var(--n) * 1ch)}}
 @keyframes scdraw{to{stroke-dashoffset:0}}
+@keyframes scon{to{opacity:1}}
 @property --cnt{syntax:'<integer>';inherits:false;initial-value:0}
 @keyframes scblur{from{opacity:0;filter:blur(12px);transform:translateX(24px)}to{opacity:1;filter:none;transform:none}}
 @keyframes scword{from{opacity:0;filter:blur(12px);transform:translateX(24px)}to{opacity:1;filter:none;transform:none}}

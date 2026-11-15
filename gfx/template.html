@@ -38,7 +38,8 @@ html,body{margin:0;width:2560px;height:1440px;background:transparent;overflow:hi
 @keyframes icpop{from{opacity:0;transform:scale(.3) rotate(-25deg)}to{opacity:1;transform:none}}
 .cta{position:absolute;left:140px;bottom:150px;display:flex;align-items:center;gap:28px;background:rgba(var(--panel-rgb),.88);padding:20px 40px 20px 20px;border-radius:999px;animation:slide .5s cubic-bezier(.2,.9,.2,1) both}
 .cta .btn{display:flex;align-items:center;gap:20px;background:var(--acc);color:var(--ink);font-weight:800;font-size:66px;padding:24px 48px;border-radius:999px;animation:pop .5s .2s cubic-bezier(.2,1.6,.4,1) both}
-.cta .btn svg{width:62px;height:62px;stroke:var(--ink);stroke-width:2.4;transform-origin:50% 10%;animation:ring 1s .7s ease-in-out 2}
+.cta .btn svg{width:62px;height:62px;stroke:var(--ink);stroke-width:2.4;transform-origin:50% 10%}
+.cta .btn.bell svg{animation:ring 1s .7s ease-in-out 2}
 .cta .s{font-weight:600;font-size:54px;color:#fff;animation:fade .4s .4s both}
 @keyframes ring{0%,100%{transform:rotate(0)}20%{transform:rotate(18deg)}40%{transform:rotate(-16deg)}60%{transform:rotate(10deg)}80%{transform:rotate(-6deg)}}
 .slide{position:absolute;inset:0;background:radial-gradient(ellipse at 30% 40%,var(--bg-a),var(--bg-b) 70%);animation:fade .35s both}
