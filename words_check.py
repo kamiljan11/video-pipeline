@@ -277,13 +277,15 @@ def reheard(gone: list[str], around: list[str], rough: str, final: str, t0: floa
         b = _whisper_window(final, max(t0 - lead, 0.0), t1 - t0 + lead + 1.0)
         if b is None: return None
         placed = placed or all(w in b for w in around)
-        if lead == LEADS[0] and a == b: return "missing in both short windows of the cut and the film: listen" if placed else None
         heard |= set(b)
         if placed and all(w in heard for w in gone): return "heard in the film's short window"
+        if lead == LEADS[0] and a == b: return "missing in both short windows of the cut and the film: listen" if placed else None
     in_cut, in_film = sum(w in a for w in gone), sum(w in heard for w in gone)
     # a long gap: one word in ten may be misheard, not lost ("z AI" read "za jaj" in every window of the film at 569 s, the
     # 28-word gap of the 2026-11-14 long: 26 in the film's windows against 27 in the cut's); under ten words: none
-    if not placed or in_film < in_cut - len(gone) // 10: return None
+    # the cut's window hears none of them and reads differently from the film's: nothing to hold the film to (review
+    # 2026-11-15: "0 of 1 against 0" passed as proof)
+    if not placed or not in_cut or in_film < in_cut - len(gone) // 10: return None
     weak = [w for w in gone if w not in heard]
     return f"the film's short windows hear {in_film} of the {len(gone)} words, the cut's own {in_cut}; not in the film's: {' '.join(weak)}: listen"
 

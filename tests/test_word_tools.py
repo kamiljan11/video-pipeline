@@ -267,6 +267,10 @@ class ConfirmAudibleTest(unittest.TestCase):
             self.assertIn("heard in the film", C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0) or "")  # the word is heard in the film
             C._whisper_window = lambda m, t0, d: ["q", "r"]
             self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # same text, wrong place: no proof
+            C._whisper_window = lambda m, t0, d: ["a", "x", "b"]
+            self.assertIn("heard in the film", C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0) or "")  # the same and the word is there: heard, not "missing in both"
+            C._whisper_window = lambda m, t0, d: ["a", "k", "b"] if "rough" in m else ["a", "q", "b"]
+            self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # neither window has it and they differ: 0 against 0 is no proof
             C._whisper_window = lambda m, t0, d: None
             self.assertFalse(C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # no whisper: stays a problem
         finally:
