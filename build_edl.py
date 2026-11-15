@@ -355,8 +355,8 @@ HOOK_MID_Y = 864  # px of 1920: a 2-line hook (2 x 84 px in its box) spans about
 # open on a tight face (2026-11-15: 0.45 H = Kamil's mouth in all 18 shorts), so the plan can lift the title over the hair
 _hy = P.get("hook_y")
 if _hy is not None:
-    if isinstance(_hy, bool) or not isinstance(_hy, (int, float)) or not 0.05 <= _hy <= 0.9:
-        sys.exit(f"hook_y: a fraction of the height 0.05..0.9, got {_hy!r}")
+    if isinstance(_hy, bool) or not isinstance(_hy, (int, float)) or not 0.06 <= _hy <= 0.6:
+        sys.exit(f"hook_y: a fraction of the height 0.06..0.6 (above the corner circle at y 1300, inside the frame), got {_hy!r}")
     if HOOK_POS != "mid": sys.exit("hook_y moves the mid hook: set hook_pos \"mid\" too")
     HOOK_MID_Y = round(1920 * _hy)
 HOOK_PUNCH = None
