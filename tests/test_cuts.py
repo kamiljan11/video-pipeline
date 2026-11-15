@@ -34,6 +34,18 @@ class CutsTest(unittest.TestCase):
         self.assertIn("pads.mingap 0.45", cuts.problems({"keeps": [[0, 10]], "pads": {"pre": 0.1}}, 20)[0])
 
 
+
+class NamedRunsTest(unittest.TestCase):
+    def test_one_word_and_neighbouring_ranges_cover_a_run(self):  # 2026-11-04 long: w1366, and two retakes side by side
+        plan = {"keeps": [[0, 9], [11, 20], [41, 50]],
+                "cuts": {"w10": "slip: doubled 'te te'", "w21-30": "retake: take 1 of it", "w31-40": "Kamil 2026-11-09: stays out"}}
+        self.assertEqual(cuts.problems(plan, 60), [])
+
+    def test_a_run_half_named_is_still_a_problem(self):
+        plan = {"keeps": [[0, 9], [41, 50]], "cuts": {"w10-30": "retake: take 1 of it"}}
+        self.assertEqual(len(cuts.problems(plan, 60)), 1)
+
+
 class OrderTest(unittest.TestCase):
     def test_a_keep_moved_back_in_the_recording_is_named(self):  # the 2026-11-04 long: w187-232 before w69-166
         why = cuts.order([[0, 50], [187, 232], [69, 166]])

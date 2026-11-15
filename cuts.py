@@ -21,7 +21,7 @@ from itertools import pairwise
 KINDS = ("retake", "false start", "slip", "mic", "Kamil")  # what may go: his mistakes, or what he named himself
 BREATH = 0.6  # s: a pause up to this stays whole (pads mingap); build_edl LONG_PADS keeps 0.5 s of a longer one
 LONG_PADS = {"pre": 0.18, "post": 0.28, "keep_l": 0.28, "keep_r": 0.22, "mingap": 0.7}
-KEY = re.compile(r"^w(\d+)-(\d+)$")
+KEY = re.compile(r"^w(\d+)(?:-(\d+))?$")  # "w<from>-<to>" or one word "w<n>"
 
 
 def dropped(keeps: list, n_words: int) -> list[tuple[int, int]]:
@@ -47,13 +47,14 @@ def problems(plan: dict, n_words: int) -> list[str]:
     named, bad = [], []
     for k, v in (plan.get("cuts") or {}).items():
         m = KEY.match(k)
-        if not m: bad.append(f"cuts {k!r}: name a run as \"w<from>-<to>\""); continue
+        if not m: bad.append(f"cuts {k!r}: name a run as \"w<from>-<to>\" or \"w<n>\""); continue
         kind = v.split(":", 1)[0].strip() if isinstance(v, str) and ":" in v else ""
         if not (any(kind == k or (k == "Kamil" and kind.startswith("Kamil ")) for k in KINDS) and len(v.split(":", 1)[1].strip()) >= 5):
             bad.append(f"cuts {k!r}: \"<kind>: why\" with kind one of {', '.join(KINDS)}, got {v!r}"); continue
-        named.append((int(m.group(1)), int(m.group(2))))
+        named.append((int(m.group(1)), int(m.group(2) or m.group(1))))
+    covered = {i for x, y in named for i in range(x, y + 1)}  # neighbouring named ranges cover one run together
     for a, b in dropped(plan.get("keeps") or [], n_words):
-        if not any(x <= a and b <= y for x, y in named):
+        if not all(i in covered for i in range(a, b + 1)):
             bad.append(f"w{a}-{b} is cut and plan \"cuts\" does not name it: a long keeps what was said (put it back) or names "
                        f"a mistake ({', '.join(KINDS)})")
     gap = (plan.get("pads") or {}).get("mingap", LONG_PADS["mingap"] if plan.get("pads") is None else 0.45)
