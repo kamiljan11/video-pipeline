@@ -617,7 +617,9 @@ def queue_add(spec_path: Path, when: str, approve: str | None, now: datetime.dat
 def _write_queue(items: list[dict]) -> None:
     """whole file or the old one (tmp + rename): a crash mid-write must not leave a line that stops every command"""
     tmp = QUEUE.with_suffix(".part")
-    tmp.write_text("".join(json.dumps(it, ensure_ascii=False) + "\n" for it in items), encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("".join(json.dumps(it, ensure_ascii=False) + "\n" for it in items))
+        f.flush(); os.fsync(f.fileno())  # the bytes on disk before the rename, so a power cut cannot leave an empty queue
     os.replace(tmp, QUEUE)
 
 
@@ -686,19 +688,21 @@ def _count_attempt(spec: str) -> None:
         _set_attempts(spec, _attempts().get(spec, 0) + 1)
 
 
-def _publish_item(it: dict, really: bool) -> int:
-    """one due item: code still matches, still queued, then publish -> exit code"""
+def _publish_item(it: dict, really: bool, slot: dict) -> int:
+    """one due item: code still matches, still queued, then publish -> exit code; slot["used"] = True once publish is called
+    (an item stopped by its checks does not take the run's one post from the next due item)"""
     spec_path = Path(it["spec"])
     code = prepare(spec_path)[2]
     if code != it["approve"]:
         raise ValueError(f"approval code is {code} now, {it['approve']} when queued: the text, title, comment or media "
                          "changed after Kamil's OK; not published (new dry run, new OK, queue remove + queue add)")
     if not really:
-        print(f"DUE {spec_path} (approval {code} matches): run-due --publish would publish it now"); return 0
+        print(f"DUE {spec_path} (approval {code} matches): run-due --publish would publish it now"); slot["used"] = True; return 0
     with _Locked("queue.lock"):  # a queue remove since this run read the queue wins
         if not any(q["spec"] == it["spec"] and q["approve"] == it["approve"] for q in read_queue()):
             print(f"{spec_path} left the queue during this run: not published"); return 0
     print(f"publishing {spec_path} (queued for {it['when']})")
+    slot["used"] = True  # before the call: a publish that fails after the post may be live still uses this run's one post
     rec = publish(spec_path, True, it["approve"], on_upload=lambda: _count_attempt(it["spec"]))
     return 1 if isinstance(rec.get("comment"), str) else 0  # the post is up, the comment is not: linkedin.py comment <spec>
 
@@ -718,10 +722,11 @@ def run_due(really: bool, now: datetime.datetime | None = None, max_late_h: floa
                 print(f"SKIPPED {it['spec']}: {why}", file=sys.stderr); rc = 1; continue
             if sent >= limit:
                 print(f"next tick: {it['spec']} (one post per run)"); continue
-            sent += 1  # counted before the call: a publish that fails after the post may be live still uses this run's one post
-            try: rc = max(rc, _publish_item(it, really))
+            slot = {"used": False}
+            try: rc = max(rc, _publish_item(it, really, slot))
             except FAILURES as ex:
                 print(f"FAILED {it['spec']}: {type(ex).__name__}: {ex}", file=sys.stderr); rc = 1
+            sent += slot["used"]
     return rc
 
 

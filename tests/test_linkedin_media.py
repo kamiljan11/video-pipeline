@@ -317,6 +317,15 @@ class QueueTest(Base):
         self.assertTrue((b.parent / "linkedin.published.json").exists())
         self.assertFalse((c.parent / "linkedin.published.json").exists())
 
+    def test_an_item_stopped_by_its_checks_does_not_take_the_runs_post(self):
+        a, b = self.image_post("a"), self.image_post("b", spec={**IMG_SPEC, "text": TEXT + " B"})
+        self.add(a, "2026-11-16 17:00"); self.add(b, "2026-11-16 17:00")
+        (a.parent / "grafika.png").write_bytes(PNG + b"!")  # a changed after Kamil's OK: refused every tick
+        fake = Fake(ME, IMG_INIT, UP, POST, COMMENT)
+        self.assertEqual(self.run_due(fake, at("2026-11-16 17:01")), 1)
+        self.assertFalse((a.parent / "linkedin.published.json").exists())
+        self.assertEqual(json.loads((b.parent / "linkedin.published.json").read_text())["state"], "published")
+
     def test_without_publish_run_due_only_says_what_is_due(self):
         spec_path = self.image_post(); self.add(spec_path, "2026-11-16 17:00")
         fake = Fake()
