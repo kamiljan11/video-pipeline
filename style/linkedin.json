@@ -19,5 +19,28 @@
     "title_max": 70,
     "body_max": 220,
     "doc_title_max": 100
+  },
+  "image": {
+    "_source": "2026-11-15: image post (text + grafika.png). Hook/fold/link are heuristics: for image and video posts they are warnings in the dry run, Kamil decides",
+    "soft": ["fold", "link"],
+    "text": {
+      "min_chars": 300
+    },
+    "alt_max": 4086,
+    "_alt_max": "Images API altText limit (docs 2026-11; recommended under 120)",
+    "max_pixels": 36152320,
+    "_max_pixels": "Images API: fewer than 36,152,320 pixels; JPG, GIF, PNG"
+  },
+  "video": {
+    "_source": "2026-11-15: video post (a short). Videos API limits from the docs, 2026-11",
+    "soft": ["fold", "link"],
+    "text": {
+      "min_chars": 100
+    },
+    "title_max": 100,
+    "_title_max": "heuristic, same as carousel.doc_title_max",
+    "min_bytes": 76800,
+    "max_bytes": 524288000,
+    "_bytes": "Videos API: 75 KB to 500 MB, MP4, 3 s to 30 min"
   }
 }

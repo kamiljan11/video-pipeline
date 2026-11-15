@@ -1,0 +1,19 @@
+# LinkedIn queue (ADR-0010): publishes queued posts whose time has come and whose approval code still matches.
+# Not enabled by the repo. Install (Kamil's decision, after his OK on the queued posts):
+#   systemctl --user link ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.service ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.timer
+#   systemctl --user enable --now vp-linkedin-run-due.timer
+# Runs without a login session only with lingering (loginctl show-user $USER -p Linger: yes on this laptop, 2026-11-15).
+# No network after a wake-up = FAILED in the journal, the next tick (15 min) tries again (attempts: linkedin.py MAX_ATTEMPTS).
+# Logs: journalctl --user -u vp-linkedin-run-due.service ; failed runs: systemctl --user --failed
+# Stop: systemctl --user disable --now vp-linkedin-run-due.timer
+[Unit]
+Description=LinkedIn queue: publish due posts (video-pipeline linkedin.py run-due)
+
+[Service]
+Type=oneshot
+# the checkout that holds linkedin.py; change it if the repo moves (e.g. after the merge to main)
+WorkingDirectory=%h/Dane/vp-linkedin
+ExecStart=/usr/bin/python3 %h/Dane/vp-linkedin/linkedin.py run-due --publish
+# a video upload with processing can take minutes; a hung call must not hold the lock forever
+TimeoutStartSec=30min
+Nice=10

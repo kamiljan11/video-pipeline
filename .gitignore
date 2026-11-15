@@ -35,3 +35,5 @@ linkedin.comment.lock
 linkedin.published.part
 linkedin.pdf.part
 linkedin.pdf.html
+# LinkedIn approval tables from dry runs (project data, per film)
+APPROVALS-*.md
