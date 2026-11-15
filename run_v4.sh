@@ -28,6 +28,20 @@ words_ok() {
   fi
   python3 $VP/words_check.py sound "$R/$1/rough.mkv" "$2" >> "$R/render.log" 2>&1 || { echo "FAILED words_check sound $1" >> "$R/render.log"; return 1; }
 }
+# sound_seen.py: sync, words, retake and music checks are not run again on the sound and cut they already passed (the
+# 2026-11-15 long: 78 of 123 min in checks, the full render hearing again what the dry run had passed). The key holds the
+# decoded sound, the cut, the words and the commit; only a dry run records (it runs all four), WORDS_CHECK=off carries nothing
+sound_key() {
+  SND=""; SAME=0
+  [ "${WORDS_CHECK:-on}" = off ] && return 0
+  SND=$(python3 $VP/sound_seen.py key . "$1" "$R/$1/rough.mkv" "$2" "$R/$1/assemble.audio.args.json" "$START_HEAD" 2>> "$R/render.log") || SND=""
+  [ -n "$SND" ] && python3 $VP/sound_seen.py same . "$1" "$SND" >> "$R/render.log" 2>&1 && SAME=1
+  return 0
+}
+sound_pass() {
+  [ "${DRY:-}" = 1 ] && [ -n "$SND" ] && python3 $VP/sound_seen.py pass . "$1" "$SND" >> "$R/render.log" 2>&1
+  return 0
+}
 cd "$WORK" || { echo "run_v4: no work folder $WORK" >&2; exit 2; }
 # timeline.log in the work folder: when each stage of each film started, so a film's hours are measured, not guessed
 # (Kamil 2026-11-10 "ile czasu mniej zejdzie"; watch_render.py reads it for a stalled run too)
@@ -149,10 +163,10 @@ for n in "$@"; do
   tl assemble "$n"
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" \
     && { python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
-    && { python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
+    && sound_key "$n" "$R/$n/$f" \
+    && { [ "$SAME" = 1 ] || python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; } \
     && lips_ok "$n" "$R/$n/$f" \
-    && words_ok "$n" "$R/$n/$f" \
-    && music_ok "$n" "$form" \
+    && { [ "$SAME" = 1 ] || { words_ok "$n" "$R/$n/$f" && music_ok "$n" "$form" && sound_pass "$n"; }; } \
     && { [ "${DRY:-}" = 1 ] || { mv "$R/$n/$f" "$OUT/$f.part" && mv "$OUT/$f.part" "$OUT/$f"; }; }; then
     if [ "${DRY:-}" = 1 ]; then  # the small film is not a film: nothing goes to OUT, no stamp; the record opens the full render
       rm -f "$R/$n/$f"

@@ -27,6 +27,10 @@ if name == "dry_run.py":
     open(log, "a").write("dry_run:" + sys.argv[1] + "\\n")
     if os.environ.get("FAIL_dry_" + sys.argv[1]):
         sys.exit(1)
+if name == "sound_seen.py":
+    open(log, "a").write("sound_seen:" + sys.argv[1] + "\\n")
+    if sys.argv[1] == "key": print("k")
+    if sys.argv[1] == "same" and not os.environ.get("SOUND_SAME"): sys.exit(1)
 if name == "assemble.py":
     if "--dry" in sys.argv:
         open(log, "a").write("assemble:--dry\\n")
@@ -44,7 +48,7 @@ class RunV4GateTest(unittest.TestCase):
         vp = self.tmp / "vp"
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
-                    "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py"):
+                    "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py", "sound_seen.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -162,9 +166,24 @@ class RunV4GateTest(unittest.TestCase):
 
     def test_cards_off_the_words_keep_the_film_out_of_out(self):  # sync_check after av_check
         render, calls = self.run_v4(rc=1, FAIL_sync_check="1")
-        self.assertEqual(calls[calls.index("av_check.py") + 1], "sync_check.py")
+        self.assertEqual(calls[calls.index("av_check.py") + 1:][:5], ["sound_seen.py", "sound_seen:key", "sound_seen.py", "sound_seen:same", "sync_check.py"])
         self.assertIn("FAILED sync_check x", render)
         self.assertFalse((self.out / "film.mp4").exists())
+
+    def test_the_same_sound_and_cut_are_not_checked_twice(self):  # 2026-11-15 long: 78 of 123 min in checks
+        render, calls = self.run_v4(SOUND_SAME="1")
+        for gone in ("sync_check.py", "words_check.py", "music_check.py", "retake_check.py", "sound_seen:pass"):
+            self.assertNotIn(gone, calls[calls.index("assemble.py"):], gone)
+        self.assertIn("av_check.py", calls); self.assertIn("lip_check.py", calls)  # the picture is always checked
+        self.assertIn("DONE x", render)
+
+    def test_only_a_dry_run_records_the_sound_checks(self):  # the full render does not run retake_check
+        _, calls = self.run_v4()
+        self.assertIn("sync_check.py", calls); self.assertNotIn("sound_seen:pass", calls)
+        _, calls = self.run_v4(DRY="1")
+        self.assertIn("sound_seen:pass", calls[calls.index("retake_check.py"):])
+        _, calls = self.run_v4(rc=1, DRY="1", FAIL_retake_check="1")
+        self.assertNotIn("sound_seen:pass", calls[-6:])
 
     def test_a_stale_feature_map_or_a_design_without_rows_stops_the_film(self):  # Kamil 2026-11-09: nothing skipped unseen
         for name, line in (("capabilities", "FAILED capabilities map x"), ("design_ledger", "FAILED design_ledger x")):
