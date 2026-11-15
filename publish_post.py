@@ -1,7 +1,7 @@
 """publish_post.py: an article from out/blog/<slug>/ (article_check.py) -> a pull request on the kamiljan.com repo.
 
 The site (kamiljan11/comfy-container, Lovable + Vercel) keeps blog posts as data in src/data/posts.ts; a post needs its
-entry there, its pictures in public/blog/<slug>/, a line in public/sitemap.xml and its page in e2e/og-meta.spec.ts. This
+entry there (the film embedded as a `youtube` block after the first paragraph), its pictures in public/blog/<slug>/, a line in public/sitemap.xml and its page in e2e/og-meta.spec.ts. This
 script writes all four on a new branch in a separate worktree (the main checkout is someone else's work in progress),
 commits, pushes and opens the PR. Merging it is Kamil's click (nothing goes live from here); Vercel deploys after the merge.
 
@@ -36,12 +36,33 @@ WEBP_Q = 82
 TIMEOUT = int(os.environ.get("PUBLISH_TIMEOUT", "300"))  # seconds per git/ffmpeg/gh call: a hung network or a credential prompt ends with a message, not a hang
 
 
+YT_ID = re.compile(r"^https://(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_-]{11})(?:[&?#].*)?$")
+
+
+def youtube_id(url: str) -> str:
+    """the 11-character video id from a youtube.com/watch?v= or youtu.be URL (the site validates the same rule)"""
+    m = YT_ID.match(url or "")
+    if not m: sys.exit(f"youtube {url!r}: not a youtube.com/watch?v= or youtu.be link")
+    return m.group(1)
+
+
+def with_video(blocks: list[dict], video: dict) -> list[dict]:
+    """the film's player right after the first paragraph (the lead is a separate field above the blocks), so a reader
+    can watch it before the first section; with no paragraph it opens the body"""
+    i = next((k + 1 for k, x in enumerate(blocks) if x.get("t") == "p"), 0)
+    return blocks[:i] + [video] + blocks[i:]
+
+
 def ts_post(a: dict, slug: str) -> str:
-    """the posts.ts entry: the article's JSON with picture paths moved to /blog/<slug>/ (JSON is a valid TS literal)"""
+    """the posts.ts entry: the article's JSON with picture paths moved to /blog/<slug>/ (JSON is a valid TS literal) and
+    the film embedded as a `youtube` block (site ADR 0009: our cover as the poster, YouTube loads only after a click)"""
     web = lambda f: f"/blog/{slug}/{Path(f).with_suffix('.webp').name}"
-    body = {lang: {**b, "blocks": [{**x, "src": web(x["src"])} if x.get("t") == "img" else x for x in b["blocks"]]}
+    cover = web(a["cover"]["src"])
+    vid = youtube_id(a["youtube"])
+    body = {lang: {**b, "blocks": with_video([{**x, "src": web(x["src"])} if x.get("t") == "img" else x for x in b["blocks"]],
+                                             {"t": "youtube", "id": vid, "title": b["title"], "poster": cover})}
             for lang, b in a["body"].items()}
-    post = {"slug": slug, "date": a["date"], "cover": {**a["cover"], "src": web(a["cover"]["src"])}, "body": body}
+    post = {"slug": slug, "date": a["date"], "cover": {**a["cover"], "src": cover}, "body": body}
     return "  " + json.dumps(post, ensure_ascii=False, indent=2).replace("\n", "\n  ") + ","
 
 

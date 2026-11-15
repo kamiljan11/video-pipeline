@@ -291,12 +291,33 @@ class PublishEditsTest(unittest.TestCase):
         entry = P.ts_post(a, a["slug"])
         self.assertIn('"/blog/bramki-dla-agenta/cover.webp"', entry)
         self.assertIn('"/blog/bramki-dla-agenta/schemat.webp"', entry)
-        self.assertNotIn('"youtube"', entry)  # the site's Post type has no such field; the film is a link in the text
+        self.assertNotIn('"youtube": "http', entry)  # the site's Post type has no URL field; the film is a block + a link in the text
         src = 'const X = 1;\nexport const POSTS: Post[] = [\n  {\n    slug: "old",\n  },\n];\n'
         new = P.add_post(src, entry, a["slug"])
         self.assertLess(new.index("bramki-dla-agenta"), new.index('slug: "old"'))
         with self.assertRaises(SystemExit): P.add_post(new, entry, a["slug"])  # the same slug twice
         with self.assertRaises(SystemExit): P.add_post("no anchor", entry, a["slug"])
+
+    def test_the_film_player_follows_the_first_paragraph_in_both_languages(self):
+        with tempfile.TemporaryDirectory() as t:
+            a = article(Path(t))
+        for k, x in enumerate(a["body"]["pl"]["blocks"]): x["t"] = "h2" if k == 0 else x["t"]  # pl: a heading before the first p
+        post = json.loads(P.ts_post(a, a["slug"]).strip().rstrip(","))
+        for lang, b in post["body"].items():
+            vids = [x for x in b["blocks"] if x["t"] == "youtube"]
+            self.assertEqual(vids, [{"t": "youtube", "id": "abcdefghijk", "title": a["body"][lang]["title"],
+                                     "poster": "/blog/bramki-dla-agenta/cover.webp"}], lang)
+            i = b["blocks"].index(vids[0])
+            self.assertEqual(b["blocks"][i - 1]["t"], "p", lang)
+            self.assertNotIn("p", [x["t"] for x in b["blocks"][:i - 1]], lang)  # right after the FIRST paragraph
+        self.assertEqual(P.with_video([{"t": "h2"}], {"t": "youtube"}), [{"t": "youtube"}, {"t": "h2"}])  # no paragraph: opens the body
+
+    def test_youtube_id_from_both_url_shapes(self):
+        self.assertEqual(P.youtube_id("https://youtu.be/VeM1WTRy8nA"), "VeM1WTRy8nA")
+        self.assertEqual(P.youtube_id("https://www.youtube.com/watch?v=VeM1WTRy8nA&t=30s"), "VeM1WTRy8nA")
+        self.assertEqual(P.youtube_id("https://youtu.be/VeM1WTRy8nA?si=abc"), "VeM1WTRy8nA")
+        for bad in ("https://youtu.be/short", "https://evil.example/watch?v=VeM1WTRy8nA", "https://youtu.be/VeM1WTRy8nA\"><x>", ""):
+            with self.assertRaises(SystemExit, msg=bad): P.youtube_id(bad)
 
     def test_sitemap_and_og_page_once(self):
         sm = '<urlset>\n  <url>\n    <loc>https://kamiljan.com/blog/old</loc>\n  </url>\n</urlset>\n'
