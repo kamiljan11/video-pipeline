@@ -78,7 +78,7 @@ def retime_json(o, f) -> int:
     if isinstance(o, dict):
         for k, v in o.items():
             if k in TIMING and isinstance(v, (int, float)) and not isinstance(v, bool):
-                w = f(v)
+                w = 0.0 if v == 0 else max(f(v), 0.0)  # card second 0 is the card's start in any cut (cam[0].t = 0)
                 if w != v: o[k] = w; n += 1
             else: n += retime_json(v, f)
     elif isinstance(o, list):

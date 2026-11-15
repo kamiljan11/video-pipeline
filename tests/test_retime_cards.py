@@ -69,6 +69,15 @@ class RetimeTest(unittest.TestCase):
         self.assertAlmostEqual(sp["dur"], 3.0, delta=0.5)
 
 
+    def test_the_card_start_stays_at_zero_and_nothing_goes_negative(self):  # 2026-11-15 s_szlaban cam[0].t
+        old = {"segments": [{"in": 10.0, "out": 14.0}, {"in": 40.0, "out": 50.0}], "overlays": [{"id": "s", "at": 3.6}]}
+        bare = {"segments": [{"in": 10.0, "out": 20.0}, {"in": 40.0, "out": 50.0}]}
+        sp = {"id": "s", "type": "scene", "dur": 3.0, "cam": [{"t": 0}, {"t": 0.2}], "els": [{"at": 2.0}]}
+        rc.retime(old, bare, [sp])
+        self.assertEqual(sp["cam"][0]["t"], 0)
+        self.assertGreaterEqual(sp["cam"][1]["t"], 0.0)
+
+
 
 if __name__ == "__main__":
     unittest.main()
