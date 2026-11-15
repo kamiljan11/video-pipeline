@@ -77,11 +77,19 @@ def says_nothing(title: str, sub: str) -> bool:
     return not is_name
 
 
+def html_words(html: str) -> str:
+    """the words a float card's html shows: tags, styles and animation times out (2026-11-15: retime_cards moved the
+    delays of 11 floats to the new long cut and every one came back to be read again, words unchanged)"""
+    import html as h
+    return " ".join(h.unescape(re.sub(r"<[^>]*>", " ", re.sub(r"<(style|script)\b.*?</\1>", " ", html, flags=re.DOTALL))).split())
+
+
 def card_texts(spec: dict) -> list[str]:
     """every word a card shows: strings anywhere in its spec, not file names, icons, colours or timing"""
     out: list[str] = []
     def walk(v, key=""):
-        if isinstance(v, str) and key not in TEXT_SKIP_KEYS: out.append(v)
+        if isinstance(v, str) and key == "html": out.append(html_words(v))
+        elif isinstance(v, str) and key not in TEXT_SKIP_KEYS: out.append(v)
         elif isinstance(v, dict):
             for k, x in sorted(v.items()): walk(x, k)
         elif isinstance(v, list):

@@ -223,6 +223,14 @@ class FilmCheckTest(unittest.TestCase):
         reworded = {**sp, "els": [{"k": "chip", "id": "c", "text": "ryzyko: niskie"}]}
         self.assertNotEqual(film_check.card_text_hash(sp), film_check.card_text_hash(reworded))
 
+    def test_a_float_with_new_animation_times_is_not_a_new_text(self):  # 2026-11-15: 11 floats retimed to the new long cut
+        import film_check
+        h = '<div class="p" style="animation:flinr 0.5s cubic-bezier(.2,1.2,.4,1) {}s both"><div class="chip">każdy szlaban ma test</div></div>'
+        sp = {"id": "f", "type": "float", "html": h.format("0.13")}
+        self.assertEqual(film_check.card_texts(sp), ["każdy szlaban ma test"])
+        self.assertEqual(film_check.card_text_hash(sp), film_check.card_text_hash({**sp, "html": h.format("7.70")}))
+        self.assertNotEqual(film_check.card_text_hash(sp), film_check.card_text_hash({**sp, "html": h.replace("ma test", "nie ma testu")}))
+
     def test_every_card_is_read_for_meaning_before_the_render(self):
         ovs, specs, segs = self.full_long()
         self.project(ovs, specs, segs)
