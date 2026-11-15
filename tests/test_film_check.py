@@ -121,8 +121,11 @@ class FilmCheckTest(unittest.TestCase):
         plan["skip"] = {**{f"cap.{c['id']}": "fixture film: feature coverage has its own tests (test_capabilities.py)"
                            for c in capabilities.load() if c["use"]["long"] == "required"}, **plan.get("skip", {})}
         kinds = {sp["id"]: sp.get("type") for sp in specs}  # note 19: every meme on screen reviewed, its sentence said (words w<i> at i s)
+        cat = json.loads((Path(__file__).resolve().parents[1] / "style" / "memes.json").read_text(encoding="utf-8"))  # note 44: a picture meme maps each box to its role
+        boxes = {sp["id"]: len(cat.get(str(sp.get("meme")), {}).get("roles") or []) for sp in specs if sp.get("type") == "meme"}
         plan.setdefault("meme_review", {o["id"]: {"sentence": " ".join(f"w{int(o['at']) + i}" for i in range(3)), "why": "fixture: the meme fits this line",
-                                                  "year": datetime.datetime.now(datetime.UTC).year - 2, "source": "https://knowyourmeme.com/fixture"}
+                                                  "year": datetime.datetime.now(datetime.UTC).year - 2, "source": "https://knowyourmeme.com/fixture",
+                                                  **({"roles": ["fixture: the text plays this role"] * boxes[o["id"]]} if o["id"] in boxes else {})}
                                         for o in overlays if kinds.get(o["id"]) in ("meme", "sticker")})
         (self.d / "plan_long.json").write_text(json.dumps({"words": "w.json", "edl_out": "edl_long.json", "gfx_specs": "specs.json", **plan}))
         self.accept_stills([o["id"] for o in overlays])
@@ -159,6 +162,7 @@ class FilmCheckTest(unittest.TestCase):
         for k, at in enumerate((150, 350, 550)):
             ovs.append({"id": f"m{k}", "at": at, "dur": 3}); specs.append({"id": f"m{k}", "type": "sticker", "meme": "drake"})  # beside him, not a screen
         ovs.append({"id": "low", "at": 6, "dur": 4}); specs.append({"id": "low", "type": "lower", "text": "Kamil Jan", "sub": BRAND})
+        ovs.append({"id": "sub", "at": 300, "dur": 5}); specs.append({"id": "sub", "type": "cta", "text": "Subskrybuj", "sub": "po więcej"})  # note 53
         ovs.append({"id": "end", "at": 590, "dur": 8}); specs.append({"id": "end", "type": "end"})
         segs = [{"src": "A", "in": i * 3.0, "out": i * 3.0 + 3.0, "zoom": {"a": 1.0, "b": 1.2, "t0": 0.5, "t1": 0.8}} for i in range(200)]
         return ovs, specs, segs

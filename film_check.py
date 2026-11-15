@@ -274,6 +274,23 @@ def chap_text(spec: dict) -> str:
     if isinstance(parts, list) and type(k) is int and 1 <= k <= len(parts): return str(parts[k - 1])
     return ""
 
+MEME_CATALOGUE = Path(__file__).resolve().parent / "style" / "memes.json"
+
+
+def meme_roles_problems(cid: str, sp: dict, roles) -> list[str]:
+    """Kamil 2026-11-15 note 44 ("memy źle dobierane, brakuje zrozumienia memów wg kontekstu"): a picture meme's review
+    names, box by box, how its text plays the template's role (style/memes.json "roles", the joke's mechanism), so the
+    text follows the joke (2026-11-04: Surprised Pikachu got "Gotowe!" / "Nic nie działa", no self-made cause). One entry
+    per box, each >= 12 characters; stickers and our own toons are not templates"""
+    if sp.get("type") != "meme" or sp.get("toon") is not None: return []
+    tpl = json.loads(MEME_CATALOGUE.read_text(encoding="utf-8")).get(str(sp.get("meme")), {})
+    want = tpl.get("roles") or []
+    if not want: return [f"{cid}: meme {sp.get('meme')!r} has no \"roles\" in style/memes.json"]
+    if not (isinstance(roles, list) and len(roles) == len(want) and all(isinstance(x, str) and len(x.strip()) >= 12 for x in roles)):
+        return [f'{cid}: "roles" = {len(want)} lines, how each text plays its role: ' + " / ".join(want)]
+    return []
+
+
 class Film:
     def __init__(self, work: Path, name: str):
         self.name = name
@@ -417,6 +434,7 @@ class Film:
             if not words: bad.append(f'{cid}: "sentence" = the line the meme illustrates')
             elif got < said_share * len(words): bad.append(f"{cid}: the sentence is not said while the card is up ({got}/{len(words)} words in order)")
             if len(str(r.get("why", "")).strip()) < 15: bad.append(f'{cid}: "why" = why this meme fits that sentence (>= 15 characters)')
+            bad += meme_roles_problems(cid, sp, r.get("roles"))
             if sp.get("toon") is not None: continue  # our own drawing: no age, no source
             y = r.get("year")
             if not (isinstance(y, int) and 1990 <= y <= now): bad.append(f'{cid}: "year" = the year the meme started, got {y!r}')
@@ -630,8 +648,8 @@ class Film:
     def mid_cta(self, lo: float = 0.15, hi: float = 0.85, max_s: float = 45, chap_gap: float = 3):
         """L6: at most one offer CTA in the middle (15-85 % of the film, <= 45 s, carried by a lower card with a URL, ends
         >= 3 s before the next chap card); story.json "cta_after_part": k asks for one right after part k"""
-        mids = [o for o in self.ovs if self.typ(o) == "cta" or self.specs.get(o["id"], {}).get("cta")]
-        mids = [o for o in mids if lo * self.len <= o["at"] <= hi * self.len]
+        mids = [o for o in self.ovs if (self.typ(o) == "cta" or self.specs.get(o["id"], {}).get("cta")) and not self.is_subscribe(o)]
+        mids = [o for o in mids if lo * self.len <= o["at"] <= hi * self.len]  # a subscribe card is not an offer (subscribe_mid)
         want = self.story().get("cta_after_part")
         bad = [f"{len(mids)} offer CTAs in the middle (max 1)"] if len(mids) > 1 else []
         chaps = sorted(o["at"] for o in self.ovs if self.typ(o) == "chap")
@@ -770,11 +788,56 @@ class Film:
         bad = [t for t in cues if not any(abs(a - t) <= near for a in shown)]
         return not bad, f"said without a note card at {', '.join(f'{t:.0f} s' for t in bad[:6])}" if bad else f"{len(cues)} pointers, all shown"
 
-    def scene_zoom(self, long_scene: float = 6):
-        """round 2 L17: a scene on screen >= 6 s zooms into the element being said (canvas_zoom -> overlay "zooms")"""
-        long_ = [o for o in self.ovs if self.typ(o) == "scene" and self.ov_dur(o) >= long_scene]
-        bad = [o["id"] for o in long_ if not o.get("zooms")]
-        return not bad, f"scenes >= {long_scene:g} s without canvas_zoom: {', '.join(bad[:6])}" if bad else f"{len(long_)} long scenes zoom"
+    def is_subscribe(self, o: dict) -> bool:
+        """a cta card that asks to subscribe to the channel (its text), not an offer with a link"""
+        return self.typ(o) == "cta" and re.search(r"(?i)subskryb|subscribe", str(self.specs.get(o["id"], {}).get("text", ""))) is not None
+
+    def subscribe_mid(self, lo: float = 0.25, hi: float = 0.7):
+        """Kamil 2026-11-15 (note 53): "subskrybowanie kanału gdzieś możesz w jakimś sensownym momencie wrzucić raz": one
+        subscribe card (cta whose text asks to subscribe), between lo and hi of the film, after the viewer got something
+        (2026-11-04 long: its only one was at 22:02 of 22:24, under the outro)"""
+        subs = [o for o in self.ovs if self.is_subscribe(o)]
+        mid = [o for o in subs if lo * self.len <= o["at"] <= hi * self.len]
+        where = ", ".join(f"{o['id']} at {o['at'] / max(self.len, 1):.0%}" for o in subs) or "none"
+        return len(mid) == 1 and len(subs) == 1, f"subscribe cards: {where} (want one, at {lo:.0%}-{hi:.0%} of the film)"
+
+    def scene_specs(self) -> list[tuple[dict, dict]]:
+        """(overlay, spec) of every drawn scene on screen"""
+        return [(o, self.specs.get(o["id"], {})) for o in self.ovs if self.typ(o) == "scene"]
+
+    def scene_whole(self):
+        """Kamil 2026-11-15 (note 50): "zoomowanie elementów jak tłumaczymy… bez sensu, gubimy sporo treści": a drawn scene
+        stays whole in the frame, no canvas_zoom and no camera stop on one piece (cam "on" other than "*"); replaces
+        round 2 L17 (scene_zoom), which Kamil rejected"""
+        bad = []
+        for o, sp in self.scene_specs():
+            if sp.get("canvas_zoom") or o.get("zooms"): bad.append(f"{o['id']}: canvas_zoom")
+            on = [c.get("on") for c in sp.get("cam") or [] if c.get("on") not in (None, "*")]
+            if on: bad.append(f"{o['id']}: camera on {on[0]!r} (use \"on\": \"*\")")
+        return not bad, "; ".join(bad[:6]) or "every scene whole in the frame"
+
+    def scene_hold(self, min_s: float = 3.0):
+        """Kamil 2026-11-15 (note 45): "czasami za szybko rzeczy znikają co są rysowane": every drawn piece stays >= min_s
+        from its "at" to its "gone" or to the end of the scene on screen (the card's own dur or the EDL's, the shorter)"""
+        bad = []
+        for o, sp in self.scene_specs():
+            end_card = min(float(sp.get("dur") or 0) or self.ov_dur(o), self.ov_dur(o))
+            for e in sp.get("els") or []:
+                at = float(e.get("at") or 0); end = min(float(e["gone"]), end_card) if e.get("gone") is not None else end_card
+                if end - at < min_s: bad.append(f"{o['id']}.{e.get('id', e.get('k'))} {end - at:.1f} s")
+        return not bad, f"pieces up < {min_s:g} s: {', '.join(bad[:8])}" if bad else "every piece stays long enough to read"
+
+    def scene_detail(self, s_per_piece: float = 3.0):
+        """Kamil 2026-11-15 (note 46): "mało realnie jest rysowane… więcej elementów, strzałek, jakby ktoś realnie to
+        tłumaczył": a scene brings a new piece at least every s_per_piece seconds, and two or more boxes (node, chip, file,
+        win) are joined by at least one line (arrow)"""
+        bad = []
+        for o, sp in self.scene_specs():
+            els, dur = sp.get("els") or [], self.ov_dur(o)
+            if dur / max(len(els), 1) > s_per_piece: bad.append(f"{o['id']}: {len(els)} pieces in {dur:.0f} s")
+            if sum(e.get("k") in ("node", "chip", "file", "win") for e in els) >= 2 and not any(e.get("k") == "line" for e in els):
+                bad.append(f"{o['id']}: boxes without an arrow")
+        return not bad, "; ".join(bad[:8]) or "scenes drawn in detail"
 
     def list_items(self, min_on: float = 3):
         """round 2 S11: list item cards in a short stay >= 3 s each (build_edl already holds each to <= 0.3 s after its

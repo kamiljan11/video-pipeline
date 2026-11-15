@@ -359,12 +359,33 @@
    "why": "Round 2 L21: a pointer said aloud (w opisie, link, zastrzezenie) shows as a note card within 10 s"
   },
   {
-   "id": "long.scene_zoom",
+   "id": "long.scene_whole",
    "fmt": "long",
-   "metric": "scene_zoom",
+   "metric": "scene_whole",
+   "op": "true",
+   "why": "Kamil 2026-11-15 note 50: 'zoomowanie elementów jak tłumaczymy… bez sensu, gubimy sporo treści': a scene stays whole, no canvas_zoom, camera on '*' (replaces round 2 L17, rejected)"
+  },
+  {
+   "id": "long.scene_hold",
+   "fmt": "long",
+   "metric": "scene_hold",
+   "op": "true",
+   "why": "Kamil 2026-11-15 note 45: 'za szybko rzeczy znikają co są rysowane': every drawn piece stays >= 3 s"
+  },
+  {
+   "id": "long.scene_detail",
+   "fmt": "long",
+   "metric": "scene_detail",
    "op": "true",
    "level": "warn",
-   "why": "Round 2 L17: a scene >= 6 s zooms on the element being said (canvas_zoom)"
+   "why": "Kamil 2026-11-15 note 46: 'więcej elementów, strzałek, jakby ktoś realnie to tłumaczył': a new piece every <= 3 s, boxes joined by an arrow"
+  },
+  {
+   "id": "long.subscribe_mid",
+   "fmt": "long",
+   "metric": "subscribe_mid",
+   "op": "true",
+   "why": "Kamil 2026-11-15 note 53: 'subskrybowanie kanału… w jakimś sensownym momencie wrzucić raz': one subscribe card at 25-70 % of the film"
   },
   {
    "id": "short.hook",
@@ -542,6 +563,20 @@
    "op": "true",
    "level": "warn",
    "why": "Round 2 S15: the last sentence on the face, no full-screen card or split over it (skip when end_hold)"
+  },
+  {
+   "id": "short.scene_whole",
+   "fmt": "short",
+   "metric": "scene_whole",
+   "op": "true",
+   "why": "Kamil 2026-11-15 note 50: 'zoomowanie elementów jak tłumaczymy… bez sensu, gubimy sporo treści': a scene stays whole, no canvas_zoom, camera on '*' (replaces round 2 L17, rejected)"
+  },
+  {
+   "id": "short.scene_hold",
+   "fmt": "short",
+   "metric": "scene_hold",
+   "op": "true",
+   "why": "Kamil 2026-11-15 note 45: 'za szybko rzeczy znikają co są rysowane': every drawn piece stays >= 3 s"
   },
   {
    "id": "short.options",

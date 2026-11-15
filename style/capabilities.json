@@ -1443,13 +1443,14 @@
    "name": "canvas_zoom",
    "owner": "motion-designer",
    "check": {
-    "long": "long.scene_zoom",
-    "short": "gate:gfx/render.mjs"
+    "long": "long.scene_whole",
+    "short": "short.scene_whole"
    },
    "use": {
-    "long": "required",
-    "short": "report"
-   }
+    "long": "never",
+    "short": "never"
+   },
+   "why": "Kamil 2026-11-15 note 50: zooming into a piece of a scene hides the rest ('gubimy sporo treści'); round 2 L17 rejected"
   },
   {
    "id": "opt.chap_style",

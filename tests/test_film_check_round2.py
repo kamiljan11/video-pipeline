@@ -424,14 +424,45 @@ class CardUseTest(FilmFixture):  # round 2 L8 L9 L12 L17 L21 S11 S14: the new ca
         self.assertFalse(self.film([{"id": "w", "at": 82.7, "dur": 6.2}], linkedin, words).note_used()[0])  # review 2026-11-10 code-1
         self.assertTrue(self.film([], [], [(5.0, "LinkedIn")]).note_used()[0])  # a spoken "LinkedIn" is not a pointer word
 
-    def test_scene_zoom_items_and_panel_moves(self):
+    def test_scene_whole_items_and_panel_moves(self):  # Kamil 2026-11-15 note 50 reversed round 2 L17: no zoom in a scene
         sp = [{"id": "s", "type": "scene", "els": []}, {"id": "w", "type": "web"}]
         f = self.film([{"id": "s", "at": 0, "dur": 8}, {"id": "w", "at": 20, "dur": 9, "moves": [23.0]}], sp)
-        self.assertFalse(f.scene_zoom()[0]); self.assertFalse(f.panel_moves()[0])
+        self.assertTrue(f.scene_whole()[0]); self.assertFalse(f.panel_moves()[0])
         f = self.film([{"id": "s", "at": 0, "dur": 8, "zooms": [3.0], "moves": [2.5, 5.0]}, {"id": "w", "at": 20, "dur": 9, "moves": [22.5, 25.0, 27.0]}], sp)
-        self.assertTrue(f.scene_zoom()[0]); self.assertTrue(f.panel_moves()[0])
+        ok, detail = f.scene_whole()
+        self.assertFalse(ok); self.assertIn("canvas_zoom", detail); self.assertTrue(f.panel_moves()[0])
+        cam = [{"id": "s", "type": "scene", "els": [], "cam": [{"t": 0, "on": "a"}]}]
+        self.assertIn("camera on 'a'", self.film([{"id": "s", "at": 0, "dur": 8}], cam).scene_whole()[1])
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8}], [{**cam[0], "cam": [{"t": 0, "on": "*"}]}]).scene_whole()[0])
         self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 3], [3, 8]]}], sp).list_items()[0])
         self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8, "items": [[1, 4.5], [4.5, 8]]}], sp).list_items()[0])
+
+
+class SceneNotesTest(FilmFixture):  # Kamil 2026-11-15 notes 45, 46, 53
+    def test_a_drawn_piece_stays_three_seconds(self):
+        els = [{"k": "node", "id": "a", "at": 1.0}, {"k": "node", "id": "b", "at": 6.5}, {"k": "chip", "id": "c", "at": 1.0, "gone": 3.0}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 8}], [{"id": "s", "type": "scene", "els": els, "dur": 8}]).scene_hold()
+        self.assertFalse(ok); self.assertIn("s.b 1.5 s", detail); self.assertIn("s.c 2.0 s", detail); self.assertNotIn("s.a", detail)
+        short_on_screen = self.film([{"id": "s", "at": 0, "dur": 4}], [{"id": "s", "type": "scene", "els": els[:1], "dur": 8}])
+        self.assertTrue(short_on_screen.scene_hold()[0])  # 1.0 -> 4.0 on screen
+        self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 3.5}], [{"id": "s", "type": "scene", "els": els[:1], "dur": 8}]).scene_hold()[0])
+
+    def test_a_scene_brings_pieces_and_arrows(self):
+        boxes = [{"k": "node", "id": "a", "at": 0}, {"k": "chip", "id": "b", "at": 2}, {"k": "node", "id": "c", "at": 4}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": boxes}]).scene_detail()
+        self.assertFalse(ok); self.assertIn("boxes without an arrow", detail); self.assertNotIn("pieces in", detail)
+        joined = boxes + [{"k": "line", "id": "l", "from": "a", "to": "b", "at": 5}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": joined}]).scene_detail()[0])
+        self.assertIn("4 pieces in 20 s", self.film([{"id": "s", "at": 0, "dur": 20}], [{"id": "s", "type": "scene", "els": joined}]).scene_detail()[1])
+
+    def test_one_subscribe_card_in_the_middle(self):
+        sub = [{"id": "c", "type": "cta", "text": "Subskrybuj"}, {"id": "l", "type": "cta", "text": "Higher Mind za darmo"}]
+        self.assertTrue(self.film([{"id": "c", "at": 120, "dur": 5}, {"id": "l", "at": 30, "dur": 5}], sub).subscribe_mid()[0])  # 300 s film
+        ok, detail = self.film([{"id": "c", "at": 290, "dur": 5}], sub).subscribe_mid()
+        self.assertFalse(ok); self.assertIn("c at 97%", detail)  # 2026-11-04 long: under the outro
+        self.assertFalse(self.film([{"id": "l", "at": 120, "dur": 5}], sub).subscribe_mid()[0])  # a link card is not one
+        two = [{"id": "c", "at": 120, "dur": 5}, {"id": "c2", "at": 150, "dur": 5}]
+        self.assertFalse(self.film(two, sub + [{"id": "c2", "type": "cta", "text": "Subskrybuj kanał"}]).subscribe_mid()[0])  # once
 
 
 class WpmTest(FilmFixture):  # round 2 P0.6: wpm reported, no threshold
@@ -482,6 +513,18 @@ class MemeReviewTest(FilmFixture):  # Kamil note 19: a meme fits its sentence an
     def test_a_toon_still_needs_its_sentence(self):
         ok, d = self.reviewed({"m": {"why": "kot przy klawiaturze = robota sama"}}, sp=[{"id": "m", "type": "sticker", "toon": "cat_typing"}])
         self.assertFalse(ok); self.assertIn('"sentence" = the line', d)
+
+    def test_a_picture_meme_maps_each_box_to_the_jokes_role(self):  # Kamil 2026-11-15 note 44
+        now = film_check.datetime.datetime.now(film_check.datetime.UTC).year
+        sp = [{"id": "m", "type": "meme", "meme": "surprised_pikachu", "text": ["Gotowe!", "Nic nie działa"]}]
+        base = {"sentence": "ręczny montaż odpada", "why": "oczywisty skutek własnego działania", "year": now - 3, "source": "https://knowyourmeme.com/x"}
+        ok, d = self.reviewed({"m": base}, sp=sp)
+        self.assertFalse(ok); self.assertIn('"roles" = 2 lines', d); self.assertIn("oczywisty skutek", d)  # the template's roles named
+        self.assertFalse(self.reviewed({"m": {**base, "roles": ["za krótko"]}}, sp=sp)[0])
+        roles = ["Wrzucam kod bez testów = moje działanie", "Produkcja pada = oczywisty skutek, a ja zdziwiony"]
+        self.assertTrue(self.reviewed({"m": {**base, "roles": roles}}, sp=sp)[0])
+        unknown = [{"id": "m", "type": "meme", "meme": "no_such_meme"}]
+        self.assertIn("no \"roles\" in style/memes.json", self.reviewed({"m": {**base, "roles": roles}}, sp=unknown)[1])
 
     def test_our_own_toon_needs_no_year_or_source(self):
         ok, d = self.reviewed({"m": {"sentence": "ręczny montaż odpada", "why": "kot przy klawiaturze = robota sama"}},
