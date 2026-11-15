@@ -53,7 +53,7 @@ def transcribe(media: str) -> list[str]:
     return words
 
 
-REHEAR_MAX = 6  # short-window re-hearings a check (2 whisper passes each): a run with more flags fails, it does not stall
+REHEAR_MAX = 24  # short-window re-hearings a check (2-4 whisper passes each, ~10 s a pass: the 2026-11-14 long had 12 flags, 24 passes in 3:47); a run with more flags fails, it does not stall
 
 
 def _whisper(media: str, timeout: int = 7200) -> list[str]:
@@ -231,7 +231,10 @@ def locate(expected: list[str], i: int, n: int, plan_toks: list[str], times: lis
     after = [p for e, p in pairs if e >= i + n]
     if not before or not after:
         return None
-    t0, t1 = film_time(segments, times[before[-1]][0]), film_time(segments, times[after[0]][0])
+    # the nearest shared word may start in what the cut took out (a piece's edge moved past it): the next one out is taken
+    # (2026-11-14 long, 640 s: "no place on the timeline" for a gap whose neighbour sat 0.1 s outside its piece)
+    t0 = next((t for p in reversed(before[-NEAR:]) if (t := film_time(segments, times[p][0])) is not None), None)
+    t1 = next((t for p in after[:NEAR] if (t := film_time(segments, times[p][0])) is not None), None)
     if t0 is None or t1 is None or not 0 < t1 - t0 <= max_span:
         return None
     return t0, t1 + 0.3
@@ -250,19 +253,39 @@ def _whisper_window(media: str, t0: float, d: float) -> list[str] | None:
             return None
 
 
+NEAR = 4  # shared words each side of a gap that may place it on the timeline
+LEADS = (1.0, 2.5, 1.5)  # s of film before the gap in each short window; whisper drops a weak word in one window and hears it in the next
+
+
 def reheard(gone: list[str], around: list[str], rough: str, final: str, t0: float, t1: float) -> str | None:
     """the last word on a flag: whisper the same short window of the cut and of the film. The words around the gap
     (around) must be heard in the film's window, so the window sits on the right place; then the same words in both,
     or the missing words heard in the film = whisper misheard the whole film (2026-11-08 long: "to jest to co się
     dzieje" at 443 s was not in the cut's own window either; the outro read the same word for word in both).
-    Returns which evidence held, for the WARN line: "missing in both" is the weaker one (the film is no worse than the cut
-    there, but no window hears the word) and is named so Kamil checks it by ear (ADR-0021); None = no proof."""
-    a, b = _whisper_window(rough, max(t0 - 1.0, 0.0), t1 - t0 + 2.0), _whisper_window(final, max(t0 - 1.0, 0.0), t1 - t0 + 2.0)
-    if a is None or b is None or not around or not all(w in b for w in around):
-        return None
-    if all(w in b for w in gone):
-        return "heard in the film's short window"
-    return "missing in both short windows of the cut and the film: listen" if a == b else None
+    Whole long 2026-11-14 (1078 s, 12 flags): whisper over the whole film dropped 57 words; the film's short window
+    heard as many of them as the cut's in 10 places ("haczyk co ja lubię..." 27 of 28 against 26 of 28: one window is
+    never word for word the other), and lost one filler in two ("no" at 230 s, "mam" at 640 s) that a window starting
+    1.5 s earlier heard; with the music 5 dB lower "mam" stayed lost, without any music "no" was lost. So a word counts
+    as heard when any of the film's windows (LEADS) has it, and the film must hear as many of the missing words as the
+    cut's own window does (whisper rewords a long gap: "co ja lubię" / "który lubię"); the words the film's windows do
+    not have are named for Kamil's ear (ADR-0021).
+    Returns which evidence held, for the WARN line; None = no proof."""
+    a = _whisper_window(rough, max(t0 - LEADS[0], 0.0), t1 - t0 + LEADS[0] + 1.0)
+    if a is None or not around: return None
+    heard: set[str] = set(); placed = False
+    for lead in LEADS:
+        b = _whisper_window(final, max(t0 - lead, 0.0), t1 - t0 + lead + 1.0)
+        if b is None: return None
+        placed = placed or all(w in b for w in around)
+        if lead == LEADS[0] and a == b: return "missing in both short windows of the cut and the film: listen" if placed else None
+        heard |= set(b)
+        if placed and all(w in heard for w in gone): return "heard in the film's short window"
+    in_cut, in_film = sum(w in a for w in gone), sum(w in heard for w in gone)
+    # a long gap: one word in ten may be misheard, not lost ("z AI" read "za jaj" in every window of the film at 569 s, the
+    # 28-word gap of the 2026-11-14 long: 26 in the film's windows against 27 in the cut's); under ten words: none
+    if not placed or in_film < in_cut - len(gone) // 10: return None
+    weak = [w for w in gone if w not in heard]
+    return f"the film's short windows hear {in_film} of the {len(gone)} words, the cut's own {in_cut}; not in the film's: {' '.join(weak)}: listen"
 
 
 def confirm_audible(bad: list[str], expected: list[str], heard: list[str], loc: dict, args_json: Path,

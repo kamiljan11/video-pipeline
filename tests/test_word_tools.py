@@ -183,6 +183,16 @@ class ConfirmAudibleTest(unittest.TestCase):
         self.assertIsNone(C.locate(heard_cut, 0, 1, plan, times, list(SEGS)))  # nothing shared before it
         self.assertIsNone(C.locate(heard_cut, 4, 1, plan, times[:-1], list(SEGS)))  # tokens do not line up
 
+    def test_locate_steps_over_a_neighbour_the_cut_took_out(self):
+        # 2026-11-14 long, 640 s: the word next to the gap started just outside its piece -> "no place on the timeline"
+        plan = ["coś", "jest", "nie", "tak", "no", "to", "zatrzymuje"]
+        times = [(10.0 + 0.3 * k, 10.2 + 0.3 * k) for k in range(len(plan))]
+        times[3] = (15.0, 15.2)  # "tak" sits between the pieces: no film time
+        heard_cut = ["coś", "jest", "nie", "tak", "mhm", "to", "zatrzymuje"]
+        span = C.locate(heard_cut, 4, 1, plan, times, list(SEGS))
+        assert span is not None
+        self.assertAlmostEqual(span[0], 0.6); self.assertAlmostEqual(span[1], 1.5 + 0.3)  # "nie" start .. "to" start
+
     def test_voice_over_bed_reads_speech_windows_only(self):
         sr = C.SR; t = np.arange(3 * sr) / sr
         voice = np.where((t > 1) & (t < 2), 0.3 * np.sin(2 * np.pi * 200 * t), 0.0).astype(np.float32)
@@ -213,6 +223,37 @@ class ConfirmAudibleTest(unittest.TestCase):
             still, kept = C.confirm_audible(bad, exp, heard, loc, args)
             self.assertIn(want, (kept or still)[0], (music_db, still, kept))
             self.assertEqual(len(still) + len(kept), 1)
+
+    def test_reheard_takes_a_word_from_any_of_the_films_windows(self):
+        # whole long 2026-11-14: "no" at 230 s lost in the film's first window, heard in one starting 1.5 s earlier
+        real, ar, calls = C._whisper_window, ["a", "b"], []
+        def window(m, t0, d):
+            calls.append((m, t0))
+            if "rough" in m: return ["a", "x", "b"]
+            return ["a", "b"] if len([c for c in calls if "film" in c[0]]) < 3 else ["a", "x", "b"]
+        try:
+            C._whisper_window = window
+            self.assertIn("heard in the film", C.reheard(["x"], ar, "rough.mkv", "film.mp4", 10.0, 12.0) or "")
+            self.assertEqual(len({t for m, t in calls if "film" in m}), 3)  # three different starts
+        finally:
+            C._whisper_window = real
+
+    def test_reheard_asks_the_film_for_what_the_cuts_window_hears(self):
+        # "haczyk co ja lubię ...": the cut's window has 2 of the 3 missing words, the film's the same 2 -> named, listen
+        real, ar = C._whisper_window, ["a", "b"]
+        try:
+            C._whisper_window = lambda m, t0, d: ["a", "x", "y", "b"] if "rough" in m else ["a", "y", "x", "q", "b"]
+            why = C.reheard(["x", "y", "z"], ar, "rough.mkv", "film.mp4", 10.0, 12.0) or ""
+            self.assertIn("2 of the 3 words, the cut's own 2; not in the film's: z", why)
+            C._whisper_window = lambda m, t0, d: ["a", "x", "y", "b"] if "rough" in m else ["a", "x", "q", "b"]
+            self.assertFalse(C.reheard(["x", "y", "z"], ar, "rough.mkv", "film.mp4", 10.0, 12.0))  # the film hears fewer than the cut
+            gone = [f"w{k}" for k in range(20)]  # a long gap: 2 of 20 may be misheard in the film, 3 may not
+            C._whisper_window = lambda m, t0, d: ["a", *gone, "b"] if "rough" in m else ["a", *gone[2:], "b"]
+            self.assertIn("18 of the 20 words", C.reheard(gone, ar, "rough.mkv", "film.mp4", 10.0, 12.0) or "")
+            C._whisper_window = lambda m, t0, d: ["a", *gone, "b"] if "rough" in m else ["a", *gone[3:], "b"]
+            self.assertFalse(C.reheard(gone, ar, "rough.mkv", "film.mp4", 10.0, 12.0))
+        finally:
+            C._whisper_window = real
 
     def test_reheard_compares_the_same_short_window(self):
         real = C._whisper_window
