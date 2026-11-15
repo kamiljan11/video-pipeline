@@ -14,6 +14,13 @@ Plan check (cue_problems): a gfx entry of the plan may name the spoken word of e
 "items": [word index of each item's numeral, ...]; build_edl.py then refuses a card whose cue is off its word (S11: an item
 appears at most 0.3 s after its numeral) and prints the card time to put in the spec.
 
+A card timed for the cut under it (source_under, stale): the pieces of a scene or a float come in on the words said under
+the card, as card seconds typed into the spec. A cut added or taken out under the card moves those words and the spec does
+not know. The 2026-11-15 long: the retake at 1:00 of the fragment was cut, s_faktura kept its times and its pieces came in
+4.6 s late. build_edl.py keeps, per card, the spec it saw and the source seconds that ran under it then (<edl>.card_times.json);
+the same spec over a film that now runs differently under it stops the build with where and by how much. A changed spec is
+taken as timed again for the cut it is built on.
+
 One card at a time (overlap_problems): two cards that each take the picture beside or instead of the speaker (gfx_types
 SIDE_BOX, not a sticker or a "side" scene) share the screen for at most a cross-fade. The 2026-11-15 long: a retake cut moved
 the film under s_faktura, its last 4.6 s ran under the count card c_blizny and nothing said so until the film was watched.
@@ -28,6 +35,8 @@ from typing import Any
 MOVE = 0.9  # s, a camera move before its stop (scene_lib.mjs MOVE)
 ZOOM_D = 0.4  # s, a canvas zoom (scene_lib.mjs CANVAS_ZOOM.d)
 CUE_EARLY, CUE_LATE = -0.15, 0.3  # s, a cue against its word: a hair early (like gfx_lead) up to 0.3 s late (S11)
+STEP = 0.5  # s between the samples of the film under a card
+DRIFT_S = 0.3  # s the film under a card may move against the card before its pieces are off their words (CUE_LATE)
 SHARE_S = 0.5  # s two cards may share the screen: one fading out under the next coming in
 OK_MIN = 10  # characters of a reason in plan "overlap_ok"
 CAM_SAME = ("on", "x", "y", "z", "pad", "zmax")  # two stops with these equal frame the same: no move between them
@@ -140,3 +149,26 @@ def overlap_problems(ovs: list[dict], takes_screen: Callable[[dict], bool], ok: 
                        f"together for {both:.2f} s (at most {SHARE_S:g}): shorten or move one, or name the pair in plan \"overlap_ok\"")
     out += [f"overlap_ok {k!r}: no two cards with these ids overlap" for k in ok if k not in used]
     return out
+
+
+def source_under(segments: list[dict], at: float, dur: float) -> list[float]:
+    """the source second shown at card time 0, STEP, 2 STEP, ... less the one at card time 0 (segments: the EDL's, in film
+    order, "in"/"out" in source seconds). Past the end of the film the last frame holds"""
+    def src(t: float) -> float:
+        for g in segments:
+            d = g["out"] - g["in"]
+            if t < d: return g["in"] + t
+            t -= d
+        return segments[-1]["out"] if segments else 0.0
+    t0 = src(max(0.0, at))
+    return [round(src(max(0.0, at) + i * STEP) - t0, 2) for i in range(int(dur / STEP) + 1)]
+
+
+def stale(then: list[float], now: list[float]) -> tuple[float, float] | None:
+    """(card second, seconds) where the film under the card first runs more than DRIFT_S off what the card was timed for:
+    seconds > 0 = the film is that much further on than it was (a piece of the source was cut out), < 0 = a piece came back"""
+    off = [b - a for a, b in zip(then, now, strict=False)]
+    for i, d in enumerate(off):
+        # two samples in a row: one sample that lands in the gap of a cut whose edge moved a few ms is not a moved film
+        if abs(d) > DRIFT_S + 1e-6 and (i + 1 == len(off) or abs(off[i + 1]) > DRIFT_S + 1e-6): return round(i * STEP, 2), round(d, 2)
+    return None

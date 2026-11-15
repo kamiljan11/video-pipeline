@@ -5,6 +5,7 @@ plan: {"words": "x.cw.json", "sil": "x.sil", "src": "/path.mp4", "keeps": [[w0, 
 plan2 cards (gfx/cards_lib.mjs, all opt-in): a gfx entry's "item_words" [idx, ...] times a "list" card's items (L8: overlay
 delays / items_said / item_lead); "note", "lower" + "define", "chap" + "chap_style" are held to their rules here (L9, L12,
 L21); each such overlay gets "variant" (roadmap | part_tag | define | note | upto | stack). Beats: plan "beat_opt_in" (beats.py)."""
+import hashlib
 import itertools
 import json
 import re
@@ -243,6 +244,23 @@ for g in P.get("gfx", []):
     cue = gfx_events.cue_problems(g, sp, o["at"], lambda w: src2out(W[w][0]), len(W))
     if cue: sys.exit(f"{g['id']}: " + "; ".join(cue))
     ovs.append(o)
+# a scene or float timed for another cut (gfx_events.stale): the same spec, the film under it moved by more than 0.3 s
+_times_file = Path(P["edl_out"].replace(".json", ".card_times.json"))
+try: _timed_for = json.loads(_times_file.read_text())
+except (OSError, ValueError): _timed_for = {}
+_now, _stale = {}, []
+for o in ovs:
+    sp = specs[o["id"]]
+    if sp.get("type") not in ("scene", "float"): continue
+    key = hashlib.sha256(json.dumps(sp, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+    under = gfx_events.source_under(out, o["at"], o["dur"])
+    was = _timed_for.get(o["id"])
+    off = gfx_events.stale(was["under"], under) if isinstance(was, dict) and was.get("spec") == key else None
+    if off: _stale.append(f"{o['id']}: from card second {off[0]:g} the film under it runs {abs(off[1]):.2f} s {'further on' if off[1] > 0 else 'back'} "
+                          f"than when its pieces were timed (a cut {'made' if off[1] > 0 else 'undone'} under the card): move the pieces after that by {-off[1]:+.2f} s in {P['gfx_specs']}")
+    _now[o["id"]] = was if off else {"spec": key, "under": under}
+if _stale: sys.exit("cards timed for another cut: " + "; ".join(_stale))
+_times_file.write_text(json.dumps(_now, ensure_ascii=False))
 # one card at a time (gfx_events.overlap_problems): side-box and full-screen cards, not a sticker or a "side" scene
 _both = gfx_events.overlap_problems(ovs, lambda o: specs[o["id"]].get("type") in SIDE_BOX and not beside(specs[o["id"]]), P.get("overlap_ok"))
 if _both: sys.exit("cards on screen together: " + "; ".join(_both))

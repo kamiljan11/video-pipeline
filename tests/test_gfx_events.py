@@ -98,9 +98,9 @@ class BuildEdlTest(unittest.TestCase):
             {"offsets": {"from": round(a * 1000), "to": round(b * 1000)}, "text": t} for a, b, t in words]}))
         (self.d / "rec.sil").write_text("silence_start: 0\nsilence_end: 1.0\nsilence_start: 4.6\nsilence_end: 6\n")
 
-    def build(self, spec: dict, gfx: dict):
+    def build(self, spec: dict, gfx: dict, keeps: list | None = None):
         (self.d / "specs.json").write_text(json.dumps([spec]))
-        plan = {"words": "rec.cw.json", "sil": "rec.sil", "src": "rec.mp4", "keeps": [[0, 3]], "edl_out": "edl.json",
+        plan = {"words": "rec.cw.json", "sil": "rec.sil", "src": "rec.mp4", "keeps": keeps or [[0, 3]], "edl_out": "edl.json",
                 "gfx": [{"id": spec["id"], "word": 0, **gfx}], "gfx_specs": "specs.json", "gfx_dir": str(self.d)}
         (self.d / "plan.json").write_text(json.dumps(plan))
         return subprocess.run([sys.executable, str(ROOT / "build_edl.py"), "plan.json"], cwd=self.d, capture_output=True, text=True, check=False)
@@ -122,6 +122,16 @@ class BuildEdlTest(unittest.TestCase):
         self.assertEqual(o["read_along"], [round(at + 2.0, 3), round(at + 3.0, 3)])
         self.assertEqual(o["items"][0], [round(at + 1.0, 3), round(at + 8.0, 3)])
         self.assertIn(round(at + 4.1, 3), o["moves"])
+
+    def test_a_cut_made_under_a_scene_stops_the_build_until_the_scene_is_timed_again(self):
+        self.assertEqual(self.build(SCENE, {}).returncode, 0)
+        self.assertEqual(self.build(SCENE, {}).returncode, 0)  # the same cut again
+        r = self.build(SCENE, {}, keeps=[[0, 0], [2, 3]])  # word b (1.3 s) cut out under the card
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("cards timed for another cut: s1: from card second", r.stderr); self.assertIn("further on", r.stderr)
+        self.assertNotEqual(self.build(SCENE, {}, keeps=[[0, 0], [2, 3]]).returncode, 0)  # still stale: nothing was recorded over it
+        retimed = {**SCENE, "els": [{**e, "at": e["at"] - 0.2} if e.get("k") == "cursor" else e for e in SCENE["els"]]}
+        self.assertEqual(self.build(retimed, {}, keeps=[[0, 0], [2, 3]]).returncode, 0)  # the spec was touched: timed for this cut
 
     def test_the_plan_holds_read_along_to_its_words(self):
         # words 1 and 2 start at 1.6 and 3.0 s of the source = card 0.6 / 2.0 s (the card comes in on word 0)
@@ -152,6 +162,26 @@ class OverlapTest(unittest.TestCase):
     def test_a_waiver_for_no_pair_is_a_problem(self):
         bad = self.problems({"s_faktura+c_blizny": "the count lands on the scene on purpose", "a+b": "nothing overlaps here at all"})
         self.assertEqual(bad, ["overlap_ok 'a+b': no two cards with these ids overlap"])
+
+
+class CardTimedForTheCutTest(unittest.TestCase):
+    """2026-11-15 long: the retake under s_faktura was cut, its pieces stayed 4.6 s late"""
+    SEGS = ({"in": 100.0, "out": 110.0}, {"in": 110.3, "out": 130.0})
+
+    def test_the_source_under_a_card_follows_the_segments(self):
+        self.assertEqual(gfx_events.source_under(list(self.SEGS), 9.0, 2.0), [0.0, 0.5, 1.3, 1.8, 2.3])  # 0.3 s cut out at card second 1
+
+    def test_a_retake_cut_out_under_the_card_is_found_with_its_place_and_length(self):
+        then = gfx_events.source_under(list(self.SEGS), 2.0, 20.0)
+        cut = [{"in": 100.0, "out": 106.0}, {"in": 110.6, "out": 130.0}]  # 4.6 s taken out at film second 6
+        self.assertEqual(gfx_events.stale(then, gfx_events.source_under(cut, 2.0, 20.0)), (4.0, 4.6))
+        self.assertEqual(gfx_events.stale(gfx_events.source_under(cut, 2.0, 20.0), then), (4.0, -4.6))
+
+    def test_the_same_cut_or_a_trimmed_edge_is_not_stale(self):
+        then = gfx_events.source_under(list(self.SEGS), 2.0, 20.0)
+        edge = [{"in": 100.0, "out": 110.01}, {"in": 110.3, "out": 130.0}]  # a cut edge moved by 10 ms: one sample lands 0.3 s off
+        self.assertIsNone(gfx_events.stale(then, then)); self.assertIsNone(gfx_events.stale(then, gfx_events.source_under(edge, 2.0, 20.0)))
+        self.assertIsNone(gfx_events.stale(then, then[:10]))  # a shorter card is compared over what both have
 
 
 if __name__ == "__main__":
