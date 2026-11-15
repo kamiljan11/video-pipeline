@@ -309,6 +309,14 @@ class ShortResearchTest(unittest.TestCase):
         ok, detail = self.short(WORDS, [{"id": "w", "at": n - 3, "dur": 3}], [{"id": "w", "type": "web"}]).last_line_on_face()
         self.assertFalse(ok); self.assertIn("w", detail)
 
+    def test_s15_the_end_board_after_the_last_word_is_not_over_the_sentence(self):
+        n, said = len(WORDS), "Kamil 2026-11-15: pominales ekran koncowy ogladnij pelny odcinek na yt"
+        end = {"id": "e", "type": "end", "canvas": "v"}
+        self.assertTrue(self.short(WORDS, [{"id": "e", "at": n, "dur": 2.5}], [end], tail=2.5, end_card=said).last_line_on_face()[0])
+        ok, detail = self.short(WORDS, [{"id": "w", "at": n - 3, "dur": 3}, {"id": "e", "at": n, "dur": 2.5}],
+                                [{"id": "w", "type": "web"}, end], tail=2.5, end_card=said).last_line_on_face()
+        self.assertFalse(ok); self.assertIn("w", detail); self.assertNotIn("e,", detail)
+
 
 class ShortTitlesTest(unittest.TestCase):  # plan 1 5.3
     def test_each_short_needs_ab_titles(self):

@@ -928,7 +928,9 @@ class Film:
         if self.plan.get("end_hold") is not None: return True, "end_hold: the tail holds a card"
         at = self.last_sentence_at()
         if at is None: return False, "no words"
-        over = [o["id"] for o in self.ovs if o["at"] + o["dur"] > at + 0.2 and (gfx_types.is_full(self.specs.get(o["id"], {})) or
+        # the end board of plan end_card comes after the last word and is checked by short.end, not here
+        boards = {o["id"] for o in self.ovs if self.typ(o) == "end"} if self.plan.get("end_card") is not None else set()
+        over = [o["id"] for o in self.ovs if o["id"] not in boards and o["at"] + o["dur"] > at + 0.2 and (gfx_types.is_full(self.specs.get(o["id"], {})) or
                 self.specs.get(o["id"], {}).get("layout") == "split" or o.get("split"))]
         return not over, f"cards over the last sentence ({at:.1f} s): {', '.join(over)}" if over else "the last sentence on the face"
 
