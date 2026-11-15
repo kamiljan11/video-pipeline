@@ -152,22 +152,25 @@ def overlap_problems(ovs: list[dict], takes_screen: Callable[[dict], bool], ok: 
 
 
 def source_under(segments: list[dict], at: float, dur: float) -> list[float]:
-    """the source second shown at card time 0, STEP, 2 STEP, ... less the one at card time 0 (segments: the EDL's, in film
-    order, "in"/"out" in source seconds). Past the end of the film the last frame holds"""
+    """the source second shown at card time 0, STEP, 2 STEP, ... (segments: the EDL's, in film order, "in"/"out" in source
+    seconds). Past the end of the film the last frame holds"""
     def src(t: float) -> float:
         for g in segments:
             d = g["out"] - g["in"]
             if t < d: return g["in"] + t
             t -= d
         return segments[-1]["out"] if segments else 0.0
-    t0 = src(max(0.0, at))
-    return [round(src(max(0.0, at) + i * STEP) - t0, 2) for i in range(int(dur / STEP) + 1)]
+    return [round(src(max(0.0, at) + i * STEP), 2) for i in range(int(dur / STEP) + 1)]
 
 
 def stale(then: list[float], now: list[float]) -> tuple[float, float] | None:
-    """(card second, seconds) where the film under the card first runs more than DRIFT_S off what the card was timed for:
-    seconds > 0 = the film is that much further on than it was (a piece of the source was cut out), < 0 = a piece came back"""
-    off = [b - a for a, b in zip(then, now, strict=False)]
+    """(card second, seconds) where the film under the card first runs more than DRIFT_S off what the card was timed for,
+    measured from card second STEP (the card's word: gfx_lead is -0.5..0 s, so card second 0 may still show the piece before
+    a cut and is not the reference): seconds > 0 = the film is that much further on than it was (a piece of the source was
+    cut out), < 0 = a piece came back"""
+    if len(then) < 2 or len(now) < 2: return None
+    off = [(b - a) - (now[1] - then[1]) for a, b in zip(then, now, strict=False)]
+    off[0] = 0.0
     for i, d in enumerate(off):
         # two samples in a row: one sample that lands in the gap of a cut whose edge moved a few ms is not a moved film
         if abs(d) > DRIFT_S + 1e-6 and (i + 1 == len(off) or abs(off[i + 1]) > DRIFT_S + 1e-6): return round(i * STEP, 2), round(d, 2)

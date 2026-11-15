@@ -177,3 +177,10 @@ test('a float piece too small to be seen is named (2026-11-15 long, f_mucha: a 2
   assert.deepEqual(floatProblems({ id: 'f_mucha' }, boxes), ['f_mucha: piece #1 is 24x24 px on the frame, at least 64 on its longer side to be seen on a phone: draw it bigger']);
   assert.deepEqual(floatProblems({ id: 'f', canvas: 'v' }, [{ i: 0, w: 50, h: 50 }]), []);  // 48 on a 9:16 frame
 });
+
+test('a float piece that comes in just before the card ends is named (2026-11-15 long, f_nie_wierzy at 0:32)', () => {
+  const sp = { id: 'f_nie_wierzy', dur: 3.65 };
+  assert.deepEqual(floatProblems(sp, [{ i: 0, w: 300, h: 100, in: 0.6 }, { i: 2, w: 300, h: 100, in: 2.45 }]), []);  // 1.2 s on screen
+  assert.match(floatProblems(sp, [{ i: 2, w: 300, h: 100, in: 3.97 }]).join('\n'), /piece #2 is fully in at 3\.97 s and the card ends at 3\.65 s: on screen 0\.00 s/);
+  assert.equal(floatProblems(sp, [{ i: 1, w: 300, h: 100, in: 3.47 }]).length, 1);
+});

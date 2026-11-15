@@ -250,19 +250,33 @@ export function hiddenProblems(sp, hidden) {
 // (2026-11-15 long, f_mucha: the fly the sentence is about was a 24 px icon on a 2560 px frame, found by watching the film).
 // Same phone scale as MIN_TEXT_PX: a 9:16 frame shows 0.75 of the px.
 export const MIN_PIECE_PX = { h: 64, v: 48 };
+// boxes may carry "in" = the second the piece is fully in (its entrance ends): a piece fully in less than READ_MIN_S before
+// the card ends flashes and is gone (2026-11-15 long, f_nie_wierzy at 0:32: the "Higher Mind" tag came in 0.2 s before the
+// card ended, Kamil: "znika zanim sie pelna animacja graficzka pojawia")
 export function floatProblems(sp, boxes) {
-  const min = MIN_PIECE_PX[sp.canvas === 'v' ? 'v' : 'h'];
-  return boxes.filter(b => Math.max(b.w, b.h) < min)
-    .map(b => `${sp.id}: piece #${b.i} is ${Math.round(b.w)}x${Math.round(b.h)} px on the frame, at least ${min} on its longer side to be seen on a phone: draw it bigger`);
+  const min = MIN_PIECE_PX[sp.canvas === 'v' ? 'v' : 'h'], out = [];
+  for (const b of boxes) {
+    if (Math.max(b.w, b.h) < min) out.push(`${sp.id}: piece #${b.i} is ${Math.round(b.w)}x${Math.round(b.h)} px on the frame, at least ${min} on its longer side to be seen on a phone: draw it bigger`);
+    if (typeof b.in === 'number' && typeof sp.dur === 'number' && sp.dur - b.in < READ_MIN_S - 1e-6)
+      out.push(`${sp.id}: piece #${b.i} is fully in at ${b.in.toFixed(2)} s and the card ends at ${sp.dur} s: on screen ${Math.max(0, sp.dur - b.in).toFixed(2)} s, at least ${READ_MIN_S}: bring it in earlier or make the card longer`);
+  }
+  return out;
 }
 
-// in the page: every piece of a float card in its laid-out place and size
+// in the page: every piece of a float card in its laid-out place and size, and when its entrance ends ("in", s): the end of
+// its earliest finite animation that is not an exit (a name with "out"); none = in from the start
 function measureFloat() {
+  const pieces = [...document.querySelectorAll('.float > .p')];
+  const ins = pieces.map(el => {
+    const ends = [el, ...el.querySelectorAll('*')].flatMap(n => n.getAnimations()).map(a => ({ name: String(a.animationName ?? ''), t: a.effect.getComputedTiming() }))
+      .filter(a => !/out/.test(a.name) && Number.isFinite(a.t.endTime)).map(a => a.t.endTime / 1000);
+    return ends.length ? Math.min(...ends) : 0;
+  });
   for (const a of document.getAnimations()) a.cancel();
-  return [...document.querySelectorAll('.float > .p')].map((el, i) => {
+  return pieces.map((el, i) => {
     const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
     if (!boxes.length) return null;
-    return { i, w: Math.max(...boxes.map(r => r.right)) - Math.min(...boxes.map(r => r.left)), h: Math.max(...boxes.map(r => r.bottom)) - Math.min(...boxes.map(r => r.top)) };
+    return { i, in: ins[i], w: Math.max(...boxes.map(r => r.right)) - Math.min(...boxes.map(r => r.left)), h: Math.max(...boxes.map(r => r.bottom)) - Math.min(...boxes.map(r => r.top)) };
   }).filter(Boolean);
 }
 

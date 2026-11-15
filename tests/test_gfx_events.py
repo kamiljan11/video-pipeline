@@ -169,7 +169,12 @@ class CardTimedForTheCutTest(unittest.TestCase):
     SEGS = ({"in": 100.0, "out": 110.0}, {"in": 110.3, "out": 130.0})
 
     def test_the_source_under_a_card_follows_the_segments(self):
-        self.assertEqual(gfx_events.source_under(list(self.SEGS), 9.0, 2.0), [0.0, 0.5, 1.3, 1.8, 2.3])  # 0.3 s cut out at card second 1
+        self.assertEqual(gfx_events.source_under(list(self.SEGS), 9.0, 2.0), [109.0, 109.5, 110.3, 110.8, 111.3])  # 0.3 s cut out at card second 1
+
+    def test_a_card_that_starts_just_before_a_cut_is_not_stale(self):  # s_narada 2026-11-15: lead -0.12 s over a 29 s cut
+        then = gfx_events.source_under([{"in": 0.0, "out": 10.0}, {"in": 40.0, "out": 60.0}], 9.88, 6.0)
+        now = gfx_events.source_under([{"in": 0.0, "out": 18.0}, {"in": 40.0, "out": 60.0}], 17.88, 6.0)
+        self.assertIsNone(gfx_events.stale(then, now))
 
     def test_a_retake_cut_out_under_the_card_is_found_with_its_place_and_length(self):
         then = gfx_events.source_under(list(self.SEGS), 2.0, 20.0)
