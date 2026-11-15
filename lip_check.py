@@ -13,6 +13,11 @@ is found in the film's picture near the planned time, and the recording's voice 
 sound lag - picture lag (> 0: the voice after the lips). Only pieces where both match well (r >= R_MIN) count; a zoom
 or a crop that changes the motion lowers r and the piece is left out, said, never guessed.
 
+A piece whose whole frame does not match is measured once more on the face part alone (FACE_H of the height from the top;
+of the recording, the centre strip with the film's shape). A 9:16 short is a crop of the recording with captions and cards
+over its lower part, so the whole frames never matched: on 2026-11-15 three shorts (s03, s16, s22) had 0 pieces counted and
+the gate had to be switched off for them, while this measure on the same pieces read 0.0-2.1 ms.
+
 Problems (exit 1): median desync over --median-ms, any counted piece over --max-ms, or pieces there but none counted (fewer
 than MIN_PIECES counted = WARN; no piece of MIN_LEN s at all = WARN). run_v4.sh: LIP_CHECK=off skips it, logged.
 """
@@ -32,12 +37,27 @@ R_MIN = 0.8
 MIN_PIECES = 3  # fewer counted = WARN only: a short has 1-3 pieces without cards, and the fault measured (filters, cut grid)
 #                 is the pipeline's, the same in every piece (film 2026-11-04: +40 ms sound in all 16 pieces of the long)
 SEARCH = 0.5  # s each side of the planned time
+FACE_H = 0.6  # of the frame height, from the top: the face without the captions and the cards under it
 PIECES_MAX = 24  # spread over the film: enough for a median, a long is checked in minutes
 
 
-def motion(path: str, ss: float, t: float) -> np.ndarray:
+def size(path: str) -> tuple[int, int]:
+    """(width, height) of the picture"""
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", path],
+                         capture_output=True, text=True, check=True, timeout=60).stdout.strip().split("x")
+    return int(out[0]), int(out[1])
+
+
+def face_crops(src: tuple[int, int], film: tuple[int, int]) -> tuple[str, str]:
+    """ffmpeg crops (recording, film) of the same part of the picture: the top FACE_H of the film, and of the recording the
+    top FACE_H of its centre strip shaped like the film (a 9:16 film out of a 16:9 recording: the middle 0.316 of the width)"""
+    strip = min(1.0, (film[0] / film[1]) / (src[0] / src[1]))
+    return f"crop=iw*{strip:.4f}:ih*{FACE_H}:iw*{(1 - strip) / 2:.4f}:0", f"crop=iw:ih*{FACE_H}:0:0"
+
+
+def motion(path: str, ss: float, t: float, crop: str = "") -> np.ndarray:
     raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{max(ss, 0):.3f}", "-i", path, "-t", f"{t:.3f}", "-an",
-                          "-vf", f"fps={FPS},scale=96:54,format=gray", "-f", "rawvideo", "-"],
+                          "-vf", f"{crop + ',' if crop else ''}fps={FPS},scale=96:54,format=gray", "-f", "rawvideo", "-"],
                          capture_output=True, check=True, timeout=600).stdout
     f = np.frombuffer(raw, np.uint8)[: len(raw) // (54 * 96) * 54 * 96].reshape(-1, 54, 96).astype(np.float32)
     return np.abs(np.diff(f, axis=0)).mean(axis=(1, 2)) if len(f) > 1 else np.zeros(0)
@@ -74,7 +94,7 @@ def pieces(edl: dict) -> list[tuple[int, float]]:
 
 def measure(edl: dict, film: str) -> list[dict]:
     """picture_ms / sound_ms: where the recording's moment in + 0.2 s shows up in the film vs the plan (t0 + 0.2 s)"""
-    out = []; fv0 = video_start(film)
+    out = []; fv0 = video_start(film); crops: dict[str, tuple[str, str]] = {}
     for i, t0 in pieces(edl):
         s = edl["segments"][i]; src = edl["sources"][s["src"]]
         L = timeline.piece_len(s, bool(edl.get("seg_exact"))) - 0.4
@@ -83,6 +103,10 @@ def measure(edl: dict, film: str) -> list[dict]:
         # offsets of those frames from the asked times are added back (film 2026-11-04: frames at 0.033 + k/30)
         rs, fs = timeline.snap_in(ref, video_start(src)), timeline.snap_in(max(want, 0.0), fv0)
         pl, pr = lag(motion(src, rs, L), motion(film, fs, L + 2 * SEARCH), int(SEARCH * FPS), FPS)
+        if pr < R_MIN:  # the whole frames do not match: the face part alone, the better match of the two is kept
+            cs, cf = crops.setdefault(src, face_crops(size(src), size(film)))
+            pl2, pr2 = lag(motion(src, rs, L, cs), motion(film, fs, L + 2 * SEARCH, cf), int(SEARCH * FPS), FPS)
+            if pr2 > pr: pl, pr = pl2, pr2
         pl += ((fs - want) - (rs - ref)) * 1000
         ws = max(want, 0.0)
         sl, sr = lag(envelope(src, ref, L), envelope(film, ws, L + 2 * SEARCH), int(SEARCH * 1000), 1000)

@@ -131,5 +131,17 @@ class EndToEndTest(unittest.TestCase):
             self.assertAlmostEqual(x["desync_ms"], 40, delta=12, msg=rows)
 
 
+class FaceCropsTest(unittest.TestCase):
+    """2026-11-15: s03, s16, s22 had 0 pieces counted on whole frames (a 9:16 crop with captions over the lower part)"""
+
+    def test_a_short_is_matched_on_the_centre_strip_of_the_recording(self):
+        src, film = lip_check.face_crops((3840, 2160), (1080, 1920))
+        self.assertEqual(src, "crop=iw*0.3164:ih*0.6:iw*0.3418:0")
+        self.assertEqual(film, "crop=iw:ih*0.6:0:0")
+
+    def test_a_long_keeps_the_whole_width(self):
+        self.assertEqual(lip_check.face_crops((3840, 2160), (2560, 1440))[0], "crop=iw*1.0000:ih*0.6:iw*0.0000:0")
+
+
 if __name__ == "__main__":
     unittest.main()
