@@ -43,6 +43,32 @@ class RetimeTest(unittest.TestCase):
         self.assertEqual(rc.retime(OLD, NEW, [kw, gone]), [])
         self.assertEqual(gone["els"][0]["at"], 2.0)
 
+    def test_a_new_cut_built_without_cards_starts_each_card_where_its_old_start_lands(self):
+        bare = {"segments": NEW["segments"]}
+        sp = {"id": "s", "type": "scene", "dur": 8.0, "els": [{"k": "chip", "at": 1.0}, {"k": "file", "at": 3.0}]}
+        self.assertEqual(rc.retime(OLD, bare, [sp]), ["s: 1 timings, dur 8.0 -> 14.0"])
+        self.assertEqual([e["at"] for e in sp["els"]], [1.0, 9.0])
+        sp2 = {"id": "s", "type": "scene", "dur": 1.0, "els": [{"at": 0.5}]}
+        self.assertEqual(rc.retime({"segments": OLD["segments"], "overlays": [{"id": "s", "at": 4.5}]},
+                                   {"segments": [{"in": 10.0, "out": 14.0}]}, [sp2]), [])  # its start is cut: left alone
+
+
+    def test_a_card_over_a_moved_piece_is_left_alone_and_named(self):  # 2026-11-15 f_nie_wierzy: 3.65 s -> 51 s
+        moved = {"segments": [{"in": 20.0, "out": 24.0}, {"in": 10.0, "out": 14.0}], "overlays": [{"id": "f", "at": 1.0}]}
+        sp = {"id": "f", "type": "float", "dur": 5.0, "html": '<div style="animation:a 0.5s ease 2.00s both"></div>'}
+        self.assertEqual(rc.retime(moved, {"segments": [{"in": 10.0, "out": 24.0}]}, [sp]),
+                         ["f: LEFT ALONE, the old cut plays its words out of recording order: time it by hand"])
+        self.assertEqual(sp["dur"], 5.0)
+
+
+    def test_a_card_starting_just_before_a_cut_belongs_to_the_piece_after_it(self):  # 2026-11-15 f_nie_wierzy
+        old = {"segments": [{"in": 10.0, "out": 14.0}, {"in": 40.0, "out": 50.0}], "overlays": [{"id": "f", "at": 3.6}]}
+        bare = {"segments": [{"in": 10.0, "out": 20.0}, {"in": 40.0, "out": 50.0}]}
+        sp = {"id": "f", "type": "float", "dur": 3.0, "html": '<div style="animation:a 0.5s ease 1.60s both"></div>'}
+        rc.retime(old, bare, [sp])
+        self.assertAlmostEqual(sp["dur"], 3.0, delta=0.5)
+
+
 
 if __name__ == "__main__":
     unittest.main()
