@@ -81,3 +81,18 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **dubel słyszany w cięciu (`retake_check.py`)** — druga droga wykrycia dubla, w dry runie: dźwięk cięcia dzielony na wypowiedzi po pauzach, każda transkrybowana osobno, potem ta sama reguła co wyżej (`retakes.py`, wspólna dla obu dróg). Powód: transkrypt całego nagrania zgubił jedno z dwóch podejść (fragment 2026-11-14, 1:00), więc plan słów dubla nie widział. Final nie odpala jej ponownie: bez zaliczonego dry runu final nie rusza (`dry_run.py`), a cięcie jest to samo.
 - **muzyka pod głosem (`music_check.py`)** — bramka longa: mediana „głos minus podkład” w oknach z mową ma leżeć w 14–28 dB (stałe `MIN_DB` / `MAX_DB`), mierzone na rozdzielonych ścieżkach z grafu audio `assemble.py`. Poniżej = muzyka walczy ze słowami, powyżej = muzyki nie słychać (fragment 2026-11-14: 48 dB). Strojenie filmu = dane planu: `music_db`, `music_duck` (`threshold`, `ratio`, `mix`; `mix` < 1 = podłoga, muzyka trzyma jeden poziom pod głośnym i cichym słowem). Zakres ustawiony na jednym fragmencie: po pierwszym filmie z inną muzyką sprawdzić i wpisać wynik do NOTES_LOG.
 - **czyszczenie głosu (`voice_clean`)** — klucz planu `"voice_clean": "dfn"`: głos surowego cięcia przechodzi przez DeepFilterNet (`voice_clean.py`, binarka poza repo: `VP_DEEP_FILTER` albo `~/.local/share/vp-voice/dfn/deep-filter`) przed łańcuchem `audio`; łańcuch nie ma wtedy `afftdn` ani `acompressor`. Pomiary wyboru: nagłówek `voice_clean.py`.
+
+## LinkedIn (`linkedin.py`, ADR-0009, ADR-0027)
+
+| termin | znaczenie |
+|---|---|
+| spec | `<dir>/linkedin.json`: tekst posta, hashtagi, pierwszy komentarz i media (`carousel`, `video` albo `grafika.png` obok) |
+| kod akceptacji | 12 znaków skrótu tego, co wychodzi publicznie (tekst, tytuł/alt text, komentarz, bajty pliku); drukuje go dry run, `--publish` i kolejka go wymagają |
+| dry run | `linkedin.py publish <spec>` bez `--publish`: sprawdza token i autora, pokazuje treść i kod, nic nie wysyła |
+| rekord | `<dir>/linkedin.published.json`: zakładany przed pierwszym zapisem do LinkedIn; `published` = post jest, `pending`/`unknown` = mógł wyjść |
+| SEEN | `~/.local/state/vp-linkedin/seen/`: ten sam tekst posta z innego katalogu = odmowa (bez duplikatów) |
+| kolejka | `~/.local/state/vp-linkedin/queue.jsonl`: pozycje (czas Europe/Warsaw, spec, kod akceptacji) dla `run-due` |
+| `waiting` / `due` / `done` | czas nie minął / minął, do publikacji / rekord `published` |
+| `late` | czas minął o > 3 h (`MAX_LATE_H`): nie publikujemy starych postów hurtem |
+| `stuck <stan>` | rekord istnieje, ale nie `published`: publikacja przerwana, sprawdź profil (RUNBOOK) |
+| tik | jedno uruchomienie timera (co 15 min): najwyżej jeden post |

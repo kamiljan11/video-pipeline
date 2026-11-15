@@ -68,6 +68,7 @@ flowchart LR
 | Screen grammar | `screen_grammar.py` | memes with `sticker` crops (`style/memes.json`) go beside the speaker as stickers, simple scenes in the free field (`layout: "side"`), cards held to their reading time, close separate screens joined ([REF-long-negacz](style/REF-long-negacz.md)) |
 | Capability map | `capabilities.py`, `style/capabilities.json`, `design_ledger.py` (ADR-0023) | every card type, card/scene spec option (`sp.<key>`), scene piece, background, entrance, plan key and menu (memes, toons, music palettes and moods, card sounds, part-card styles, motion sets) found in the code has an owner role, a check and a use per form (required / report / infra / never / menu; `required` needs evidence: a why or a checklist item of that form); a film uses each required one or skips it with a reason (film_check long/short.capabilities); every `## Order of work` item of a design is a research ledger row, so research_gate blocks the render while it is open |
 | Editorial team | `team/RUNBOOK.md`, `team/roles/` | the 12 steps of an edit, one role card each (mission, input, output file, when done) |
+| LinkedIn post | `linkedin.py`, `gfx/carousel.mjs`, `deploy/` | text + PDF carousel, image or video (a short) + first comment, published on Kamil's profile through the official API after his OK, now or from a queue on a timer ([ADR-0009](docs/adr/0009-linkedin-document-posts.md), [ADR-0027](docs/adr/0027-linkedin-image-video-queue.md), section below) |
 
 The editing style is data, not code: `style/grammar.json` (rules per format), `style/RESEARCH.md` (sources and lessons
 from real reviews), `style/themes/` (brand colours). Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/); terms
@@ -587,6 +588,79 @@ logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje pla
   kolidują (R3); napisy zostają WIELKIMI literami w całości (R2: „CAPS tylko na słowach kluczowych” = osobna zmiana).
 - **Brak metryki:** STYL-SHORTOW opiera się na 6 starych shortach Kamila, a ich oglądalność nie dowodzi, że styl działa. Ocena:
   porównać retencję pierwszych 3 s w YouTube Studio między shortami z `hook_text` (2026-10-23) a z pigułką.
+
+## Post na LinkedIn z filmu (`linkedin.py`, karuzela PDF)
+
+Post-dokument na profilu Kamila Jana: tekst + karuzela PDF (slajdy 1080x1350) + pierwszy komentarz z linkiem do filmu, przez
+oficjalne API (ADR-0009). Spec `<dir>/linkedin.json` pisze sesja Claude Code wg `style/LINKEDIN.md`; limity w `style/linkedin.json`.
+
+```bash
+python3 linkedin.py check   <dir>/linkedin.json
+python3 linkedin.py render  <dir>/linkedin.json             # -> <dir>/linkedin.pdf; obejrzyj
+python3 linkedin.py publish <dir>/linkedin.json             # dry run: token, autor, pełny tekst, kod akceptacji; nic nie wysyła
+python3 linkedin.py publish <dir>/linkedin.json --publish --approve <kod>   # dopiero gdy Kamil zaakceptował tekst i PDF
+python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wyszedł, a pierwszy komentarz nie (exit 1)
+```
+
+- **Akceptacja:** tekst pisze model, więc `--publish` idzie dopiero po tym, jak Kamil zobaczył tekst z dry runu i PDF. Dry run
+  drukuje kod akceptacji (skrót tekstu, tytułu dokumentu, komentarza i PDF); `--publish` bez tego kodu albo po jakiejkolwiek
+  zmianie stoi przed pierwszym wywołaniem API, więc wychodzi dokładnie to, co pokazał dry run. Kod wiąże treść, nie dowodzi
+  zgody: sesja, która uruchomiła dry run, zna kod, więc „Kamil widział i powiedział OK” pozostaje krokiem procedury
+  (`style/LINKEDIN.md`).
+- **Komentarz:** `FAILED` = LinkedIn go odrzucił (4xx), `comment` ponawia. `UNKNOWN` = timeout albo błąd serwera: komentarz mógł
+  się pojawić (także gdy przebieg przerwano w trakcie wysyłki); sprawdź pod postem i dopiero wtedy `comment --checked`.
+  Ponowienie wysyła tekst zatwierdzony przy publikacji (zapisany w rekordzie); zmieniony `first_comment` w specu = odmowa.
+- **Bez duplikatów:** `<dir>/linkedin.published.json` jest zakładany przed pierwszym zapisem do LinkedIn, razem z wpisem
+  `~/.local/state/vp-linkedin/seen/<skrót tekstu>` (ten sam tekst z innego katalogu, kopii albo świeżego klonu = odmowa). `state: published` = post
+  jest (URL w pliku). `state: pending` = przebieg publikacji trwa albo przerwano go w połowie (kill, brak prądu):
+  traktuj jak `unknown`. `state: unknown` = timeout albo błąd serwera przy wysyłce posta: post mógł wyjść; sprawdź profil (Aktywność >
+  Posty), skasuj plik tylko gdy posta nie ma. Odmowa LinkedIn (4xx) i błąd przed postem kasują plik sam (nic nie wyszło).
+- **Token:** `~/.config/linkedin/token.json` (scope `w_member_social`, 60 dni, wspólny z zadaniem toRzeszów:
+  `~/Documents/toRzeszow/skrypty/linkedin_auth.py`, starsza, osobna wersja tego skryptu z tym samym zakresem `openid profile w_member_social`
+  i tym samym plikiem tokenu; źródłem prawdy jest `linkedin_auth.py` w tym repo, odnowienie którymkolwiek działa dla obu). Skrypt staje 3 dni
+  przed wygaśnięciem. Odnowienie (Kamil klika „Zezwól” w przeglądarce), sekrety aplikacji z Infisicala (`LINKEDIN_CLIENT_ID`,
+  `LINKEDIN_CLIENT_SECRET`):
+  `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 linkedin_auth.py`
+  (aplikacja LinkedIn: produkty „Share on LinkedIn” i „Sign In with LinkedIn using OpenID Connect”, redirect
+  `http://127.0.0.1:8789/callback`; opis w nagłówku `linkedin_auth.py`). Błąd API ma w nawiasie identyfikatory żądania
+  LinkedIn (`x-li-…`) do zgłoszenia w ich supporcie.
+- **Wersja API:** `VERSION` w `linkedin.py` (nagłówek `LinkedIn-Version`, LinkedIn wycofuje wersje po ok. roku; błąd HTTP
+  wspominający wersję = podbić na aktualną z dokumentacji LinkedIn).
+- **Logi:** `linkedin.py` pisze tylko na stdout/stderr (bez pliku logu); stan każdego posta = `<dir>/linkedin.published.json`.
+- **Wynik posta:** po 7 dniach Kamil przepisuje wyświetlenia i reakcje z karty posta do `linkedin.published.json` jako
+  `"stats_7d": {"views": …, "reactions": …}`; reguła decyzji w ADR-0009 › Metryka.
+- **Nowe pole w specu:** `SPEC_KEYS`/`SLIDE_KEYS` i `check()` w `linkedin.py` (inaczej `check` je odrzuci), limit w
+  `style/linkedin.json`, render slajdu w `gfx/carousel_lib.mjs` (`slidesHtml`) i styl w `gfx/carousel.html`; test w obu zestawach.
+- Testy: `tests/test_linkedin.py` (fałszywy LinkedIn, bez sieci), `tests/test_linkedin_media.py` (obraz, wideo, kolejka),
+  `gfx/test/carousel.test.mjs`.
+
+### Post z obrazem, post z wideo, kolejka (ADR-0027)
+
+Rodzaj posta wynika ze specu: `carousel` = dokument (wyżej); `"video": "../s01.mp4"` = wideo (ścieżka względem katalogu specu, plik w nim albo w katalogu nadrzędnym,
+MP4 75 KB-500 MB, opcjonalnie `"video_title"`); brak obu = obraz `<dir>/grafika.png` (alt text: `"alt_text"` albo `grafika.txt`).
+`render` jest tylko dla dokumentu. Dla obrazu i wideo reguły `fold` i `link` są ostrzeżeniem w dry runie (`WARNING ...`),
+nie blokadą; reszta reguł jak wyżej (`style/linkedin.json` › `image`/`video`).
+
+Spec shorta (jeden katalog na short, bo `linkedin.published.json` leży obok specu):
+
+```json
+{"text": "…", "hashtags": [], "first_comment": "Cały film: https://youtu.be/…", "video": "../s01.mp4", "video_title": "…"}
+```
+
+```bash
+python3 linkedin.py publish <dir>/linkedin.json                               # dry run: tekst, alt text/tytuł, ostrzeżenia, kod
+python3 linkedin.py queue add <dir>/linkedin.json --at "2026-11-16 17:00" --approve <kod>   # czas Europe/Warsaw
+python3 linkedin.py queue list                                                # done / waiting / due / late / stuck
+python3 linkedin.py queue remove <dir>/linkedin.json                          # zmiana czasu = remove + add
+python3 linkedin.py run-due                                                   # co by wyszło teraz; nic nie wysyła
+python3 linkedin.py run-due --publish                                         # to robi timer
+```
+
+- Kolejka: `~/.local/state/vp-linkedin/queue.jsonl` (`VP_LINKEDIN_QUEUE`). `queue add` sprawdza kod offline (bez tokenu); `run-due`
+  liczy kod ponownie i publikuje tylko przy zgodności. Jeden post na przebieg; pozycja spóźniona > 3 h nie wychodzi (zgłoszenie, exit 1).
+- Timer: `deploy/vp-linkedin-run-due.{service,timer}`, co 15 min, NIE jest włączony. Włączenie (decyzja Kamila), logi,
+  odblokowanie `late`/`stuck`: [docs/RUNBOOK.md](docs/RUNBOOK.md); terminy: [docs/GLOSSARY.md](docs/GLOSSARY.md). Pozycja z
+  `MAX_ATTEMPTS` (3) nieudanymi próbami nie jest ponawiana. Ścieżka checkoutu w `.service` (`%h/Dane/vp-linkedin`) zmienia się, gdy repo się przeniesie.
 
 ## Gdzie są shorty w longu (`shorts.py`)
 `python3 shorts.py plan_long.json [--n 5] [--min 25] [--max 60] [--json kandydaci.json]` (w katalogu `work`): ranking ciągów

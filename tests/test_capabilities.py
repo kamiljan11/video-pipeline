@@ -47,6 +47,12 @@ class MapTest(unittest.TestCase):
         bad = C.problems(C.load(), C.discover(d), d)
         self.assertIn("card.xray: in the code, not in style/capabilities.json (add it with an owner, a check and a use)", bad)
 
+    def test_the_linkedin_post_spec_is_not_a_card_option(self):  # 2026-11-15 merge of linkedin.py: its linkedin.json keys are its own schema (ADR-0027)
+        d = self.copy_root()
+        self.assertNotIn("first_comment", C.discover(d)["opt"])
+        r = d / "film_check.py"; r.write_text(r.read_text() + '\n_x = lambda sp: sp.get("first_comment")\n')
+        self.assertIn("first_comment", C.discover(d)["opt"])  # the same key read off a card spec still needs an entry
+
     def test_a_new_plan_key_without_an_entry_fails(self):
         d = self.copy_root()
         b = d / "build_edl.py"; b.write_text(b.read_text() + '\n_x = P.get("glitter")\n')

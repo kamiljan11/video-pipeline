@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:M;src:url(file:///home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf)}
+/* same tokens as template.html; a theme (style/themes/<name>.json) overrides them */
+:root{--acc:#2de2c4;--ink:#0d0f12;--bg-a:#16201f;--bg-b:#0b0d10;--soft:#e9fffb;--mute:#9fb7b2;--line:#3a4544}
+@page{size:1080px 1350px;margin:0}
+html,body{margin:0;padding:0;background:var(--bg-b);font-family:M,sans-serif;color:var(--soft);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.slide{width:1080px;height:1350px;box-sizing:border-box;padding:110px 96px 96px;position:relative;overflow:hidden;break-after:page;
+  /* linear, not radial: Chrome prints a radial gradient as tiles with visible seams */
+  background:linear-gradient(160deg,var(--bg-a),var(--bg-b) 65%);display:flex;flex-direction:column}
+.slide:last-child{break-after:auto}
+.bar{width:120px;height:12px;background:var(--acc);border-radius:6px;margin-bottom:56px;flex:none}
+.box{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:safe center}
+h1{font-size:96px;line-height:1.05;font-weight:800;margin:0 0 40px;letter-spacing:-1px}
+h2{font-size:72px;line-height:1.1;font-weight:800;margin:0 0 40px}
+p{font-size:48px;line-height:1.35;font-weight:500;margin:0;color:var(--mute)}
+.n{font-size:200px;line-height:.9;font-weight:900;color:var(--acc);margin-bottom:32px}
+.photo{width:360px;height:360px;border-radius:50%;object-fit:cover;border:10px solid var(--acc);margin-bottom:64px;flex:none}
+.cover h1{font-size:104px}
+.end h2{color:var(--acc)}
+.foot{flex:none;display:flex;justify-content:space-between;align-items:center;border-top:3px solid var(--line);padding-top:36px;margin-top:40px;
+  font-size:34px;font-weight:700;color:var(--mute)}
+.foot b{color:var(--soft)}
+.swipe{color:var(--acc)}
+</style></head><body></body></html>

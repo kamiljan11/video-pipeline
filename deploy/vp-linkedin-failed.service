@@ -1,0 +1,8 @@
+# OnFailure= of vp-linkedin-run-due.service: a desktop notification, so a post that did not go out (failed, late, stuck,
+# out of attempts) is seen without reading the journal. Linked together with the run-due units (docs/RUNBOOK.md).
+[Unit]
+Description=LinkedIn queue: notify that run-due failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/notify-send -u critical "LinkedIn: post nie wyszedł" "run-due zakończył się błędem. journalctl --user -u vp-linkedin-run-due -n 50 ; linkedin.py queue list"

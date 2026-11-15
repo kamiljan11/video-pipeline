@@ -27,3 +27,14 @@ plan_*.json
 edl_*.json
 gfx_specs.json
 .playwright-mcp/
+# LinkedIn post drafts and their publish records (style/linkedin.json is tracked and stays)
+linkedin.json
+!style/linkedin.json
+linkedin.pdf
+linkedin.published.json
+linkedin.comment.lock
+linkedin.published.part
+linkedin.pdf.part
+linkedin.pdf.html
+# LinkedIn approval tables from dry runs (project data, per film)
+APPROVALS-*.md

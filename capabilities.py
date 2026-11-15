@@ -37,6 +37,7 @@ NESTED = (("rows", "function row(", "\n}", "o"), ("msgs", "  chat: (e", "\n  }),
 SPEC_NESTED = (("cam", "    sp.cam.forEach((s, i) => {", "\n    });", "s"), ("cam", "export function camKeyframes(", "\n}\n", "s"),
                ("cam", "export function frameStops(", "\n}\n", "s"), ("cam", "export function soloKeys(", "\n}\n", "s"),
                ("canvas_zoom", "    else sp.canvas_zoom.forEach((z, i) => {", "\n    });", "z"))
+NOT_CARD_SPEC = {"linkedin.py", "gfx/carousel.mjs", "gfx/carousel_lib.mjs"}  # the LinkedIn post spec (linkedin.json): its own schema and checks (`linkedin.py check`, ADR-0027), not a card
 THUMBS_SPEC = {"long", "shorts"}  # `spec` also names thumbs.json ({long: [...], shorts: [...]}), outside the map (ADR-0023)
 SKIP_MIN = 10  # = film_check.SKIP_MIN: a reason, not "ok" (round 3 critic: a 1-character cap skip passed)
 
@@ -75,15 +76,15 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
         keys |= set(re.findall(r"""["'](\w+)["'] (?:not )?in P\b""", py.read_text()))  # `if "beats" in P:`
     keys = {k for k in keys if len(k) > 1}  # a docstring example (`plan["x"]`) is no key
     opts = set()
-    for f in (f for g in SPEC_JS for f in root.glob(g)):
+    for f in (f for g in SPEC_JS for f in root.glob(g) if f.relative_to(root).as_posix() not in NOT_CARD_SPEC):
         t = f.read_text()
         opts |= set(re.findall(r"\bsp\??\.(\w+)", t))  # sp.x, sp?.x
         for names in re.findall(r"(?:const|let) \{([^}]+)\} = sp\b", t): opts |= set(re.findall(r"(\w+)(?=\s*(?:[,=:]|$))", names))
-    for f in (f for g in SPEC_PY for f in root.glob(g) if f.name != "capabilities.py"):
+    for f in (f for g in SPEC_PY for f in root.glob(g) if f.name != "capabilities.py" and f.relative_to(root).as_posix() not in NOT_CARD_SPEC):
         t = f.read_text()
         opts |= set(re.findall(r"""\bsp\.get\(["'](\w+)["']""", t)) | set(re.findall(r"""\bsp\[["'](\w+)["']\]""", t))
         opts |= set(re.findall(r"""["'](\w+)["'] (?:not )?in sp\b""", t))
-    for py in (p for p in root.glob("*.py") if p.name != "capabilities.py"):  # a spec read off the table: self.specs.get(id, {}).get("k"); a nested option: spec["behind"].get("k")
+    for py in (p for p in root.glob("*.py") if p.name != "capabilities.py" and p.name not in NOT_CARD_SPEC):  # a spec read off the table: self.specs.get(id, {}).get("k"); a nested option: spec["behind"].get("k")
         t = py.read_text()
         opts |= set(re.findall(r"""\bspecs?(?:\[(?:[^\[\]]|\[[^\]]*\])+\]|\.get\([^)]*\))\.get\(["'](\w+)["']\)""", t))
         opts |= set(re.findall(r"""\bspec\.get\(["'](\w+)["']""", t)) - THUMBS_SPEC
