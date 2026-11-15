@@ -310,12 +310,16 @@ if splits:
 # 9:16 "float" with layout "corner" (build_edl.py): the face in a circle in the corner over a full-screen card; the square is
 # cut around the face the same way as the split box (between fy and TY), a little wider than the head so the circle holds it whole
 HD = int(CN["size"] * CN.get("halo", 0)) // 2 * 2 if corners else 0  # a blurred copy of the circle's picture around it (Kamil 2026-10-31)
+# plan "corner_halo": "accent" = the glow in the theme accent instead of the blurred picture (film 2: a red shirt made a red
+# smear around the circle; the published shorts have a soft glow, Kamil 2026-11-15 "bycie w kolku bylo duzo lepiej zrobione")
+HALO_VF = (f"scale={HD}:{HD}:flags=bicubic,drawbox=x=0:y=0:w=iw:h=ih:color=0x{themes.bar_hex(THEME)}:t=fill" if edl.get("corner_halo") == "accent"
+           else f"scale={HD}:{HD}:flags=bicubic,boxblur=34:3")
 if corners and not HT:  # an old EDL: the square from the picture before the cards
     fc.append(f"[{last}]split=2[vcb][cornsrc]"); last = "vcb"
     cs = int(W * 0.80) // 2 * 2
     cy0 = int(min(max((fy + TY) / 2 * H - cs * 0.48, 0), H - cs)); cx0 = (W - cs) // 2
     fc.append(f"[cornsrc]crop={cs}:{cs}:{cx0}:{cy0},scale={CN['size']}:{CN['size']}:flags=lanczos,format=yuva444p" + (",split=2[cf][chs]" if HD else "[cf]"))
-    if HD: fc.append(f"[chs]scale={HD}:{HD}:flags=bicubic,boxblur=34:3,format=yuva444p[chb]")
+    if HD: fc.append(f"[chs]{HALO_VF},format=yuva444p[chb]")
 # picture-in-picture: face cam in the corner on top of full-screen slides
 pip_x, pip_y, pip_en = 0, 0, "0"  # set below when the film has picture-in-picture overlays (pips, PS, pip_track: stage 1)
 if pips and not HT:  # an old EDL: the window from the picture before the cards
@@ -372,7 +376,7 @@ if corners:  # after the cards: a ring in the theme accent, the face circle on i
     if HT:
         aligned.append(len(inputs)); inputs += ["-i", corner_track]
         fc.append(f"[{i_cm + 2}:v]{grade},format=yuva444p" + (",split=2[cf][chs]" if HD else "[cf]"))  # the same grade as the full picture
-        if HD: fc.append(f"[chs]scale={HD}:{HD}:flags=bicubic,boxblur=34:3,format=yuva444p[chb]")
+        if HD: fc.append(f"[chs]{HALO_VF},format=yuva444p[chb]")
     c_en = "+".join(f"between(t{E},{o['at']:.3f}{E},{o['at'] + o['dur'] - (0 if o.get('no_fade_out') else SPLIT_OUT):.3f})" for o in corners)
     fc.append(f"[{i_cm}:v]format=gray[cm]")
     fc.append("[cf][cm]alphamerge[cbox]")

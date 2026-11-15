@@ -146,7 +146,7 @@ class CornerRenderTest(unittest.TestCase):
     """9:16 corner circle: cut from the recording around the head, head and shoulders (Kamil 2026-11-05: "oddal mnie…
     nie ultra zoomed twarz"); the old crop of the zoomed vertical picture sat on the frame's middle"""
 
-    def render(self, *flags):
+    def render(self, *flags, **extra):
         tmp = Path(tempfile.mkdtemp(prefix="corner-"))
         src, card = tmp / "src.mp4", tmp / "card.mov"
         sw, sh, W, H = 640, 360, 1080, 1920
@@ -158,7 +158,7 @@ class CornerRenderTest(unittest.TestCase):
         edl = {"sources": {"A": str(src)}, "w": W, "h": H, "src_w": sw, "src_h": sh, "vertical": True, "seg_exact": True, "head_track": True,
                "face": [0.5, 0.42], "out_name": "final.mp4",
                "segments": [{"src": "A", "in": 0.0, "out": 2.0, "zoom": 1.0, "face": [0.5, 0.42], "head": [0.30, 0.25, 0.42, 0.70]}],
-               "overlays": [{"file": str(card), "at": 0.2, "dur": 1.5, "id": "c", "corner": True}]}
+               "overlays": [{"file": str(card), "at": 0.2, "dur": 1.5, "id": "c", "corner": True}], **extra}
         (tmp / "edl.json").write_text(json.dumps(edl))
         r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(tmp / "edl.json"), str(tmp), *flags],
                            capture_output=True, text=True, check=False)
@@ -183,6 +183,24 @@ class CornerRenderTest(unittest.TestCase):
         self.assertLess(mid[2], 90, list(mid))  # and not the blue card under the circle
         low = px(0.85)
         self.assertLess(low[0], 90, list(low))  # below the chin: the circle holds more than the face
+
+    def halo_px(self, tmp):  # just outside the ring, left of the circle's middle: inside the halo
+        CN = gfx_types.CORNER
+        x, y = CN["x"] - CN["ring"] - 14, CN["y"] + CN["size"] // 2
+        return subprocess.run(["ffmpeg", "-v", "error", "-ss", "1.0", "-i", str(tmp / "final.mp4"), "-frames:v", "1", "-vf",
+                               f"format=rgb24,crop=1:1:{x}:{y}", "-f", "rawvideo", "-"], capture_output=True, check=True).stdout
+
+    def test_accent_halo_takes_the_theme_colour_not_the_shirt(self):
+        """film 2 (2026-11-15): a red shirt blurred into a red smear around the circle; "corner_halo": "accent" glows in the
+        theme accent (no theme: the template's #2de2c4)"""
+        tmp, _ = self.render(corner_halo="accent")
+        r, g, b = self.halo_px(tmp)
+        self.assertGreater(g, r + 60, (r, g, b)); self.assertGreater(b, r + 40, (r, g, b))
+
+    def test_picture_halo_stays_the_default(self):
+        tmp, _ = self.render()
+        r, g, b = self.halo_px(tmp)
+        self.assertLess(g, r + 60, (r, g, b))  # the blurred picture (grey wall, red head), not the accent
 
     def test_a_missing_recording_stops_a_render_and_a_preview_uses_rough(self):
         """film 1's recording went to the cloud and the panel previews broke (2026-11-05): a preview (--proxy) cuts the

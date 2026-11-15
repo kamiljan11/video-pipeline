@@ -380,6 +380,8 @@ if "broll" in P:  # stock b-roll (broll.py): full-frame cutaways from their anch
 if P.get("progress", False) not in (True, False, "fill"): sys.exit(f"progress: true, false or \"fill\", got {P['progress']!r}")
 if "music_duck" in P and not edl_guard.duck_ok(P["music_duck"]):
     sys.exit(f"music_duck: {{\"threshold\": 0.001..1, \"ratio\": 1..20}}, got {P['music_duck']!r}")
+if P.get("corner_halo", "picture") not in ("picture", "accent"):  # assemble.py HALO_VF
+    sys.exit(f"corner_halo: \"picture\" or \"accent\", got {P['corner_halo']!r}")
 if "sfx_duck" in P and not edl_guard.duck_ok(P["sfx_duck"]):
     sys.exit(f"sfx_duck: {{\"threshold\": 0.001..1, \"ratio\": 1..20}}, got {P['sfx_duck']!r}")
 _master = P.get("master")  # loudness of the finished mix (master_audio.py); absent = assemble.py as before
@@ -392,7 +394,7 @@ if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _t
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "sfx_duck", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead", "master", "voice_clean") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck, sfx_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead; master: assemble.py -> master_audio.py
+       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "sfx_duck", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead", "master", "voice_clean", "corner_halo") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck, sfx_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead; master: assemble.py -> master_audio.py
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME
