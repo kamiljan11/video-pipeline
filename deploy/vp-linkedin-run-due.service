@@ -1,6 +1,6 @@
 # LinkedIn queue (ADR-0010): publishes queued posts whose time has come and whose approval code still matches.
 # Not enabled by the repo. Install (Kamil's decision, after his OK on the queued posts):
-#   systemctl --user link ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.service ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.timer
+#   systemctl --user link ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.service ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.timer ~/Dane/vp-linkedin/deploy/vp-linkedin-failed.service
 #   systemctl --user enable --now vp-linkedin-run-due.timer
 # Runs without a login session only with lingering (loginctl show-user $USER -p Linger: yes on this laptop, 2026-11-15).
 # No network after a wake-up = FAILED in the journal, the next tick (15 min) tries again (attempts: linkedin.py MAX_ATTEMPTS).
@@ -8,6 +8,8 @@
 # Stop: systemctl --user disable --now vp-linkedin-run-due.timer
 [Unit]
 Description=LinkedIn queue: publish due posts (video-pipeline linkedin.py run-due)
+# a failed run (a post that did not go out) shows a desktop notification
+OnFailure=vp-linkedin-failed.service
 
 [Service]
 Type=oneshot
@@ -17,3 +19,5 @@ ExecStart=/usr/bin/python3 %h/Dane/vp-linkedin/linkedin.py run-due --publish
 # a video upload with processing can take minutes; a hung call must not hold the lock forever
 TimeoutStartSec=30min
 Nice=10
+# a video is read whole (at most 500 MB): cap the unit so it can never push the laptop into OOM
+MemoryMax=2G

@@ -8,6 +8,7 @@ import datetime
 import fcntl
 import io
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -370,16 +371,32 @@ class QueueTest(Base):
         self.assertIn("stuck unknown", self.err)
         self.assertEqual(json.loads((b.parent / "linkedin.published.json").read_text())["state"], "published")
 
-    def test_an_item_removed_while_the_run_works_is_not_published(self):
+    def test_remove_is_refused_while_a_run_publishes_and_an_edited_queue_wins(self):
         spec_path = self.image_post(); self.add(spec_path, "2026-11-16 17:00")
         real = linkedin.prepare
-        def prepare(p):  # Kamil runs queue remove while this tick checks the files
-            with mock.patch("sys.stdout", io.StringIO()): linkedin.queue_remove(spec_path)
+        def prepare(p):  # Kamil tries queue remove while this tick works, then edits the queue file by hand
+            with self.assertRaisesRegex(ValueError, "publishing right now"): linkedin.queue_remove(spec_path)
+            self.queue.write_text("")
             return real(p)
         fake = Fake()
         with mock.patch.object(linkedin, "prepare", prepare):
             self.assertEqual(self.run_due(fake, at("2026-11-16 17:01")), 0)
         self.assertEqual(fake.calls, []); self.assertIn("left the queue", self.out)
+
+    def test_a_stop_between_the_post_and_its_record_waits_for_the_record(self):
+        import signal
+        old = signal.signal(signal.SIGTERM, linkedin._terminate); self.addCleanup(signal.signal, signal.SIGTERM, old)
+        spec_path = self.image_post()
+        def post(req):  # systemd stops the run while the post call is on its way
+            os.kill(os.getpid(), signal.SIGTERM)
+            return POST
+        with self.assertRaises(SystemExit): self.run_with(spec_path, Fake(ME, IMG_INIT, UP, post, COMMENT))
+        saved = json.loads((spec_path.parent / "linkedin.published.json").read_text())
+        self.assertEqual((saved["state"], saved["post"]), ("published", "urn:li:share:42"))  # the id is on disk, not lost
+
+    def test_a_video_outside_the_posts_tree_is_refused(self):
+        spec_path = self.video_post(spec={**VID_SPEC, "video": "/etc/../tmp/private.mp4"})
+        with self.assertRaisesRegex(ValueError, "outside"): self.run_with(spec_path, Fake(), really=False, approve=None)
 
     def test_times_are_warsaw_wall_clock_and_a_missing_hour_is_refused(self):
         self.assertEqual(linkedin.parse_when("2026-11-16 17:00").isoformat(), "2026-11-16T17:00:00+01:00")
@@ -405,6 +422,14 @@ class QueueTest(Base):
         self.assertEqual(fake.calls, []); self.assertIn("3 failed publish attempts", self.err)
         with mock.patch("sys.stdout", io.StringIO()): linkedin.queue_remove(spec_path)
         self.assertEqual(linkedin._attempts(), {})  # remove + add starts again
+
+    def test_no_network_after_a_wake_up_does_not_use_an_attempt(self):
+        spec_path = self.image_post(); self.add(spec_path, "2026-11-16 17:00")
+        for i in range(linkedin.MAX_ATTEMPTS + 1):
+            fake = Fake(urllib.error.URLError("Temporary failure in name resolution"))  # the author call, before any upload
+            self.assertEqual(self.run_due(fake, at(f"2026-11-16 17:{i * 15 + 1:02d}")), 1)
+        self.assertEqual(linkedin._attempts(), {})
+        self.assertFalse((spec_path.parent / "linkedin.published.json").exists())
 
     def test_main_turns_sigterm_into_systemexit(self):
         import signal

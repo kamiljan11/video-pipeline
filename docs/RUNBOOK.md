@@ -6,9 +6,10 @@ Wszystko na laptopie (`kamil-jan`); token `~/.config/linkedin/token.json`, stan 
 
 | sytuacja | co zrobić |
 |---|---|
-| Włączyć timer (decyzja Kamila) | `systemctl --user link ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.service ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.timer` potem `systemctl --user enable --now vp-linkedin-run-due.timer` |
+| Włączyć timer (decyzja Kamila) | `systemctl --user link ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.service ~/Dane/vp-linkedin/deploy/vp-linkedin-run-due.timer ~/Dane/vp-linkedin/deploy/vp-linkedin-failed.service` potem `systemctl --user enable --now vp-linkedin-run-due.timer` |
 | Wyłączyć | `systemctl --user disable --now vp-linkedin-run-due.timer` |
 | Czy timer chodzi | `systemctl --user list-timers vp-linkedin-run-due.timer`; bez sesji tylko z lingering (`loginctl show-user $USER -p Linger`) |
+| Powiadomienie „LinkedIn: post nie wyszedł” | `OnFailure=` przebiegu z exit 1; przyczyna w logach, dalej wiersze niżej |
 | Logi | `journalctl --user -u vp-linkedin-run-due.service -n 100`; nieudane przebiegi: `systemctl --user --failed` |
 | Co jest w kolejce | `python3 linkedin.py queue list` (stan: `waiting`, `due`, `done`, `late`, `stuck <stan>`) |
 | `late` (laptop był wyłączony > 3 h) | post nie wyszedł; `queue remove <spec>`, potem `queue add <spec> --at "<nowy czas>" --approve <ten sam kod>` |

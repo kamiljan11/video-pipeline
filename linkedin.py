@@ -368,11 +368,11 @@ def _upload_video(access: str, person: str, blob: bytes, wait_s: float, step_s: 
         "owner": person, "fileSizeBytes": len(blob), "uploadCaptions": False, "uploadThumbnail": False}})
     v = init["value"]
     video, parts = v["video"], sorted(v["uploadInstructions"], key=lambda p: p["firstByte"])
-    at = 0
+    offset = 0
     for p in parts:  # the ranges must cover the file exactly once, or the finalized video is not the approved bytes
-        if p["firstByte"] != at or p["lastByte"] < p["firstByte"]: raise ValueError(f"{video}: upload parts do not cover the file (gap or overlap at byte {at})")
-        at = p["lastByte"] + 1
-    if at != len(blob): raise ValueError(f"{video}: upload parts cover {at} bytes, the file has {len(blob)}")
+        if p["firstByte"] != offset or p["lastByte"] < p["firstByte"]: raise ValueError(f"{video}: upload parts do not cover the file (gap or overlap at byte {offset})")
+        offset = p["lastByte"] + 1
+    if offset != len(blob): raise ValueError(f"{video}: upload parts cover {offset} bytes, the file has {len(blob)}")
     etags = []
     for i, p in enumerate(parts):
         st, hd, _ = api(access, "PUT", _linkedin_url(p["uploadUrl"]), raw=blob[p["firstByte"]:p["lastByte"] + 1])
@@ -426,6 +426,8 @@ def media(spec_path: Path, spec: dict, rules: dict) -> Media:
         if len(alt) > rules["image"]["alt_max"]: raise ValueError(f"{folder / ALT}: alt text {len(alt)} characters, at most {rules['image']['alt_max']}")
         return Media(k, img, blob, alt, f"image {img.name}" + (f" {size[0]}x{size[1]}" if size else "") + f", {len(blob) // 1024} KB")
     vid = (folder / spec["video"]).resolve()
+    if not vid.is_relative_to(folder.resolve().parent):  # the spec folder or a sibling (../s01.mp4), never any MP4 on the laptop
+        raise ValueError(f"{vid}: outside {folder.resolve().parent}; put the video next to the spec folder")
     if not vid.is_file(): raise ValueError(f"{vid} missing (\"video\" in {spec_path})")
     lim, n = rules["video"], vid.stat().st_size
     if not lim["min_bytes"] <= n <= lim["max_bytes"]: raise ValueError(f"{vid}: {n} bytes, LinkedIn takes {lim['min_bytes']}-{lim['max_bytes']}")
@@ -481,7 +483,9 @@ def prepare(spec_path: Path) -> tuple[dict, Media, str]:
     return spec, m, approval(spec, m.blob, m.title)
 
 
-def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: float | None = None, step_s: float = 3) -> dict:
+def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: float | None = None, step_s: float = 3,
+            on_upload=None) -> dict:
+    """on_upload: called once just before the first upload call (run-due counts an attempt there, not on a missing network)"""
     spec, m, code = prepare(spec_path)
     done = spec_path.parent / "linkedin.published.json"
     if really and approve != code:  # checked before any call: no approval, no traffic
@@ -500,33 +504,35 @@ def publish(spec_path: Path, really: bool, approve: str | None = None, wait_s: f
         return {"dry_run": True, "approve": code}
     rec = {**_claim(done, text), "approve": code, "kind": m.kind, "media_file": str(m.path), "first_comment": spec["first_comment"]}
     try:
-        urn = UPLOAD[m.kind](access, person, m.blob, WAIT_S[m.kind] if wait_s is None else wait_s, step_s)
+        if on_upload: on_upload()
+        media_urn = UPLOAD[m.kind](access, person, m.blob, WAIT_S[m.kind] if wait_s is None else wait_s, step_s)
+        # from here to the saved record a stop (SIGTERM) waits: a kill between the post and its record would lose the post id
+        _HOLD["on"] = True
     except BaseException:
         _release(done, rec)
         raise
-    rec.update(media=urn, at=_now())
-    if m.kind == "document": rec["document"] = urn  # the field name records written before ADR-0010 use
-    signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGTERM})  # a stop between the post and its record would lose the post id
     try:
-        _post_and_record(access, done, rec, m, person, text, urn)
+        rec.update(media=media_urn, at=_now())
+        if m.kind == "document": rec["document"] = media_urn  # the field name records written before ADR-0010 use
+        _post_and_record(access, done, rec, m, person, text, media_urn)
     finally:
-        signal.pthread_sigmask(signal.SIG_UNBLOCK, {signal.SIGTERM})
+        _HOLD["on"] = False
+        if _HOLD.pop("pending", None): raise SystemExit(128 + signal.SIGTERM)  # the stop that waited, now that the record is saved
     return _comment(access, person, done, rec)
 
 
-def _post_and_record(access: str, done: Path, rec: dict, m: Media, person: str, text: str, urn: str) -> str:
-    urn = _post(access, done, rec, {
+def _post_and_record(access: str, done: Path, rec: dict, m: Media, person: str, text: str, media_urn: str) -> None:
+    post_urn = _post(access, done, rec, {
         "author": person, "commentary": text, "visibility": "PUBLIC",
         "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
-        "content": _content(m, urn), "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
-    rec.update(state="published", post=urn, url=f"https://www.linkedin.com/feed/update/{urn}/", comment=None)
+        "content": _content(m, media_urn), "lifecycleState": "PUBLISHED", "isReshareDisabledByAuthor": False})
+    rec.update(state="published", post=post_urn, url=f"https://www.linkedin.com/feed/update/{post_urn}/", comment=None)
     print(f"post: 201 {rec['url']}")  # before the save: if the disk write fails, the post id is still on screen
     try:
         _save(done, rec)  # before the comment: a failed comment must not lead to a second post
     except OSError as ex:  # the claim (state pending) stays on disk, so a rerun is still refused
         raise ValueError(f"the post is LIVE at {rec['url']} but {done} could not be written ({ex}); "
                          f"before anything else write this into it by hand: {json.dumps(rec, ensure_ascii=False)}") from ex
-    return urn
 
 
 def comment(spec_path: Path, checked: bool = False) -> dict:
@@ -603,21 +609,29 @@ def queue_add(spec_path: Path, when: str, approve: str | None, now: datetime.dat
     with _Locked("queue.lock"):
         if any(it["spec"] == str(spec_path) for it in read_queue()):
             raise ValueError(f"{spec_path} is already queued (linkedin.py queue list; queue remove to change its time)")
-        with open(QUEUE, "a", encoding="utf-8") as f: f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        _write_queue([*read_queue(), item])
     print(f"queued {spec_path} at {at.astimezone(WARSAW):%Y-%m-%d %H:%M} Europe/Warsaw (approval {code})")
     return item
 
 
+def _write_queue(items: list[dict]) -> None:
+    """whole file or the old one (tmp + rename): a crash mid-write must not leave a line that stops every command"""
+    tmp = QUEUE.with_suffix(".part")
+    tmp.write_text("".join(json.dumps(it, ensure_ascii=False) + "\n" for it in items), encoding="utf-8")
+    os.replace(tmp, QUEUE)
+
+
 def queue_remove(spec_path: Path) -> int:
+    """only between runs: a remove while run-due publishes could not stop an upload already on its way, so it is refused"""
     spec_path = spec_path.resolve()
-    with _Locked("queue.lock"):
-        items = read_queue()
-        keep = [it for it in items if it["spec"] != str(spec_path)]
-        if len(keep) == len(items): raise ValueError(f"{spec_path} is not in {QUEUE}")
-        _set_attempts(str(spec_path), None)  # a new queue add starts with fresh attempts
-        tmp = QUEUE.with_suffix(".part")
-        tmp.write_text("".join(json.dumps(it, ensure_ascii=False) + "\n" for it in keep), encoding="utf-8")
-        os.replace(tmp, QUEUE)
+    with _Locked("run.lock", blocking=False) as idle:
+        if idle is None: raise ValueError("a linkedin.py run-due is publishing right now; wait a minute, then queue list and remove again")
+        with _Locked("queue.lock"):
+            items = read_queue()
+            keep = [it for it in items if it["spec"] != str(spec_path)]
+            if len(keep) == len(items): raise ValueError(f"{spec_path} is not in {QUEUE}")
+            _set_attempts(str(spec_path), None)  # a new queue add starts with fresh attempts
+            _write_queue(keep)
     print(f"removed {spec_path} from the queue")
     return len(items) - len(keep)
 
@@ -658,6 +672,37 @@ def queue_list(now: datetime.datetime | None = None) -> list[tuple[dict, str]]:
     return rows
 
 
+def _skip_reason(it: dict, st: str, max_late_h: float) -> str | None:
+    """why a queued item is not published in this run (None = it may go); every reason fails the run (exit 1)"""
+    if st.startswith("stuck"): return f"{st}: a publish stopped mid-way, the post may be live; check {PROFILE}"
+    if st == "late": return f"late by more than {max_late_h:g} h (the laptop was off?): not published; queue remove, then queue add with a new time"
+    if (n := _attempts().get(it["spec"], 0)) >= MAX_ATTEMPTS:
+        return f"{n} failed publish attempts, not retried; see the journal, fix, then queue remove + queue add"
+    return None
+
+
+def _count_attempt(spec: str) -> None:
+    with _Locked("queue.lock"):  # the same lock as queue remove, which clears the count
+        _set_attempts(spec, _attempts().get(spec, 0) + 1)
+
+
+def _publish_item(it: dict, really: bool) -> int:
+    """one due item: code still matches, still queued, then publish -> exit code"""
+    spec_path = Path(it["spec"])
+    code = prepare(spec_path)[2]
+    if code != it["approve"]:
+        raise ValueError(f"approval code is {code} now, {it['approve']} when queued: the text, title, comment or media "
+                         "changed after Kamil's OK; not published (new dry run, new OK, queue remove + queue add)")
+    if not really:
+        print(f"DUE {spec_path} (approval {code} matches): run-due --publish would publish it now"); return 0
+    with _Locked("queue.lock"):  # a queue remove since this run read the queue wins
+        if not any(q["spec"] == it["spec"] and q["approve"] == it["approve"] for q in read_queue()):
+            print(f"{spec_path} left the queue during this run: not published"); return 0
+    print(f"publishing {spec_path} (queued for {it['when']})")
+    rec = publish(spec_path, True, it["approve"], on_upload=lambda: _count_attempt(it["spec"]))
+    return 1 if isinstance(rec.get("comment"), str) else 0  # the post is up, the comment is not: linkedin.py comment <spec>
+
+
 def run_due(really: bool, now: datetime.datetime | None = None, max_late_h: float = MAX_LATE_H, limit: int = 1) -> int:
     """publish the due items, at most `limit` per run (one post per timer tick, never a burst), each only while its stored
     approval code still matches the files; a late item (laptop was off) is reported, never published. -> exit code"""
@@ -667,34 +712,16 @@ def run_due(really: bool, now: datetime.datetime | None = None, max_late_h: floa
             print("another linkedin.py run-due is running; this tick does nothing"); return 0
         with _Locked("queue.lock"): items = read_queue()
         for it in items:
-            st, spec_path = item_state(it, now, max_late_h), Path(it["spec"])
+            st = item_state(it, now, max_late_h)
             if st in ("done", "waiting"): continue
-            if st != "due":
-                why = (f"{st}: a publish stopped mid-way, the post may be live; check {PROFILE}" if st.startswith("stuck")
-                       else f"late by more than {max_late_h:g} h (the laptop was off?): not published; queue remove, then queue add with a new time")
-                print(f"SKIPPED {spec_path}: {why}", file=sys.stderr); rc = 1; continue
-            if (n := _attempts().get(it["spec"], 0)) >= MAX_ATTEMPTS:
-                print(f"SKIPPED {spec_path}: {n} failed publish attempts, not retried; see the journal, fix, then queue remove + queue add",
-                      file=sys.stderr); rc = 1; continue
+            if (why := _skip_reason(it, st, max_late_h)):
+                print(f"SKIPPED {it['spec']}: {why}", file=sys.stderr); rc = 1; continue
             if sent >= limit:
-                print(f"next tick: {spec_path} (one post per run)"); continue
-            try:
-                code = prepare(spec_path)[2]
-                if code != it["approve"]:
-                    raise ValueError(f"approval code is {code} now, {it['approve']} when queued: the text, title, comment or media "
-                                     "changed after Kamil's OK; not published (new dry run, new OK, queue remove + queue add)")
-                if not really:
-                    print(f"DUE {spec_path} (approval {code} matches): run-due --publish would publish it now"); sent += 1; continue
-                with _Locked("queue.lock"):  # a queue remove since this run read the queue wins
-                    if not any(q["spec"] == it["spec"] and q["approve"] == it["approve"] for q in read_queue()):
-                        print(f"{spec_path} left the queue during this run: not published"); continue
-                print(f"publishing {spec_path} (queued for {it['when']})")
-                sent += 1  # counted before the call: a publish that fails after the post may be live still uses this run's one post
-                _set_attempts(it["spec"], n + 1)
-                rec = publish(spec_path, True, it["approve"])
-                if isinstance(rec.get("comment"), str): rc = 1  # the post is up, the comment is not: linkedin.py comment <spec>
+                print(f"next tick: {it['spec']} (one post per run)"); continue
+            sent += 1  # counted before the call: a publish that fails after the post may be live still uses this run's one post
+            try: rc = max(rc, _publish_item(it, really))
             except FAILURES as ex:
-                print(f"FAILED {spec_path}: {type(ex).__name__}: {ex}", file=sys.stderr); rc = 1
+                print(f"FAILED {it['spec']}: {type(ex).__name__}: {ex}", file=sys.stderr); rc = 1
     return rc
 
 
@@ -702,8 +729,15 @@ def _opt(argv: list[str], name: str) -> str | None:
     return argv[argv.index(name) + 1] if name in argv[:-1] else None
 
 
+_HOLD: dict = {"on": False}  # set between the end of an upload and the saved post record
+
+
 def _terminate(signum, frame):
-    """SIGTERM (systemd stop or TimeoutStartSec) -> SystemExit, so the claim of an upload that never reached the post is released"""
+    """SIGTERM (systemd stop or TimeoutStartSec) -> SystemExit, so the claim of an upload that never reached the post is
+    released; during _HOLD the stop waits until the post record is on disk (a flag, not a signal mask: Python runs handlers
+    in the main thread whatever thread the signal hit)"""
+    if _HOLD["on"]:
+        _HOLD["pending"] = True; return
     raise SystemExit(128 + signum)
 
 

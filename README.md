@@ -402,7 +402,7 @@ python3 linkedin.py comment <dir>/linkedin.json [--checked] # tylko gdy post wys
 
 ### Post z obrazem, post z wideo, kolejka (ADR-0010)
 
-Rodzaj posta wynika ze specu: `carousel` = dokument (wyżej); `"video": "../s01.mp4"` = wideo (ścieżka względem katalogu specu,
+Rodzaj posta wynika ze specu: `carousel` = dokument (wyżej); `"video": "../s01.mp4"` = wideo (ścieżka względem katalogu specu, plik w nim albo w katalogu nadrzędnym,
 MP4 75 KB-500 MB, opcjonalnie `"video_title"`); brak obu = obraz `<dir>/grafika.png` (alt text: `"alt_text"` albo `grafika.txt`).
 `render` jest tylko dla dokumentu. Dla obrazu i wideo reguły `fold` i `link` są ostrzeżeniem w dry runie (`WARNING ...`),
 nie blokadą; reszta reguł jak wyżej (`style/linkedin.json` › `image`/`video`).
