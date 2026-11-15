@@ -343,7 +343,9 @@ async function one(sp) {
     await shot(page, { path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true }, `${sp.id} frame ${f}`);
   }
   await page.close();
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
+  // -threads 8: prores_ks defaults to one frame thread per core (32 here) -> ~2.1G RSS per 1080p encode vs ~0.85G;
+  // the parallel gfx suite hit its 16G cap on 2026-11-15 (OOM kill). Encode slows ~1.6x, still ~1-2 s per card.
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-threads', '8', '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
   fs.rmSync(dir, { recursive: true });
   if (key) fs.writeFileSync(stamp, key); else fs.rmSync(stamp, { force: true });
   console.log('gfx', sp.id);
