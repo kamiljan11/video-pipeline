@@ -57,7 +57,12 @@ const html = sp => {
   if (sp.type === 'list') return listHtml(sp);  // "upto" / "dim_done": one stacked list (cards_lib, plan2:L8)
   if (sp.type === 'note') return noteHtml(sp);  // caveat / pointer in the corner away from the face (cards_lib, plan2:L21)
   if (sp.type === 'end') return `<div class="endc"><div class="t">${prose(sp.text)}</div><div class="bar"></div><div class="s">${prose(sp.sub)}</div>${endBrand(sp)}</div>`;
-  if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${prose(sp.text)}</div><div class="s">${prose(sp.sub)}</div></div>`;
+  // the icon says the action: a bell only on a subscribe card (Kamil 2026-11-15 note 52: a bell on "Higher Mind za darmo ·
+  // link w opisie" made no sense), a link icon on a card that sends to a link; spec "icon" (a lucide name) overrides
+  if (sp.type === 'cta') {
+    const sub = /subskryb|subscribe/i.test(String(sp.text)), ic = sp.icon ?? (sub ? 'bell' : 'external-link');
+    return `<div class="cta"><div class="btn${ic === 'bell' ? ' bell' : ''}">${icon(ic)}${prose(sp.text)}</div><div class="s">${prose(sp.sub)}</div></div>`;
+  }
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
   if (sp.type === 'meme') return meme(sp);

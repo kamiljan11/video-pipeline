@@ -36,8 +36,10 @@ test('the lint names an ease-in-out entrance once per curve, and leaves moves an
 // wrapping text at 640 px, node sub-label 30 -> 38 px, window title 36 -> 42, bar label 34 -> 40, stat label 38 -> 46 (phone readability, Kamil note 15); every card of a film is rendered anew
 // golden moved 2026-11-08 (2nd time): every piece wrapper now carries data-at / data-gone, read by sceneFit so the camera
 // keeps a piece in frame while it is being read (scene_check hiddenWhileRead); no visible change, only the markup
-test('a card without "motion" is drawn byte for byte as before tokens (golden: sha1 of the fixture, scene_lib.mjs 2026-11-08)', () => {
-  assert.equal(crypto.createHash('sha1').update(scene(ALL, esc, icon)).digest('hex'), '3d44e69b20d5643c800de1aab5175d5d1e5b049e');
+// golden moved 2026-11-15: the ring's circle is revealed along pathLength 1 and hidden until its "at" (keyframe scon), Kamil
+// note 49 "jakby ktoś markerem zaznaczył, gdzie kółko będzie"; compared with the old output: only the ring path and the CSS block differ
+test('a card without "motion" is drawn byte for byte as before tokens (golden: sha1 of the fixture, scene_lib.mjs 2026-11-15)', () => {
+  assert.equal(crypto.createHash('sha1').update(scene(ALL, esc, icon)).digest('hex'), '59e562bb9551bd934d971b6baaad8a445ff8f806');
 });
 
 test('a card without "motion" keeps the old timings (and the old check draw eases both ways); "tokens" passes the lint', () => {

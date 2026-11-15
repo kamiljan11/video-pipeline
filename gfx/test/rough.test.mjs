@@ -52,14 +52,14 @@ test('in a scene: a ring on a flat box draws two revealed strokes, a square one 
   const flat = sc([{ k: 'ring', id: 'r', x: 100, y: 200, w: 600, h: 60, at: 1 }]);
   assert.deepEqual(checkScene(flat), []);
   const h = scene(flat, esc, icon);
-  assert.equal((h.match(/pathLength="1"/g) || []).length, 2);
+  assert.equal((h.match(/<path /g) || []).length, 2, 'two pen passes on a flat box');
   assert.match(h, /data-bb="86 186 628 88"/, 'the box it takes = the row + pad 14');
   assert.equal(h, scene(flat, esc, icon), 'deterministic: stills and the render match');
   const round = scene(sc([{ k: 'ring', x: 100, y: 200, w: 200, h: 200, at: 1 }]), esc, icon);
-  assert.equal((round.match(/pathLength="1"/g) || []).length, 0);
-  assert.equal((round.match(/<path /g) || []).length, 1);
+  assert.equal((round.match(/<path /g) || []).length, 1, 'a square box keeps one circle');
+  assert.match(round, /stroke-dashoffset:1;opacity:0;/, 'the circle is hidden until drawn (note 49: no end showing before the pen)');
   const forced = scene(sc([{ k: 'ring', x: 100, y: 200, w: 600, h: 60, shape: 'circle', at: 1 }]), esc, icon);
-  assert.equal((forced.match(/pathLength="1"/g) || []).length, 0, '"shape": "circle" keeps the old circle on a flat box');
+  assert.equal((forced.match(/<path /g) || []).length, 1, '"shape": "circle" keeps one circle on a flat box');
   const under = scene(sc([{ k: 'ring', x: 100, y: 200, w: 600, h: 60, shape: 'underline', at: 1 }]), esc, icon);
   assert.match(under, /data-bb="100 260 600 18"/);
 });
