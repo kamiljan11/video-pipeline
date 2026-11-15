@@ -33,3 +33,11 @@ z `hook_from` wpisz w jego wierszu `style/hook_bank.json` `result` = wyświetlen
 (YouTube Studio, liczby ręcznie, nigdy zgadnięte). Hook z `result` >= 1.5 (próg startowy, do zmiany po pierwszym miesiącu danych) dopisz jako nowy wiersz `own-*` z `why`.
 
 **Gotowe gdy:** każdy kandydat z oceną; `make` zgodny z progiem; `film_check --out` out.hooks OK.
+
+## Kanał i hook na ekranie (Kamil 2026-11-15, NOTES_LOG 55-57)
+- **YT shorts = zajawka** (rubryka jak wyżej). **LinkedIn = wartość:** short idzie na LinkedIn tylko przy `alone` 3 i `value` 3, pełna myśl z puentą
+  (problem -> mechanizm -> wniosek). Odpada: start w pół zdania albo od „i/a/też”, odwołanie do longa („w nim”, „w tym filmie”), pojęcie bez definicji,
+  dwa tematy, lista bez puenty. Pole w artefakcie: `"linkedin": true|false` + `"linkedin_why"` (1 zdanie).
+- **Hook na ekranie:** konflikt albo paradoks, <= 8 słów, środek kadru (`hook_pos: "mid"`). Wzór: „AI: „udało się”. A nic nie działa.”,
+  „Psuję własny kod, żeby złapać leniwe testy”. Słabsze: metafora/pytanie 9+ słów w górnym pasie.
+- **Okienka z twarzą:** cała głowa w oknie z zapasem (czoło i broda widoczne), nigdy kadr ucięty na twarz.
