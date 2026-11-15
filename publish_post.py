@@ -149,6 +149,8 @@ def main(argv: list[str]) -> int:
     if wt.exists(): sys.exit(f"{wt} exists: a previous run left it (git -C {repo} worktree remove {wt})")
     run("git", "-C", str(repo), "fetch", "-q", "origin", BASE)
     run("git", "-C", str(repo), "worktree", "add", "-q", "-b", branch, str(wt), f"origin/{BASE}")
+    if (repo / "node_modules").is_dir():  # the site's pre-commit (scripts/check-encoding.mjs) imports esbuild; ignored by the site's .gitignore
+        (wt / "node_modules").symlink_to(repo / "node_modules")
     pushing = False
     try:  # until the push nothing left the laptop: a failure removes the worktree and the branch, the next run starts clean
         write_post(a, folder, wt, pics, entry)

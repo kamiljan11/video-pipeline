@@ -343,11 +343,11 @@ class ConfirmTest(unittest.TestCase):
         self.t = tempfile.TemporaryDirectory()
         self.art = Path(self.t.name) / "art"; self.art.mkdir(); article(self.art)
 
-    def site(self, posts: str = POSTS_TS) -> None:
+    def site(self, posts: str = POSTS_TS, more: tuple[tuple[str, str], ...] = ()) -> None:
         d = Path(self.t.name)
         seed, self.bare, self.repo = d / "seed", d / "origin.git", d / "site"
         for f, text in ((P.POSTS, posts),
-                        (P.SITEMAP, "<urlset>\n</urlset>\n"), (P.OG_SPEC, 'const PAGES = [\n  "/blog/old",\n];\n')):
+                        (P.SITEMAP, "<urlset>\n</urlset>\n"), (P.OG_SPEC, 'const PAGES = [\n  "/blog/old",\n];\n'), *more):
             (seed / f).parent.mkdir(parents=True, exist_ok=True); (seed / f).write_text(text)
         git("init", "-q", "-b", "main", cwd=seed); git("add", "-A", cwd=seed)
         git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "chore: seed the site", cwd=seed)
@@ -399,6 +399,17 @@ class ConfirmTest(unittest.TestCase):
         r = self.publish()
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("tok-SECRET-123", (self.bin / "hook.env").read_text())
+
+    def test_the_sites_pre_commit_finds_the_sites_node_modules(self):  # 2026-11-15: check-encoding.mjs imports esbuild
+        self.site(more=((".gitignore", "node_modules\n"),))
+        (self.repo / "node_modules" / "esbuild").mkdir(parents=True)
+        hooks = self.repo / "site-hooks"; hooks.mkdir()
+        hook = hooks / "pre-commit"
+        hook.write_text("#!/bin/sh\ntest -d node_modules/esbuild || { echo no esbuild >&2; exit 1; }\n"); hook.chmod(0o755)
+        git("config", "core.hooksPath", str(hooks), cwd=self.repo)
+        r = self.publish()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("node_modules", git("ls-tree", "-r", "--name-only", "blog/bramki-dla-agenta", cwd=self.bare))
 
     def test_a_site_pre_push_hook_stops_before_the_push(self):
         self.site()
