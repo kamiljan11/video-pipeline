@@ -243,6 +243,9 @@ for g in P.get("gfx", []):
     cue = gfx_events.cue_problems(g, sp, o["at"], lambda w: src2out(W[w][0]), len(W))
     if cue: sys.exit(f"{g['id']}: " + "; ".join(cue))
     ovs.append(o)
+# one card at a time (gfx_events.overlap_problems): side-box and full-screen cards, not a sticker or a "side" scene
+_both = gfx_events.overlap_problems(ovs, lambda o: specs[o["id"]].get("type") in SIDE_BOX and not beside(specs[o["id"]]), P.get("overlap_ok"))
+if _both: sys.exit("cards on screen together: " + "; ".join(_both))
 # plan2 cards held to their time (gfx_types NOTE / DEFINE): reading time (film_check.reading_need, the one rule) or the
 # minimum; one note per NOTE["every"] s, so it stays a pointer and not a caption track; a note and a lower third share the
 # bottom-left corner, so never both at once; every roadmap card of a film is one drawing (the same "parts")

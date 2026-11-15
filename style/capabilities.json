@@ -2090,6 +2090,18 @@
    "why": "a phrase said twice on purpose, named one at a time; unused = no repeat on purpose (long/short.retakes cuts the worse take otherwise)"
   },
   {
+   "id": "plan.overlap_ok",
+   "kind": "plan",
+   "name": "overlap_ok",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "two cards meant to share the screen, named as a pair with a reason; unused = one card at a time (build_edl.py stops on any other overlap over 0.5 s)"
+  },
+  {
    "id": "opt.bookend",
    "kind": "opt",
    "name": "bookend",

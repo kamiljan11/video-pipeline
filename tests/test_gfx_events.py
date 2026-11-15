@@ -133,5 +133,26 @@ class BuildEdlTest(unittest.TestCase):
         self.assertIn("[2.0]", r.stderr)
 
 
+class OverlapTest(unittest.TestCase):
+    """one card at a time (2026-11-15 long: s_faktura ran 4.58 s under c_blizny after a retake cut)"""
+    def problems(self, ok=None):
+        ovs = [{"id": "s_faktura", "at": 390.98, "dur": 25.27}, {"id": "c_blizny", "at": 411.67, "dur": 7.6},
+               {"id": "st", "at": 395.0, "dur": 5.0}, {"id": "next", "at": 419.0, "dur": 4.0}]
+        return gfx_events.overlap_problems(ovs, lambda o: o["id"] != "st", ok)
+
+    def test_the_scene_under_the_count_card_is_named(self):
+        bad = self.problems()
+        self.assertEqual(len(bad), 1)  # the sticker is not counted, a 0.27 s cross-fade into "next" passes
+        self.assertIn("s_faktura", bad[0]); self.assertIn("c_blizny", bad[0]); self.assertIn("4.58 s", bad[0])
+
+    def test_a_named_pair_passes_only_with_a_reason(self):
+        self.assertEqual(self.problems({"c_blizny+s_faktura": "the count lands on the scene on purpose"}), [])
+        self.assertEqual(len(self.problems({"s_faktura+c_blizny": "ok"})), 1)
+
+    def test_a_waiver_for_no_pair_is_a_problem(self):
+        bad = self.problems({"s_faktura+c_blizny": "the count lands on the scene on purpose", "a+b": "nothing overlaps here at all"})
+        self.assertEqual(bad, ["overlap_ok 'a+b': no two cards with these ids overlap"])
+
+
 if __name__ == "__main__":
     unittest.main()

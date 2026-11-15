@@ -13,6 +13,10 @@ Timings mirror gfx/scene_lib.mjs (camera MOVE, the cursor's move, the terminal's
 Plan check (cue_problems): a gfx entry of the plan may name the spoken word of each cue, "read_along": [word index, ...] and
 "items": [word index of each item's numeral, ...]; build_edl.py then refuses a card whose cue is off its word (S11: an item
 appears at most 0.3 s after its numeral) and prints the card time to put in the spec.
+
+One card at a time (overlap_problems): two cards that each take the picture beside or instead of the speaker (gfx_types
+SIDE_BOX, not a sticker or a "side" scene) share the screen for at most a cross-fade. The 2026-11-15 long: a retake cut moved
+the film under s_faktura, its last 4.6 s ran under the count card c_blizny and nothing said so until the film was watched.
 """
 from __future__ import annotations
 
@@ -24,6 +28,8 @@ from typing import Any
 MOVE = 0.9  # s, a camera move before its stop (scene_lib.mjs MOVE)
 ZOOM_D = 0.4  # s, a canvas zoom (scene_lib.mjs CANVAS_ZOOM.d)
 CUE_EARLY, CUE_LATE = -0.15, 0.3  # s, a cue against its word: a hair early (like gfx_lead) up to 0.3 s late (S11)
+SHARE_S = 0.5  # s two cards may share the screen: one fading out under the next coming in
+OK_MIN = 10  # characters of a reason in plan "overlap_ok"
 CAM_SAME = ("on", "x", "y", "z", "pad", "zmax")  # two stops with these equal frame the same: no move between them
 
 
@@ -111,3 +117,26 @@ def cue_problems(g: dict, sp: dict, at: float, word_film: Callable[[int], float]
             bad.append(f"{key} off its words (allowed {CUE_EARLY:+g}..{CUE_LATE:+g} s): card has {[round(c, 2) for c, _ in off]}, "
                        f"the words are said at {[t for _, t in off]} (card s)")
     return bad
+
+
+def overlap_problems(ovs: list[dict], takes_screen: Callable[[dict], bool], ok: Any = None) -> list[str]:
+    """pairs of cards on screen together for more than SHARE_S; takes_screen(overlay) says which cards count. A pair meant
+    to overlap is named in plan "overlap_ok": {"<id>+<id>": "why (>= 10 characters)"}; an entry that names no such pair or
+    gives no reason is a problem itself"""
+    ok = ok if isinstance(ok, dict) else {}
+    out, used = [], set()
+    cards = sorted((o for o in ovs if takes_screen(o)), key=lambda o: o["at"])
+    for i, a in enumerate(cards):
+        for b in cards[i + 1:]:
+            both = min(a["at"] + a["dur"], b["at"] + b["dur"]) - b["at"]
+            if both <= SHARE_S + 1e-6: continue
+            key = next((k for k in (f"{a['id']}+{b['id']}", f"{b['id']}+{a['id']}") if k in ok), None)
+            if key is not None:
+                used.add(key)
+                if isinstance(ok[key], str) and len(ok[key].strip()) >= OK_MIN: continue
+                out.append(f"overlap_ok {key!r}: the reason must say why (>= {OK_MIN} characters)")
+                continue
+            out.append(f"{a['id']} ({a['at']:.2f}-{a['at'] + a['dur']:.2f} s) and {b['id']} (from {b['at']:.2f} s) are on screen "
+                       f"together for {both:.2f} s (at most {SHARE_S:g}): shorten or move one, or name the pair in plan \"overlap_ok\"")
+    out += [f"overlap_ok {k!r}: no two cards with these ids overlap" for k in ok if k not in used]
+    return out

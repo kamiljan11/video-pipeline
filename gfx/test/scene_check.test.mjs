@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, cutProblems, drawProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, readProblems, stampProblems, window_ } from '../scene_check.mjs';
+import { clashes, cutProblems, drawProblems, floatProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, pipBox, pipProblems, readProblems, stampProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -155,4 +155,25 @@ test('a stamp on its own piece (on: id) is not a clash with it, but still is one
   assert.equal(other.length, 1); assert.match(other[0], /a stamp on words/);
   const chip = clashes(sp([node, { k: 'chip', id: 'c', text: 'ryzyko', at: 0 }, stamp]), [r[0], { i: 1, x: 700, y: 200, w: 300, h: 100 }, { i: 2, x: 800, y: 170, w: 300, h: 90 }]);
   assert.equal(chip.length, 1); assert.match(chip[0], /c \(chip/);
+});
+
+test('words the camera carries under the face window are named (2026-11-15 long, s_automaty "jak kompilator")', () => {
+  const sp = { id: 's_automaty', dur: 20, els: [{ k: 'text', id: 'kom', at: 6 }, { k: 'chip', id: 'old', at: 0, gone: 5 }] };
+  const u = { i: 0, t: 9, s: 'jak kompilator', frac: 0.4 };
+  assert.match(pipProblems(sp, [u]).join('\n'), /s_automaty: "jak kompilator" \(text\) is under the face window at 9\.0 s \(40 % covered\) while the camera rests/);
+  assert.deepEqual(pipProblems(sp, [{ ...u, frac: 0.05 }]), []);  // a rotated box grazing the window
+  assert.deepEqual(pipProblems(sp, [{ ...u, t: 6.2 }]), []);  // its own entrance
+  assert.deepEqual(pipProblems(sp, [{ i: 1, t: 7, s: 'x', frac: 1 }]), []);  // gone at 5 s
+  assert.equal(pipProblems(sp, [u, { ...u, t: 10 }]).length, 1);  // once per line
+});
+
+test('the face window is looked for only on a card that shows it', () => {
+  assert.deepEqual(pipBox({}), { x: 1880, y: 740 });
+  assert.equal(pipBox({ pip: false }), null); assert.equal(pipBox({ layout: 'side' }), null); assert.equal(pipBox({ canvas: 'v' }), null);
+});
+
+test('a float piece too small to be seen is named (2026-11-15 long, f_mucha: a 24 px fly)', () => {
+  const boxes = [{ i: 0, w: 26, h: 760 }, { i: 1, w: 24, h: 24 }, { i: 2, w: 150, h: 150 }];
+  assert.deepEqual(floatProblems({ id: 'f_mucha' }, boxes), ['f_mucha: piece #1 is 24x24 px on the frame, at least 64 on its longer side to be seen on a phone: draw it bigger']);
+  assert.deepEqual(floatProblems({ id: 'f', canvas: 'v' }, [{ i: 0, w: 50, h: 50 }]), []);  // 48 on a 9:16 frame
 });

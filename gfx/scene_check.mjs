@@ -1,12 +1,13 @@
 // node gfx/scene_check.mjs <specs.json> [id ...]: every "scene" card laid out in Chrome (no frames rendered) and checked for
-// pieces whose drawn boxes (labels included, they overflow the piece) cover each other while both are on screen.
+// pieces whose drawn boxes (labels included, they overflow the piece) cover each other while both are on screen, words the
+// frame cuts and words the camera carries under the face window; every "float" card for a piece too small to be seen.
 // Film 2 long, s14_hooki (2026-11-04): three node labels ran into each other ("polecpokażdej zmianie plikugdy") and nobody saw
 // it until a contact sheet. Exit 1 with every clash named; 0 when clean. Fast: one page, no screenshots.
 // Cards with "motion": "tokens" also get the motion lint (gfx/motion_tokens.mjs): no entrance that eases both ways, no
 // stagger step over 12 frames. Cards without it keep the timings from before tokens and are only counted.
 import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
-import { camKeyframes, colFollow, frameStops, drawnEls, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { camKeyframes, colFollow, frameStops, drawnEls, PIP_ZONE, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
 import { opener, resolveAnchors } from './anchor_lib.mjs';
 import { motionProblems, staggerProblems } from './motion_tokens.mjs';
 import { esc, icon } from './html_lib.mjs';
@@ -202,6 +203,29 @@ export function cutProblems(sp, cuts) {
   return out;
 }
 
+// the face window as it is drawn on the 2560x1440 frame: 600 px at 72 px from the right, 92 from the bottom (assemble.py),
+// plus its 8 px line (measured on the 2026-11-15 long: left edge 1880, top 740; PIP_ZONE keeps 52 px of air around it for
+// the layout, a line of words that stops in that air is whole). null when the card shows no window (a 9:16 card, a "side"
+// scene, "pip": false: gfx_types.has_pip)
+export const pipBox = sp => (sp.canvas === 'v' || sp.layout === 'side' || sp.pip === false ? null : { x: PIP_ZONE.x + 52, y: PIP_ZONE.y + 52 });
+// under = [{i, t, s, frac}]: a line of words with frac of it under the face window at a moment the camera rests. The spec
+// rule (scene_lib: a piece that "reaches the face corner") only looks at a card without a camera; a camera move or a
+// canvas zoom carries words there after the layout was right (2026-11-15 long, s_automaty: "jak kompilator" went under
+// the face at 467-471 s once the zoom closed in, found by watching the film).
+export const UNDER_MIN = 0.1;  // of the line's box; a rotated stamp's box grazed the window by 5 % with every letter clear (s_mutacje)
+export function pipProblems(sp, under) {
+  const out = [], seen = new Set();
+  for (const u of under) {
+    const [a0, a1] = window_(sp.els[u.i], sp.dur);
+    if (u.t < a0 + 0.35 || u.t > a1 || u.frac <= UNDER_MIN) continue;  // 0.35 s: its own entrance
+    const key = `${u.i}|${u.s}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(`${sp.id}: "${String(u.s ?? '').slice(0, 30)}" (${sp.els[u.i].k}) is under the face window at ${u.t.toFixed(1)} s (${Math.round(u.frac * 100)} % covered) while the camera rests: move it, change the camera or give "pip": false`);
+  }
+  return out;
+}
+
 // hid = [{i, t}]: a piece faded out by the camera (soloKeys) at t. Hidden while it is being read (READ_S from 0.5 s after it
 // comes in) = the viewer never reads it (stills 2026-11-08: s02 and s03 stood empty while their lines were said)
 export function hiddenWhileRead(sp, hid) {
@@ -219,6 +243,27 @@ export function hiddenWhileRead(sp, hid) {
 // every stop, scene_lib soloKeys): drawn but never seen (s14 "AI", s12 its chat line, 2026-11-08)
 export function hiddenProblems(sp, hidden) {
   return hidden.map(i => `${sp.id}: ${sp.els[i]?.id ?? `#${i}`} (${sp.els[i]?.k}) is never on screen: no camera stop shows it whole, so it hides for the whole card`);
+}
+
+// a "float" card is the plan's own html beside the speaker, so nothing lays it out for us: each piece is measured as drawn.
+// boxes = [{i, w, h}] (frame px, animations cancelled). A piece under MIN_PIECE_PX on its longer side is a speck on a phone
+// (2026-11-15 long, f_mucha: the fly the sentence is about was a 24 px icon on a 2560 px frame, found by watching the film).
+// Same phone scale as MIN_TEXT_PX: a 9:16 frame shows 0.75 of the px.
+export const MIN_PIECE_PX = { h: 64, v: 48 };
+export function floatProblems(sp, boxes) {
+  const min = MIN_PIECE_PX[sp.canvas === 'v' ? 'v' : 'h'];
+  return boxes.filter(b => Math.max(b.w, b.h) < min)
+    .map(b => `${sp.id}: piece #${b.i} is ${Math.round(b.w)}x${Math.round(b.h)} px on the frame, at least ${min} on its longer side to be seen on a phone: draw it bigger`);
+}
+
+// in the page: every piece of a float card in its laid-out place and size
+function measureFloat() {
+  for (const a of document.getAnimations()) a.cancel();
+  return [...document.querySelectorAll('.float > .p')].map((el, i) => {
+    const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+    if (!boxes.length) return null;
+    return { i, w: Math.max(...boxes.map(r => r.right)) - Math.min(...boxes.map(r => r.left)), h: Math.max(...boxes.map(r => r.bottom)) - Math.min(...boxes.map(r => r.top)) };
+  }).filter(Boolean);
 }
 
 // in the page: the camera sampled every 0.1 s -> [[t, scale]]; every animation but the camera and the solo fades is cancelled
@@ -239,7 +284,7 @@ function sampleCamera(dur) {
 
 // in the page, after sampleCamera: words the frame or board cuts while the camera rests (cuts), pieces a solo stop has faded
 // at t (hid), pieces hidden for the whole card (hidden); then the camera and the fades are cancelled too
-function sampleView(dur) {
+function sampleView([dur, pip]) {
   const world = document.querySelector('.scene .world');
   const camAnims = document.getAnimations().filter(a => a.effect?.target === world);
   const soloAnims = document.getAnimations().filter(a => String(a.animationName ?? '').startsWith('solo_'));
@@ -258,7 +303,7 @@ function sampleView(dur) {
       lines.push({ i, n, el, clips });
     }
   });
-  const cuts = [], hid = [], soloEls = soloAnims.map(a => a.effect.target);
+  const cuts = [], under = [], hid = [], soloEls = soloAnims.map(a => a.effect.target);
   let prev = null;
   for (let t = 0; t <= dur + 1e-6; t += 0.1) {
     for (const a of [...camAnims, ...soloAnims]) { a.pause(); a.currentTime = t * 1000; }
@@ -278,6 +323,10 @@ function sampleView(dur) {
         const w = Math.max(0, Math.min(r.right, vis.x1) - Math.max(r.left, vis.x0)), h = Math.max(0, Math.min(r.bottom, vis.y1) - Math.max(r.top, vis.y0));
         const frac = (w * h) / (rw * rh);
         if (frac > 0.02 && frac < 0.97) cuts.push({ i, t: +t.toFixed(2), s: n.textContent.trim(), frac: +frac.toFixed(3) });
+        if (pip) {  // the part of the line under the face window (it reaches the right and bottom edges of the frame)
+          const uw = Math.max(0, Math.min(r.right, vis.x1) - Math.max(r.left, vr.left + pip.x)), uh = Math.max(0, Math.min(r.bottom, vis.y1) - Math.max(r.top, vr.top + pip.y));
+          if (uw * uh > 0) under.push({ i, t: +t.toFixed(2), s: n.textContent.trim(), frac: +((uw * uh) / (rw * rh)).toFixed(3) });
+        }
       }
     }
   }
@@ -285,7 +334,7 @@ function sampleView(dur) {
   // a piece hidden for the whole card is reported once (hiddenProblems); hiddenWhileRead still checks every other piece
   const hidden = soloAnims.filter(a => a.effect.getKeyframes().every(k => +k.opacity === 0)).map(a => pieceEls.indexOf(a.effect.target)).filter(i => i >= 0);
   for (const a of [...camAnims, ...soloAnims]) a.cancel();
-  return { cuts, hidden, hid };
+  return { cuts, under, hidden, hid };
 }
 
 // in the page, after sampleCamera: each piece's box with what sticks out of it, and one rect per drawn line of words
@@ -318,7 +367,9 @@ async function main() {
   const [specFile, ...only] = process.argv.slice(2);
   if (!specFile) { console.error('usage: node gfx/scene_check.mjs <specs.json> [id ...]'); process.exit(2); }
   // "extends" (S11) on the whole file first: the scene it goes on from may be filtered out by [id ...]
-  const specs = resolveExtends(JSON.parse(fs.readFileSync(specFile, 'utf8'))).filter(s => s.type === 'scene' && (!only.length || only.includes(s.id)));
+  const file = JSON.parse(fs.readFileSync(specFile, 'utf8'));
+  const specs = resolveExtends(file).filter(s => s.type === 'scene' && (!only.length || only.includes(s.id)));
+  const floats = file.filter(s => s.type === 'float' && typeof s.html === 'string' && (!only.length || only.includes(s.id)));
   const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
   const hand = specs.flatMap(handPlaced);  // before the ids become numbers
   try { await resolveAnchors(specs, opener(browser), esc, icon); } catch (e) { await browser.close(); console.log(`CLASH ${e.message}`); process.exit(1); }
@@ -336,12 +387,22 @@ async function main() {
         [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString(), frameStops.toString()]);
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
       const cam = await page.evaluate(sampleCamera, sp.dur);
-      const { cuts, hidden, hid } = await page.evaluate(sampleView, sp.dur);
+      const { cuts, under, hidden, hid } = await page.evaluate(sampleView, [sp.dur, pipBox(sp)]);
       const { rects, texts } = await page.evaluate(measurePieces);
       // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
       const all = { ...sp, els: drawnEls(sp).els };
       bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts), ...stampProblems(all, rects));
-      bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...hiddenProblems(all, hidden), ...hiddenWhileRead(all, hid.filter(h => !hidden.includes(h.i))));
+      bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...pipProblems(all, under), ...hiddenProblems(all, hidden), ...hiddenWhileRead(all, hid.filter(h => !hidden.includes(h.i))));
+      await page.close();
+    }
+    for (const sp of floats) {  // the html as render.mjs puts it on the page
+      const v = sp.canvas === 'v';
+      const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });
+      await page.goto(new URL('./template.html', import.meta.url).href);
+      if (v) await page.evaluate(() => document.documentElement.classList.add('v'));
+      await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, `<div class="float">${sp.html}</div>`);
+      await page.evaluate(() => document.fonts.ready);
+      bad.push(...floatProblems(sp, await page.evaluate(measureFloat)));
       await page.close();
     }
   } finally { await browser.close(); }
