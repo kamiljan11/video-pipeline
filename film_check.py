@@ -217,7 +217,8 @@ def reading_need(sp: dict, per_word=1.2, head_words=4, per_more=0.35, minimum=2.
     rest: Negacz's 1.5 s a word holds for his 3-word cards, a long line is read at about 3 words a second); a picture card
     (scene drawn piece by piece, web shot, slide: narrated, looked at rather than read) scene_min. Reference: Negacz text
     cards 1.5 s a word (n 92), drawn scenes 23 s median (n 101), style/REF-long-negacz.md L3, L4. The plan builder uses it too"""
-    if sp.get("type") in ("scene", "web", "slide"): return scene_min
+    if sp.get("type") in ("scene", "web", "slide") or sp.get("drawn") is True: return scene_min  # "drawn": a card written
+    # word by word on the spoken words (film 2 shorts' paper cards, 2026-11-15), looked at like a scene, not read at once
     n = read_words(sp)
     return max(minimum, per_word * min(n, head_words) + per_more * max(n - head_words, 0))
 

@@ -1788,6 +1788,18 @@
    }
   },
   {
+   "id": "opt.drawn",
+   "kind": "opt",
+   "name": "drawn",
+   "owner": "motion-designer",
+   "check": "short.reading",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "a float card written word by word on the spoken words: reading_need gives it the scene time (film 2 shorts, Kamil 2026-11-15)"
+  },
+  {
    "id": "opt.page",
    "kind": "opt",
    "name": "page",
