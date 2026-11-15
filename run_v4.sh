@@ -53,13 +53,17 @@ preview() {
   [ "${DRY:-}" = 1 ] && [ "${PREVIEW:-}" = 1 ] || return 0
   cp "$R/$1/$2" "$R/$1/preview_$2" || return 0
   systemctl --user stop "vp-review-$1" 2>/dev/null
-  ${PREVIEW_RUN-systemd-run --user --collect --quiet --unit vp-review-$1 --working-directory=$PWD} python3 $VP/review_player.py . "$1" --video "$R/$1/preview_$2" >> "$R/review_$1.log" 2>&1 &
-  echo "PREVIEW $1 http://127.0.0.1:8791/ (notes: review_notes_$1.json)" >> "$R/render.log"; return 0
+  local port=$((8791 + $(printf '%s' "$1" | cksum | cut -d' ' -f1) % 100))  # one port per film: several previews at once
+  [ "$1" = long ] && port=8791
+  ${PREVIEW_RUN-systemd-run --user --collect --quiet --unit vp-review-$1 -p RuntimeMaxSec=1d --working-directory=$PWD} python3 $VP/review_player.py . "$1" --video "$R/$1/preview_$2" --port "$port" >> "$R/review_$1.log" 2>&1 &
+  echo "PREVIEW $1 http://127.0.0.1:$port/ (notes: review_notes_$1.json)" >> "$R/render.log"; return 0
 }
 tl run "${DRY:+dry }$*"
 # the commit this run starts on: a dry run is a pass of THIS code, not of whatever HEAD is when it ends (dry_run.py pass)
 # (empty when git cannot read it: dry_run.py pass then refuses the record, never falls back to the HEAD at the end)
 START_HEAD=$(git -C "$VP" rev-parse HEAD 2>/dev/null)
+# sound_seen keys on the commit: uncommitted edits to the checks would be skipped as "already passed" -> no key, all run
+[ -n "$(git -C "$VP" status --porcelain -- '*.py' 2>/dev/null)" ] && START_HEAD=""
 # the films are moved to OUT at the very end: a relative OUT counts from WORK (after the cd), so check it before 20 min of
 # render (2026-11-05: a finished long failed on mv because OUT was relative to the caller's folder)
 { [ -d "$OUT" ] && [ -w "$OUT" ]; } || { echo "FAILED out: no writable folder $OUT seen from $WORK (a relative OUT counts from the work folder)" | tee -a "$R/render.log" >&2

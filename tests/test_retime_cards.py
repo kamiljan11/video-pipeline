@@ -1,4 +1,5 @@
 """retime_cards.py: card pieces follow the cut (2026-11-15: sentences put back and air between sentences)."""
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -77,6 +78,17 @@ class RetimeTest(unittest.TestCase):
         self.assertEqual(sp["cam"][0]["t"], 0)
         self.assertGreaterEqual(sp["cam"][1]["t"], 0.0)
 
+
+
+class MainTest(unittest.TestCase):
+    def test_a_second_run_keeps_the_first_backup(self):  # pg-review 2026-11-15: .bak was overwritten
+        import tempfile
+        d = Path(tempfile.mkdtemp())
+        (d / "old.json").write_text(json.dumps(OLD)); (d / "new.json").write_text(json.dumps(NEW))
+        sp = d / "specs.json"; sp.write_text(json.dumps([{"id": "s", "type": "scene", "dur": 8.0, "els": [{"at": 3.0}]}]))
+        for _ in range(2): rc.main([str(d / "old.json"), str(d / "new.json"), str(sp)])
+        self.assertEqual(json.loads((d / "specs.json.bak").read_text())[0]["els"][0]["at"], 3.0)
+        self.assertTrue((d / "specs.json.bak1").exists())
 
 
 if __name__ == "__main__":

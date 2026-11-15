@@ -38,6 +38,9 @@ PRE, POST, MINGAP, KEEP_L, KEEP_R = 0.10, 0.16, 0.45, 0.15, 0.12
 # the long: only named mistakes are cut, and pauses keep their air (cuts.py, Kamil 2026-11-15); its default pads
 # are the breathing ones
 LONG = Path(sys.argv[1]).name == "plan_long.json"  # the long of a recording (run_v4.sh: plan_<film>.json); shorts and tests are other plans
+if not LONG and not P.get("vertical") and Path(sys.argv[1]).name.startswith("plan_"):  # a long under another name skips cuts.py
+    print(f"build_edl: WARN {Path(sys.argv[1]).name} is a horizontal film not named plan_long.json: cuts.py (named cuts, "
+          f"breathing pads) does not hold it; run_v4.sh and accept.py also know the long by the name long", file=sys.stderr)
 _order = cuts.order(P.get("keeps") or [])
 if _order: sys.exit("keeps out of order: " + "; ".join(_order))
 if LONG:
@@ -255,8 +258,9 @@ for g in P.get("gfx", []):
     ovs.append(o)
 # a scene or float timed for another cut (gfx_events.stale): the same spec, the film under it moved by more than 0.3 s
 _times_file = Path(P["edl_out"].replace(".json", ".card_times.json"))
-try: _timed_for = json.loads(_times_file.read_text())
-except (OSError, ValueError): _timed_for = {}
+try: _timed_for = json.loads(_times_file.read_text()) if _times_file.exists() else {}
+except (OSError, ValueError) as _e:  # a broken record would let cards timed for another cut through: stop, name the file
+    sys.exit(f"build_edl: cannot read {_times_file} ({_e}): fix or delete it (the stale-card gate starts over without it)")
 _now, _stale = {}, []
 for o in ovs:
     sp = specs[o["id"]]

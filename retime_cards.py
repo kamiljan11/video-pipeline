@@ -144,10 +144,13 @@ def main(argv: list[str]) -> int:
     old, new = (json.loads(Path(a).read_text(encoding="utf-8")) for a in argv[:2])
     sp = Path(argv[2]); specs = json.loads(sp.read_text(encoding="utf-8"))
     lines = retime(old, new, specs)
-    shutil.copyfile(sp, sp.with_suffix(".json.bak"))
-    sp.write_text(json.dumps(specs, ensure_ascii=False), encoding="utf-8")
+    bak = sp.with_suffix(".json.bak")
+    if bak.exists():  # a second run must not destroy the hand-timed original: each run gets its own numbered copy
+        bak = next(sp.with_suffix(f".json.bak{i}") for i in range(1, 1000) if not sp.with_suffix(f".json.bak{i}").exists())
+    shutil.copyfile(sp, bak)
+    sp.write_text(json.dumps(specs, ensure_ascii=False, indent=1), encoding="utf-8")
     for line in lines: print(f"retime_cards: {line}")
-    print(f"retime_cards: {len(lines)} cards retimed ({sp.with_suffix('.json.bak')} keeps the old specs)")
+    print(f"retime_cards: {len(lines)} cards retimed ({bak} keeps the old specs)")
     return 0
 
 

@@ -4,6 +4,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -61,6 +62,15 @@ class ServerTest(unittest.TestCase):
         self.assertEqual([n["text"] for n in saved["notes"]], ["pierwszy"])
         self.assertTrue(saved["done"])
         self.assertEqual(rp.Review(self.d, "long", self.video).state["notes"][0]["words"], "szlaban blokuje")  # reopened
+
+    def test_a_bad_note_is_400_and_another_page_may_not_write(self):  # pg-review 2026-11-15
+        with self.assertRaises(urllib.error.HTTPError) as e: self.post("/note", {"text": "bez czasu"})
+        self.assertEqual(e.exception.code, 400)
+        req = urllib.request.Request(self.url + "/note", data=b'{"t": 1, "text": "x"}', method="POST",
+                                     headers={"Origin": "http://evil.example"})
+        with self.assertRaises(urllib.error.HTTPError) as e: urllib.request.urlopen(req)
+        self.assertEqual(e.exception.code, 403)
+        self.assertEqual(self.rv.state["notes"], [])
 
     def test_the_video_is_served_in_ranges_so_the_player_can_seek(self):
         req = urllib.request.Request(self.url + "/video", headers={"Range": "bytes=256-259"})

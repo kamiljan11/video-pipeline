@@ -18,18 +18,19 @@ from __future__ import annotations
 import re
 from itertools import pairwise
 
-KINDS = ("retake", "false start", "slip", "mic", "Kamil")  # what may go: his mistakes, or what he named himself
+KINDS = ("retake", "false start", "slip", "mic", "off take", "Kamil")  # off take: talk before/after the take  # what may go: his mistakes, or what he named himself
 BREATH = 0.6  # s: a pause up to this stays whole (pads mingap); build_edl LONG_PADS keeps 0.5 s of a longer one
 LONG_PADS = {"pre": 0.18, "post": 0.28, "keep_l": 0.28, "keep_r": 0.22, "mingap": 0.7}
 KEY = re.compile(r"^w(\d+)(?:-(\d+))?$")  # "w<from>-<to>" or one word "w<n>"
 
 
 def dropped(keeps: list, n_words: int) -> list[tuple[int, int]]:
-    """runs [from, to] of word indexes inside the film's span that no keep holds"""
+    """runs [from, to] of word indexes of the whole recording that no keep holds: talk before the first keep and after
+    the last counts too (pg-review 2026-11-15: a long could lose its opening sentence with nothing named)"""
     kept = {i for k in keeps for i in range(int(k[0]), int(k[1]) + 1)}
     if not kept: return []
     runs: list[list[int]] = []
-    for i in range(min(kept), min(max(kept), n_words - 1) + 1):
+    for i in range(n_words):
         if i in kept: continue
         if runs and runs[-1][1] == i - 1: runs[-1][1] = i
         else: runs.append([i, i])

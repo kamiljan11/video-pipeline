@@ -318,7 +318,7 @@ class RunV4GateTest(unittest.TestCase):
 
     def test_a_dry_run_with_preview_pops_the_film_up_before_the_checks(self):  # Kamil 2026-11-15: watch, note, then render
         render, calls = self.run_v4(DRY="1", PREVIEW="1", PREVIEW_RUN="")
-        self.assertIn("PREVIEW x http://127.0.0.1:8791/", render)
+        self.assertRegex(render, r"PREVIEW x http://127\.0\.0\.1:88\d\d/|PREVIEW x http://127\.0\.0\.1:879\d/")  # own port per film
         time.sleep(0.5)  # the player starts in the background; the script puts it right after the assemble
         self.assertIn("review_player.py", (self.tmp / "calls.log").read_text().split())
         _, calls = self.run_v4(DRY="1")  # the call log keeps both runs: still the one player of the first

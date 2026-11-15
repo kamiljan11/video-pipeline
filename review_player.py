@@ -140,11 +140,18 @@ def handler(rv: Review):
                 except (BrokenPipeError, ConnectionResetError): pass  # the player seeks and drops the old request
 
         def do_POST(self):
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
-            if self.path == "/note": st = rv.add(float(body["t"]), str(body["text"])[:2000])
-            elif self.path == "/delete": st = rv.delete(int(body["i"]))
-            elif self.path == "/done": st = rv.done()
-            else: return self.send(404, b"", "text/plain")
+            origin = self.headers.get("Origin")
+            if origin and origin != f"http://{self.headers.get('Host')}":  # another page in the browser may not write notes
+                return self.send(403, b"other origin", "text/plain")
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+                if self.path == "/note": st = rv.add(float(body["t"]), str(body["text"])[:2000])
+                elif self.path == "/delete": st = rv.delete(int(body["i"]))
+                elif self.path == "/done": st = rv.done()
+                else: return self.send(404, b"", "text/plain")
+            except (ValueError, KeyError, TypeError) as e:
+                print(f"review_player: bad {self.path} request: {e!r}", file=sys.stderr)
+                return self.send(400, f"bad request: {e!r}".encode(), "text/plain")
             self.send(200, json.dumps(st).encode(), "application/json")
     return H
 
