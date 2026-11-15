@@ -583,6 +583,18 @@
    "why": "caption look, defaults apply when unset (short.captions reads only caption_pop); captions are burned in only on shorts, the long has none"
   },
   {
+   "id": "plan.corner_halo",
+   "kind": "plan",
+   "name": "corner_halo",
+   "owner": "producent-shortow",
+   "check": "short.layouts",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "9:16 corner circle glow: \"picture\" (blurred picture, default) or \"accent\" (theme accent; film 2's red shirt smeared red, Kamil 2026-11-15); build_edl validates, assemble.py HALO_VF"
+  },
+  {
    "id": "plan.caption_case",
    "kind": "plan",
    "name": "caption_case",
