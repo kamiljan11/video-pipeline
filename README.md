@@ -118,7 +118,7 @@ the checkout from its own location. Chrome is expected at `/usr/bin/google-chrom
 Nothing below needs your accounts; publishing to LinkedIn or YouTube is a separate, opt-in step.
 
 ```bash
-sudo apt install git curl xz-utils cmake build-essential poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol   # + Node 24 (nodejs.org), Google Chrome
+sudo apt install git curl xz-utils cmake build-essential poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol fonts-dejavu-core fonts-dejavu-extra   # + Node 24 (nodejs.org), Google Chrome
 git clone https://github.com/kamiljan11/video-pipeline && cd video-pipeline
 bash install/ffmpeg.sh                  # ffmpeg 8 into ~/.local/bin, sha256-checked (Ubuntu 24.04 apt has 6.1, too old)
 export PATH="$HOME/.local/bin:$PATH"    # this shell; new logins add ~/.local/bin by themselves (~/.profile) once it exists

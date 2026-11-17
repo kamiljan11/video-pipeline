@@ -13,7 +13,13 @@ v=$(ffmpeg -version 2>/dev/null | sed -nE '1s/^ffmpeg version n?([0-9]+).*/\1/p'
 if [ -n "$v" ] && [ "$v" -ge 8 ]; then ok "ffmpeg $v"; else no "ffmpeg 8 or newer on PATH (found: ${v:-none})" "bash '$VP/install/ffmpeg.sh' && export PATH=\"\$HOME/.local/bin:\$PATH\""; fi
 v=$(node -v 2>/dev/null | sed -nE 's/^v([0-9]+).*/\1/p')
 if [ -n "$v" ] && [ "$v" -ge 24 ]; then ok "node $v"; else no "Node 24 (found: ${v:-none})" "https://nodejs.org (LTS 24)"; fi
-if [ -x /usr/bin/google-chrome ]; then ok "google-chrome"; else no "Google Chrome at /usr/bin/google-chrome" "Google's .deb from https://www.google.com/chrome/"; fi
+if [ -x /usr/bin/google-chrome ]; then
+  ok "google-chrome"
+  # the renders launch Chrome with its sandbox on (gfx/webshot.mjs loads pages from the internet): it must start here
+  if chrome_err=$(timeout 60 /usr/bin/google-chrome --headless=new --disable-gpu --dump-dom about:blank 2>&1 >/dev/null); then ok "google-chrome starts with its sandbox"
+  elif grep -q -i sandbox <<<"$chrome_err"; then no "Chrome's sandbox (it cannot create namespaces)" "in Docker: docker run --security-opt seccomp=unconfined ...; on a host: allow unprivileged user namespaces (AppArmor)"
+  else no "Chrome to start ($(tail -1 <<<"$chrome_err"))" "reinstall Google's .deb"; fi
+else no "Google Chrome at /usr/bin/google-chrome" "Google's .deb from https://www.google.com/chrome/"; fi
 for t in pdftoppm:poppler-utils tesseract:tesseract-ocr; do
   if command -v "${t%%:*}" >/dev/null; then ok "${t%%:*}"; else no "${t%%:*}" "sudo apt install ${t##*:}"; fi
 done
