@@ -16,10 +16,18 @@ if [ -n "$v" ] && [ "$v" -ge 24 ]; then ok "node $v"; else no "Node 24 (found: $
 if [ -x /usr/bin/google-chrome ]; then
   ok "google-chrome"
   # the renders launch Chrome with its sandbox on (gfx/webshot.mjs loads pages from the internet): it must start here
-  if chrome_err=$(timeout 60 /usr/bin/google-chrome --headless=new --disable-gpu --dump-dom about:blank 2>&1 >/dev/null); then ok "google-chrome starts with its sandbox"
-  elif grep -q -i sandbox <<<"$chrome_err"; then no "Chrome's sandbox (it cannot create namespaces)" "in Docker: docker run --security-opt seccomp=unconfined ...; on a host: allow unprivileged user namespaces (AppArmor)"
+  prof=$(mktemp -d)  # a throwaway profile: the user's own Chrome profile is not touched
+  chrome_err=$(timeout 60 /usr/bin/google-chrome --headless=new --disable-gpu --user-data-dir="$prof" --dump-dom about:blank 2>&1 >/dev/null); rc=$?
+  find "$prof" -delete 2>/dev/null
+  if [ $rc = 0 ]; then ok "google-chrome starts with its sandbox"
+  elif [ "$(id -u)" = 0 ]; then no "a user that is not root (Chrome's sandbox refuses root)" "run the pipeline as a normal user"
+  elif [ $rc = 124 ]; then no "Chrome to start (no answer in 60 s)" "run: google-chrome --headless=new --dump-dom about:blank, and read its error"
+  elif grep -q -i -e "namespace" -e "setuid sandbox" <<<"$chrome_err"; then no "Chrome's sandbox (it cannot create namespaces)" "in Docker: docker run --security-opt seccomp=unconfined ...; on a host: allow unprivileged user namespaces (AppArmor)"
   else no "Chrome to start ($(tail -1 <<<"$chrome_err"))" "reinstall Google's .deb"; fi
 else no "Google Chrome at /usr/bin/google-chrome" "Google's .deb from https://www.google.com/chrome/"; fi
+# Chrome keeps its frame buffers in /dev/shm; Docker's default 64 MB makes parallel card screenshots fail now and then
+shm=$(df -Pm /dev/shm 2>/dev/null | awk 'NR == 2 {print $2}')
+if [ -n "$shm" ] && [ "$shm" -lt 512 ]; then opt "/dev/shm is ${shm} MB (renders can fail to capture)" "in Docker: docker run --shm-size=2g ..."; fi
 for t in pdftoppm:poppler-utils tesseract:tesseract-ocr; do
   if command -v "${t%%:*}" >/dev/null; then ok "${t%%:*}"; else no "${t%%:*}" "sudo apt install ${t##*:}"; fi
 done

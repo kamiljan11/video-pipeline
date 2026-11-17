@@ -30,7 +30,8 @@ class OutGateTest(unittest.TestCase):
         self.assertTrue((self.d / "fc_out.json").exists())
 
     def test_no_ledger_on_this_computer_checks_film_check_only(self):  # default path absent: 0 research items
-        with mock.patch.object(research_gate, "LEDGER", self.d / "none.jsonl"), mock.patch.object(research_gate, "LEDGER_SET", False):
+        with mock.patch.object(research_gate, "LEDGER", self.d / "none.jsonl"), mock.patch.object(research_gate, "LEDGER_SET", False), \
+                mock.patch.object(research_gate, "RESEARCH_DIR", self.d / "no-research"):
             self.assertEqual(self.gate([{"film": "out", "id": "out.chapters", "status": "OK", "detail": ""}]), 0)
             self.assertEqual(self.gate([{"film": "out", "id": "out.manifest", "status": "FAIL", "detail": "x"}], rc=1), 1)
         with mock.patch.object(research_gate, "LEDGER", self.d / "none.jsonl"), mock.patch.object(research_gate, "LEDGER_SET", True):

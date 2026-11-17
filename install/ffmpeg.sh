@@ -9,9 +9,8 @@ FFMPEG_TAR=ffmpeg-n8.1.3-27-g8dca1586f4-linux64-gpl-8.1.tar.xz
 FFMPEG_SHA256=41e9c565594c390622cf968d82fa4135d9e9a11d06c1515644288cbc844e3380
 BIN=${1:-$HOME/.local/bin}
 VERSION=${FFMPEG_TAR#ffmpeg-}; VERSION=${VERSION%%-linux64*}  # n8.1.3-27-g8dca1586f4; "ffmpeg -version" prints it with the build date: n8.1.3-27-g8dca1586f4-20261031
-if [ -x "$BIN/ffmpeg" ] && "$BIN/ffmpeg" -version 2>/dev/null | head -1 | grep -qF "version $VERSION-"; then
-  echo "ok   ffmpeg $VERSION already in $BIN"; exit 0
-fi
+have() { [ -x "$BIN/$1" ] && "$BIN/$1" -version 2>/dev/null | head -1 | grep -qF "version $VERSION-"; }
+if have ffmpeg && have ffprobe; then echo "ok   ffmpeg $VERSION already in $BIN"; exit 0; fi
 [ "$(uname -m)" = x86_64 ] || { echo "FAILED: this build is for x86_64 Linux (found $(uname -m))" >&2; exit 1; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 URL="https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$FFMPEG_TAR"

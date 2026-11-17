@@ -82,9 +82,13 @@ class ResearchGateTest(unittest.TestCase):
         from unittest import mock
         with tempfile.TemporaryDirectory() as d:
             gone = Path(d) / "missing.jsonl"
-            with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", False):
+            with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", False), \
+                    mock.patch.object(rg, "RESEARCH_DIR", Path(d) / "no-research"):
                 self.assertEqual(rg.main(["long"]), 0)
                 self.assertEqual(rg.ledger_items(gone, False), [])
+            # the author's machine: the research folder is there, its ledger moved -> stop, not "0 items"
+            with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", False), mock.patch.object(rg, "RESEARCH_DIR", Path(d)):
+                self.assertEqual(rg.main(["long"]), 2)
             with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", True):
                 self.assertEqual(rg.main(["long"]), 2)
                 self.assertIsNone(rg.ledger_items(gone, True))

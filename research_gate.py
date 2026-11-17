@@ -28,8 +28,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-LEDGER = Path(os.environ.get("RESEARCH_LEDGER", str(Path.home() / "Dane" / "creator-study" / "round2" / "ledger.jsonl")))
-LEDGER_SET = "RESEARCH_LEDGER" in os.environ  # a ledger someone named must exist; the default one may be absent
+RESEARCH_DIR = Path.home() / "Dane" / "creator-study"  # the author's research; a stranger's machine has none
+LEDGER = Path(os.environ.get("RESEARCH_LEDGER") or str(RESEARCH_DIR / "round2" / "ledger.jsonl"))
+LEDGER_SET = bool(os.environ.get("RESEARCH_LEDGER"))  # a ledger someone named must exist; the default one may be absent
 FORMS = {  # ledger "form" text -> the film form it changes
     "long": (r"^Long\b", r"^P1 — long", r"^long$"),
     "shorts": (r"^Shorts\b", r"^P2 — shorty", r"^shorts$"),
@@ -128,9 +129,13 @@ def meta_items(items: list[dict], form: str) -> list[str]:
 
 def ledger_items(path: Path, named: bool) -> list[dict] | None:
     """The ledger's items. The default ledger absent (a computer without the author's research, README Quick start) = no
-    items, said on stderr; a ledger named by --ledger or RESEARCH_LEDGER absent = None: the caller stops (exit 2)."""
+    items, said on stderr; a ledger named by --ledger or RESEARCH_LEDGER absent, or the default one missing from a research
+    folder that is there (~/Dane/creator-study: the author's machine) = None: the caller stops (exit 2)."""
     if path.exists(): return load(path)
     if named: print(f"research_gate: no ledger at {path}", file=sys.stderr); return None
+    if RESEARCH_DIR.exists():  # the author's research folder is here, its ledger is not: moved or renamed, not "no research"
+        print(f"research_gate: {RESEARCH_DIR} is here but {path} is not (RESEARCH_LEDGER names another)", file=sys.stderr)
+        return None
     print(f"research_gate: no research ledger on this computer ({path}; RESEARCH_LEDGER names one): 0 items", file=sys.stderr)
     return []
 
