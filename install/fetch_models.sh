@@ -14,10 +14,12 @@ get() {  # name url
   [ -n "$want" ] || { echo "FAILED $name: no sha256 in $SUMS" >&2; exit 1; }
   if [ -f "$f" ] && echo "$want  $f" | sha256sum -c --status -; then echo "ok   $name (already there)"; return; fi
   echo "get  $name <- $url"
-  curl -fL --retry 3 --proto '=https' -o "$f.part" "$url"
+  # -C -: an interrupted download resumes; the sha256 below decides, never the size
+  curl -fL --retry 3 --retry-all-errors --connect-timeout 20 --max-time 7200 --proto '=https' -C - -o "$f.part" "$url" ||
+    { echo "FAILED $name: download of $url (a 404 = moved upstream: update the URL in install/fetch_models.sh)" >&2; exit 1; }
   if ! echo "$want  $f.part" | sha256sum -c --status -; then
     rm -f "$f.part"
-    echo "FAILED $name: sha256 differs from $SUMS (file removed)" >&2; exit 1
+    echo "FAILED $name: sha256 differs from $SUMS (corrupt or changed upstream; the download was removed)" >&2; exit 1
   fi
   mv "$f.part" "$f"; echo "ok   $name"
 }

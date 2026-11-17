@@ -29,6 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 LEDGER = Path(os.environ.get("RESEARCH_LEDGER", str(Path.home() / "Dane" / "creator-study" / "round2" / "ledger.jsonl")))
+LEDGER_SET = "RESEARCH_LEDGER" in os.environ  # a ledger someone named must exist; the default one may be absent
 FORMS = {  # ledger "form" text -> the film form it changes
     "long": (r"^Long\b", r"^P1 — long", r"^long$"),
     "shorts": (r"^Shorts\b", r"^P2 — shorty", r"^shorts$"),
@@ -125,15 +126,24 @@ def meta_items(items: list[dict], form: str) -> list[str]:
             if of_form(i, form) and i["status"] == "done" and str(i.get("ref", "")).startswith("meta:")]
 
 
+def ledger_items(path: Path, named: bool) -> list[dict] | None:
+    """The ledger's items. The default ledger absent (a computer without the author's research, README Quick start) = no
+    items, said on stderr; a ledger named by --ledger or RESEARCH_LEDGER absent = None: the caller stops (exit 2)."""
+    if path.exists(): return load(path)
+    if named: print(f"research_gate: no ledger at {path}", file=sys.stderr); return None
+    print(f"research_gate: no research ledger on this computer ({path}; RESEARCH_LEDGER names one): 0 items", file=sys.stderr)
+    return []
+
+
 def main(argv: list[str]) -> int:
-    ledger = LEDGER
+    ledger, named = LEDGER, LEDGER_SET or "--ledger" in argv
     if "--ledger" in argv: i = argv.index("--ledger"); ledger = Path(argv[i + 1]); argv = argv[:i] + argv[i + 2:]
     report = None
     if "--report" in argv: i = argv.index("--report"); report = Path(argv[i + 1]); argv = argv[:i] + argv[i + 2:]
     if len(argv) != 1 or argv[0] not in FORMS:
         print("usage: research_gate.py <long|shorts|thumbs> [--ledger path] [--report film_check.json]", file=sys.stderr); return 2
-    if not ledger.exists(): print(f"research_gate: no ledger at {ledger}", file=sys.stderr); return 2
-    items = load(ledger)
+    items = ledger_items(ledger, named)
+    if items is None: return 2
     if report is not None:
         try: bad, info = report_problems(items, argv[0], json.loads(report.read_text(encoding="utf-8")))
         except (OSError, ValueError) as e: print(f"research_gate: bad report {report}: {e}", file=sys.stderr); return 2

@@ -118,9 +118,10 @@ the checkout from its own location. Chrome is expected at `/usr/bin/google-chrom
 Nothing below needs your accounts; publishing to LinkedIn or YouTube is a separate, opt-in step.
 
 ```bash
+sudo apt install git curl xz-utils cmake build-essential poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol   # + Node 24 (nodejs.org), Google Chrome
 git clone https://github.com/kamiljan11/video-pipeline && cd video-pipeline
-sudo apt install git curl cmake build-essential poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol   # + Node 24 (nodejs.org), Google Chrome
 bash install/ffmpeg.sh                  # ffmpeg 8 into ~/.local/bin, sha256-checked (Ubuntu 24.04 apt has 6.1, too old)
+export PATH="$HOME/.local/bin:$PATH"    # this shell; new logins add ~/.local/bin by themselves (~/.profile) once it exists
 mkdir -p ~/.local/share/fonts && cp fonts/Montserrat-VF.ttf ~/.local/share/fonts/ && fc-cache -f   # captions find the font by name
 npm ci
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
