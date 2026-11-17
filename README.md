@@ -134,6 +134,9 @@ bash run_v4.sh <project>/work <project>/out long short1
 A git worktree is a checkout of its own: give it `node_modules` (`npm ci`, or `ln -s <main checkout>/node_modules`), and
 `.venv` and `models/` the same way, before it renders.
 
+In Docker, Chrome needs `--security-opt seccomp=unconfined` (its sandbox stays on: the web cards load pages from the
+internet) and `--shm-size=2g`; run as a normal user, not root. `install/check.sh` says which one is missing.
+
 A project directory holds the recording, `words.json` (transcript), `plan_<film>.json` and `gfx_specs.json`; renders
 and caches go to `render/` (ignored by git). Recordings, transcripts and renders are never committed.
 

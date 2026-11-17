@@ -29,9 +29,9 @@ jobs:
       - name: Installers as a stranger meets them (shellcheck; ffmpeg.sh rerun skips, repairs a missing ffprobe; model URLs answer)
         run: |
           shellcheck -S warning install/*.sh run_v4.sh run_whisper.sh
-          bash install/ffmpeg.sh "$HOME/.local/bin" | tee /dev/stderr | grep -q 'already in'
+          o=$(bash install/ffmpeg.sh "$HOME/.local/bin"); echo "$o"; grep -q 'already in' <<<"$o"
           rm "$HOME/.local/bin/ffprobe"
-          bash install/ffmpeg.sh "$HOME/.local/bin" | grep -vq 'already in'
+          o=$(bash install/ffmpeg.sh "$HOME/.local/bin"); echo "$o"; if grep -q 'already in' <<<"$o"; then echo 'FAILED: a missing ffprobe was not reinstalled'; exit 1; fi
           "$HOME/.local/bin/ffprobe" -version | head -1
           bash install/fetch_models.sh --check-urls
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
