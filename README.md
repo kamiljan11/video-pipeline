@@ -154,8 +154,9 @@ and measured by hand (`/usr/bin/time -v ffmpeg ...`). Why the card inputs carry 
 
 ## Install with Claude Code
 
-The pipeline is a Linux tool (developed on Ubuntu 26.04). Nobody has installed it on another machine yet, so expect a
-few fixes. The quickest route is to let an AI coding agent do the setup on your machine: open
+The pipeline is a Linux tool (developed on Ubuntu 26.04). The "Quick start" steps were run on a clean Ubuntu 24.04
+(Docker, a user without the author's files, 2026-11-17): `install/check.sh` said "ready", 181 JS and 886 Python tests passed.
+No full film was rendered there, so a first real render may still need a fix. The quickest route is to let an AI coding agent do the setup on your machine: open
 [Claude Code](https://claude.com/claude-code) in an empty directory and paste the prompt below. On Windows, run it
 inside WSL2 (Ubuntu); native Windows is not supported.
 

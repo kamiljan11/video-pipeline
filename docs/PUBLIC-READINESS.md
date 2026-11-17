@@ -8,15 +8,15 @@ clone, documented install, tests pass on a clean box, every download pinned and 
 
 | # | Dimension | Weight | Start 2026-11-17 | Target | Now | Biggest gap |
 |---|---|---|---|---|---|---|
-| 1 | Paths work from any checkout | 3 | 2 | 9 | 2 | `/home/kamil-jan/video-pipeline` in ~25 code sites (Python, shell, `gfx/*.mjs` imports) |
-| 2 | Fonts ship with the repo | 2 | 3 | 9 | 3 | cards load Montserrat from the author's `~/.local/share/fonts` |
-| 3 | Install proven on a clean machine | 3 | 0 | 8 | 0 | never installed anywhere else (README says so) |
+| 1 | Paths work from any checkout | 3 | 2 | 9 | 9 | none in code (clean-box grep); `research_gate` default ledger stays the author's, absent = 0 items |
+| 2 | Fonts ship with the repo | 2 | 3 | 9 | 9 | Montserrat VF vendored (OFL); DejaVu from apt |
+| 3 | Install proven on a clean machine | 3 | 0 | 8 | 8 | clean Ubuntu 24.04 run green; no full film rendered there |
 | 4 | No secrets in history | 3 | 8 | 9 | 8 | gitleaks clean with 5 reviewed false positives; label `gitleaks-ignore-reviewed` pending |
 | 5 | No private or third-party data | 2 | 7 | 8 | 7 | client theme `style/themes/cetus.json` (owner's call); author photo excluded from the licence |
-| 6 | Every download pinned and checked | 2 | 7 | 9 | 7 | whisper model and YuNet without a full sha256 to compare |
-| 7 | Docs written for a stranger | 2 | 6 | 8 | 6 | "Quick start" asks to symlink or grep the author's path |
+| 6 | Every download pinned and checked | 2 | 7 | 9 | 9 | whisper.cpp source pinned by commit, not hash-checked |
+| 7 | Docs written for a stranger | 2 | 6 | 8 | 8 | no docs/ARCHITECTURE.md (ADRs cover decisions) |
 | 8 | Outward actions off by default | 2 | 8 | 8 | 8 | (LinkedIn, blog PR, YouTube: dry run unless `--confirm` / `--publish`) |
-| 9 | CI green on the public branch | 3 | 4 | 9 | 4 | PR #11: `secrets` waits for the label, `test` pending |
+| 9 | CI green on the public branch | 3 | 4 | 9 | 7 | runs installers + URL check; PR #11 waits for the owner's label and merge |
 
 Chrome at `/usr/bin/google-chrome` stays: it is where Google's `.deb` installs it on every Ubuntu.
 
@@ -30,3 +30,7 @@ Chrome at `/usr/bin/google-chrome` stays: it is where Google's `.deb` installs i
 ## Log
 
 - 2026-11-17: rubric written; history audit of all refs: 0 recordings, transcripts, plans or env files ever committed, 0 personal data markers.
+- 2026-11-17: feat/portable-install: no author paths, vendored font, `install/` (ffmpeg, models, check), clean ubuntu:24.04
+  run (user `tester`): check.sh "ready", npm 181/181, python 886 OK. The runs found and fixed: ffmpeg.sh never skipping a
+  reinstall, Chrome's sandbox and `/dev/shm` in Docker (now told by check.sh), DejaVu fonts missing on a server image, a test
+  that needed the optional matte/.venv. pg-review T2 (code, ops, product): APPROVE.
