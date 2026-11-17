@@ -1,10 +1,11 @@
 // node gfx/carousel.mjs <linkedin.json> <out.pdf>: the "carousel" of a LinkedIn post spec as a PDF, one 1080x1350 page
 // per slide (ADR-0009). Theme: theme.json next to the spec, like the cards (gfx/theme_lib.mjs). A text that does not fit
 // its slide stops the render by name instead of being cut off in the PDF.
-import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
+import { chromium } from 'playwright-core';
 import fs from 'fs'; import path from 'path';
 import { pdfPages, slidesHtml, themeCss } from './carousel_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
+import { FONT_URL } from './font.mjs';
 
 const [specFile, outFile] = process.argv.slice(2);
 if (!specFile || !outFile) { console.error('usage: node gfx/carousel.mjs <linkedin.json> <out.pdf>'); process.exit(2); }
@@ -15,7 +16,7 @@ try {
   const rules = JSON.parse(fs.readFileSync(path.join(GFX, '..', 'style', 'linkedin.json'), 'utf8'));
   spec = JSON.parse(fs.readFileSync(specFile, 'utf8'));
   const body = slidesHtml(spec?.carousel?.slides, rules.author, path.dirname(path.resolve(specFile)));
-  html = fs.readFileSync(path.join(GFX, 'carousel.html'), 'utf8')
+  html = fs.readFileSync(path.join(GFX, 'carousel.html'), 'utf8').replace('__FONT_URL__', FONT_URL)  // the page is written next to the PDF, so the font needs a full URL
     .replace('</style>', () => `${themeCss(loadTheme(specFile))}</style>`).replace('<body></body>', () => `<body>${body}</body>`);  // functions: a "$&" in slide text stays text
 } catch (e) { fail(e.message); }
 

@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-LEDGER = Path(os.environ.get("RESEARCH_LEDGER", "/home/kamil-jan/Dane/creator-study/round2/ledger.jsonl"))
+LEDGER = Path(os.environ.get("RESEARCH_LEDGER", str(Path.home() / "Dane" / "creator-study" / "round2" / "ledger.jsonl")))
 FORMS = {  # ledger "form" text -> the film form it changes
     "long": (r"^Long\b", r"^P1 — long", r"^long$"),
     "shorts": (r"^Shorts\b", r"^P2 — shorty", r"^shorts$"),

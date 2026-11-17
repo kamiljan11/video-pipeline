@@ -28,6 +28,8 @@ test('a scene is rendered again when scene_lib.mjs changes (its source is in the
   // a copy of gfx/ whose scene_lib.mjs gets one more byte: same spec, other library = a new .mov
   const copy = path.join(work, 'gfxcopy');
   fs.cpSync(GFX, copy, { recursive: true, filter: f => !/\/(test|test_out)(\/|$)/.test(f.slice(GFX.length)) });
+  // a copy of gfx/ is a checkout of its own: node_modules (playwright-core, gsap) and fonts/ sit next to it, as in a worktree
+  for (const d of ['node_modules', 'fonts']) if (!fs.existsSync(path.join(work, d))) fs.symlinkSync(path.join(GFX, '..', d), path.join(work, d));
   const sc = { id: 'lib1', type: 'scene', dur: 0.4, cam: 'none', pip: false, els: [{ k: 'text', x: 100, y: 100, t: 'raz', at: 0 }] };
   const first = render(sc, copy);
   assert.equal(render(sc, copy), first, 'the same spec and library were rendered again');

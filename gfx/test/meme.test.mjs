@@ -84,6 +84,8 @@ test('an unknown meme or too many words stop the card by name', { skip: !fs.exis
 test('a meme is rendered again when its drawing code changes (MEME_BOX, template.html)', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
   const copy = path.join(work, 'gfxcopy');
   fs.cpSync(GFX, copy, { recursive: true, filter: f => !/\/(test|test_out)(\/|$)/.test(f.slice(GFX.length)) });
+  // a copy of gfx/ is a checkout of its own: node_modules (playwright-core, gsap) and fonts/ sit next to it, as in a worktree
+  for (const d of ['node_modules', 'fonts']) if (!fs.existsSync(path.join(work, d))) fs.symlinkSync(path.join(GFX, '..', d), path.join(work, d));
   fs.cpSync(path.join(GFX, '..', 'style'), path.join(work, 'style'), { recursive: true });  // render.mjs reads ../style next to its gfx/
   const key = () => {
     const specFile = path.join(work, 'mk.json'); fs.writeFileSync(specFile, JSON.stringify([{ id: 'mk', type: 'meme', canvas: 'v', dur: 0.5, meme: 'red', text: ['T'] }]));
