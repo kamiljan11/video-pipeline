@@ -9,7 +9,8 @@ before it froze; the recording itself is clean apart from 48 single frames the p
   - timestamps not constant (a frame shown longer or shorter than 1/fps by more than 1 ms): a stutter in any player
   - keyframe pulse: the median over keyframes that are not cuts of (change into the keyframe / median change of the 12
     frames around it) above --pulse-max (crf 30 preview 2.31, crf 22 preview 1.42, final medium crf 18 1.36)
-  - doubled frames: a frame equal to the one before while the picture around it moves, more than --dup-max per minute
+  - doubled frames: a frame equal to the one before while the picture moves into it and on right after (not a still
+    picture that starts or stops moving, not a black frame between fades), more than --dup-max per minute
 The picture is compared at 40x22 grey (motion of the whole frame, not codec noise); a change above CUT is a cut.
 """
 import argparse
@@ -23,6 +24,7 @@ import numpy as np
 W, H = 40, 22
 CUT = 4.0          # mean grey change per pixel: a cut, not motion
 STILL = 0.02       # below this two frames are the same picture
+FLAT = 2.0         # grey std of a frame below this = one colour (black between two fades): nothing to freeze
 MOVING = 0.3       # the median change around a frame above this = the picture moves
 TS_TOL = 0.001     # seconds
 
@@ -48,9 +50,12 @@ def pulse(d: np.ndarray, keys: list[int]) -> "tuple[float, list[int]]":
     return (float(np.median(ratios)) if ratios else 0.0), used
 
 
-def doubled(d: np.ndarray) -> list[int]:
-    """frames equal to the one before while the frames around them move"""
-    return [i + 1 for i in range(len(d)) if d[i] < STILL and np.median(around(d, i)) > MOVING]
+def doubled(d: np.ndarray, flat: "np.ndarray | None" = None) -> list[int]:
+    """frames equal to the one before in the middle of motion: the picture moved into it and moves on right after.
+    Not a freeze (dry3, 71 -> 0 after looking at each): the last still frame before a move starts, the first one after it
+    ends, and a flat picture (a dip to black between two fades; flat[i] = True for frame i)"""
+    return [i + 1 for i in range(1, len(d) - 1)
+            if d[i] < STILL and d[i - 1] > MOVING and d[i + 1] > MOVING and not (flat is not None and flat[i + 1])]
 
 
 def uneven(ts: list[float], fps: float) -> list[float]:
@@ -80,12 +85,15 @@ def main(argv: list[str]) -> int:
     ap.add_argument("film"); ap.add_argument("--pulse-max", type=float, default=1.8); ap.add_argument("--dup-max", type=float, default=1.0)
     a = ap.parse_args(argv)
     fps, ts, keys = probe(a.film)
-    d = changes(grey(a.film)); mins = max(len(d) / fps / 60, 1e-6)
+    frames = grey(a.film)
+    if len(frames) < 2: print(f"FAIL smooth: {a.film} has {len(frames)} decodable frame(s)"); return 1
+    d = changes(frames); mins = max(len(d) / fps / 60, 1e-6)
     bad = []
     if odd := uneven(ts, fps): bad.append(f"{len(odd)} frame(s) not 1/{fps:g} s apart, first at {odd[:5]} s")
     p, used = pulse(d, keys)
+    if not used: print(f"WARN smooth: keyframe pulse not measurable ({len(keys)} keyframes, all cuts, still or at the edges)")
     if p > a.pulse_max: bad.append(f"keyframe pulse {p:.2f}x over {len(used)} keyframes > {a.pulse_max}: raise the encode quality (assemble.py SEG_ENC/OUT_ENC)")
-    dup = doubled(d)
+    dup = doubled(d, frames.reshape(len(frames), -1).std(axis=1) < FLAT)
     if len(dup) / mins > a.dup_max: bad.append(f"{len(dup)} doubled frames ({len(dup) / mins:.1f}/min > {a.dup_max}), first at {[round(i / fps, 2) for i in dup[:5]]} s")
     print(f"smooth_check {a.film}: {fps:g} fps, {len(d) + 1} frames, pulse {p:.2f}x ({len(used)} keyframes), doubled {len(dup)}")
     for b in bad: print(f"FAIL smooth: {b}")

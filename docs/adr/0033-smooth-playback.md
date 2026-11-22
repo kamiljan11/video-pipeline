@@ -6,7 +6,10 @@ Data: 2026-11-22 | Status: przyjęte | Drzwi: dwukierunkowe | Przegląd: po peł
 (`smooth_check.py`, różnica sąsiednich klatek w 40x22 szarości):
 - źródło (S25 Ultra, VFR): 0–300 s = 60 fps z 48 pojedynczymi zgubionymi klatkami, od 300,1 s do końca = 30 fps (4 nierówności);
 - podgląd (ultrafast crf 30): co 8,33 s (keyint 250) klatka kluczowa zmienia obraz 2,81x bardziej niż klatki obok;
-- 71 podwojonych klatek, wszystkie wewnątrz kart-scen (animacja karty, nie wideo);
+- 71 „podwojonych” klatek według pierwszej wersji pomiaru; po obejrzeniu każdej: 57 to ostatnia nieruchoma klatka przed
+  ruchem albo pierwsza po nim, 12 to czarna klatka między dwoma przenikaniami, 2 to pasek wykresu rosnący wolniej niż
+  rozdzielczość pomiaru. Prawdziwego zamrożenia w ruchu: 0. Pomiar poprawiony (ruch tuż przed i tuż po, obraz niepłaski):
+  ten sam plik daje 2;
 - zgubiona klatka źródła + `fps=30` = jedna klatka przesunięta o ±16 ms (np. 4,707 s), tylko w pierwszych 5 min.
 
 **Decyzja:**
@@ -16,6 +19,9 @@ Data: 2026-11-22 | Status: przyjęte | Drzwi: dwukierunkowe | Przegląd: po peł
 3. Bez przekodowania nagrania do CFR na wejściu: `fps=30` w `assemble.py` już daje CFR na wyjściu, a zgubionej przez
    telefon klatki nie odtworzy żadne przekodowanie (zostaje dziura albo duplikat). Koszt: ~1 h i ~30 GB na 28 GB pliku 4K
    przy zysku ±16 ms na 48 klatkach.
+
+**Koszt cykliczny:** podgląd ~1 GB na 30 min filmu zamiast ~0,35 GB (crf 18 vs 30), czas kodowania bez zmian (ultrafast);
+`smooth_check` po każdym renderze: jeden dekod całego filmu w 40x22 + ffprobe klatek (~3 min na 31 min filmu na laptopie).
 
 **Odrzucone:** interpolacja ruchu (`minterpolate`) w miejscach zgubionych klatek: artefakty na twarzy, wolne; krótszy GOP
 (keyint 60): puls częstszy, nie mniejszy (zmierzone 2,91x).

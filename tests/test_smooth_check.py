@@ -47,6 +47,16 @@ class Doubled(unittest.TestCase):
         d = np.zeros(300)
         self.assertEqual(sc.doubled(d), [])
 
+    def test_a_move_that_starts_or_stops_is_not_doubled_frames(self):
+        d = np.r_[np.zeros(50), moving(50) + 0.5, np.zeros(50)]  # hold, move, hold (dry3: 57 of 71)
+        self.assertEqual(sc.doubled(d), [])
+
+    def test_a_black_frame_between_two_fades_is_not_doubled(self):
+        d = moving(100) + 0.5; d[50] = 0.0
+        flat = np.zeros(101, bool); flat[51] = True  # frame 51 equals frame 50, both black
+        self.assertEqual(sc.doubled(d, flat), [])
+        self.assertEqual(sc.doubled(d), [51])
+
 
 class Uneven(unittest.TestCase):
     def test_constant_rate_passes_and_a_gap_is_named(self):
@@ -54,6 +64,18 @@ class Uneven(unittest.TestCase):
         self.assertEqual(sc.uneven(ts, 30), [])
         ts2 = ts[:50] + [t + 1 / 30 for t in ts[50:]]  # one frame shown twice as long
         self.assertEqual(sc.uneven(ts2, 30), [round(ts[49], 3)])
+
+
+class Unmeasurable(unittest.TestCase):
+    def test_a_still_film_warns_that_the_pulse_was_not_measured(self):
+        f = Path(tempfile.mkdtemp()) / "still.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=gray:size=160x90:rate=30:duration=3",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(f)], check=True)
+        from io import StringIO
+        from unittest import mock
+        with mock.patch("sys.stdout", new=StringIO()) as out:
+            self.assertEqual(sc.main([str(f)]), 0)
+        self.assertIn("WARN smooth: keyframe pulse not measurable", out.getvalue())
 
 
 class OnAFile(unittest.TestCase):
