@@ -23,7 +23,10 @@
    "metric": "parts_with_explainer",
    "op": "==",
    "value": "all",
-   "why": "Kamil 4.11: 'najbardziej mi zależy na graficznym animowanym pokazywaniu moich pomysłów'; each part has a scene, float, slide or web card"
+   "why": "Kamil 4.11: 'najbardziej mi zależy na graficznym animowanym pokazywaniu moich pomysłów'; each part has a scene, float, slide or web card",
+   "podcast": {
+    "off": "a conversation of two people, no drawn explainers (Kamil 2026-11-22 (podcast Dworak): 'trzeba zmienic sposob w jaki rysujemy rzeczy ... to jest podcast dwoch osob'; chosen: minimal graphics (chapters, names, CTA, end, a few memes and punchlines), faces on screen)"
+   }
   },
   {
    "id": "long.explainer_count",
@@ -31,7 +34,10 @@
    "metric": "explainers_per_min",
    "op": ">=",
    "value": 0.5,
-   "why": "One animated explanation every 2 minutes at least (AI LABS reference: a new picture every few seconds)"
+   "why": "One animated explanation every 2 minutes at least (AI LABS reference: a new picture every few seconds)",
+   "podcast": {
+    "off": "a conversation of two people, no drawn explainers (Kamil 2026-11-22 (podcast Dworak): 'trzeba zmienic sposob w jaki rysujemy rzeczy ... to jest podcast dwoch osob'; chosen: minimal graphics (chapters, names, CTA, end, a few memes and punchlines), faces on screen)"
+   }
   },
   {
    "id": "long.graphics",
@@ -39,7 +45,11 @@
    "metric": "graphics_per_min",
    "op": ">=",
    "value": 4,
-   "why": "Film 1: 3.8/min, film 2: 1.5/min ('w ciul pominąłeś'); references 12-16/min"
+   "why": "Film 1: 3.8/min, film 2: 1.5/min ('w ciul pominąłeś'); references 12-16/min",
+   "podcast": {
+    "value": 0.5,
+    "why": "Kamil 2026-11-22 (podcast Dworak): 'trzeba zmienic sposob w jaki rysujemy rzeczy ... to jest podcast dwoch osob'; chosen: minimal graphics (chapters, names, CTA, end, a few memes and punchlines), faces on screen; 0.5/min = chapters, names, CTA, end, memes and punchlines over ~30 min, an editorial floor, not measured"
+   }
   },
   {
    "id": "long.max_gap",
@@ -84,7 +94,10 @@
    "metric": "punches_per_min",
    "op": ">=",
    "value": 2,
-   "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute"
+   "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute",
+   "podcast": {
+    "off": "a conversation of two people: no punch-in on words, the picture changes by the cut to who speaks (research/podcast/VISUAL-LONG.md VL4: 8/9 channels lock their singles, 0/9 punch on words; Kamil 2026-11-22 'zoomy przy gadaniu we dwie osoby ... purposefully')"
+   }
   },
   {
    "id": "long.behind",

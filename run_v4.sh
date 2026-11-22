@@ -121,6 +121,8 @@ for n in "$@"; do
   python3 $VP/capabilities.py check >> "$R/render.log" 2>&1 || { echo "FAILED capabilities map $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   python3 $VP/design_ledger.py check >> "$R/render.log" 2>&1 || { echo "FAILED design_ledger $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # a failed build_edl (e.g. a typo in style/grammar.json) or face_track must not render a stale/unclamped edl_$n.json: no DONE for this film
+  # solo or two people (kind.is_talk): measured once per recording, cached in content_kind.json; needs cv2, so the venv python
+  $PY $VP/content_kind.py . plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED content_kind $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   python3 $VP/build_edl.py plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED build_edl $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   $PY $VP/face_track.py edl_$n.json >> "$L" 2>&1 || { echo "FAILED face_track $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   for it in 1 2 3; do
@@ -178,6 +180,7 @@ for n in "$@"; do
   tl assemble "$n"
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" && preview "$n" "$f" \
     && { tl "check av $n"; python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
+    && { tl "check smooth $n"; $PY $VP/smooth_check.py "$R/$n/$f" >> "$R/render.log" 2>&1 || { echo "FAILED smooth_check $n" >> "$R/render.log"; false; }; } \
     && sound_key "$n" "$R/$n/$f" \
     && { [ "$SAME" = 1 ] || { tl "check sync $n"; python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; }; } \
     && tl "check lips $n" && lips_ok "$n" "$R/$n/$f" \

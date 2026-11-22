@@ -25,7 +25,7 @@ import podcast_faces as pf
 import podcast_shots
 import timeline
 
-CFG = podcast_shots.load_cfg()
+CFG = podcast_shots.load_cfg({"drift_min_s": 2.0})  # drift mechanics on short test pieces; the repo default (8 s) has its own test
 FACES = {"0.000-60.000": {"L": [0.20, 0.30, 0.08, 0.15], "R": [0.70, 0.32, 0.08, 0.15]}}
 
 
@@ -131,10 +131,108 @@ class Reframe(unittest.TestCase):
         self.assertAlmostEqual(short["b"] - short["a"], round(c["drift_per_s"] * 3.0, 3), places=6)
         self.assertAlmostEqual(long_["b"] - long_["a"], c["single_drift"], places=6)
 
-    def test_vertical_singles_stay_still(self):
+    def test_vertical_singles_keep_the_build_edl_zoom(self):  # short.punch: the punch-ins of the words stay in 9:16
         w, s = words_of([("L", 10), ("R", 10)])
-        E, _, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 20.0),)), s, w, FACES, CFG)
-        self.assertTrue(all(not isinstance(p.get("zoom"), dict) for p in E["segments"]))
+        E0 = edl(vertical=True, segs=((0.0, 20.0),))
+        E0["segments"][0]["zoom"] = {"a": 1.0, "b": 1.12, "t0": 12.0, "t1": 12.3}  # a punch in R's part
+        E, _, _ = podcast.reframe(E0, s, w, FACES, CFG)
+        singles = [p for p in E["segments"] if p["shot"] in ("L", "R")]
+        self.assertEqual(singles[0]["zoom"], 1.0)  # the punch starts after L's piece ends: its start level
+        z = singles[-1]["zoom"]; off = singles[-1]["in"]
+        self.assertEqual((z["t0"], z["t1"]), (round(12.0 - off, 3), round(12.3 - off, 3)))
+        self.assertTrue(all(not isinstance(p.get("zoom"), dict) or p["zoom"]["a"] >= 1 for p in E["segments"]))
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+
+    def test_long_single_keeps_a_word_punch_on_its_own_level(self):  # long.punch: emph punches survive the reframe
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl()
+        E0["segments"][0]["zoom"] = {"a": 1.0, "b": 1.12, "t0": 14.0, "t1": 14.3}  # build_edl emph in R's part
+        E, _, _ = podcast.reframe(E0, s, w, FACES, CFG)
+        r = next(p for p in E["segments"] if p["shot"] == "R")
+        z0 = CFG["single_zoom"]
+        self.assertEqual((r["zoom"]["a"], r["zoom"]["b"]), (round(z0, 4), round(z0 * 1.12, 4)))
+        self.assertEqual((r["zoom"]["t0"], r["zoom"]["t1"]), (round(14.0 - r["in"], 3), round(14.3 - r["in"], 3)))
+        l1 = next(p for p in E["segments"] if p["shot"] == "L")
+        self.assertEqual(l1["zoom"]["a"], z0)  # no punch there: the slow drift
+        self.assertFalse(podcast.is_punch({"a": 1.0, "b": 1.05, "t0": 0.0, "t1": 9.0}))
+        self.assertTrue(podcast.is_punch({"a": 1.0, "b": 1.0, "t0": 0.0, "t1": 9.0, "keys": [[0, 1.0], [2, 1.2]]}))
+
+    def test_word_punches_go_on_their_piece_and_never_under_a_card(self):  # long.punch in podcast mode
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl()
+        # build_edl podcast: film times; 13 s and 16 s in R's piece, 25 s in L's piece but a side card covers 24-30 s
+        E0["word_punches"] = [{"t": 13.0, "amt": 0.11, "speed": 0.3}, {"t": 16.0, "amt": 0.2, "speed": 0.3},
+                              {"t": 25.0, "amt": 0.11, "speed": 0.3}]
+        E0["punch_off"] = [[24.0, 30.0]]
+        E, _, rep = podcast.reframe(E0, s, w, FACES, CFG)
+        r = next(p for p in E["segments"] if p["shot"] == "R")
+        z0, t13 = CFG["single_zoom"], round(13.0 - r["in"], 3)
+        self.assertEqual(r["zoom"]["keys"][:3], [[0.0, z0], [t13, z0], [round(t13 + 0.3, 3), round(z0 * 1.11, 4)]])
+        self.assertEqual(r["zoom"]["keys"][-1], [round(16.0 - r["in"] + 0.3, 3), round(z0 * 1.2, 4)])
+        self.assertEqual((rep["punches"], rep["punch_under_card"]), (2, 1))
+        last = E["segments"][-1]
+        self.assertFalse(isinstance(last["zoom"], dict) and last["zoom"].get("keys"))  # under the card: the slow drift only
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+        import film_check
+        self.assertEqual(len([t for t in film_check.punches({"segments": [r]})]), 2)  # every keyed push in counts
+
+    def test_vertical_punches_skip_a_card_and_every_punch_is_accounted(self):  # 9:16 podcast short
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl(vertical=True)
+        E0["word_punches"] = [{"t": 13.0, "amt": 0.11, "speed": 0.3}, {"t": 25.0, "amt": 0.11, "speed": 0.3},
+                              {"t": 29.9, "amt": 0.11, "speed": 0.3}]  # the last one cannot finish before the end
+        E0["punch_off"] = [[24.0, 28.0]]
+        E, _, rep = podcast.reframe(E0, s, w, FACES, CFG)
+        self.assertEqual(rep["punch_under_card"], 1)
+        self.assertEqual(rep["punches"] + rep["punch_under_card"] + rep["punch_skipped"], 3)
+        self.assertGreaterEqual(rep["punch_skipped"], 1)
+        f0 = 0.0
+        for p in E["segments"]:
+            f1 = f0 + p["out"] - p["in"]
+            if f0 <= 25.0 < f1: self.assertFalse(isinstance(p["zoom"], dict) and p["zoom"].get("keys"))
+            f0 = f1
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+
+    def test_a_card_later_in_the_piece_brings_the_shot_back_to_its_level(self):
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl()
+        E0["word_punches"] = [{"t": 12.0, "amt": 0.2, "speed": 0.3}]
+        E0["punch_off"] = [[16.0, 19.0]]  # a side card 4 s after the word, inside R's piece
+        E, _, rep = podcast.reframe(E0, s, w, FACES, CFG)
+        r = next(p for p in E["segments"] if p["shot"] == "R")
+        z0, c = CFG["single_zoom"], round(16.0 - r["in"], 3)
+        self.assertEqual(r["zoom"]["keys"][-2:], [[round(c - 0.034, 3), round(z0 * 1.2, 4)], [c, z0]])
+        self.assertEqual(rep["punches"], 1)
+        self.assertTrue(edl_guard.segment_ok(r))
+
+    def test_one_word_punch_is_a_plain_move_and_none_keeps_the_level(self):
+        self.assertEqual(podcast.word_punches(1.8, []), 1.8)
+        self.assertEqual(podcast.word_punches(1.0, [{"t": 2.0, "amt": 0.2, "speed": 0.3}]), {"a": 1.0, "b": 1.2, "t0": 2.0, "t1": 2.3})
+        cap = podcast.word_punches(1.8, [{"t": 2.0, "amt": 0.9, "speed": 0.3}])
+        assert isinstance(cap, dict)
+        self.assertEqual(cap["b"], round(1.8 * podcast.PUNCH_MAX, 4))
+
+    def test_shift_zoom_moves_times_or_settles_on_a_level(self):
+        z = {"a": 1.0, "b": 1.2, "t0": 5.0, "t1": 5.3}
+        self.assertEqual(podcast.shift_zoom(z, 0.0, 10.0), z)
+        self.assertEqual(podcast.shift_zoom(z, 6.0, 4.0), 1.2)  # over before the piece: its end level
+        self.assertEqual(podcast.shift_zoom(z, 1.0, 3.0), 1.0)  # starts after the piece ends: its start level
+        self.assertEqual(podcast.shift_zoom(z, 2.0, 8.0), {"a": 1.0, "b": 1.2, "t0": 3.0, "t1": 3.3})
+        k = podcast.shift_zoom({"a": 1.0, "b": 1.2, "t0": 0.0, "t1": 1.0, "keys": [[0.0, 1.0], [4.0, 1.2]]}, 1.5, 5.0)
+        assert isinstance(k, dict)
+        self.assertEqual(k["keys"], [[-1.5, 1.0], [2.5, 1.2]])
+        self.assertEqual(podcast.shift_zoom(1.1, 3.0, 2.0), 1.1)
+
+    def test_no_stack_under_a_vertical_card(self):
+        w, s = words_of([("L", 5), ("R", 1.5), ("L", 1.5), ("R", 1.5), ("L", 6)])
+        tmp = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, tmp, True)
+        E, _, rep = podcast.reframe(edl(vertical=True, segs=((0.0, 15.5),), overlays=[{"at": 4.0, "dur": 8.0, "id": "k"}],
+                                        specs={"k": {"type": "scene", "canvas": "v", "layout": "split"}}, tmp=tmp), s, w, FACES, CFG)
+        self.assertFalse([p for p in E["segments"] if p["shot"] == "stack"])
+        self.assertGreater(rep["stack_under_card"], 0)
+        E2, _, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 15.5),), overlays=[{"at": 4.0, "dur": 8.0, "id": "e"}],
+                                       specs={"e": {"type": "end", "canvas": "v"}}, tmp=tmp), s, w, FACES, CFG)
+        self.assertTrue([p for p in E2["segments"] if p["shot"] == "stack"])  # an end board does not count
 
     def test_split_keeps_the_frame_count(self):
         w, s = words_of([("L", 7.3), ("R", 9.1), ("L", 13.6)])
@@ -157,7 +255,7 @@ class Reframe(unittest.TestCase):
         st = [p for p in E["segments"] if p["shot"] == "stack"]
         self.assertTrue(st)
         self.assertEqual(st[0]["stack"], [[0.24, 0.375], [0.74, 0.395]])
-        self.assertTrue(all(p["zoom"] == 1.0 for p in E["segments"]))
+        self.assertTrue(all(p["zoom"] == 1.0 for p in st))  # a stack has its own panel zoom (stack_zoom)
         self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
 
     def test_no_faces_leaves_the_piece(self):
@@ -278,6 +376,13 @@ class Guard(unittest.TestCase):
         self.assertFalse(edl_guard.framing_ok({**base, "stack_zoom": 0.5}))
 
 
+class RepoDefaults(unittest.TestCase):
+    def test_a_long_single_under_8_s_holds_still(self):  # style/podcast.json drift_min_s, Kamil 2026-11-22 "purposefully"
+        cfg = podcast_shots.load_cfg()
+        self.assertEqual(podcast.single_drift(1.8, 5.0, cfg, 0), 1.8)
+        self.assertIsInstance(podcast.single_drift(1.8, cfg["drift_min_s"] + 1, cfg, 0), dict)
+
+
 class BuildEdl(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp(prefix="podcast-edl-")); self.addCleanup(shutil.rmtree, self.d, True)
@@ -318,6 +423,33 @@ class BuildEdl(unittest.TestCase):
         self.assertNotIn("words", E)
         cap = next(x for x in (self.d / "subs.ass").read_text().splitlines() if x.startswith("Style: Cap,"))
         self.assertNotEqual(cap.split(",")[21], "900")
+
+    def test_a_16_9_talk_has_no_word_punches(self):  # VISUAL-LONG VL4, Kamil 2026-11-22 "purposefully"
+        r = self.build(podcast=True, emph=[{"word": 1, "amt": 0.11, "speed": 0.3}])
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("left out", r.stdout)
+        E = json.loads((self.d / "edl.json").read_text())
+        self.assertEqual(E.get("word_punches", []), [])
+        self.assertFalse(any(isinstance(s.get("zoom"), dict) for s in E["segments"]))
+
+    def test_podcast_writes_word_punches_and_card_spans_not_segment_zooms(self):  # 9:16 shorts keep them (VISUAL-SHORTS VS5)
+        (self.d / "specs.json").write_text(json.dumps([{"id": "k1", "type": "kw", "text": "x", "dur": 0.5},
+                                                       {"id": "s1", "type": "sticker", "text": "y", "dur": 0.3}]))
+        r = self.build(podcast=True, vertical=True, emph=[{"word": 1, "amt": 0.11, "speed": 0.3}], gfx_specs="specs.json", gfx_dir="gfx",
+                       gfx=[{"id": "k1", "word": 0, "lead": 0.0}, {"id": "s1", "word": 1, "lead": 0.0}])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        E = json.loads((self.d / "edl.json").read_text())
+        self.assertEqual(len(E["word_punches"]), 1)
+        p = E["word_punches"][0]
+        self.assertEqual((p["amt"], p["speed"]), (0.11, 0.3)); self.assertGreaterEqual(p["t"], 0.0)
+        self.assertEqual(len(E["punch_off"]), 1)  # the kw card over the face; the sticker beside the head lets a punch run
+        c0, c1 = E["punch_off"][0]; self.assertAlmostEqual(c1 - c0, 0.5, places=3)
+        self.assertFalse(any(isinstance(s.get("zoom"), dict) for s in E["segments"]))  # podcast.py puts the punch on its piece
+
+    def test_without_podcast_no_word_punches(self):
+        r = self.build(emph=[{"word": 1, "amt": 0.11, "speed": 0.3}])
+        self.assertEqual(r.returncode, 0, r.stderr)
+        E = json.loads((self.d / "edl.json").read_text())
+        self.assertNotIn("word_punches", E); self.assertNotIn("punch_off", E)
 
     def test_bad_value_is_a_named_error(self):
         r = self.build(podcast="yes")

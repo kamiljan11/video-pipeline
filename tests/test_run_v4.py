@@ -50,7 +50,7 @@ class RunV4GateTest(unittest.TestCase):
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
                     "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py", "sound_seen.py",
-                    "review_player.py"):
+                    "review_player.py", "content_kind.py", "smooth_check.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -168,7 +168,7 @@ class RunV4GateTest(unittest.TestCase):
 
     def test_cards_off_the_words_keep_the_film_out_of_out(self):  # sync_check after av_check
         render, calls = self.run_v4(rc=1, FAIL_sync_check="1")
-        self.assertEqual(calls[calls.index("av_check.py") + 1:][:5], ["sound_seen.py", "sound_seen:key", "sound_seen.py", "sound_seen:same", "sync_check.py"])
+        self.assertEqual(calls[calls.index("av_check.py") + 1:][:6], ["smooth_check.py", "sound_seen.py", "sound_seen:key", "sound_seen.py", "sound_seen:same", "sync_check.py"])
         self.assertIn("FAILED sync_check x", render)
         self.assertFalse((self.out / "film.mp4").exists())
 
@@ -220,6 +220,19 @@ class RunV4GateTest(unittest.TestCase):
         self.assertNotIn("assemble.py", calls)
         render, calls = self.run_v4(rc=0, WORDS_CHECK="off", FAIL_words_plan="1")
         self.assertIn("DONE x", render)
+
+    def test_the_kind_is_measured_before_build_edl_and_a_failure_stops_the_film(self):  # ADR-0032
+        render, calls = self.run_v4(DRY="1")
+        self.assertLess(calls.index("content_kind.py"), calls.index("build_edl.py"))
+        (self.tmp / "calls.log").unlink(); (self.vp / "render" / "render.log").unlink()
+        render, calls = self.run_v4(rc=1, FAIL_content_kind="1")
+        self.assertIn("FAILED content_kind x", render)
+        self.assertNotIn("build_edl.py", calls)
+
+    def test_a_film_that_stutters_stays_out_of_out(self):  # U12 2026-11-22: "klatkowanie co pare sekund"
+        render, calls = self.run_v4(rc=1, FAIL_smooth_check="1")
+        self.assertIn("FAILED smooth_check x", render)
+        self.assertIn("smooth_check.py", calls)
 
     def test_open_research_renders_nothing(self):  # research_gate before build_edl (2026-11-08: 0/24 Long items in the long)
         render, calls = self.run_v4(rc=1, FAIL_research_gate="1")
@@ -337,7 +350,7 @@ class RunV4GateTest(unittest.TestCase):
         self.run_v4(DRY="1")
         marks = [ln.split(" ", 1) for ln in (self.work / "timeline.log").read_text().splitlines()]
         self.assertEqual([m[1] for m in marks], ["run dry x", "gfx", "plan x", "beds x", "assemble x", "checks x",  # each check timed apart (2026-11-15: where the hours go)
-                                                  "check av x", "check sync x", "check lips x", "check words_cut x", "check retake x",
+                                                  "check av x", "check smooth x", "check sync x", "check lips x", "check words_cut x", "check retake x",
                                                   "check words_sound x", "check music x", "end "])
         for when, _ in marks:
             self.assertRegex(when, r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d")

@@ -1,5 +1,5 @@
 {
-  "_doc": "Podcast mode (2 people, one wide camera): shot rules read by podcast_shots.py. Numbers are editorial defaults from research/podcast/RESEARCH-*.md (tool defaults, not measured retention); change them here, not in code. Plan key \"podcast\" may override any of them for one film.",
+  "_doc": "Podcast mode (2 people, one wide camera): shot rules read by podcast_shots.py. Numbers are editorial defaults from research/podcast/RESEARCH-*.md (tool defaults, not measured retention); change them here, not in code. Plan key \"podcast\" may override any of them for one film. drift_min_s 8: a slow push only on a single held 8 s or more (VISUAL-LONG.md VL13, DOAC 8-12 s windows; 2 s moved nearly every shot, Kamil 2026-11-22 'purposefully').",
   "hold_s": 2.0,
   "backchannel_s": 1.0,
   "open_wide_s": 4.0,
@@ -12,7 +12,7 @@
   "wide_zoom": 1.0,
   "single_drift": 0.12,
   "drift_per_s": 0.015,
-  "drift_min_s": 2.0,
+  "drift_min_s": 8.0,
   "mouth_ratio": 1.25,
   "detect_fps": 10,
   "face_every_s": 1.0,

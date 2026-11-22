@@ -226,6 +226,7 @@ film_check -> make_beds -> behind -> film_check --phase behind -> assemble). Pro
 | `FAILED scene_check` | `gfx.log`: linie `CLASH <scena>: <a> covers <b>` (exit 124 = Chrome zawisł, limit 600 s) | przesunąć element w specu sceny (`node gfx/scene_check.mjs gfx_specs.json <id>` sprawdza jedną). Fałszywy alarm: `SCENE_CHECK=off bash run_v4.sh …` (w logu zostaje `WARN scene_check off`) |
 | `FAILED gfx <id>: no accepted still` | `gfx.log`; karta filmu z arkuszem (`gfx/stills/scope.json`), karta nowa albo zmieniona po akceptacji | `python3 $VP/stills.py plan_<film>.json --only <id>`, Kamil ogląda `gfx/stills/<id>_still.jpg`, potem `python3 $VP/stills.py accept plan_<film>.json <id>`. Pilne: `STILLS=off bash run_v4.sh …` (w logu `WARN stills gate off`) |
 | `FAILED scene_check rc=124` | limit `SCENE_CHECK_TIMEOUT` (domyślnie 600 s) minął, Chrome zawisł | puścić jeszcze raz; zawisa stale = `node gfx/scene_check.mjs gfx_specs.json` ręcznie i patrzeć, na której scenie staje |
+| `FAILED smooth_check <film>` | `render.log`: `FAIL smooth: keyframe pulse …` / `… doubled frames …` / `… not 1/30 s apart` (`smooth_check.py`, U12 2026-11-22) | puls = kodowanie za słabe (`assemble.py` `SEG_ENC`/`OUT_ENC`, limit 1,8x); podwojone klatki w karcie = animacja karty stoi klatkami (sprawdź kartę w `gfx/`); nierówne czasy = film nie jest CFR (`fps=30` w `assemble.py`). Ręcznie: `.venv/bin/python smooth_check.py <film.mp4>` |
 | `film_check: music ledger … ` (exit 2) | `render/music_ledger.json` (lokalny, poza gitem, pisze go `make_beds.py`) zepsuty | poprawić JSON ręcznie albo usunąć plik (traci się tylko pamięć palet poprzednich filmów; inna maszyna zaczyna z pustym) |
 | `FAILED out` (exit 2, przed jakimkolwiek krokiem) | folder wyników nie istnieje albo nie ma prawa zapisu; względny OUT liczy się od folderu `work` (skrypt robi `cd` do niego) | podać ścieżkę bezwzględną albo `../out` względem `work` |
 | `FAILED research_gate <forma> <film>` (przed filmem) | `render.log`: pozycje rejestru badań formy `todo` albo `done` bez `check:<id>` (ADR-0019) | wprowadzić pozycję do filmu i punktu `film_check`, albo `deferred` z `Kamil:`/`data:`, `rejected` z powodem w `ledger.jsonl`. Pilne: `RESEARCH_GATE=off bash run_v4.sh …` (w logu `RESEARCH_GATE=off: research_gate skipped`) |
@@ -574,11 +575,29 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
 - Long 16:9: `wide` na otwarcie i jako przerywnik co najwyżej co `single_max_s`, potem wycinek mówiącego (`single_zoom`);
   „mhm” krótsze niż `backchannel_s` i odpowiedź krótsza niż `hold_s` nie przełączają. Pod kartą boczną nigdy plan szeroki.
   Wycinek od `drift_min_s` s ma powolny najazd / odjazd na zmianę (`drift_per_s` na sekundę, najwyżej `single_drift`,
-  nigdy szerzej niż `single_zoom`); plan szeroki i 9:16 stoją.
+  nigdy szerzej niż `single_zoom`).
+- Long 16:9 rozmowy: bez punch-inów na słowach (badanie `research/podcast/VISUAL-LONG.md` VL4: 8/9 kanałów trzyma ujęcia, 0/9 najeżdża na słowo;
+  Kamil 2026-11-22 „zoomy ... purposefully”): obraz zmienia cięcie na mówiącego; powolny najazd tylko na ujęciu od `drift_min_s` (8 s). `long.punch` = SKIP z powodem.
+- Punch-iny na słowach w shortach 9:16 (`emph`, `beats`): `build_edl` w trybie podcast nie kładzie ich na swoich kilku długich segmentach
+  (segment trzyma jeden zoom, a punch trzymany do końca 10-minutowego segmentu wszedłby pod każdą kolejną kartę), tylko
+  zapisuje w EDL `word_punches` (czas w filmie, `amt`, `speed`) i `punch_off` (spany kart bocznych, pod którymi zoom nie
+  może jechać). `podcast.py` kładzie je na swoich kawałkach: na słowie skok do poziomu ujęcia i najazd o `amt`
+  (x poziom ujęcia, najwyżej x1,38), trzymany do następnego słowa (powrót na poziom i znowu najazd, klucze `keys`); karta
+  nad słowem albo w `PUNCH_HOLD` s po nim = bez punch-inu, karta dalej w kawałku = powrót na poziom w klatce jej wejścia.
+  Na `stack` nie ma punch-inów. Raport: `punches`, `punch_under_card`, `punch_skipped` (na stacku albo za blisko cięcia, by skończyć ruch); `film_check` liczy każdy najazd z kluczy.
 - Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
-  górze, R na dole (`stack_zoom`). Napisy domyślnie `caption_v` 900, na styku paneli.
+  górze, R na dole (`stack_zoom`), ale nigdy pod kartą 9:16 (boks / kółko pod kartą mieści jedną twarz: tam ujęcie
+  mówiącego, raport `stack_under_card`). Ujęcie jednej osoby w 9:16 trzyma dryf z `build_edl`,
+  przesunięty na początek kawałka (`shift_zoom`), i punch-iny z `word_punches` jak w longu. Napisy domyślnie `caption_v` 900, na styku paneli.
 - Mówcy: `podcast_spk.json` w folderze EDL (liczy się raz). Poprawka ręczna: `podcast_fix.json` `[[t0, t1, "L"], ...]`
   (sekundy nagrania). Po przebiegu: `podcast: N pieces, shots {...}, words without a clear speaker x/y`.
+- Rodzaj materiału system rozpoznaje sam (Kamil 2026-11-22, ADR-0032): `run_v4.sh` przed `build_edl` puszcza `content_kind.py <work> <plan>`
+  (twarze w 24 klatkach z całego nagrania, YuNet, progi w `style/content_kind.json`) i zapisuje `content_kind.json` (`talk` = dwie osoby
+  -> reguły podcastu, `solo` = jedna). `build_edl` i `film_check` czytają to przez `kind.is_talk()`; klucz `"podcast"` w planie wygrywa.
+  Wynik niejasny = reguły solo + `WARN content_kind: not clear` w logu; wtedy `"podcast": true/false` w planie (RUNBOOK).
+- Oprawa podcastu jest minimalna (Kamil 2026-11-22, NOTES_LOG #63): rozdziały, podpisy z imionami, CTA, karta końcowa, kilka memów
+  i puent; bez scen-rysunków, twarze na ekranie. W `style/checklist.json` punkt może mieć klucz `"podcast"`: `{"off": "dlaczego"}`
+  = nie obowiązuje przy planie z `"podcast"` (SKIP z powodem), `{"value": x, "why": ...}` = własny próg (`long.graphics` 0,5/min).
 - Liczby ujęć to dane (`style/podcast.json`), badania: `research/podcast/`. Testy: `tests/test_podcast*.py`.
 
 ## Ekran końcowy shorta (`end` + `canvas: "v"`)

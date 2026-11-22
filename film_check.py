@@ -31,6 +31,7 @@ import gfx_events  # when a piece comes in inside a scene (prompt_shown_at)
 import gfx_types  # next to this script: which card types are a separate screen
 import hook_check  # the 6 hook killers
 import ig_check  # the Instagram carousels and Reel captions (round 2 IG1-IG6)
+import kind as content_kind  # one person or two: which rule set (content_kind.py)
 import manifest  # which pipeline commit made each film and material
 import post_check  # the LinkedIn post graphic alone (OCR) and the text habits
 import research_gate  # research for thumbnails must be in them
@@ -177,6 +178,9 @@ def punches(edl: dict) -> list[float]:
     out = []
     for s, acc in zip(edl["segments"], timeline.starts(edl["segments"], exact(edl)), strict=True):
         z = s.get("zoom")
+        if isinstance(z, dict) and z.get("keys"):  # keyed moves (beat grammar, podcast word punches): every quick push in
+            out += [acc + t0 for (t0, v0), (t1, v1) in itertools.pairwise(z["keys"]) if v1 > v0 + 0.05 and t1 - t0 <= 1.0]
+            continue
         # inside the piece, or a fast punch right on its cut (build_edl emph on a word that opens the piece: t0 = 0,
         # 0.3 s; 2026-11-08 s09 counted 1 of its 3 punches); a slow drift over the whole piece is not a punch
         if isinstance(z, dict) and z.get("b", 0) > z.get("a", 0) + 0.1 and (
@@ -198,7 +202,7 @@ def zoom_steps(edl: dict) -> list[float]:
 
 
 NOT_READ = {"id", "type", "icon", "tone", "k", "bg", "anim", "file", "owner", "layout", "cam", "img", "src", "sfx", "font", "mark",
-            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to", "icons"}  # not read text
+            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to", "icons", "bookend"}  # not read text
 
 
 def read_words(spec) -> int:
@@ -1355,12 +1359,23 @@ def fragment_of(work: Path) -> dict | None:
     return rec if ok else None
 
 
+def talk(obj) -> bool:
+    """two people (kind.is_talk: the plan's "podcast" key, else content_kind.json in the work folder)"""
+    work = getattr(obj, "work", None)
+    return content_kind.is_talk(obj.plan, work) if work is not None else bool(content_kind.from_plan(obj.plan))
+
+
 def judge(obj, item: dict) -> tuple[str, str]:
     skip = (obj.plan.get("skip") or {}).get(item["id"])
     # "no_skip": an item that is itself a list of reasons (the capability map) has no off switch: one sentence on
     # long.capabilities waived every required feature at once (pg-review 2026-11-09 code-1); its "no_skip" says what to do
     if item.get("no_skip") and skip is not None: return "FAIL", f'"skip": {{"{item["id"]}": ...}} is not allowed: {item["no_skip"]}'
     if isinstance(skip, str) and len(skip.strip()) >= SKIP_MIN: return "SKIP", skip.strip()
+    # "podcast": a conversation of two people (plan "podcast", ADR-0031) is not a solo explainer: {"off": why} = not
+    # asked there, {"value": x, "why": ...} = its own threshold (Kamil 2026-11-22: minimal graphics, no drawings)
+    pod = item.get("podcast") if talk(obj) else None
+    if isinstance(pod, dict) and isinstance(pod.get("off"), str): return "SKIP", f"podcast: {pod['off']}"
+    if isinstance(pod, dict) and "value" in pod: item = {**item, "value": pod["value"]}
     fn = getattr(obj, item["metric"], None)
     if fn is None: raise SystemExit(f"film_check: style/checklist.json {item['id']}: unknown metric {item['metric']!r}")
     args = item.get("args", {})  # "args": the metric's own parameters, data like the value
