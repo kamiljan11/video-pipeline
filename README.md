@@ -588,6 +588,13 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
   przesunięty na początek kawałka (`shift_zoom`), i punch-iny z `word_punches` jak w longu. Napisy domyślnie `caption_v` 900, na styku paneli.
 - Mówcy: `podcast_spk.json` w folderze EDL (liczy się raz). Poprawka ręczna: `podcast_fix.json` `[[t0, t1, "L"], ...]`
   (sekundy nagrania). Po przebiegu: `podcast: N pieces, shots {...}, words without a clear speaker x/y`.
+- Rodzaj materiału system rozpoznaje sam (Kamil 2026-11-22): `run_v4.sh` przed `build_edl` puszcza `content_kind.py <work> <plan>`
+  (twarze w 24 klatkach z keeps, YuNet) i zapisuje `content_kind.json` (`talk` = dwie osoby -> reguły podcastu, `solo` = jedna).
+  `build_edl` i `film_check` czytają to przez `kind.is_talk()`; klucz `"podcast"` w planie wygrywa (ręczna poprawka). Wynik niejasny
+  (np. ktoś wychodzi z kadru) = stop z liczbami twarzy, wtedy `"podcast": true/false` w planie.
+- Oprawa podcastu jest minimalna (Kamil 2026-11-22, NOTES_LOG #63): rozdziały, podpisy z imionami, CTA, karta końcowa, kilka memów
+  i puent; bez scen-rysunków, twarze na ekranie. W `style/checklist.json` punkt może mieć klucz `"podcast"`: `{"off": "dlaczego"}`
+  = nie obowiązuje przy planie z `"podcast"` (SKIP z powodem), `{"value": x, "why": ...}` = własny próg (`long.graphics` 0,5/min).
 - Liczby ujęć to dane (`style/podcast.json`), badania: `research/podcast/`. Testy: `tests/test_podcast*.py`.
 
 ## Ekran końcowy shorta (`end` + `canvas: "v"`)

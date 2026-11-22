@@ -121,6 +121,8 @@ for n in "$@"; do
   python3 $VP/capabilities.py check >> "$R/render.log" 2>&1 || { echo "FAILED capabilities map $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   python3 $VP/design_ledger.py check >> "$R/render.log" 2>&1 || { echo "FAILED design_ledger $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   # a failed build_edl (e.g. a typo in style/grammar.json) or face_track must not render a stale/unclamped edl_$n.json: no DONE for this film
+  # solo or two people (kind.is_talk): measured once per recording, cached in content_kind.json; needs cv2, so the venv python
+  $PY $VP/content_kind.py . plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED content_kind $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   python3 $VP/build_edl.py plan_$n.json >> "$R/render.log" 2>&1 || { echo "FAILED build_edl $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   $PY $VP/face_track.py edl_$n.json >> "$L" 2>&1 || { echo "FAILED face_track $n" >> "$R/render.log"; failed="$failed $n"; continue; }
   for it in 1 2 3; do

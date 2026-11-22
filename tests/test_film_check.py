@@ -678,6 +678,23 @@ class FilmCheckTest(unittest.TestCase):
         f.edl = {"overlays": [{"id": "k", "at": 1.0, "dur": 2.0}]}
         self.assertEqual((f.screen_block_median()[0], f.full_screen_min_gap()[0]), (999.0, 999.0))  # none: nothing to fail
 
+    def test_a_podcast_has_its_own_graphics_rules(self):  # Kamil 2026-11-22: two people talking, no drawings
+        sys.path.insert(0, str(ROOT))
+        import film_check
+
+        class Obj:
+            def __init__(self, plan): self.plan = plan
+            def explainers_per_min(self): return 0.0
+            def graphics_per_min(self): return 0.8
+        items = {x["id"]: x for x in json.loads((ROOT / "style/checklist.json").read_text())["items"]}
+        solo, pod = Obj({}), Obj({"podcast": True})
+        self.assertEqual(film_check.judge(solo, items["long.explainer_count"])[0], "FAIL")
+        st, why = film_check.judge(pod, items["long.explainer_count"])
+        self.assertEqual(st, "SKIP"); self.assertTrue(why.startswith("podcast:"))
+        self.assertEqual(film_check.judge(solo, items["long.graphics"])[0], "FAIL")  # 0.8 < 4
+        self.assertEqual(film_check.judge(pod, items["long.graphics"])[0], "OK")  # 0.8 >= 0.5
+        self.assertEqual(film_check.judge(Obj({"podcast": False}), items["long.graphics"])[0], "FAIL")
+
     def test_a_type_error_inside_a_metric_is_not_blamed_on_args(self):
         sys.path.insert(0, str(ROOT))
         import film_check

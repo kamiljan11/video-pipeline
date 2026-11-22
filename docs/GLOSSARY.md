@@ -105,6 +105,7 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **ruch ust** — miara mówcy w `podcast_faces.py`: zmiana obrazu w dolnej części twarzy między klatkami, każda osoba względem swojej mediany.
 - **motyw `dworak`** — kolory kanału ArkadiuszDworak.pl (`style/themes/dworak.json`, wariant ciemny strony); wybór przez `work/theme.json`. Nasze filmy zostają na motywie domyślnym / `cetus`.
 - **`word_punches`** — EDL trybu podcast: `[{t, amt, speed}]` = czasy filmu najazdów na słowa z `emph`; `podcast.py` kładzie je na kawałkach (`build_edl` nie zmienia zoomu segmentów).
+- **rodzaj materiału (`content_kind.json`)** — `solo` (jedna osoba do kamery, reguły jak dotąd) albo `talk` (dwie osoby w jednym kadrze, reguły podcastu). Mierzy `content_kind.py` (24 klatki z keeps, YuNet, twarz >= 8 % wysokości kadru, >= 60 % klatek); czyta `kind.is_talk()`: klucz `"podcast"` w planie wygrywa, bez niego pomiar, bez pomiaru solo.
 - **`punch_off`** — EDL trybu podcast: `[[od, do], ...]` okna kart nad twarzą (`SIDE_BOX`, nie `beside`), pod którymi nie ma najazdu; raport `podcast.py`: `punches`, `punch_under_card` (pod kartą), `punch_skipped` (na stacku albo za blisko cięcia), `stack_under_card`.
 
 ## Objaśnienie jak u arjay (style/REF-shorts-arjay.md, ADR-0028)
