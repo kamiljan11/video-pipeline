@@ -176,7 +176,7 @@ for n in "$@"; do
   # voice 46 ms after the lips, max 65 ms, no other gate compared picture with sound)
   dry=(); [ "${DRY:-}" = 1 ] && dry=(--dry)
   tl assemble "$n"
-  if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" && preview "$n" "$f" \
+  if chrt -i 0 nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" && preview "$n" "$f" \
     && { tl "check av $n"; python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
     && sound_key "$n" "$R/$n/$f" \
     && { [ "$SAME" = 1 ] || { tl "check sync $n"; python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; }; } \
@@ -198,7 +198,7 @@ for n in "$@"; do
   else
     echo "FAILED assemble $n" >> "$R/render.log"; failed="$failed $n"; continue
   fi
-  echo "--- po renderze ---" >> "$L"; nice python3 $VP/critic.py plan_$n.json --video "$OUT/$f" >> "$L" 2>&1
+  echo "--- po renderze ---" >> "$L"; chrt -i 0 nice python3 $VP/critic.py plan_$n.json --video "$OUT/$f" >> "$L" 2>&1
 done
 # the Kdenlive project only from the long rendered in THIS run (never from a stale edl_long.json)
 if [[ "${DRY:-}" != 1 && " $* " == *" long "* && " $failed " != *" long "* ]] && [ -f edl_long.json ]; then
