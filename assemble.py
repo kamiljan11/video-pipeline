@@ -84,6 +84,17 @@ def vf_for(z, face=None, track=None):
     return f"{pre}fps=30,{persp},scale={W}:{H}:flags=lanczos,setsar=1"
 
 
+def stack_vf(stack):
+    """podcast 9:16 "stack" (podcast.py, ADR-0030): person L in the top half, person R in the bottom half, each cut from
+    the recording around its own face (EDL "stack_zoom": recording height / panel crop height), eyes a little above the
+    panel middle; numbers only reach the filter (edl_guard: stack = two number pairs)"""
+    z, ph = float(edl.get("stack_zoom", 1.8)), H // 2
+    ch, cw = f"ih/{z:.4f}", f"ih/{z:.4f}*{W}/{ph}"
+    parts = [f"[p{i}]crop={cw}:{ch}:max(0{E},min(iw-{cw}{E},iw*{float(px):.4f}-{cw}/2)):max(0{E},min(ih-{ch}{E},ih*{float(py):.4f}-{ch}*0.42)),"
+             f"scale={W}:{ph}:flags=lanczos,setsar=1[q{i}]" for i, (px, py) in enumerate(stack)]
+    return f"fps=30,split=2[p0][p1];{parts[0]};{parts[1]};[q0][q1]vstack,setsar=1"
+
+
 def keys_expr(keys):
     """zoom at time ld(2) through keyframes [[t, z], ...]: smoothstep between neighbours, held before/after"""
     e = f"{keys[-1][1]:.4f}"  # numbers only (format spec), never EDL text pasted into the filtergraph
@@ -117,6 +128,7 @@ def cut(i_s):
     i, s = i_s
     ss, gtag = seek(s)
     dst = os.path.join(seg_dir, f"{i:04d}_{s['in']:.3f}_{s['out']:.3f}_{zkey(s.get('zoom',1.0))}_{'-'.join(str(v) for v in s.get('face', []))}{'_tr' + __import__('hashlib').md5(str(s.get('track')).encode()).hexdigest()[:6] if s.get('track') else ''}{gtag}.mkv")
+    if s.get("stack"): dst = dst[:-4] + "_st" + __import__('hashlib').md5(str([s["stack"], edl.get("stack_zoom")]).encode()).hexdigest()[:6] + ".mkv"
     if EXACT: dst = dst[:-4] + "_x.mkv"
     # the crop also depends on face_target_y: without it in the name a re-render after a plan change reused segments cut
     # for the old height (2026-10-25 shorts: fixed-zoom shots kept the 0.40 head line). Only when the key is set, so old
@@ -124,7 +136,7 @@ def cut(i_s):
     if "face_target_y" in edl: dst = dst[:-4] + f"_ty{TY}.mkv"
     if os.path.exists(dst): return dst
     d = s["out"] - s["in"]
-    vf, extra = vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track")), []
+    vf, extra = (stack_vf(s["stack"]) if vertical and s.get("stack") else vf_for(s.get("zoom", 1.0), s.get("face"), s.get("track"))), []
     if EXACT:  # n whole frames from 0 and exactly n/30 s of sound, so the concat below has no gaps for the sound to drift by
         n = max(1, round(d * 30)); d = n / 30
         vf, extra = "setpts=PTS-STARTPTS," + vf, ["-frames:v", str(n)]

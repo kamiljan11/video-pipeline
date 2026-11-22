@@ -54,6 +54,7 @@ def framing_ok(edl: dict) -> bool:
     """the EDL-wide values vf_for pastes into the filter (a key present means set: null is refused, not defaulted)"""
     ok = all(num(edl[k]) for k in ("w", "h", "src_w", "src_h") if k in edl)
     ok = ok and (edl.get("face_target_y") is None or num(edl["face_target_y"]))  # null = vf_for's own default
+    ok = ok and ("stack_zoom" not in edl or pos(edl["stack_zoom"]))  # podcast stack panels (assemble.py stack_vf)
     return ok and pair(edl.get("face", [0.5, 0.45])) and isinstance(edl.get("vertical", False), bool)
 
 
@@ -63,6 +64,8 @@ def segment_ok(s: dict) -> bool:
     keys = z.get("keys") or [] if isinstance(z, dict) else []
     ok = pos(z) or (isinstance(z, dict) and all(num(z.get(k)) for k in ("t0", "t1")) and pos(z.get("a")) and pos(z.get("b"))
                     and isinstance(keys, list) and all(map(pair, keys)) and all(pos(k[1]) for k in keys))
+    stack = s.get("stack")  # podcast 9:16 "stack" (podcast.py): two face points, numbers only, like face
+    ok = ok and (stack is None or (isinstance(stack, list) and len(stack) == 2 and all(map(pair, stack))))
     return ok and (face is None or pair(face)) and (track is None or (isinstance(track, list) and all(map(pair, track))))
 
 
