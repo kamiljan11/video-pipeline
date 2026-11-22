@@ -153,9 +153,9 @@ export function soloKeys(pieces, stops, dur, safe, tol = 24, keepCut = false) {
 }
 
 // the explainer pieces (table, code, big, tag; round 2: flow, grid, bars, timeline, quiz, form), split out of checkScene
-function checkExplainPiece(e, n, dur, bad) {
-  const sec0 = v => typeof v === 'number' && v >= 0 && v < dur;
-  if (e.k === 'table') {
+// one check per kind; c = {n, dur, bad, sec0, at0, str, fr01, evs} (evs: a list of [seconds, index] inside 0..max-1)
+const EXPLAIN_CHECKS = {
+  table(e, { n, bad, sec0 }) {
     const nc = Array.isArray(e.cols) ? e.cols.length : 0;
     if (!nc || !e.cols.every(c => typeof c === 'string')) bad.push(`${n}: "cols" = the column names`);
     if (!Array.isArray(e.rows) || !e.rows.length || !e.rows.every(r => Array.isArray(r) && r.length === nc && r.every(c => typeof c === 'string')))
@@ -169,28 +169,23 @@ function checkExplainPiece(e, n, dur, bad) {
       bad.push(`${n}: "set_cell" = [[seconds, row, column, "new value"], ...]`);
     if (e.state !== undefined && !Array.isArray(e.state)) bad.push(`${n}: "state" is a list`);
     if (e.set_cell !== undefined && !Array.isArray(e.set_cell)) bad.push(`${n}: "set_cell" is a list`);
-  }
-  if (e.k === 'code') {
+  },
+  code(e, { n, bad, sec0 }) {
     if (!Array.isArray(e.lines) || !e.lines.length || !e.lines.every(l => typeof l === 'string')) bad.push(`${n}: "lines" = the code, one string per line`);
     if (e.lang !== undefined && !['sql', 'js', 'py', 'sh', 'txt'].includes(e.lang)) bad.push(`${n}: "lang" one of sql, js, py, sh, txt`);
     for (const m of Array.isArray(e.mark) ? e.mark : [])
       if (!(Array.isArray(m) && sec0(m[0]) && Number.isInteger(m[1]) && typeof m[2] === 'string' && (e.lines?.[m[1]] ?? '').includes(m[2])))
         bad.push(`${n}: "mark" = [[seconds, line, "text on that line"], ...]; ${JSON.stringify(m?.[2])} is not on line ${m?.[1]}`);
-  }
-  if (e.k === 'big' && !(typeof e.t === 'string' && e.t)) bad.push(`${n}: "t" = the number or word, as text`);
-  if (e.k === 'tag') {
+  },
+  big(e, { n, bad }) {
+    if (!(typeof e.t === 'string' && e.t)) bad.push(`${n}: "t" = the number or word, as text`);
+  },
+  tag(e, { n, bad }) {
     if (!(typeof e.text === 'string' && e.text)) bad.push(`${n}: "text" = what the tag says`);
     const pt = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
     if (e.to !== undefined && !pt(e.to)) bad.push(`${n}: "to" = [x, y] or a piece id (gfx/anchor_lib.mjs places it)`);
-  }
-  // round 2 pieces: every list of [seconds, index] names a real step / tile count / row / option, forward from the piece
-  const at0 = pieceAt(e), str = v => typeof v === 'string' && v.length > 0, fr01 = v => typeof v === 'number' && v >= 0 && v <= 1;
-  const evs = (key, max, what) => {
-    if (e[key] === undefined) return;
-    if (!Array.isArray(e[key]) || !e[key].every(x => Array.isArray(x) && sec0(x[0]) && Number.isInteger(x[1]) && x[1] >= 0 && x[1] < max))
-      bad.push(`${n}: "${key}" = [[seconds, ${what} 0..${max - 1}], ...]`);
-  };
-  if (e.k === 'flow') {
+  },
+  flow(e, { n, bad, sec0, str, evs }) {
     const ns = Array.isArray(e.steps) ? e.steps.length : 0;
     if (!(ns >= 2 && ns <= 8 && e.steps.every(s => s && str(s.text) && (s.at === undefined || sec0(s.at)))))
       bad.push(`${n}: "steps" = 2..8 of {"text", "icon", "sub", "at"} (a process drawn as steps; one step is a chip)`);
@@ -198,8 +193,8 @@ function checkExplainPiece(e, n, dur, bad) {
     evs('lit', ns, 'step'); evs('packet', Math.max(ns - 1, 0), 'step it leaves');
     evs('fail', ns, 'step its arrow goes into');
     if ((e.fail ?? []).some(x => Array.isArray(x) && x[1] === 0)) bad.push(`${n}: "fail" names the step the broken arrow goes into (1..${ns - 1}); step 0 has no arrow in`);
-  }
-  if (e.k === 'grid') {
+  },
+  grid(e, { n, bad, sec0, at0 }) {
     if (!(Number.isInteger(e.n) && e.n >= 1 && e.n <= 400)) bad.push(`${n}: "n" = how many tiles, 1..400 (one tile = one thing)`);
     if (e.cols !== undefined && !(Number.isInteger(e.cols) && e.cols >= 1 && e.cols <= 40)) bad.push(`${n}: "cols" = 1..40`);
     const sh = e.show;
@@ -208,14 +203,14 @@ function checkExplainPiece(e, n, dur, bad) {
     const fl = e.fill;
     if (fl !== undefined && !(Array.isArray(fl) && fl.every(x => Array.isArray(x) && sec0(x[0]) && Number.isInteger(x[1]) && x[1] > 0 && (x[2] === undefined || x[2] in TONES))
       && fl.reduce((a, x) => a + (Array.isArray(x) ? x[1] : 0), 0) <= e.n)) bad.push(`${n}: "fill" = [[seconds, how many, tone], ...], together at most "n"`);
-  }
-  if (e.k === 'bars') {
+  },
+  bars(e, { n, bad, sec0, str, fr01, evs }) {
     const ok = Array.isArray(e.items) && e.items.length >= 1 && e.items.length <= 8
       && e.items.every(it => it && str(it.label) && fr01(it.v) && (it.b === undefined || fr01(it.b)) && (it.at === undefined || sec0(it.at)) && (it.b_at === undefined || sec0(it.b_at)) && (it.tone === undefined || it.tone in TONES));
     if (!ok) bad.push(`${n}: "items" = 1..8 of {"label", "v": 0..1, "text", "b": 0..1 (two dots), "b_at", "at", "tone"}`);
     evs('lit', ok ? e.items.length : 0, 'row');
-  }
-  if (e.k === 'timeline') {
+  },
+  timeline(e, { n, bad, sec0, str, fr01 }) {
     const ok = Array.isArray(e.lanes) && e.lanes.length >= 1 && e.lanes.length <= 4 && e.lanes.every(l => l && str(l.label) && Array.isArray(l.segs ?? [])
       && (l.segs ?? []).every(g => g && fr01(g.from) && fr01(g.to) && g.to > g.from && (g.at === undefined || sec0(g.at)) && (g.tone === undefined || g.tone in TONES)));
     if (!ok) bad.push(`${n}: "lanes" = 1..4 of {"label", "segs": [{"from": 0..1, "to": 0..1, "text", "tone", "at"}]}`);
@@ -223,23 +218,34 @@ function checkExplainPiece(e, n, dur, bad) {
     if (e.w !== undefined && !(Number.isFinite(e.w) && e.w >= 700 && e.w <= 2400)) bad.push(`${n}: "w" = width 700..2400 (under 1400 the lane names go above the tracks)`);
     if (e.head !== undefined && !(Array.isArray(e.head) && e.head.every((x, j, a) => Array.isArray(x) && sec0(x[0]) && fr01(x[1]) && (!j || x[0] > a[j - 1][0] + 0.6))))
       bad.push(`${n}: "head" = [[seconds, place 0..1], ...], at least 0.6 s apart`);
-  }
-  if (e.k === 'quiz') {
+  },
+  quiz(e, { n, bad, sec0, str, evs }) {
     const no = Array.isArray(e.opts) ? e.opts.length : 0;
     if (!(no >= 2 && no <= 6 && e.opts.every(str))) bad.push(`${n}: "opts" = 2..6 options, as text`);
     evs('pick', no, 'option');
     const rv = e.reveal;
     if (rv !== undefined && !(rv && sec0(rv.at) && Number.isInteger(rv.right) && rv.right >= 0 && rv.right < no && (rv.pct === undefined || (Array.isArray(rv.pct) && rv.pct.length === no))))
       bad.push(`${n}: "reveal" = {"at": seconds, "right": option 0..${no - 1}, "pct": [one per option]}`);
-  }
-  if (e.k === 'form') {
+  },
+  form(e, { n, bad, sec0, at0, str }) {
     if (!str(e.title)) bad.push(`${n}: "title" = what the card is ("Product #42")`);
     if (!(Array.isArray(e.fields) && e.fields.every(f => f && str(f.label) && typeof f.value === 'string'
       && (f.set === undefined || (Array.isArray(f.set) && f.set.every((v, j, a) => Array.isArray(v) && sec0(v[0]) && v[0] > at0 && typeof v[1] === 'string' && (!j || v[0] > a[j - 1][0])))))))
       bad.push(`${n}: "fields" = [{"label", "value", "set": [[seconds, "new value"], ...]}]`);
     if (e.button !== undefined && !(e.button && str(e.button.text) && (e.button.press_at === undefined || sec0(e.button.press_at)))) bad.push(`${n}: "button" = {"text", "press_at"}`);
     if (e.note !== undefined && !(e.note && str(e.note.text) && sec0(e.note.at))) bad.push(`${n}: "note" = {"text", "at": seconds, "tone", "icon"}`);
-  }
+  },
+};
+
+function checkExplainPiece(e, n, dur, bad) {
+  const sec0 = v => typeof v === 'number' && v >= 0 && v < dur;
+  const at0 = pieceAt(e), str = v => typeof v === 'string' && v.length > 0, fr01 = v => typeof v === 'number' && v >= 0 && v <= 1;
+  const evs = (key, max, what) => {
+    if (e[key] === undefined) return;
+    if (!Array.isArray(e[key]) || !e[key].every(x => Array.isArray(x) && sec0(x[0]) && Number.isInteger(x[1]) && x[1] >= 0 && x[1] < max))
+      bad.push(`${n}: "${key}" = [[seconds, ${what} 0..${max - 1}], ...]`);
+  };
+  EXPLAIN_CHECKS[e.k](e, { n, bad, sec0, at0, str, fr01, evs });
 }
 
 // checks the spec by name before anything is drawn; returns the list of problems (empty = fine)
