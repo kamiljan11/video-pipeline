@@ -180,6 +180,7 @@ for n in "$@"; do
   tl assemble "$n"
   if nice -n 15 python3 $VP/assemble.py edl_$n.json "$R/$n" "${dry[@]}" >> "$R/render.log" 2>&1 && tl checks "$n" && preview "$n" "$f" \
     && { tl "check av $n"; python3 $VP/av_check.py "$R/$n/$f" --ref "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED av_check $n" >> "$R/render.log"; false; }; } \
+    && { tl "check smooth $n"; $PY $VP/smooth_check.py "$R/$n/$f" >> "$R/render.log" 2>&1 || { echo "FAILED smooth_check $n" >> "$R/render.log"; false; }; } \
     && sound_key "$n" "$R/$n/$f" \
     && { [ "$SAME" = 1 ] || { tl "check sync $n"; python3 $VP/sync_check.py edl_$n.json "$R/$n/rough.mkv" >> "$R/render.log" 2>&1 || { echo "FAILED sync_check $n" >> "$R/render.log"; false; }; }; } \
     && tl "check lips $n" && lips_ok "$n" "$R/$n/$f" \

@@ -32,12 +32,16 @@ os.makedirs(out, exist_ok=True)
 # required, so the checks after the render judge what the full render will sound like
 DRY = "--dry" in sys.argv[3:]
 PROXY = DRY or "--proxy" in sys.argv[3:]
-SEG_ENC = ["-preset", "ultrafast", "-crf", "26"] if PROXY else ["-preset", "veryfast", "-crf", "12"]
+# proxy segments crf 20 and output crf 18, not 26/30 (U12 2026-11-22): at crf 30 every keyframe (x264 keyint 250 = 8.33 s)
+# changed the picture 2.8x more than the frames around it; Kamil saw it as "klatkowanie co pare sekund". smooth_check.py
+# measures it (limit 1.8x): output crf 30 2.80x, 22 1.83x, 18 1.60x on the 30 fps part of the 2026-11-19 recording; the
+# full render (medium crf 18) 1.36x. Same speed (ultrafast), ~1 GB per 30 min at 640x360
+SEG_ENC = ["-preset", "ultrafast", "-crf", "20"] if PROXY else ["-preset", "veryfast", "-crf", "12"]
 # EDL "seg_exact" (plan key, via build_edl): frame-exact segments. Without it every segment's picture is rounded to frames
 # and starts 1 frame late while its sound is exact; the joins add up and the picture drifts up to ~1 s behind the voice
 # (measured on the 2026-10-22 long: 137 sound gaps = 2.3 s in rough.mkv)
 EXACT = bool(edl.get("seg_exact"))
-OUT_ENC = ["-preset", "ultrafast", "-crf", "30"] if PROXY else ["-preset", "medium", "-crf", "18"]
+OUT_ENC = ["-preset", "ultrafast", "-crf", "18"] if PROXY else ["-preset", "medium", "-crf", "18"]
 # every card is its own ffmpeg input (2560x1440 ProRes 4444 with alpha): with the defaults each one keeps a frame per decoder
 # thread (one per core) and a deep input queue, which grew past 60 GB on the 21-min long and got the session killed
 # (2026-11-04). Two threads and a 4-frame queue: the first 300 s of that long (31 cards) peak 10.2 GB in 2:38, against

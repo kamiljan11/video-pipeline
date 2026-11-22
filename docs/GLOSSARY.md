@@ -117,3 +117,7 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **scene_beat / scene_concrete** — bramki (warn): scena zmienia coś co <= 2,5 s; najwyżej 1/3 wierszy to szare `~`.
 - **gramatyka obrazu** — reguła „rodzaj myśli -> rysunek”: proces = `flow`, ilość = `grid`, porównanie = `bars`, czas = `timeline`, wybór = `quiz`, rzecz/stan = `form` (style/REF-shorts-arjay.md).
 - **scene_visual** — bramka (warn): najwyżej połowa własnych elementów sceny tylko pisze (`chip`, `text`, `say`, `big`, `stat`, `steps`).
+
+## Płynność (`smooth_check.py`)
+- **puls klatki kluczowej** — skok obrazu na klatce kluczowej x264 (domyślnie co 250 klatek = 8,33 s) względem klatek obok; przy słabym kodowaniu widać go jako „klatkowanie co parę sekund”. Limit 1,8x.
+- **podwojona klatka** — klatka równa poprzedniej, gdy obraz wokół się rusza (zgubiony ruch).
