@@ -71,8 +71,8 @@ DUCK_MIN_THRESHOLD = 0.001  # ffmpeg sidechaincompress refuses below 0.000976563
 
 def duck_ok(v) -> bool:
     """music_duck for assemble.py's sidechaincompress: how far the music dips under the voice"""
-    return (isinstance(v, dict) and set(v) <= {"threshold", "ratio"} and all(num(x) for x in v.values())
-            and DUCK_MIN_THRESHOLD <= v.get("threshold", 0.5) <= 1 and 1 <= v.get("ratio", 2) <= 20)
+    return (isinstance(v, dict) and set(v) <= {"threshold", "ratio", "mix"} and all(num(x) for x in v.values())
+            and DUCK_MIN_THRESHOLD <= v.get("threshold", 0.5) <= 1 and 1 <= v.get("ratio", 2) <= 20 and 0 <= v.get("mix", 1) <= 1)
 
 
 def chain_ok(text, allowed: frozenset) -> bool:
@@ -81,6 +81,23 @@ def chain_ok(text, allowed: frozenset) -> bool:
     for part in text.split(","):
         m = FILTER.fullmatch(part)
         if not (m and m.group(1) in allowed):
+            return False
+    return True
+
+
+GATE_MAX_THRESHOLD, GATE_MIN_RANGE = 0.015, 0.3
+
+
+def gate_ok(text) -> bool:
+    """an agate in the voice chain stays gentle: threshold <= 0.015 and range >= 0.3. Film 2026-11-04 had
+    threshold=0.035 range=0.1: it ate quiet word starts ("I wtedy" -> "Wtedy"); 0.008 / 0.4 kept them (whisper A/B)"""
+    if not isinstance(text, str): return True
+    for part in text.split(","):
+        if not part.startswith("agate"): continue
+        opts = dict(kv.split("=", 1) for kv in part.partition("=")[2].split(":") if "=" in kv)
+        try:
+            if float(opts.get("threshold", 0.125)) > GATE_MAX_THRESHOLD or float(opts.get("range", 0.06125)) < GATE_MIN_RANGE: return False
+        except ValueError:
             return False
     return True
 
@@ -101,14 +118,22 @@ def problems(edl) -> list[str]:
             if k in edl and not num(edl[k])]  # present means set (as framing_ok): null would reach ffmpeg as "None"
     if edl.get("progress", False) not in (True, False, "fill"):  # a typo ("Fill") would silently give the old full-width bar
         out.append("progress: true, false or \"fill\" (a bar that fills with the film time)")
+    if not isinstance(edl.get("head_track", False), bool):  # 1 or "yes" would silently give the old window cut from the zoomed picture
+        out.append("head_track: true or false (PiP window and corner circle cut from the recording around the head)")
     if "music_duck" in edl and not duck_ok(edl["music_duck"]):
-        out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20}, both optional, no other keys")
+        out.append("music_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20, \"mix\": 0 to 1}, all optional, no other keys")
+    if "sfx_duck" in edl and not duck_ok(edl["sfx_duck"]):
+        out.append("sfx_duck: {\"threshold\": 0.001 to 1, \"ratio\": 1 to 20, \"mix\": 0 to 1}, all optional, no other keys")
     if num(edl.get("tail", 0)) and not 0 <= edl.get("tail", 0) <= MAX_TAIL:
         out.append(f"tail: 0 to {MAX_TAIL:g} s")
     if "out_name" in edl and not (isinstance(edl["out_name"], str) and OUT_NAME.fullmatch(edl["out_name"])):
         out.append("out_name: a bare file name like film_v2.mp4 (letters, digits, _ . - and an extension; no /, space, Polish letter or leading dot)")
     out += [f"{k}: only the filters {sorted(allowed)}, options with plain values" for k, allowed in (("audio", AUDIO), ("grade", VIDEO))
             if k in edl and not chain_ok(edl[k], allowed)]
+    if edl.get("voice_clean") not in (None, "dfn"):  # voice_clean.py: the voice through DeepFilterNet before the chain
+        out.append("voice_clean: \"dfn\" or absent")
+    if not gate_ok(edl.get("audio")):
+        out.append(f"audio: agate must be gentle (threshold <= {GATE_MAX_THRESHOLD:g}, range >= {GATE_MIN_RANGE:g}): a hard gate eats quiet word starts")
     for o in edl.get("overlays", []):
         if not (local_file(o.get("file", "")) and num(o.get("dur", 0))):
             out.append(f"overlay at {o['at']}: file must be a local path, dur a number")

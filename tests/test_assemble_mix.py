@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -79,6 +80,27 @@ class AssembleMixTest(unittest.TestCase):
         self.assertGreater(none - default, 3, (none, default, hard))
         self.assertGreater(default - hard, 1, (none, default, hard))
 
+    def sfx_db_under_voice(self, **duck) -> float:
+        """level of a 660 Hz SFX bed under the 220 Hz voice in the final mix (dBFS RMS)"""
+        sfx = self.tmp / "sfx_tone.wav"
+        if not sfx.exists():
+            ffmpeg("-f", "lavfi", "-i", f"sine=f=660:d={DUR + 1}", "-ac", "2", str(sfx))
+        v = self.render(music=str(self.tmp / "music.wav"), sfx=str(sfx), music_db=-40, **duck)
+        r = subprocess.run(["ffmpeg", "-v", "info", "-nostats", "-ss", "0.5", "-t", "1", "-i", str(v), "-af",
+                            "bandpass=f=660:width_type=q:w=8,bandpass=f=660:width_type=q:w=8,astats=measure_overall=RMS_level:measure_perchannel=none",
+                            "-f", "null", "-"], capture_output=True, text=True, check=True)
+        return float(r.stderr.rsplit("RMS level dB:", 1)[1].split()[0])
+
+    def test_sfx_dip_under_the_voice(self):  # 2026-11-04 long 443 s: a chapter riser covered a sentence
+        none = self.sfx_db_under_voice(sfx_duck={"ratio": 1})
+        default = self.sfx_db_under_voice()  # 0.015 / 6, as the music
+        self.assertGreater(none - default, 6, (none, default))
+
+    def test_guard_refuses_bad_sfx_duck(self):
+        base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
+        self.assertTrue(any("sfx_duck" in p for p in edl_guard.problems({**base, "sfx_duck": {"ratio": 0.5}})))
+        self.assertFalse(any("sfx_duck" in p for p in edl_guard.problems({**base, "sfx_duck": {"threshold": 0.02, "ratio": 4}})))
+
     def test_segment_cache_follows_face_target_y(self):
         """a re-render into the same folder after a face_target_y change cuts the segments again (not the old head line)"""
         out = Path(tempfile.mkdtemp(dir=self.tmp))
@@ -100,13 +122,56 @@ class AssembleMixTest(unittest.TestCase):
         names = [p.name for p in (self.render().parent / "segs").glob("*.mkv")]
         self.assertEqual(names, ["0000_0.000_2.000_1.0__x.mkv"])
 
+    def test_cards_are_read_with_few_threads_and_a_short_queue(self):
+        """every card input carries CARD_IN (the defaults buffered a frame per core per card: 66 GB on a 21-min long)"""
+        card = self.tmp / "card.mov"
+        if not card.exists():
+            ffmpeg("-f", "lavfi", "-i", f"color=c=red@0.5:s={W}x{H}:r=30:d=0.6,format=yuva444p10le", "-c:v", "prores_ks",
+                   "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(card))
+        v = self.render(overlays=[{"at": 0.2, "dur": 0.6, "file": str(card)}, {"at": 1.0, "dur": 0.6, "file": str(card)}])
+        args = json.loads((v.parent / "assemble.args.json").read_text())
+        cards = [i for i, a in enumerate(args) if a == "-i" and args[i + 1] == str(card)]
+        self.assertEqual(len(cards), 2)
+        for i in cards:
+            self.assertEqual(args[i - 6:i - 2], ["-threads", "2", "-thread_queue_size", "4"], args[i - 6:i + 2])
+        raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", "0.5", "-i", str(v), "-frames:v", "1", "-vf",
+                              f"format=rgb24,crop=1:1:{W // 2}:{H // 2}", "-f", "rawvideo", "-"],
+                             capture_output=True, check=True).stdout
+        self.assertGreater(raw[0], 60, list(raw))  # the half-transparent red card is in the picture
+
+    def test_duck_mix_is_a_floor_under_the_voice(self):
+        hard = self.music_db_under_voice(music_duck={"threshold": 0.001, "ratio": 20})
+        floor = self.music_db_under_voice(music_duck={"threshold": 0.001, "ratio": 20, "mix": 0.75})
+        none = self.music_db_under_voice(music_duck={"ratio": 1})
+        self.assertAlmostEqual(none - floor, 12, delta=2.5, msg=(none, floor, hard))  # a quarter of the undipped music = -12 dB
+        self.assertGreater(floor - hard, 5, (none, floor, hard))
+
+    def test_sfx_duck_mix_reaches_the_sfx_sidechain(self):
+        out = self.render(music=str(self.tmp / "music.wav"), sfx=str(self.tmp / "sfx.wav"), sfx_duck={"threshold": 0.004, "ratio": 6, "mix": 0.7})
+        graph = json.loads((out.parent / "assemble.audio.args.json").read_text())["audio"]
+        sx = next(p for p in graph[graph.index("-filter_complex") + 1].split(";") if p.endswith("[sx]"))
+        self.assertIn("threshold=0.004:ratio=6", sx); self.assertIn("mix=0.7", sx)
+        base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
+        self.assertTrue(any("sfx_duck" in p for p in edl_guard.problems({**base, "sfx_duck": {"mix": 2}})))
+
+    def test_voice_clean_feeds_the_cleaned_voice_to_the_mix(self):
+        exe = self.tmp / "deep-filter"  # stands in for DeepFilterNet: the voice 20 dB down
+        exe.write_text('#!/bin/sh\nmkdir -p "$3" && ffmpeg -v error -y -i "$4" -af volume=0.1 "$3/$(basename "$4")"\n'); exe.chmod(0o755)
+        def voice_db(**keys):
+            v = self.render(audio="anull", **keys)
+            r = subprocess.run(["ffmpeg", "-v", "info", "-nostats", "-i", str(v), "-af", "astats=measure_overall=RMS_level:measure_perchannel=none",
+                                "-f", "null", "-"], capture_output=True, text=True, check=True)
+            return float(r.stderr.rsplit("RMS level dB:", 1)[1].split()[0])
+        os.environ["VP_DEEP_FILTER"] = str(exe); self.addCleanup(os.environ.pop, "VP_DEEP_FILTER", None)
+        self.assertAlmostEqual(voice_db() - voice_db(voice_clean="dfn"), 20, delta=1.5)
+
     def test_guard_refuses_bad_music_duck(self):
         base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
         for bad in ({"threshold": 0}, {"threshold": 0.0001}, {"threshold": 2}, {"ratio": 0.5}, {"ratio": 30}, {"ratio": "6"}, {"knee": 2},
-                    {"ratio": True}, [0.05, 2.5], "0.05", None):
+                    {"ratio": True}, {"mix": 1.5}, {"mix": -0.1}, {"mix": "0.8"}, [0.05, 2.5], "0.05", None):
             with self.subTest(bad=bad):
                 self.assertTrue(any("music_duck" in p for p in edl_guard.problems({**base, "music_duck": bad})))
-        for ok in ({"threshold": 0.05, "ratio": 2.5}, {"threshold": edl_guard.DUCK_MIN_THRESHOLD}, {}):
+        for ok in ({"threshold": 0.05, "ratio": 2.5}, {"threshold": edl_guard.DUCK_MIN_THRESHOLD}, {"threshold": 0.004, "ratio": 8, "mix": 0.8}, {}):
             self.assertEqual(edl_guard.problems({**base, "music_duck": ok}), [], ok)
 
     def test_build_edl_refuses_them_at_plan_time(self):
@@ -129,6 +194,36 @@ class AssembleMixTest(unittest.TestCase):
         for bad in ("Fill", "true", 1.5, None):
             with self.subTest(bad=bad):
                 self.assertTrue(any("progress" in p for p in edl_guard.problems({**base, "progress": bad})))
+
+    def test_guard_head_track_values(self):  # 1 or "yes" would silently give the old window from the zoomed picture
+        base = {"sources": {"A": "a.mp4"}, "segments": [{"src": "A", "in": 0.0, "out": 1.0}]}
+        for ok in (True, False):
+            self.assertEqual(edl_guard.problems({**base, "head_track": ok}), [], ok)
+        for bad in (1, "yes", None):
+            with self.subTest(bad=bad):
+                self.assertTrue(any("head_track" in p for p in edl_guard.problems({**base, "head_track": bad})))
+
+
+class LoudnormStampTest(unittest.TestCase):
+    """shorts 2026-11-10: loudnorm stamped its last ~3 s (look-ahead flush) 35 ms late over a rough.mkv joined from pieces
+    of uneven length; the AAC encoder filled the jump with one 56 ms packet and av_check failed every short"""
+
+    def test_pieces_of_uneven_length_keep_the_sound_gapless(self):
+        import av_check  # after the path insert: the scripts are not a package
+        tmp = Path(tempfile.mkdtemp(prefix="assemble-loudnorm-"))
+        src = tmp / "src.mp4"
+        ffmpeg("-f", "lavfi", "-i", f"color=c=black:s={W}x{H}:r=30:d=10", "-f", "lavfi",
+               "-i", "sine=f=220:d=10,volume='0.5+0.4*sin(2*PI*t*3)':eval=frame",
+               "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src))
+        cuts = [(0.0, 1.013), (1.4, 3.67), (3.9, 4.811), (5.0, 8.807), (8.9, 9.9)]
+        edl = {"sources": {"A": str(src)}, "segments": [{"src": "A", "in": a, "out": b} for a, b in cuts], "w": W, "h": H,
+               "src_w": W, "src_h": H, "out_name": "final.mp4", "seg_exact": True}
+        self.assertEqual(edl_guard.problems(edl), [])
+        (tmp / "edl.json").write_text(json.dumps(edl))
+        r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(tmp / "edl.json"), str(tmp)],
+                           capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertEqual(av_check.check(str(tmp / "final.mp4")), [])
 
 
 if __name__ == "__main__":

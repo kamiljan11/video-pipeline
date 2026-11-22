@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """make_beds.py edl.json outdir -> outdir/music.wav (own generated bed), outdir/sfx.wav (synth SFX timed to graphics/zooms)
 Adds edl["music"], edl["sfx"] in place."""
+import fcntl
 import json
 import os
 import subprocess
 import sys
+import time
 import wave
 from itertools import pairwise
 from pathlib import Path
@@ -165,7 +167,7 @@ def card_v2(o, sp, ty):
             if type(dl) in (int, float) and np.isfinite(dl):
                 put2(at + dl - 0.05, swoosh(0.16), 0.2); put2(at + dl, click(2 ** (vr.uniform(-1, 1) / 12)), 0.5)
     if ty == "chap": put2(at - 0.9, riser(0.9), 0.55); put2(at, impact(), 0.7)
-    if ty in ("slide", "web"): put2(at - 0.3, whoosh(0.8), 0.9)
+    if ty in ("slide", "web", "scene"): put2(at - 0.3, whoosh(0.8), 0.9)
     if ty == "end": put2(at - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put2(at + 0.1, ding(), 0.6)
     if ty == "maxim":  # a soft key press per letter, under the voice; no whoosh. ("float": only its own "sfx" moments)
@@ -173,14 +175,19 @@ def card_v2(o, sp, ty):
 
 for o in edl.get("overlays", []):
     sp = specs.get(o["id"], {}); ty = sp.get("type")
+    # a chapter "part_tag" (gfx/cards_lib.mjs, plan2:L9) is a small corner tag over the speaker: the pop of a lower third,
+    # not the riser + impact + whoosh of a full-screen chapter card
+    if ty == "chap" and sp.get("chap_style") == "part_tag": ty = "lower"
     if v2:
         card_v2(o, sp, ty)
         continue
     if ty in ("kw", "count", "lower"): put(o["at"] + 0.03, pop(), 0.8)
     if ty == "list":
         put(o["at"], whoosh(0.5), 0.5)
-        for dl in sp.get("delays", []): put(o["at"] + dl + 0.05, pop(), 0.7)
-    if ty in ("chap", "slide", "web"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
+        # null = an item already on an "upto" list card (gfx/cards_lib.mjs, plan2:L8): no pop for it
+        for dl in sp.get("delays", []):
+            if type(dl) in (int, float): put(o["at"] + dl + 0.05, pop(), 0.7)
+    if ty in ("chap", "slide", "web", "scene"): put(o["at"] - 0.3, whoosh(0.8), 0.9)  # = gfx_types.CARD_WHOOSH
     if ty == "end": put(o["at"] - 0.3, whoosh(0.9, False), 0.8)
     if ty == "cta": put(o["at"] + 0.1, ding(), 0.6)
     if ty == "maxim": put(o["at"] - 0.1, whoosh(0.45), 0.45)  # the sentence comes in softly; its own moments via "sfx"
@@ -212,8 +219,33 @@ sfx /= max(1e-9, np.abs(sfx).max()) / 0.8
 d16 = (np.stack([sfx, sfx], 1) * 32767).astype(np.int16)
 with wave.open(os.path.join(od, "sfx.wav"), "wb") as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(d16.tobytes())
+# "music_palette": {"name": "lofi"|"drive"|"cinematic"|"tech"|"bright", "key": -6..6} = another piece of music per film
+# (gen_music.py PALETTES); without it the old bed
+pal = edl.get("music_palette")
+if pal is not None and not (isinstance(pal, dict) and isinstance(pal.get("name"), str) and type(pal.get("key", 0)) is int):
+    sys.exit(f"music_palette: {{\"name\": <palette>, \"key\": <semitones -6..6>}}, got {pal!r}")
+pal_args = ["--palette", pal["name"], "--key", str(pal.get("key", 0))] if pal else []
 subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "gen_music.py"), os.path.join(od, "music.wav"), f"{total + 1:.2f}",
-                str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else [])], check=True)
+                str(edl.get("music_seed", 7)), *([json.dumps(moods)] if moods else []), *pal_args], check=True)
+# the palette this project used: film_check.py keeps the next film from reusing it (Kamil: a new music every film). A fragment
+# test (FRAGMENT.json, fragment.py) is a piece of a film, not a film: 2026-11-14 its entry made the whole long "the same
+# music as the last film", although that entry was a piece of the same long. So a fragment test writes no entry.
+if pal and not (Path(edl_p).resolve().parent / "FRAGMENT.json").exists():
+    led_p = Path(__file__).resolve().parent.parent / "render" / "music_ledger.json"
+    tmp = led_p.with_name(f"{led_p.name}.{os.getpid()}.tmp")
+    try:
+        led_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(led_p.with_name(led_p.name + ".lock"), "w") as lock:  # two films' make_beds at once: one update at a time
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            led = json.loads(led_p.read_text()) if led_p.exists() else {}
+            if not isinstance(led, dict): raise TypeError(f"not an object of entries: {type(led).__name__}")
+            work = str(Path(edl_p).resolve().parent)
+            led[f"{work}::{edl.get('name', '')}"] = {"work": work, "film": edl.get("name", ""), "name": pal["name"],
+                                                     "key": pal.get("key", 0), "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            tmp.write_text(json.dumps(led, indent=1, ensure_ascii=False)); os.replace(tmp, led_p)  # whole file or none
+    except (OSError, ValueError, TypeError) as e:  # the ledger only guards the next film; the bed itself is done
+        tmp.unlink(missing_ok=True)
+        print(f"make_beds: music ledger {led_p} not updated: {e}", file=sys.stderr)
 edl["music"] = os.path.join(od, "music.wav"); edl["sfx"] = os.path.join(od, "sfx.wav")
 Path(edl_p).write_text(json.dumps(edl, indent=1, ensure_ascii=False))
 print("beds ok", round(total, 1))

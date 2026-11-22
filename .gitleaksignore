@@ -1,0 +1,9 @@
+# Reviewed gitleaks false positives (ADR-0029). Format: full commit sha:path:rule:line, nothing else.
+# docs/adr/0010 line 11: LinkedIn Videos API step names in prose
+a02fee3944f549c570597f5c7b55629891caaaf3:docs/adr/0010-linkedin-image-video-queue.md:linkedin-client-id:11
+# design table row: "sound/picture effects"
+d50320aca7ac8e8cfda2f5ff0e01d6c01e77f33a:docs/designs/2026-11-09-enforce-then-fresh-edit.md:generic-api-key:15
+# synthetic test token "tok-SECRET-123" passed to a fake publish step
+6f8b89dd3f0343435471103718e325124aa75938:tests/test_article.py:generic-api-key:348
+fcd7c140563484eb761a51ef4da326cbb33497e6:tests/test_article.py:generic-api-key:187
+fcdabeb6042e8192c360ea29906381a13f12c7fe:tests/test_article.py:generic-api-key:187

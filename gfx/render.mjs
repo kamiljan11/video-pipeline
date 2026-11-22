@@ -1,41 +1,76 @@
 // node render.mjs specs.json outdir  -> outdir/<id>.mov (ProRes 4444 + alpha, 2560x1440@30; spec canvas "v" -> 1080x1920)
+// node render.mjs specs.json outdir --stills [id ...]  -> outdir/stills/<id>.png + <id>.key: one frame per card at its still
+// time (stillTime), drawn by the same page as the .mov; stills.py lays them on film frames for review (Skool CCC Taski #9).
+// Stills gate: a card of a film that has a stills sheet (its id in outdir/stills/scope.json, written by stills.py) renders only
+// when its key in accepted.json is the key it renders with (accepted after the last change). Cards of films without a sheet
+// (gfx/ is shared by the long and the shorts) and cards no EDL uses are not gated here: film_check long/short.stills asks for
+// every card of a film. STILLS=off renders anyway (WARN in the log).
 import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
 import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
-import { PER_CARD, keyOf, motion, vZoom } from './webshot_lib.mjs';
-import { COUNT_DELAY, FADE_OUT, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
+import { PER_CARD, keyOf, markTimes, motion, vZoom } from './webshot_lib.mjs';
+import { COUNT_DELAY, FADE_OUT, countFrom, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
 import { CARET_HOLD, MARK_DUR, charTimes, maximSeek, maximWords, wordTimes } from './maxim_lib.mjs';
 import { loadTheme } from './theme_lib.mjs';
-const [specFile, outDir] = process.argv.slice(2);
-const specs = JSON.parse(fs.readFileSync(specFile, 'utf8'));
+import { camKeyframes, colFollow, frameStops, resolveExtends, scene, sceneFit, sceneSafe, soloKeys, zoomStops } from './scene_lib.mjs';
+import { opener, resolveAnchors } from './anchor_lib.mjs';
+import { esc, icon, prose } from './html_lib.mjs';
+import os from 'os'; import { pageCount, shot } from './pace_lib.mjs';
+import { chapHtml, checkCard, listHtml, lowerHtml, noteHtml, usesCardsLib } from './cards_lib.mjs';
+const [specFile, outDir, mode, ...only] = process.argv.slice(2);
+const STILLS = mode === '--stills';
+// a scene's "extends" (S11) is resolved on the whole file, before the stills filter: the scene it goes on from may not be drawn
+const specs = resolveExtends(JSON.parse(fs.readFileSync(specFile, 'utf8'))).filter(sp => !STILLS || !only.length || only.includes(sp.id));
+const ACCEPTED = `${outDir}/stills/accepted.json`;
+const SCOPE = `${outDir}/stills/scope.json`;
+const accepted = !STILLS && fs.existsSync(SCOPE) ? (fs.existsSync(ACCEPTED) ? JSON.parse(fs.readFileSync(ACCEPTED, 'utf8')) : {}) : null;
+const scoped = accepted ? JSON.parse(fs.readFileSync(SCOPE, 'utf8')) : [];
+const inReview = new Set(Array.isArray(scoped) ? scoped : Object.values(scoped).flat());  // {film: [ids]} (a list = the first format)
+if (accepted && process.env.STILLS === 'off') console.error('WARN stills gate off (STILLS=off): cards render without an accepted still');
+// the moment a still shows: "still" in the spec, else when every piece of a scene is in (+0.6 s), else 60 % into the card
+const stillTime = sp => {
+  if (typeof sp.still === 'number') return Math.min(Math.max(sp.still, 0), sp.dur - 1 / 30);
+  const ins = sp.type === 'scene' ? (sp.els ?? []).flatMap(e => [e.at, ...(e.words ?? []).map(w => w[1]), ...(e.msgs ?? []).map(m => m.at)]).filter(Number.isFinite) : [];
+  return Math.min(ins.length ? Math.max(...ins) + 0.6 : sp.dur * 0.6, sp.dur - 0.3);
+};
 const THEME = loadTheme(specFile);  // work/theme.json -> style/themes/<name>.json colors; null = the template's own
 const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
-const FPS = 30, esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-const icon = n => n ? fs.readFileSync(`/home/kamil-jan/video-pipeline/node_modules/lucide-static/icons/${n}.svg`, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '';
+const FPS = 30;
 // "kw" box; "count" is the same box with counting numbers in its title
 const kwBox = (sp, title, cls = 'kw') => `<div class="${cls} ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${title}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
 // "end" card: optional brand row under the address, "logo" = image file (path relative to the specs file), "logo_sub" = its line
-// (e.g. the company site). A logo that is not there stops the render with its name, never an end card with a broken image.
+// (e.g. the company site), "logo_h" = optional logo height in px (wide lockups need more than the default). A logo that is not there stops the render with its name, never an end card with a broken image.
 const logoFile = sp => path.resolve(path.dirname(specFile), sp.logo);
 const endBrand = sp => {
   if (!sp.logo) return '';
   const f = logoFile(sp);
   if (!fs.existsSync(f)) { console.error(`FAILED gfx ${sp.id}: logo ${f} not found`); process.exit(1); }
-  return `<div class="brand"><img src="${pathToFileURL(f).href.replace(/"/g, '%22')}">${sp.logo_sub ? `<div class="u">${esc(sp.logo_sub)}</div>` : ''}</div>`;
+  return `<div class="brand"><img src="${pathToFileURL(f).href.replace(/"/g, '%22')}"${sp.logo_h ? ` style="height:${+sp.logo_h}px"` : ''}>${sp.logo_sub ? `<div class="u">${esc(sp.logo_sub)}</div>` : ''}</div>`;
 };
 const html = sp => {
-  if (sp.type === 'kw') return kwBox(sp, esc(sp.text));
-  if (sp.type === 'count') return kwBox(sp, countParts(sp.text).map(p => typeof p === 'string' ? esc(p)
-    : `<span class="num" data-to="${p.value}" data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(0, p.dec, p.group)}</span>`).join(''), 'kw count');
-  if (sp.type === 'lower') return `<div class="lower"><div class="acc"></div><div class="box"><div class="n">${esc(sp.text)}</div><div class="r">${esc(sp.sub)}</div></div></div>`;
-  if (sp.type === 'list') return `<div class="list"><div class="h">${esc(sp.text)}</div>${sp.items.map((x,i)=>`<div class="i" style="animation:slide .45s ${(sp.delays||[])[i]??i}s both">${(sp.icons||[])[i]?`<span class="li">${icon(sp.icons[i])}</span>`:`<b>${i+1}</b>`}<span>${esc(x)}</span></div>`).join('')}</div>`;
-  if (sp.type === 'end') return `<div class="endc"><div class="t">${esc(sp.text)}</div><div class="bar"></div><div class="s">${esc(sp.sub)}</div>${endBrand(sp)}</div>`;
-  if (sp.type === 'cta') return `<div class="cta"><div class="btn">${icon('bell')}${esc(sp.text)}</div><div class="s">${esc(sp.sub)}</div></div>`;
+  if (sp.type === 'kw') return kwBox(sp, prose(sp.text));
+  if (sp.type === 'count') {  // "from" (S11, count_lib countFrom): the start of each number; without it 0 and the same html as before
+    const parts = countParts(sp.text), fr = countFrom(sp, parts.filter(p => typeof p !== 'string').length); let k = 0;
+    return kwBox(sp, parts.map(p => { if (typeof p === 'string') return esc(p); const f = fr[k++];
+      return `<span class="num" data-to="${p.value}"${sp.from !== undefined ? ` data-from="${f}"` : ''} data-dec="${p.dec}" data-group="${p.group ? 1 : ''}" data-final="${esc(p.final)}" style="min-width:${numWidth(p.final)}ch">${fmtNum(f, p.dec, p.group)}</span>`; }).join(''), 'kw count');
+  }
+  if (sp.type === 'lower') return lowerHtml(sp);  // "define": true = term + definition (gfx/cards_lib.mjs, ledger plan2:L12)
+  if (sp.type === 'list') return listHtml(sp);  // "upto" / "dim_done": one stacked list (cards_lib, plan2:L8)
+  if (sp.type === 'note') return noteHtml(sp);  // caveat / pointer in the corner away from the face (cards_lib, plan2:L21)
+  if (sp.type === 'end') return `<div class="endc"><div class="t">${prose(sp.text)}</div><div class="bar"></div><div class="s">${prose(sp.sub)}</div>${endBrand(sp)}</div>`;
+  // the icon says the action: a bell only on a subscribe card (Kamil 2026-11-15 note 52: a bell on "Higher Mind za darmo ·
+  // link w opisie" made no sense), a link icon on a card that sends to a link; spec "icon" (a lucide name) overrides
+  if (sp.type === 'cta') {
+    const sub = /subskryb|subscribe/i.test(String(sp.text)), ic = sp.icon ?? (sub ? 'bell' : 'external-link');
+    return `<div class="cta"><div class="btn${ic === 'bell' ? ' bell' : ''}">${icon(ic)}${prose(sp.text)}</div><div class="s">${prose(sp.sub)}</div></div>`;
+  }
   if (sp.type === 'slide') return `<div class="slide"><div class="in">${sp.html}</div>${sp.src?`<div class="src">${esc(sp.src)}</div>`:''}</div>`;
   if (sp.type === 'web') return web(sp);
   if (sp.type === 'meme') return meme(sp);
+  if (sp.type === 'sticker') return sticker(sp);
   if (sp.type === 'maxim') return maxim(sp);
+  if (sp.type === 'scene') return scene(sp, esc, icon);  // explainer canvas, face in the PiP circle (gfx/scene_lib.mjs, README › Scena)
   if (sp.type === 'float') return `<div class="float">${sp.html}</div>`;  // illustration beside the speaker: the spec's own pieces (template.html › float)
-  if (sp.type === 'chap') return `<div class="chap"><div class="no">${esc(sp.sub)}</div><div class="t">${esc(sp.text)}</div></div>`;
+  if (sp.type === 'chap') return chapHtml(sp);  // "chap_style": "roadmap" | "part_tag" (cards_lib, plan2:L9)
 };
 // "maxim": the sentence typed while it is said (gfx/maxim_lib.mjs); every letter is in the layout from the start (hidden) and the
 // caret takes no width, so the lines never re-wrap or shift while typing; window.__seek = maximSeek shows the state at time t
@@ -50,7 +85,8 @@ function maxim(sp) {
 const WIN = { x: 140, y: 110, w: 1720, view: 1060 };  // 16:9 canvas; the face picture-in-picture sits bottom right
 // 9:16 (shorts): "split" (default) = the card in the top part over a light background; assemble.py puts the face in a box under
 // it (gfx_types.SPLIT) and build_edl.py moves the captions into the gap; "full" = the card alone on the dark background
-const WIN_V = { split: { x: 60, y: 110, w: 960, view: 760 }, full: { x: 50, y: 230, w: 980, view: 780 } };
+// "split_full" (ledger S19, gfx_types.SPLIT_FULL): the card in the top 1080x960, its source line ending above the captions on the seam at y 960
+const WIN_V = { split: { x: 60, y: 110, w: 960, view: 760 }, split_full: { x: 60, y: 100, w: 960, view: 600 }, full: { x: 50, y: 230, w: 980, view: 780 } };
 const CHROME = 122;  // tab row 64 + address bar 58 (template.html .web .top/.addr)
 function web(sp) {
   const base = `${outDir}/web/${keyOf(specFile, sp)}`;
@@ -62,22 +98,27 @@ function web(sp) {
   const shown = v ? z : { height: m.height * z.s, rects: m.rects.map(([x, y, w, h]) => [x * z.s, y * z.s, w * z.s, h * z.s]) };
   const mo = motion(shown, W.view, sp.dur), id = sp.id.replace(/[^\w-]/g, '_');
   const anim = mo.scroll ? `animation:ws_${id} ${mo.scroll}s cubic-bezier(.45,0,.2,1) ${mo.start}s both` : '';
-  const marks = shown.rects.map(([x, y, w, h], i) => `<div class="hl" style="left:${x - 6}px;top:${y - 4}px;width:${w + 12}px;height:${h + 8}px;animation:hl .5s ${(mo.mark + i * 0.25).toFixed(2)}s ease-out both"></div>`).join('');
+  let markAt; try { markAt = markTimes(mo, shown.rects.length, sp.read_along, sp.dur); } catch (e) { throw new Error(`"${sp.id}": ${e.message}`); }  // L16b
+  const marks = shown.rects.map(([x, y, w, h], i) => `<div class="hl" style="left:${x - 6}px;top:${y - 4}px;width:${w + 12}px;height:${h + 8}px;animation:hl .5s ${markAt[i].toFixed(2)}s ease-out both"></div>`).join('');
   const day = new Date(m.captured).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const addr = m.final_url ? m.final_url.replace(/^https:\/\//, '') : (m.host || '');
   const src = sp.src || `Źródło: ${m.host || m.title}${m.title && m.host ? ` · ${m.title}` : ''}${m.kind === 'pdf' ? ` · str. ${m.page}` : ''}`;
   return `<style>@keyframes ws_${id}{from{transform:translateY(0)}to{transform:translateY(-${mo.target.toFixed(0)}px)}}</style>`
-    + `<div class="web${v ? ` ${layout}` : ''}"><div class="win" style="left:${W.x}px;top:${W.y}px;width:${W.w}px">`
+    + `<div class="web${v ? ` ${layout}` : ''}"${sp.no_fade_in ? ' style="animation:none"' : ''}><div class="win" style="left:${W.x}px;top:${W.y}px;width:${W.w}px">`
     + `<div class="top"><i></i><i></i><i></i><span class="tab">${esc(m.title || m.host)}</span></div>`
     + `<div class="addr"><span class="lock"></span>${esc(addr)}</div>`
-    + `<div class="view" style="height:${W.view}px"><div class="shot" style="${anim}"><img src="file://${base}.png" style="width:${(m.width * z.s).toFixed(1)}px;margin-left:${(-z.x0 * z.s).toFixed(1)}px">${marks}</div></div></div>`
+    + `<div class="view" style="height:${W.view}px"><div class="shot" style="${anim}"><img src="${pathToFileURL(path.resolve(`${base}.png`)).href}" style="width:${(m.width * z.s).toFixed(1)}px;margin-left:${(-z.x0 * z.s).toFixed(1)}px">${marks}</div></div></div>`
     + `<div class="src"${v ? ` style="left:${W.x}px;top:${W.y + CHROME + W.view + 18}px"` : ''}>${esc(src)} · stan na ${day}</div></div>`;
 }
 // "meme": a known meme picture with the spec's own words in the template's boxes, 9:16 only, "split" (the face box under it,
 // as a "web" card) or "full". Catalogue (boxes, imgflip id) = style/memes.json; the pictures are third-party, so they live in
 // render/memes/ (memes.py add <slug>), never in the public repo. "text" i comes in at "at"[i] s (default 0.25 + 0.7 i).
 const MEMES = process.env.VP_MEMES ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'render', 'memes');  // VP_MEMES: tests
-const MEME_BOX = { split: { y: 120, h: 880 }, full: { y: 260, h: 1240 } };  // split: ends above the captions (gfx_types.SPLIT)
+// 9:16 split ends above the captions (gfx_types.SPLIT); 16:9 "long" keeps the bottom-right corner free for the face PiP
+// 9:16 corner: above the captions and the face circle (the free field of a corner scene, scene_lib sceneSafe)
+const MEME_BOX = { split: { x: 60, w: 960, y: 120, h: 880 }, split_full: { x: 60, w: 960, y: 110, h: 740 }, full: { x: 60, w: 960, y: 260, h: 1240 }, corner: { x: 60, w: 960, y: 130, h: 1010 }, long: { x: 140, w: 1700, y: 150, h: 1140 } };
+// 16:9 "sticker": the free field beside the speaker (his head sits at x 0.29-0.61 of the frame in film 2), px of the 2560x1440 card
+const STICKER_BOX = { right: { x: 1620, y: 150, w: 820, h: 960 }, left: { x: 90, y: 150, w: 620, h: 960 } };
 const CATALOGUE = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'style', 'memes.json');
 // the picture's own json (name, size, file) + the text boxes of the catalogue in the repo (a fixed box works without a new
 // fetch; a picture placed by hand keeps the boxes of its own json); every field checked, so a bad one stops the card by name
@@ -87,42 +128,136 @@ const memeLib = sp => {
   let m; try { m = JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { throw bad(`${f}: ${e.message}`); }
   const cat = JSON.parse(fs.readFileSync(CATALOGUE, 'utf8'))[sp.meme];
   if (cat?.boxes) m.boxes = cat.boxes;
+  if (cat?.sticker) m.sticker = cat.sticker;  // part of the card key too (memeStamp shows m)
   const box = b => Array.isArray(b) && b.length === 5 && b.slice(0, 4).every(x => typeof x === 'number' && x >= 0 && x <= 1) && ['dark', 'light'].includes(b[4]);
   if (!(m.width > 0 && m.height > 0) || !Array.isArray(m.boxes) || !m.boxes.every(box)) throw bad(`${f}: needs width, height and boxes [x, y, w, h, "dark"|"light"]`);
   if (typeof m.img !== 'string' || !/^[a-z0-9_]+\.(jpg|png)$/.test(m.img) || !fs.existsSync(`${MEMES}/${m.img}`)) throw bad(`picture ${JSON.stringify(m.img)} missing in ${MEMES}`);
   return m;
 };
 function meme(sp) {
-  const layout = sp.layout ?? 'split', B = MEME_BOX[layout];
-  if (sp.canvas !== 'v' || !B) throw new Error(`"${sp.id}": a meme is a 9:16 card (canvas "v"), layout "split" or "full", got ${JSON.stringify(sp.layout)}`);
+  // 9:16: layout "split" (default) or "full"; 16:9 (no canvas): the picture left of the face PiP, no layout key
+  const v = sp.canvas === 'v', layout = v ? sp.layout ?? 'split' : sp.layout === undefined ? 'long' : null, B = MEME_BOX[layout];
+  if (!B || (v && layout === 'long')) throw new Error(`"${sp.id}": a meme takes layout "split", "full" or "corner" in 9:16 (canvas "v") and no layout in 16:9, got ${JSON.stringify(sp.layout)}`);
   const m = memeLib(sp), texts = sp.text ?? [];
   if (!Array.isArray(texts) || texts.length > m.boxes.length) throw new Error(`"${sp.id}": "${sp.meme}" has ${m.boxes.length} text box(es), got ${JSON.stringify(sp.text)}`);
   if (sp.at !== undefined && !(Array.isArray(sp.at) && sp.at.every(t => typeof t === 'number' && t >= 0 && t < sp.dur)))
     throw new Error(`"${sp.id}": "at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
-  const s = Math.min(960 / m.width, B.h / m.height), w = Math.round(m.width * s), h = Math.round(m.height * s);
-  const left = Math.round((1080 - w) / 2), top = Math.round(B.y + (B.h - h) / 2);
+  const s = Math.min(B.w / m.width, B.h / m.height), w = Math.round(m.width * s), h = Math.round(m.height * s);
+  const left = Math.round(B.x + (B.w - w) / 2), top = Math.round(B.y + (B.h - h) / 2);
   const boxes = texts.map((t, i) => {
     const [fx, fy, fw, fh, style] = m.boxes[i], at = (sp.at ?? [])[i] ?? 0.25 + 0.7 * i;
-    const size = Math.round(Math.min(fh * h * 0.34, 64));
+    // the longest word must fit the box width (Montserrat 900 ~0.68 em per letter): long Polish words in a narrow box
+    const longest = Math.max(1, ...String(t).split(/\s+/).map(x => [...x].length));
+    const size = Math.round(Math.min(fh * h * 0.34, v ? 64 : 96, (fw * w * 0.94) / (longest * 0.68)));
     return `<div class="tx ${style}" style="left:${(fx * w).toFixed(0)}px;top:${(fy * h).toFixed(0)}px;width:${(fw * w).toFixed(0)}px;height:${(fh * h).toFixed(0)}px;font-size:${size}px;animation:pop .35s ${at.toFixed(2)}s cubic-bezier(.2,1.5,.4,1) both">${esc(t)}</div>`;
   }).join('');
   return `<div class="web ${layout} meme"><div class="mm" style="left:${left}px;top:${top}px;width:${w}px;height:${h}px">`
     + `<img src="${pathToFileURL(`${MEMES}/${m.img}`).href}" style="animation:mmzoom ${sp.dur}s linear both">${boxes}</div>`
     + `<div class="src" style="left:${left}px;top:${top + h + 14}px">${esc(sp.src ?? `mem: ${m.name}`)}</div></div>`;
 }
+// "sticker" (16:9; Kamil 2026-11-05: "memy możemy śmiało wycinać np same twarze postacie… i wklejać do około mnie, nie trzeba
+// osobnych ekranów"): the meme's character cut out of the template (style/memes.json "sticker": crops [x, y, w, h] of the
+// picture, one per beat) beside the speaker, who stays full frame. Beat i comes in at "at"[i] with "text"[i] in a chip under
+// it (optional: "kotki" need no words), pops in, sways, and gives way to the next beat
+// "toon": our own animated drawing (gfx/toons/<name>.svg, CSS keyframes only, so every frame is seeked by time) in place of a
+// meme picture: no licence and no Content ID match (Kamil 2026-11-07: "możesz tworzyć gify od zera"). Same beats and chips as a
+// sticker; the drawing has no white frame, its own outline makes it a die-cut sticker
+const TOONS = process.env.VP_TOONS ?? path.resolve(path.dirname(new URL(import.meta.url).pathname), 'toons');
+const toonErr = sp => why => new Error(`"${sp.id}": toon ${JSON.stringify(sp.toon)}: ${why}`);
+// allow-list: a link may only point inside the drawing (#id), in any quoting, in markup or CSS; anything else could reach
+// the network from the render page and make frames depend on it
+const TOON_FORBIDDEN = /<script|<foreignObject|\bon[a-z]+\s*=|(?:href|src)\s*=\s*(?!["']?#)|url\(\s*(?!["']?#)|@import/i;
+function toonSvg(sp) {
+  const f = `${TOONS}/${sp.toon}.svg`, bad = toonErr(sp);
+  if (typeof sp.toon !== 'string' || !/^[a-z0-9_]+$/.test(sp.toon) || !fs.existsSync(f)) throw bad(`not in ${TOONS}`);
+  const svg = fs.readFileSync(f, 'utf8'), vb = svg.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+  if (!vb) throw bad('the <svg> needs viewBox="0 0 W H"');
+  if (TOON_FORBIDDEN.test(svg)) throw bad('a toon is drawing and CSS only: no script, event handler, foreignObject, @import or outside link');
+  if (/^<svg\b[^>]*\sstyle\s*=/i.test(svg.trim())) throw bad('no style="" on the root <svg> (render.mjs sets its size there)');
+  return { svg, width: +vb[1], height: +vb[2] };
+}
+function toonSticker(sp) {
+  const t = toonSvg(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [], bad = toonErr(sp);
+  if (!B) throw bad(`"side" = "right" or "left", got ${JSON.stringify(sp.side)}`);
+  if (sp.canvas === 'v') throw bad('a toon sticker is 16:9 (STICKER_BOX); in 9:16 use a scene');
+  if (!Array.isArray(texts) || !texts.every(x => typeof x === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
+  const at = sp.at?.[0] ?? 0.15;
+  if (!(typeof at === 'number' && at >= 0 && at < sp.dur)) throw bad(`"at" = seconds from the card's start, 0..dur, got ${JSON.stringify(sp.at)}`);
+  const chipH = texts.length ? 200 : 0, s = Math.min(B.w / t.width, (B.h - chipH) / t.height), w = Math.round(t.width * s);
+  const say = texts.length ? `<div class="say" style="animation-delay:${(at + 0.25).toFixed(2)}s">${texts.map(esc).join('<br>')}</div>` : '';
+  return `<div class="float"><div class="stk toon" style="left:${Math.round(B.x + (B.w - w) / 2)}px;top:${B.y}px;width:${w}px;`
+    + `animation:stkin .5s cubic-bezier(.2,1.5,.4,1) ${at.toFixed(2)}s both,stkout .25s ease-in ${(sp.dur - 0.35).toFixed(2)}s forwards">`
+    + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${at.toFixed(2)}s infinite alternate">`
+    + t.svg.replace('<svg ', `<svg style="width:${w}px;height:auto" `) + `</div>${say}</div></div>`;
+}
+// the cut-out of a meme picture (cutout.py): refused when missing or made from another picture than the one on disk
+function cutImg(sp, m) {
+  const c = m.cut, bad = why => new Error(`"${sp.id}": sticker ${JSON.stringify(sp.meme)} "cut": ${why} (run: matte/.venv/bin/python cutout.py ${sp.meme})`);
+  if (!c || typeof c.file !== 'string' || !/^[a-z0-9_]+\.cut\.png$/.test(c.file) || !fs.existsSync(`${MEMES}/${c.file}`)) throw bad('no cut-out yet');
+  const sha = crypto.createHash('sha256').update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
+  if (c.src_sha256 !== sha) throw bad('made from another picture (re-fetched since)');
+  return c.file;
+}
+function sticker(sp) {
+  if (sp.toon !== undefined) return toonSticker(sp);
+  const m = memeLib(sp), B = STICKER_BOX[sp.side ?? 'right'], texts = sp.text ?? [], crops = m.sticker;
+  const bad = why => new Error(`"${sp.id}": sticker ${JSON.stringify(sp.meme)}: ${why}`);
+  if (!B) throw bad(`"side" = "right" or "left", got ${JSON.stringify(sp.side)}`);
+  if (sp.canvas === 'v') throw bad('a sticker is 16:9 (STICKER_BOX is beside the speaker on the 2560x1440 card); in 9:16 use a "meme"');
+  const crop = c => Array.isArray(c) && c.length === 4 && c.every(x => typeof x === 'number' && x >= 0 && x <= 1) && c[0] + c[2] <= 1.0001 && c[1] + c[3] <= 1.0001 && c[2] > 0 && c[3] > 0;
+  if (!Array.isArray(crops) || !crops.length || !crops.every(crop)) throw bad('style/memes.json needs "sticker": [[x, y, w, h], …] (fractions of the picture)');
+  if (!Array.isArray(texts) || !texts.every(t => typeof t === 'string')) throw bad(`"text" = a list of strings, got ${JSON.stringify(sp.text)}`);
+  const n = Math.max(1, texts.length), ats = sp.at ?? [];
+  if (!(Array.isArray(ats) && ats.every(t => typeof t === 'number' && t >= 0 && t < sp.dur))) throw bad(`"at" = seconds from the card's start, each 0..dur, got ${JSON.stringify(sp.at)}`);
+  if (sp.cut !== undefined && typeof sp.cut !== 'boolean') throw bad(`"cut" = true (the character without its background, cutout.py), false or left out, got ${JSON.stringify(sp.cut)}`);
+  const chipH = texts.length ? 200 : 0, img = sp.cut === true ? cutImg(sp, m) : m.img;
+  // cut: no white card behind the character, a white sticker edge drawn around its own outline (four hard drop-shadows)
+  const picCut = sp.cut === true ? ';border:0;background:none;box-shadow:none;border-radius:0;overflow:hidden;filter:drop-shadow(10px 0 0 #fff) drop-shadow(-10px 0 0 #fff) drop-shadow(0 10px 0 #fff) drop-shadow(0 -10px 0 #fff) drop-shadow(0 22px 40px rgba(0,0,0,.45))' : '';
+  return '<div class="float">' + Array.from({ length: n }, (_, i) => {
+    const [cx, cy, cw, ch] = crops[Math.min(i, crops.length - 1)], pw = cw * m.width, ph = ch * m.height;
+    const s = Math.min(B.w / pw, (B.h - chipH) / ph), w = Math.round(pw * s), h = Math.round(ph * s);
+    const t0 = ats[i] ?? 0.15 + (sp.dur / n) * i, t1 = i < n - 1 ? (ats[i + 1] ?? 0.15 + (sp.dur / n) * (i + 1)) - 0.05 : sp.dur - 0.35;
+    const say = texts[i] ? `<div class="say" style="animation-delay:${(t0 + 0.25).toFixed(2)}s">${prose(texts[i])}</div>` : '';
+    return `<div class="stk" style="left:${Math.round(B.x + (B.w - w) / 2)}px;top:${B.y}px;width:${w}px;animation:stkin .5s cubic-bezier(.2,1.5,.4,1) ${t0.toFixed(2)}s both,stkout .25s ease-in ${t1.toFixed(2)}s forwards">`
+      + `<div class="sw" style="animation:stksway 2.2s ease-in-out ${t0.toFixed(2)}s infinite alternate"><div class="pic" style="width:${w}px;height:${h}px${picCut}">`
+      + `<img src="${pathToFileURL(`${MEMES}/${img}`).href}" style="width:${(m.width * s).toFixed(1)}px;margin-left:${(-cx * m.width * s).toFixed(1)}px;margin-top:${(-cy * m.height * s).toFixed(1)}px"></div></div>${say}</div>`;
+  }).join('') + '</div>';
+}
 function memeStamp(sp) {
   const m = memeLib(sp), shown = JSON.stringify(m, (k, v) => (k === 'fetched' ? undefined : v));  // download date: a re-fetch is no change
-  return crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).digest('hex');
+  const h = crypto.createHash('sha1').update(JSON.stringify(sp)).update(shown).update(fs.readFileSync(`${MEMES}/${m.img}`)).update(MEME_CODE);
+  if (sp.cut === true && m.cut?.file && fs.existsSync(`${MEMES}/${m.cut.file}`)) h.update(fs.readFileSync(`${MEMES}/${m.cut.file}`));  // a new cut-out = a new card
+  return h.digest('hex');
 }
+// a toon's frames change with its drawing and the code that places it
+const toonStamp = sp => crypto.createHash('sha1').update(JSON.stringify(sp)).update(toonSvg(sp).svg).update(MEME_CODE)
+  .update(toonSticker.toString()).update(toonSvg.toString()).update(TOON_FORBIDDEN.source).digest('hex');
 function logoStamp(sp) {
   const f = logoFile(sp), bytes = fs.existsSync(f) ? fs.readFileSync(f) : '';  // missing: endBrand stops the render by name
   return crypto.createHash('sha1').update(JSON.stringify(sp)).update(bytes).digest('hex');
 }
+// "behind" is left out: behind.py rewrites the .mov from the front card and keeps its own key in the file
+// a scene is drawn by scene_lib.mjs: a change there (new piece look, the 9:16 solo fade) changes the same spec's frames,
+// so its source is part of a scene's key (film 2 shorts, 2026-11-04: the solo fade was not rendered, the spec was the same)
+const SCENE_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./scene_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+// motion_tokens.mjs only in the key of a "motion": "tokens" card: a token edit does not re-render (or un-accept) legacy cards
+const TOKENS = crypto.createHash('sha1').update(fs.readFileSync(new URL('./motion_tokens.mjs', import.meta.url))).digest('hex').slice(0, 12);
+// a meme is drawn by MEME_BOX, meme(), memeLib() and its CSS in template.html: a change in any of them changes its frames,
+// so they are part of a meme's key like SCENE_LIB for scenes (review r3 code-2, r4 code-1)
+const MEME_CODE = crypto.createHash('sha1').update(JSON.stringify(MEME_BOX)).update(JSON.stringify(STICKER_BOX)).update(meme.toString()).update(sticker.toString()).update(memeLib.toString())
+  .update(fs.readFileSync(new URL('./template.html', import.meta.url))).digest('hex').slice(0, 12);
+// cards_lib.mjs only in the key of a card that uses its new fields (as TOKENS): a legacy list/chap/lower keeps its key
+const CARDS_LIB = crypto.createHash('sha1').update(fs.readFileSync(new URL('./cards_lib.mjs', import.meta.url))).digest('hex').slice(0, 12);
+const specStamp = sp => crypto.createHash('sha1').update(JSON.stringify({ ...sp, behind: undefined, ...(sp.type === 'scene' ? { _lib: SCENE_LIB, ...(sp.motion === 'tokens' ? { _tok: TOKENS } : {}) } : {}),
+  ...(usesCardsLib(sp) ? { _cards: CARDS_LIB } : {}) })).digest('hex');
 function webStamp(sp) {
   const meta = `${outDir}/web/${keyOf(specFile, sp)}.json`;
   const captured = fs.existsSync(meta) ? JSON.parse(fs.readFileSync(meta, 'utf8')).captured : '';
   return crypto.createHash('sha1').update(JSON.stringify([sp, keyOf(specFile, sp), captured])).digest('hex');
 }
+// a new-feature card with a bad field stops the run by name before any page opens (cards_lib checkCard)
+const badCards = specs.flatMap(sp => { try { checkCard(sp); return []; } catch (e) { return [`FAILED gfx ${sp.id}: ${e.message}`]; } });
+if (badCards.length) { badCards.forEach(m => console.error(m)); process.exit(1); }
 // "web" cards need their capture first (network): webshot.mjs skips the ones already captured, fails loudly otherwise
 if (specs.some(s => s.type === 'web')) {
   const limit = specs.filter(s => s.type === 'web').length * PER_CARD + 60000;  // webshot fails a card itself first
@@ -130,15 +265,31 @@ if (specs.some(s => s.type === 'web')) {
   catch { console.error('FAILED gfx: page capture for "web" cards (lines FAILED webshot above)'); process.exit(1); }
 }
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome', chromiumSandbox: true, args: ['--disable-gpu'] });
+// pieces attached to ids get their numbers before any key, still or frame (anchor_lib.mjs, visual upgrade item 2)
+try { await resolveAnchors(specs, opener(browser), esc, icon); } catch (e) { console.error(`FAILED gfx ${e.message}`); await browser.close(); process.exit(1); }
 fs.mkdirSync(outDir, { recursive: true });
+function keyFor(sp) {
+  const base = sp.type === 'web' ? webStamp(sp) : sp.type === 'sticker' && sp.toon !== undefined ? toonStamp(sp) : (sp.type === 'meme' || sp.type === 'sticker') ? memeStamp(sp) : sp.logo ? logoStamp(sp) : specStamp(sp);
+  return THEME ? `${base ?? ''}|${THEME.key}` : base;
+}
+const fresh = (sp, key) => {  // its .mov exists and was made from this key
+  const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`;
+  return fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp));
+};
+// stills gate before any page opens: every card that would render without its accepted still is named, nothing is half done
+if (accepted && process.env.STILLS !== 'off') {
+  const refused = specs.filter(sp => inReview.has(sp.id)).filter(sp => { const k = keyFor(sp); return !fresh(sp, k) && accepted[sp.id] !== (k ?? ''); });
+  for (const sp of refused) console.error(`FAILED gfx ${sp.id}: no accepted still for this version of the card (python3 stills.py <plan.json> --only ${sp.id}, then stills.py accept <plan.json> ${sp.id})`);
+  if (refused.length) { await browser.close(); process.exit(1); }
+}
 async function one(sp) {
   // a "web" card's .mov belongs to its spec and to one capture (a new capture of the same page included): either changes
-  // -> rendered again. Other types keep the old rule (the panel moves a changed graphic's .mov aside).
+  // -> rendered again. Every other card belongs to its spec: a changed scene, text or timing renders it again (until
+  // 2026-11-04 only the theme was in the key, so a retimed scene kept its old .mov unless someone moved it aside).
   // a theme belongs to every card's .mov too: a new or changed theme (or none after one) renders the card again
   // a card with a logo belongs to its spec and to the logo file's bytes: a new logo under the same name renders it again
-  const out = `${outDir}/${sp.id}.mov`, base = sp.type === 'web' ? webStamp(sp) : sp.type === 'meme' ? memeStamp(sp) : sp.logo ? logoStamp(sp) : null, stamp = `${out}.key`;
-  const key = THEME ? `${base ?? ''}|${THEME.key}` : base;
-  if (fs.existsSync(out) && (key ? fs.existsSync(stamp) && fs.readFileSync(stamp, 'utf8') === key : !fs.existsSync(stamp))) return;
+  const out = `${outDir}/${sp.id}.mov`, stamp = `${out}.key`, key = keyFor(sp);
+  if (!STILLS && fresh(sp, key)) return;
   // canvas "v" = 9:16 graphic for shorts (1080x1920, own layout in template.html under html.v); default 16:9
   const v = sp.canvas === 'v';
   const page = await browser.newPage({ viewport: v ? { width: 1080, height: 1920 } : { width: 2560, height: 1440 } });
@@ -147,6 +298,9 @@ async function one(sp) {
   if (THEME) await page.evaluate(css => { for (const [k, val] of Object.entries(css)) document.documentElement.style.setProperty(k, val); }, THEME.css);
   await page.evaluate(h => { document.getElementById('root').innerHTML = h; }, html(sp).replace(/\{\{icon:([a-z0-9-]+)\}\}/g, (m, n) => icon(n)));
   await page.evaluate(() => document.fonts.ready);
+  // "scene": pieces measured as laid out, camera stops ("on": piece ids) turned into a camera move (gfx/scene_lib.mjs)
+  if (sp.type === 'scene') await page.evaluate(([fit, kf, safe, solo, zoom, follow, frames]) => { new Function(`return ${fit}`)()(safe, kf, solo, zoom, follow, frames); },
+    [sceneFit.toString(), camKeyframes.toString(), sceneSafe(sp), soloKeys.toString(), zoomStops.toString(), colFollow.toString(), frameStops.toString()]);  // zoom: L17 canvas_zoom
   // images (end card logo, web capture) loaded before the first frame; one that cannot load stops the render with its name
   const broken = await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().then(() => null, () => i.src))));
   if (broken.some(Boolean)) { console.error(`FAILED gfx ${sp.id}: image not loaded ${broken.filter(Boolean).join(', ')}`); process.exit(1); }
@@ -155,7 +309,7 @@ async function one(sp) {
     await page.addScriptTag({ path: GSAP });
     await page.evaluate(([cd, delay, fmt]) => {
       const f = new Function(`return ${fmt}`)(), tl = gsap.timeline({ paused: true });
-      const nums = [...document.querySelectorAll('.num')].map(el => ({ el, o: { v: 0 } }));
+      const nums = [...document.querySelectorAll('.num')].map(el => ({ el, o: { v: el.dataset.from ? +el.dataset.from : 0 } }));
       nums.forEach(({ o, el }) => tl.to(o, { v: +el.dataset.to, duration: cd, ease: 'power2.out' }, delay));
       window.__seek = t => { tl.seek(t, true); nums.forEach(({ el, o }) => {
         el.textContent = cd <= 0 || t >= delay + cd ? el.dataset.final : f(o.v, +el.dataset.dec, !!el.dataset.group); }); };
@@ -163,6 +317,16 @@ async function one(sp) {
   }
   if (sp.type === 'maxim') await page.evaluate(([src, hold, mark]) => { window.__seek = new Function(`return ${src}`)()(hold, mark); },
     [maximSeek.toString(), CARET_HOLD, MARK_DUR]);
+  // "no_fade_out": the card is cut, not faded, at its end (a card followed straight by the next one: a fade would show the face between them)
+  if (sp.no_fade_out) await page.evaluate(() => { window.__noout = true; });
+  if (STILLS) {
+    const sd = `${outDir}/stills`, t = stillTime(sp); fs.mkdirSync(sd, { recursive: true });
+    await page.evaluate(t => { document.getAnimations().forEach(a => { a.pause(); a.currentTime = t * 1000; }); if (window.__seek) window.__seek(t);
+      return new Promise(res => requestAnimationFrame(() => res())); }, t);
+    await shot(page, { path: `${sd}/${sp.id}.png`, omitBackground: true }, sp.id);
+    fs.writeFileSync(`${sd}/${sp.id}.key`, key ?? ''); fs.writeFileSync(`${sd}/${sp.id}.t`, String(t));
+    await page.close(); return;
+  }
   const dir = `${outDir}/${sp.id}_frames`; fs.mkdirSync(dir, { recursive: true });
   const n = Math.round(sp.dur * FPS);
   for (let f = 0; f < n; f++) {
@@ -176,18 +340,23 @@ async function one(sp) {
       // screenshot can show the previous state (count test: frame 5, the bar's first grow frame, differed between runs)
       return new Promise(res => requestAnimationFrame(() => res()));
     }, [t, sp.dur, FADE_OUT]);
-    await page.screenshot({ path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true });
+    await shot(page, { path: `${dir}/${String(f).padStart(4, '0')}.png`, omitBackground: true }, `${sp.id} frame ${f}`);
   }
   await page.close();
-  execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
+  // -threads 8: prores_ks defaults to one frame thread per core (32 here) -> ~2.1G RSS per 1080p encode vs ~0.85G;
+  // the parallel gfx suite hit its 16G cap on 2026-11-15 (OOM kill). Encode slows ~1.6x, still ~1-2 s per card.
+  execFileSync('ffmpeg', ['-v', 'error', '-y', '-framerate', String(FPS), '-i', `${dir}/%04d.png`, '-threads', '8', '-c:v', 'prores_ks', '-profile:v', '4444', '-pix_fmt', 'yuva444p10le', out]);
   fs.rmSync(dir, { recursive: true });
   if (key) fs.writeFileSync(stamp, key); else fs.rmSync(stamp, { force: true });
   console.log('gfx', sp.id);
 }
-const q = [...specs]; await Promise.all([0,1,2,3,4,5].map(async () => { while (q.length) await one(q.shift()); }));
+// pages from the free cores (gfx/pace_lib.mjs): another job's load means fewer pages, not 30 s timeouts on all of them
+const PAGES = pageCount(os.cpus().length, os.loadavg()[0], process.env.GFX_PAGES ?? '');
+console.log(`gfx pages ${PAGES} (cpus ${os.cpus().length}, load ${os.loadavg()[0].toFixed(1)})`);
+const q = [...specs]; await Promise.all(Array.from({ length: PAGES }, async () => { while (q.length) await one(q.shift()); }));
 await browser.close();
 // "behind" cards: behind.py cuts the speaker out of each one's alpha (text behind the head); skipped when nothing changed
-if (specs.some(sp => sp.behind)) {
+if (!STILLS && specs.some(sp => sp.behind)) {
   const PY = '/home/kamil-jan/video-pipeline/matte/.venv/bin/python';
   if (!fs.existsSync(PY)) { console.error('FAILED gfx: "behind" cards need matte/.venv (README: text behind the speaker)'); process.exit(1); }
   try { execFileSync(PY, ['/home/kamil-jan/video-pipeline/behind.py', specFile, outDir], { stdio: 'inherit', timeout: 1800000 }); }

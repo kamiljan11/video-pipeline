@@ -37,3 +37,14 @@ export const FADE_OUT = 0.35, COUNT_DELAY = 0.35;
 export const countSeconds = dur => Math.max(0, Math.min(1.6, dur * 0.4, dur - COUNT_DELAY - FADE_OUT - 0.1));
 
 export const hasNumber = text => countParts(text).some(p => typeof p !== 'string');
+
+// S11 (research ledger) "from" on a count card: where its numbers start, like a scene stat's "count.from" (a list that grows
+// from 3 to 4 items counts 3 -> 4, not 0 -> 4). One number for every number in the text or a list, one per number; none = 0
+// (as before). Returns the start of each number, or throws naming the card.
+export function countFrom(sp, n) {
+  if (sp.from === undefined) return Array(n).fill(0);
+  const ok = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  const list = Array.isArray(sp.from) ? sp.from : Array(n).fill(sp.from);
+  if (list.length !== n || !list.every(ok)) throw new Error(`"${sp.id}": count "from" = a number >= 0 or a list of ${n} (one per number in the text), got ${JSON.stringify(sp.from)}`);
+  return list;
+}

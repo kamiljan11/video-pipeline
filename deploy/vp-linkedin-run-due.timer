@@ -1,0 +1,12 @@
+# Every 15 minutes. One post per run and nothing more than 3 h late (linkedin.py MAX_LATE_H), so waking the laptop
+# after a night off never sends a burst of old posts. Not enabled by the repo: see the .service file.
+[Unit]
+Description=LinkedIn queue every 15 minutes (video-pipeline linkedin.py run-due)
+
+[Timer]
+OnCalendar=*:00/15
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

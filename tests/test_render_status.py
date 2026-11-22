@@ -1,0 +1,169 @@
+"""render_status.py: stage and film from the unit's command lines, the stage-2 ffmpeg, the ETA of the whole set."""
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import render_status as R
+
+FILMS = ["long", "s01", "s02", "s03"]
+
+
+class Stage(unittest.TestCase):
+    def test_assemble_wins_over_the_shell_and_names_the_film(self):
+        cmds = [["bash", "run_v4.sh", "W", "O", "long"], ["python3", "/vp/assemble.py", "edl_long.json", "/vp/render/long"]]
+        self.assertEqual(R.stage_of(cmds), ("assemble", "long"))
+
+    def test_gfx_and_plan_film(self):
+        self.assertEqual(R.stage_of([["node", "/vp/gfx/render.mjs", "gfx_specs.json", "gfx"]]), ("gfx", None))
+        self.assertEqual(R.stage_of([["python3", "/vp/critic.py", "plan_s02_szlaban.json", "--fix"]]), ("critic", "s02_szlaban"))
+
+    def test_nothing_known_is_start(self):
+        self.assertEqual(R.stage_of([["bash", "-c", "x"]]), ("start", None))
+
+    def test_stage2_ffmpeg_is_the_one_with_a_graph_on_rough(self):
+        procs = {1: ["/usr/bin/ffmpeg", "-ss", "3", "-i", "rec.mp4", "seg.mkv"],
+                 2: ["/usr/bin/ffmpeg", "-i", "/r/long/rough.mkv", "-i", "a.mov", "-filter_complex", "[0:v]..."]}
+        self.assertEqual(R.stage2_pid(procs), 2)
+        self.assertIsNone(R.stage2_pid({1: procs[1]}))
+
+
+class Eta(unittest.TestCase):
+    def test_current_film_from_its_rate_plus_the_rest(self):
+        e = R.eta(FILMS, [], "long", 0.25, 600.0, [])
+        self.assertAlmostEqual(e["current_left_s"], 1800.0)
+        self.assertEqual(e["rest_films"], 3)
+        self.assertAlmostEqual(e["total_left_s"], 1800 + 3 * R.SHORT_S + R.TAIL_S)
+
+    def test_unknown_until_stage2_has_moved(self):
+        self.assertIsNone(R.eta(FILMS, [], "long", 0.01, 30.0, [])["total_left_s"])
+        self.assertIsNone(R.eta(FILMS, [], "long", None, None, [])["total_left_s"])
+
+    def test_measured_shorts_replace_the_default(self):
+        e = R.eta(FILMS, ["long", "s01"], "s02", 0.5, 60.0, [100.0, 140.0])
+        self.assertEqual(e["per_short_s"], 120.0)
+        self.assertAlmostEqual(e["total_left_s"], 60 + 120 + R.TAIL_S)
+
+    def test_measured_rate_wins_over_process_age(self):
+        e = R.eta(FILMS, [], "long", 0.5, 9999.0, [], rate=0.001)  # 0.1 % of the film per second
+        self.assertAlmostEqual(e["current_left_s"], 500.0)
+
+    def test_all_done_leaves_the_tail(self):
+        self.assertAlmostEqual(R.eta(FILMS, FILMS, None, None, None, [])["total_left_s"], R.TAIL_S)
+
+
+class Queue(unittest.TestCase):
+    def test_rows_per_format(self):
+        q = R.queue(FILMS, ["long", "s01"], "s02", False)
+        self.assertEqual([(r["name"], r["done"], r["total"], r["now"]) for r in q[:2]], [("Long", 1, 1, False), ("Shorty", 1, 3, True)])
+        self.assertFalse(q[2]["now"])
+
+    def test_long_now_and_finishing(self):
+        q = R.queue(FILMS, [], "long", False)
+        self.assertTrue(q[0]["now"]); self.assertFalse(q[1]["now"])
+        self.assertTrue(R.queue(FILMS, FILMS, None, True)[2]["now"])
+
+
+class Shell(unittest.TestCase):
+    def test_vars_expand_from_earlier_lines(self):
+        text = 'VP=/home/k/vp\nO=$VP/render/out_v4\nS="s01 s02"\n'
+        self.assertEqual(R.shell_var(text, "O"), "/home/k/vp/render/out_v4")
+        self.assertEqual(R.shell_var(text, "S"), "s01 s02")
+        self.assertEqual(R.shell_var(text, "X"), "")
+
+    def test_fmt(self):
+        self.assertEqual(R.fmt(None), "?")
+        self.assertEqual(R.fmt(125), "2 min")
+        self.assertEqual(R.fmt(3 * 3600 + 7 * 60), "3 h 07 min")
+
+
+class Materials(unittest.TestCase):
+    def test_counts_what_is_in_the_out_dir(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        for f in ("thumbnails/long_A.jpg", "thumbnails/long_B.jpg", "thumbnails/s01_cover.jpg", "posts/p01/post.md",
+                  "posts/p02/grafika.png", "instagram/p01/1.png", "instagram/p02/caption.txt", "instagram/reels/s01.json", "youtube/long.md",
+                  "youtube/shorts/s02.md", "blog/a/article.json"):
+            (d / f).parent.mkdir(parents=True, exist_ok=True); (d / f).write_text("x")
+        rows = {r["name"]: (r["done"], r["total"]) for r in R.materials(d, ["s01", "s02"])}
+        self.assertEqual(rows["Miniatury longa (A/B…)"], (2, 2))
+        self.assertEqual(rows["Okładki shortów"], (1, 2))
+        self.assertEqual(rows["Posty LinkedIn"], (1, 2))  # p02 has no post.md yet
+        self.assertEqual(rows["Karuzele Instagram"], (1, 2))  # p02 has no picture yet
+        self.assertEqual(rows["Opisy reels Instagram"], (1, 2))
+        self.assertEqual(rows["Artykuł na bloga"], (1, 1))
+        self.assertEqual(rows["Opisy YouTube"], (2, 3))
+
+    def test_empty_out_dir_shows_missing_minimums(self):
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
+        rows = {r["name"]: (r["done"], r["total"]) for r in R.materials(d, ["s01"])}
+        self.assertEqual(rows["Miniatury longa (A/B…)"], (0, 2))
+        self.assertEqual(rows["Artykuł na bloga"], (0, 1))
+
+
+class Failed(unittest.TestCase):
+    FILMS = ("long", "s01", "s02", "s03")
+
+    def test_films_passed_without_a_file_are_failed(self):
+        self.assertEqual(R.failed_films(list(self.FILMS), ["s01"], "s03", False), ["long", "s02"])
+        self.assertEqual(R.failed_films(list(self.FILMS), [], "long", False), [])  # the long is still running
+        self.assertEqual(R.failed_films(list(self.FILMS), ["long", "s01", "s02"], None, True), ["s03"])  # finish step: all
+
+    def test_rows_count_failed(self):
+        rows = R.queue(list(self.FILMS), ["s01"], "s03", False)
+        self.assertEqual((rows[0]["failed"], rows[1]["failed"]), (1, 1))
+
+    def test_reason_is_the_specific_step(self):
+        log = "FAILED words_check cut long\nFAILED assemble long\nFAILED_FILMS long\nFAILED film_check s02 (/x/critic_s02.log)\n"
+        self.assertEqual(R.fail_reasons(log, ["long", "s02"]), {"long": "words_check cut", "s02": "film_check"})
+
+
+class Processes(unittest.TestCase):  # Kamil 2026-11-08 "na tym widgecie to powinny wszystkie procesy leciec ... ile %"
+    VP = R.VP
+
+    def test_film_of_reads_edl_render_paths_and_bare_names(self):
+        self.assertEqual(R.film_of(["python3", "x/build_edl.py", "edl_s02.json"], FILMS), "s02")
+        self.assertEqual(R.film_of(["python3", "words_check.py", "sound", "/v/render/long/rough.mkv", "/v/render/long/f.mp4"], FILMS), "long")
+        self.assertEqual(R.film_of(["python3", "film_check.py", ".", "s03"], FILMS), "s03")
+        self.assertIsNone(R.film_of(["python3", "words_check.py", "sound", "/v/render/beds_s01/music.wav"], FILMS))
+
+    def test_rows_cover_the_unit_and_steps_run_by_hand(self):
+        procs = {10: ["python3", self.VP + "words_check.py", "sound", "/v/render/long/rough.mkv", "/v/render/long/f.mp4"],
+                 11: ["nice", "python3", self.VP + "assemble.py", "edl_s02.json", "/v/render/s02"],
+                 12: ["/bin/bash", "-c", "python3 " + self.VP + "words_check.py sound a b"],  # a shell around a step: not a row
+                 13: ["python3", self.VP + "critic.py", "plan_s01.json", "--video", "x.mp4"]}
+        rows = R.proc_rows(procs, {11}, FILMS)
+        self.assertEqual([(r["pid"], r["film"], r["by_hand"]) for r in rows], [(10, "long", True), (11, "s02", False), (13, "s01", True)])
+        self.assertEqual(rows[0]["step"], "kontrola słów (dźwięk)")
+        busy = {r["film"] for r in rows if r["by_hand"]}
+        self.assertEqual(R.failed_films(FILMS, ["s01"], "s02", False, busy), [])  # the long is checked by hand: not failed
+        self.assertTrue(R.queue(FILMS, [], "s02", False, busy)[0]["now"])
+
+    def test_progress_file_is_found_in_the_cache(self):
+        import progress
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        real = progress.PROGRESS_DIR
+        try:
+            progress.PROGRESS_DIR = d
+            progress.progress_file(str(d / "f [1].mp4"), 123).write_text("progress = 30%\nprogress = 60%\n")
+            self.assertEqual(R._whisper_progress(["python3", "words_check.py", "sound", str(d / "rough.mkv"), str(d / "f [1].mp4")]), 0.6)
+            self.assertIsNone(R._whisper_progress(["python3", "words_check.py", "sound", str(d / "x.mp4")]))
+        finally:
+            progress.PROGRESS_DIR = real
+
+    def test_whisper_pct_and_total_pct(self):
+        self.assertEqual(R.whisper_pct("whisper_print_progress_callback: progress =  5%\n... progress = 45%\n"), 0.45)
+        self.assertIsNone(R.whisper_pct("loading model"))
+        self.assertEqual(R.total_pct(600.0, 1800.0), 0.25)
+        self.assertIsNone(R.total_pct(600.0, None))
+
+    def test_eta_has_a_number_while_a_short_is_in_its_checks(self):  # no stage-2 counter there, the widget showed "?"
+        e = R.eta(FILMS, ["long", "s01"], "s02", None, None, [], film_age_s=60.0)
+        self.assertEqual(e["current_left_s"], R.SHORT_S - 60.0)
+        self.assertEqual(e["total_left_s"], R.SHORT_S - 60.0 + R.SHORT_S + R.TAIL_S)
+        self.assertIsNone(R.eta(FILMS, [], "long", None, None, [], film_age_s=60.0)["total_left_s"])  # the long: unknown
+
+
+if __name__ == "__main__":
+    unittest.main()

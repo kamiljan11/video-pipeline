@@ -95,7 +95,7 @@ class PackTest(unittest.TestCase):
         self.assertEqual(r["windows"][1]["said"], "koniec")
         img = cv2.imread(str(work / "out" / "w000.jpg"))
         assert img is not None
-        self.assertEqual(img.shape[1], 4 * 400)  # 4 frames side by side, 225 px high -> 400 px wide
+        self.assertEqual(img.shape[1], 4 * 400 + 3 * vp.GAP)  # 4 frames side by side, 225 px high -> 400 px wide, gaps between
         md = (work / "out" / "pack.md").read_text()
         self.assertIn("g1 (kw) 1.0-3.0 s: Tytuł", md)
         self.assertIn("Na ekranie: tylko kamera", md)
@@ -132,6 +132,39 @@ class PackTest(unittest.TestCase):
         self.assertEqual(r["missing"], [1])
         self.assertIn("no frames for window 1", err.getvalue())
         self.assertIn("UWAGA: okna bez klatek (nieobejrzane): [1]", (self.work / "out" / "pack.md").read_text())
+
+    def test_tiles_are_split_by_a_gap_line(self):
+        film = project(self.work)
+        vp.pack(self.work / "plan.json", str(film), self.work / "out", every=1.0, size=8.0)  # 8 frames: 2 rows of 4
+        img = cv2.imread(str(self.work / "out" / "w000.jpg"))
+        assert img is not None
+        self.assertEqual(img.shape[:2], (2 * 225 + vp.GAP, 4 * 400 + 3 * vp.GAP))
+        x, y = 400 + vp.GAP // 2, 225 + vp.GAP // 2  # the middle of the first vertical and horizontal gap
+        for px in (img[100, x], img[y, 100], img[y, x]):
+            self.assertLessEqual(max(abs(int(a) - b) for a, b in zip(px, vp.GAP_COLOR, strict=True)), 12, px)  # jpeg blurs colour at the tile edge
+
+    def test_zoom_gives_ten_frames_a_second_with_their_times(self):
+        film = project(self.work)
+        out = self.work / "out"
+        vp.pack(self.work / "plan.json", str(film), out, every=1.0, size=5.0)
+        rc, _ = run_main([str(self.work / "plan.json"), str(film), str(out), "--zoom", "1", "4"])
+        self.assertEqual(rc, 0)
+        z = json.loads((out / "z0001.00-0004.00.json").read_text())
+        self.assertEqual(z["frames"], 30)
+        self.assertEqual(z["on_screen"], ["g1 (kw) 1.0-3.0 s: Tytuł"])
+        img = cv2.imread(str(out / z["sheet"]))
+        assert img is not None
+        self.assertEqual(img.shape[:2], (6 * 225 + 5 * vp.GAP, 5 * 400 + 4 * vp.GAP))  # 30 tiles, 5 a row
+        self.assertTrue((out / "pack.md").exists())  # the pack stays
+
+    def test_zoom_arguments_are_checked(self):
+        film = project(self.work)
+        args = [str(self.work / "plan.json"), str(film), str(self.work / "out")]
+        self.assertEqual(run_main([*args, "--zoom", "3"])[0], 2)
+        self.assertEqual(run_main([*args, "--zoom", "1", "4", "--window", "5"])[0], 2)
+        rc, err = run_main([*args, "--zoom", "5", "2"])
+        self.assertEqual(rc, 1)
+        self.assertIn("T1 must be after T0", err)
 
     def test_a_broken_plan_is_a_named_failure(self):
         film = project(self.work)

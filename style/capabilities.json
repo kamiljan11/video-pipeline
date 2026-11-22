@@ -1,0 +1,3356 @@
+{
+ "_doc": "Every feature of the pipeline: owner = a role card in team/roles/, check = a style/checklist.json item or gate:<file>, check may be {long: id, short: id} when each form has its own item; use per form = required | report | infra | never (capabilities.py). Generated 2026-11-09 from the code (capabilities.discover) and the plans of film 2026-11-04 (a key the long never set -> required now when it changes the film: broll, grade, sfx_duck). tests/test_capabilities.py fails on a feature of the code without an entry here. A \"required\" use needs evidence: its own why, or the why of its checklist item of that form. Kinds opt (a key inside a card/scene spec) and menu (a list the role picks from, shown by brief, not counted per film) added in round 3 (2026-11-09). Round 4: kind pfx (a field of a scene piece, els[]); \"group\": one of the members of that form is enough (long.explainers needs a scene, float, slide or web card; long.memes a meme or sticker); a cap skip needs >= 10 characters and an existing id. Round 5: spec keys read by any stage (*.py), fields of objects inside a piece (pfx.rows.*, msgs.*, count.*, badge.*), groups end (card.end / plan.end) and framing (part_framing / zoom_every_s), never-uses where the renderer refuses the canvas. Round 6: \"want\" = only these values count (caption_emph key, hook_pos mid, end platform: a default does not); fields of spec lists (opt.cam.*, opt.canvas_zoom.*); read_along required on the scene pieces, where long.read_along looks.",
+ "caps": [
+  {
+   "id": "card.chap",
+   "kind": "card",
+   "name": "chap",
+   "owner": "motion-designer",
+   "check": "long.chapters",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "a short has no parts/chapters"
+  },
+  {
+   "id": "card.count",
+   "kind": "card",
+   "name": "count",
+   "owner": "motion-designer",
+   "check": "long.counts",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.cta",
+   "kind": "card",
+   "name": "cta",
+   "owner": "motion-designer",
+   "check": "long.cta_place",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.end",
+   "kind": "card",
+   "name": "end",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.end",
+    "short": "short.end"
+   },
+   "use": {
+    "long": "required",
+    "short": "menu"
+   },
+   "why": "long.end: an end card or plan end \"platform\" (group end). Top shorts end 0.23 s after the last word with no end board (30/30); a short shows one only when its plan carries Kamil's \"end_card\" words (Kamil 2026-11-15: the board pointing to the full film on the channel), 1.5-3.5 s after the last word (short.end)",
+   "group": "end"
+  },
+  {
+   "id": "card.float",
+   "kind": "card",
+   "name": "float",
+   "owner": "motion-designer",
+   "check": "long.explainers",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "group": "explainer"
+  },
+  {
+   "id": "card.kw",
+   "kind": "card",
+   "name": "kw",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.graphics",
+    "short": "short.max_gap"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "card.list",
+   "kind": "card",
+   "name": "list",
+   "owner": "motion-designer",
+   "check": "long.list_said",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.lower",
+   "kind": "card",
+   "name": "lower",
+   "owner": "motion-designer",
+   "check": "long.lower",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.maxim",
+   "kind": "card",
+   "name": "maxim",
+   "owner": "motion-designer",
+   "check": "long.graphics",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "card.meme",
+   "kind": "card",
+   "name": "meme",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.memes",
+    "short": "short.meme"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "group": "meme"
+  },
+  {
+   "id": "card.note",
+   "kind": "card",
+   "name": "note",
+   "owner": "motion-designer",
+   "check": "long.note",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: a note card is 16:9 only (refused in canvas \"v\")"
+  },
+  {
+   "id": "card.scene",
+   "kind": "card",
+   "name": "scene",
+   "owner": "motion-designer",
+   "check": "long.explainers",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "group": "explainer"
+  },
+  {
+   "id": "card.slide",
+   "kind": "card",
+   "name": "slide",
+   "owner": "motion-designer",
+   "check": "long.explainers",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "group": "explainer"
+  },
+  {
+   "id": "card.sticker",
+   "kind": "card",
+   "name": "sticker",
+   "owner": "motion-designer",
+   "check": "long.memes",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "group": "meme",
+   "why": "gfx/render.mjs: a sticker is 16:9 (STICKER_BOX beside the speaker); in 9:16 use a \"meme\" (refused in canvas \"v\")"
+  },
+  {
+   "id": "card.web",
+   "kind": "card",
+   "name": "web",
+   "owner": "motion-designer",
+   "check": "long.web_marked",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "group": "explainer"
+  },
+  {
+   "id": "piece.bar",
+   "kind": "piece",
+   "name": "bar",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.chat",
+   "kind": "piece",
+   "name": "chat",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.check",
+   "kind": "piece",
+   "name": "check",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.chip",
+   "kind": "piece",
+   "name": "chip",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.cursor",
+   "kind": "piece",
+   "name": "cursor",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.file",
+   "kind": "piece",
+   "name": "file",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.line",
+   "kind": "piece",
+   "name": "line",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.node",
+   "kind": "piece",
+   "name": "node",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.ring",
+   "kind": "piece",
+   "name": "ring",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.say",
+   "kind": "piece",
+   "name": "say",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.stamp",
+   "kind": "piece",
+   "name": "stamp",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.stat",
+   "kind": "piece",
+   "name": "stat",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.steps",
+   "kind": "piece",
+   "name": "steps",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.term",
+   "kind": "piece",
+   "name": "term",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.text",
+   "kind": "piece",
+   "name": "text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.toggle",
+   "kind": "piece",
+   "name": "toggle",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.win",
+   "kind": "piece",
+   "name": "win",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.you",
+   "kind": "piece",
+   "name": "you",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "bg.blobs",
+   "kind": "bg",
+   "name": "blobs",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "bg.dots",
+   "kind": "bg",
+   "name": "dots",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.blur",
+   "kind": "anim",
+   "name": "blur",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.drop",
+   "kind": "anim",
+   "name": "drop",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.fade",
+   "kind": "anim",
+   "name": "fade",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.left",
+   "kind": "anim",
+   "name": "left",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.pop",
+   "kind": "anim",
+   "name": "pop",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.right",
+   "kind": "anim",
+   "name": "right",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "anim.up",
+   "kind": "anim",
+   "name": "up",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.ass_out",
+   "kind": "plan",
+   "name": "ass_out",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.audio",
+   "kind": "plan",
+   "name": "audio",
+   "owner": "dzwiekowiec",
+   "check": "gate:lip_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the voice filter chain (denoise, limiters) of every film; its delay is measured and trimmed (ADR-0022, lip_check)"
+  },
+  {
+   "id": "plan.beat_opt_in",
+   "kind": "plan",
+   "name": "beat_opt_in",
+   "owner": "producent",
+   "check": {
+    "long": "long.define",
+    "short": "gate:beats.py"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "define and note beats exist only when listed here (beats.py); long.define / long.note then get their cards"
+  },
+  {
+   "id": "plan.beats",
+   "kind": "plan",
+   "name": "beats",
+   "owner": "producent",
+   "check": {
+    "long": "long.punch",
+    "short": "short.punch"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the switch for every grammar punch, sound and card (build_edl `if \"beats\" in P`, beatfx.py); without it none is built"
+  },
+  {
+   "id": "plan.broll",
+   "kind": "plan",
+   "name": "broll",
+   "owner": "montazysta",
+   "check": "long.graphics",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.broll_rejected",
+   "kind": "plan",
+   "name": "broll_rejected",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.caption_ahead",
+   "kind": "plan",
+   "name": "caption_ahead",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "captions are burned in only on shorts; the long has none"
+  },
+  {
+   "id": "plan.caption_box",
+   "kind": "plan",
+   "name": "caption_box",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "caption look, defaults apply when unset (short.captions reads only caption_pop); captions are burned in only on shorts, the long has none"
+  },
+  {
+   "id": "plan.corner_halo",
+   "kind": "plan",
+   "name": "corner_halo",
+   "owner": "producent-shortow",
+   "check": "short.layouts",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "9:16 corner circle glow: \"picture\" (blurred picture, default) or \"accent\" (theme accent; film 2's red shirt smeared red, Kamil 2026-11-15); build_edl validates, assemble.py HALO_VF"
+  },
+  {
+   "id": "plan.caption_case",
+   "kind": "plan",
+   "name": "caption_case",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "captions are burned in only on shorts; the long has none"
+  },
+  {
+   "id": "plan.caption_emph",
+   "kind": "plan",
+   "name": "caption_emph",
+   "owner": "producent-shortow",
+   "check": "short.options",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "short.options (S9) wants caption_emph \"key\"; the default \"active\" is not the research choice, so only \"key\" counts. Captions are burned in only on shorts, the long has none",
+   "want": [
+    "key"
+   ]
+  },
+  {
+   "id": "plan.caption_emph_scale",
+   "kind": "plan",
+   "name": "caption_emph_scale",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "captions are burned in only on shorts; the long has none"
+  },
+  {
+   "id": "plan.caption_pop",
+   "kind": "plan",
+   "name": "caption_pop",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "captions are burned in only on shorts (short.captions); the long has none. Counts only as true: the gate is `caption_pop is True` (critic round 6)",
+   "want": [
+    "true"
+   ]
+  },
+  {
+   "id": "plan.caption_v",
+   "kind": "plan",
+   "name": "caption_v",
+   "owner": "producent-shortow",
+   "check": "short.captions",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "caption look, defaults apply when unset (short.captions reads only caption_pop); captions are burned in only on shorts, the long has none"
+  },
+  {
+   "id": "plan.drift",
+   "kind": "plan",
+   "name": "drift",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.edge_fix",
+   "kind": "plan",
+   "name": "edge_fix",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "off by default (edges.py); repairs dips at cut edges; all 2026-11-04 plans set it"
+  },
+  {
+   "id": "plan.cut_fix",
+   "kind": "plan",
+   "name": "cut_fix",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "cut edges Kamil moved on the Kdenlive timeline (kden_import.py); unused = he moved none"
+  },
+  {
+   "id": "plan.edl_out",
+   "kind": "plan",
+   "name": "edl_out",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.emph",
+   "kind": "plan",
+   "name": "emph",
+   "owner": "operator",
+   "check": {
+    "long": "long.punch",
+    "short": "short.punch"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.end",
+   "kind": "plan",
+   "name": "end",
+   "owner": "producent",
+   "check": "long.end",
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "long.end (film_check.end_ok) passes with an end card OR plan end \"platform\"; only \"platform\" replaces the card (group end). A short ends on its last word (short.end)",
+   "group": "end",
+   "want": [
+    "platform"
+   ]
+  },
+  {
+   "id": "plan.end_hold",
+   "kind": "plan",
+   "name": "end_hold",
+   "owner": "producent-shortow",
+   "check": "short.end",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "a short may hold a last card in its tail (short.end, short.last_face); the long ends on the platform end screen (long.end)"
+  },
+  {
+   "id": "plan.end_card",
+   "kind": "plan",
+   "name": "end_card",
+   "owner": "producent-shortow",
+   "check": "short.end",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "Kamil's words for an end board in a short ('Kamil YYYY-MM-DD: ...'): one end card 1.5-3.5 s after the last word (short.end); without them a short ends on its last word"
+  },
+  {
+   "id": "plan.face",
+   "kind": "plan",
+   "name": "face",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.face_target_y",
+   "kind": "plan",
+   "name": "face_target_y",
+   "owner": "operator",
+   "check": "short.layouts",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "the face height in the 9:16 crop (face_track.py); the long is 16:9 and framed by part_framing"
+  },
+  {
+   "id": "plan.gfx",
+   "kind": "plan",
+   "name": "gfx",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.graphics",
+    "short": "short.layouts"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.gfx_dir",
+   "kind": "plan",
+   "name": "gfx_dir",
+   "owner": "motion-designer",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.gfx_lead",
+   "kind": "plan",
+   "name": "gfx_lead",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.gfx_lead",
+    "short": "short.gfx_lead"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.gfx_specs",
+   "kind": "plan",
+   "name": "gfx_specs",
+   "owner": "motion-designer",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.grade",
+   "kind": "plan",
+   "name": "grade",
+   "owner": "operator",
+   "check": "gate:edl_guard.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the 2026-11-04 long had no grade while every gate was green (ADR-0023); the picture chain is checked by edl_guard"
+  },
+  {
+   "id": "plan.head_track",
+   "kind": "plan",
+   "name": "head_track",
+   "owner": "operator",
+   "check": {
+    "long": "long.head_track",
+    "short": "short.head_track"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.hook_assets",
+   "kind": "plan",
+   "name": "hook_assets",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "the pictures for the hook nouns of a short (film_check hook_show); the long has no hook card"
+  },
+  {
+   "id": "plan.hook_dur",
+   "kind": "plan",
+   "name": "hook_dur",
+   "owner": "producent-shortow",
+   "check": "short.hook",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "hook length, default 3.0 s (build_edl.py); critic.py C2 reads it (a 9:16 card under the hook title for hook_dur s), no checklist item does"
+  },
+  {
+   "id": "plan.hook_pos",
+   "kind": "plan",
+   "name": "hook_pos",
+   "owner": "producent-shortow",
+   "check": "short.options",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "short.options (S8) wants hook_pos \"mid\" (the hook in the middle band); the default \"top\" does not count",
+   "want": [
+    "mid"
+   ]
+  },
+  {
+   "id": "plan.hook_y",
+   "kind": "plan",
+   "name": "hook_y",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "height of the mid hook as a fraction of H (default 0.45): a tight face shot puts 0.45 H on the mouth, the plan lifts the title over the hair (2026-11-15)"
+  },
+  {
+   "id": "plan.hook_show",
+   "kind": "plan",
+   "name": "hook_show",
+   "owner": "producent-shortow",
+   "check": "short.options",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "the hook's nouns shown as pictures (round 2 S16): short.options fails when hook_show_report names missing assets; required rests on S16, not on the gate (critic round 6)"
+  },
+  {
+   "id": "plan.hook_show_report",
+   "kind": "plan",
+   "name": "hook_show_report",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.hook_text",
+   "kind": "plan",
+   "name": "hook_text",
+   "owner": "producent-shortow",
+   "check": "short.hook",
+   "use": {
+    "long": "never",
+    "short": "required"
+   },
+   "why": "the on-screen hook card is a short feature (short.hook); the long opens on the cut"
+  },
+  {
+   "id": "plan.keeps",
+   "kind": "plan",
+   "name": "keeps",
+   "owner": "montazysta",
+   "check": "gate:verify_cut.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the cut itself: which pieces of the recording stay (verify_cut.py checks them against the words)"
+  },
+  {
+   "id": "plan.master",
+   "kind": "plan",
+   "name": "master",
+   "owner": "dzwiekowiec",
+   "check": "gate:master_audio.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "loudness master of the mix (master_audio.py); without it the level differs film to film"
+  },
+  {
+   "id": "plan.min_seg",
+   "kind": "plan",
+   "name": "min_seg",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "None = no shortest piece (build_edl MIN_SEG); all 2026-11-04 plans set 1.0"
+  },
+  {
+   "id": "plan.music_db",
+   "kind": "plan",
+   "name": "music_db",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "music level under the voice; words_check.py measures that the words stay understood"
+  },
+  {
+   "id": "plan.music_duck",
+   "kind": "plan",
+   "name": "music_duck",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the music dips under the voice (sidechain); words_check.py measures the words stay understood"
+  },
+  {
+   "id": "plan.voice_clean",
+   "kind": "plan",
+   "name": "voice_clean",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the voice through DeepFilterNet before the chain (voice_clean.py, Kamil 2026-11-14); words_check.py measures the words stay understood"
+  },
+  {
+   "id": "plan.music_moods",
+   "kind": "plan",
+   "name": "music_moods",
+   "owner": "dzwiekowiec",
+   "check": "long.music_moods",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.music_palette",
+   "kind": "plan",
+   "name": "music_palette",
+   "owner": "dzwiekowiec",
+   "check": {
+    "long": "long.music_palette",
+    "short": "short.music_palette"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "plan.music_seed",
+   "kind": "plan",
+   "name": "music_seed",
+   "owner": "dzwiekowiec",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.name",
+   "kind": "plan",
+   "name": "name",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.next_video",
+   "kind": "plan",
+   "name": "next_video",
+   "owner": "producent",
+   "check": "long.end",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "read by long.end only with plan end \"platform\" (end_ok: 'no plan \"next_video\"' FAILs there); a long with an end card needs none. Shorts: no end screen"
+  },
+  {
+   "id": "plan.out_name",
+   "kind": "plan",
+   "name": "out_name",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.pads",
+   "kind": "plan",
+   "name": "pads",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.part_framing",
+   "kind": "plan",
+   "name": "part_framing",
+   "owner": "operator",
+   "check": "long.framing",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "group": "framing",
+   "why": "long.framing (film_check.framing_changes) fails only when NEITHER zoom_every_s nor part_framing is set; one is enough"
+  },
+  {
+   "id": "plan.probe",
+   "kind": "plan",
+   "name": "probe",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.progress",
+   "kind": "plan",
+   "name": "progress",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "off by default (build_edl progress false); the 2026-11-04 long set \"fill\""
+  },
+  {
+   "id": "plan.punch_headroom",
+   "kind": "plan",
+   "name": "punch_headroom",
+   "owner": "operator",
+   "check": "long.punch",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.seg_exact",
+   "kind": "plan",
+   "name": "seg_exact",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "off by default (assemble.py EXACT); frame-exact pieces; all 2026-11-04 plans set it"
+  },
+  {
+   "id": "plan.seg_zoom",
+   "kind": "plan",
+   "name": "seg_zoom",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.sfx_db",
+   "kind": "plan",
+   "name": "sfx_db",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.sfx_duck",
+   "kind": "plan",
+   "name": "sfx_duck",
+   "owner": "dzwiekowiec",
+   "check": "gate:words_check.py",
+   "use": {
+    "long": "required",
+    "short": "required"
+   },
+   "why": "the 2026-11-04 long had no sfx_duck (ADR-0023): sounds dip under the voice; words_check.py measures it"
+  },
+  {
+   "id": "plan.sfx_style",
+   "kind": "plan",
+   "name": "sfx_style",
+   "owner": "dzwiekowiec",
+   "check": "long.sfx",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.sil",
+   "kind": "plan",
+   "name": "sil",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.skip",
+   "kind": "plan",
+   "name": "skip",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.waivers",
+   "kind": "plan",
+   "name": "waivers",
+   "owner": "montazysta",
+   "check": "gate:waivers.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "Kamil's own words for a gate switched off in run_v4.sh (ADR-0025); typed in after he said it, never written by a tool"
+  },
+  {
+   "id": "plan.sources",
+   "kind": "plan",
+   "name": "sources",
+   "owner": "fact-checker",
+   "check": "out.sources",
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.src",
+   "kind": "plan",
+   "name": "src",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.srt_out",
+   "kind": "plan",
+   "name": "srt_out",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.steady_x",
+   "kind": "plan",
+   "name": "steady_x",
+   "owner": "operator",
+   "check": "long.framing",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.tail",
+   "kind": "plan",
+   "name": "tail",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.verified_claims",
+   "kind": "plan",
+   "name": "verified_claims",
+   "owner": "fact-checker",
+   "check": {
+    "long": "out.sources",
+    "short": "gate:critic.py"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.vertical",
+   "kind": "plan",
+   "name": "vertical",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.words",
+   "kind": "plan",
+   "name": "words",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   }
+  },
+  {
+   "id": "plan.zoom_every_cut",
+   "kind": "plan",
+   "name": "zoom_every_cut",
+   "owner": "operator",
+   "check": "long.punch",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "plan.zoom_every_s",
+   "kind": "plan",
+   "name": "zoom_every_s",
+   "owner": "operator",
+   "check": "long.framing",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "group": "framing",
+   "why": "long.framing (film_check.framing_changes) fails only when NEITHER zoom_every_s nor part_framing is set; one is enough"
+  },
+  {
+   "id": "plan.zooms",
+   "kind": "plan",
+   "name": "zooms",
+   "owner": "operator",
+   "check": {
+    "long": "long.framing",
+    "short": "short.punch"
+   },
+   "use": {
+    "long": "required",
+    "short": "required"
+   }
+  },
+  {
+   "id": "opt._held",
+   "kind": "opt",
+   "name": "_held",
+   "owner": "technik",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.at",
+   "kind": "opt",
+   "name": "at",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.behind",
+   "kind": "opt",
+   "name": "behind",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.behind",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.bg",
+   "kind": "opt",
+   "name": "bg",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.box",
+   "kind": "opt",
+   "name": "box",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.cam",
+   "kind": "opt",
+   "name": "cam",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas",
+   "kind": "opt",
+   "name": "canvas",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.canvas_zoom",
+   "kind": "opt",
+   "name": "canvas_zoom",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_whole",
+    "short": "short.scene_whole"
+   },
+   "use": {
+    "long": "never",
+    "short": "never"
+   },
+   "why": "Kamil 2026-11-15 note 50: zooming into a piece of a scene hides the rest ('gubimy sporo treści'); round 2 L17 rejected"
+  },
+  {
+   "id": "opt.chap_style",
+   "kind": "opt",
+   "name": "chap_style",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.chap_roadmap",
+    "short": "gate:gfx/cards_lib.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "a short has no parts/chapters, so no part card style"
+  },
+  {
+   "id": "opt.compact",
+   "kind": "opt",
+   "name": "compact",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "gfx/render.mjs applies compact only with canvas \"v\": in a long it does nothing"
+  },
+  {
+   "id": "opt.current",
+   "kind": "opt",
+   "name": "current",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.define",
+   "kind": "opt",
+   "name": "define",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.define",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: lower + define is 16:9 only (refused in canvas \"v\")"
+  },
+  {
+   "id": "opt.delays",
+   "kind": "opt",
+   "name": "delays",
+   "owner": "technik",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.dim_done",
+   "kind": "opt",
+   "name": "dim_done",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: list + dim_done is 16:9 only (refused in canvas \"v\")"
+  },
+  {
+   "id": "opt.dur",
+   "kind": "opt",
+   "name": "dur",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.els",
+   "kind": "opt",
+   "name": "els",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.extends",
+   "kind": "opt",
+   "name": "extends",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.face_box",
+   "kind": "opt",
+   "name": "face_box",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "build_edl.py reads face_box only under a split card, and split is set only in 9:16: in a long it does nothing"
+  },
+  {
+   "id": "opt.face_corner",
+   "kind": "opt",
+   "name": "face_corner",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "build_edl.py applies face_corner only when vert: in a long it does nothing"
+  },
+  {
+   "id": "opt.find",
+   "kind": "opt",
+   "name": "find",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.web_marked",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.from",
+   "kind": "opt",
+   "name": "from",
+   "owner": "motion-designer",
+   "check": "gate:gfx/count_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.html",
+   "kind": "opt",
+   "name": "html",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.icon",
+   "kind": "opt",
+   "name": "icon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.icons",
+   "kind": "opt",
+   "name": "icons",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.id",
+   "kind": "opt",
+   "name": "id",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.img",
+   "kind": "opt",
+   "name": "img",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.items",
+   "kind": "opt",
+   "name": "items",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.layout",
+   "kind": "opt",
+   "name": "layout",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.logo",
+   "kind": "opt",
+   "name": "logo",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "read only by the end card's brand row (gfx/render.mjs endBrand); a short has no end card (short.end)"
+  },
+  {
+   "id": "opt.logo_h",
+   "kind": "opt",
+   "name": "logo_h",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "read only by the end card's brand row (gfx/render.mjs endBrand); a short has no end card (short.end)"
+  },
+  {
+   "id": "opt.logo_sub",
+   "kind": "opt",
+   "name": "logo_sub",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "read only by the end card's brand row (gfx/render.mjs endBrand); a short has no end card (short.end)"
+  },
+  {
+   "id": "opt.meme",
+   "kind": "opt",
+   "name": "meme",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.motion",
+   "kind": "opt",
+   "name": "motion",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.no_fade_in",
+   "kind": "opt",
+   "name": "no_fade_in",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.no_fade_out",
+   "kind": "opt",
+   "name": "no_fade_out",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.drawn",
+   "kind": "opt",
+   "name": "drawn",
+   "owner": "motion-designer",
+   "check": "short.reading",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "a float card written word by word on the spoken words: reading_need gives it the scene time (film 2 shorts, Kamil 2026-11-15)"
+  },
+  {
+   "id": "opt.page",
+   "kind": "opt",
+   "name": "page",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.parts",
+   "kind": "opt",
+   "name": "parts",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.pill",
+   "kind": "opt",
+   "name": "pill",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "gfx/template.html styles .pill only under html.v: in a long it does nothing"
+  },
+  {
+   "id": "opt.pip",
+   "kind": "opt",
+   "name": "pip",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.read_along",
+   "kind": "opt",
+   "name": "read_along",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.read_along",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "the web card's read_along (webshot marks); long.read_along checks only scene pieces (pfx.read_along)"
+  },
+  {
+   "id": "opt.recap",
+   "kind": "opt",
+   "name": "recap",
+   "owner": "producent",
+   "check": "long.recap",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.sfx",
+   "kind": "opt",
+   "name": "sfx",
+   "owner": "dzwiekowiec",
+   "check": "long.sfx",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.shot",
+   "kind": "opt",
+   "name": "shot",
+   "owner": "technik",
+   "check": "gate:film_check.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.side",
+   "kind": "opt",
+   "name": "side",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.src",
+   "kind": "opt",
+   "name": "src",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.still",
+   "kind": "opt",
+   "name": "still",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.sub",
+   "kind": "opt",
+   "name": "sub",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.text",
+   "kind": "opt",
+   "name": "text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.title",
+   "kind": "opt",
+   "name": "title",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.toon",
+   "kind": "opt",
+   "name": "toon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "gfx/render.mjs: a toon sticker is 16:9; in 9:16 use a scene (refused in canvas \"v\")"
+  },
+  {
+   "id": "opt.type",
+   "kind": "opt",
+   "name": "type",
+   "owner": "technik",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "opt.upto",
+   "kind": "opt",
+   "name": "upto",
+   "owner": "motion-designer",
+   "check": "gate:gfx/cards_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "gfx/cards_lib.mjs checkCard: list + upto is 16:9 only (refused in canvas \"v\")"
+  },
+  {
+   "id": "opt.url",
+   "kind": "opt",
+   "name": "url",
+   "owner": "motion-designer",
+   "check": "gate:gfx/webshot.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the content of the card itself (no choice to make: a card of that type has it)"
+  },
+  {
+   "id": "menu.chap_style",
+   "kind": "menu",
+   "name": "chap_style",
+   "owner": "motion-designer",
+   "check": "long.chap_roadmap",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "gfx/cards_lib.mjs CHAP_STYLES for card.chap"
+  },
+  {
+   "id": "menu.meme",
+   "kind": "menu",
+   "name": "meme",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "style/memes.json templates for card.meme / card.sticker"
+  },
+  {
+   "id": "menu.mood",
+   "kind": "menu",
+   "name": "mood",
+   "owner": "dzwiekowiec",
+   "check": "long.music_moods",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "music/make_beds.py MOODS for plan music_moods"
+  },
+  {
+   "id": "menu.motion",
+   "kind": "menu",
+   "name": "motion",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "gfx/scene_lib.mjs MOTION sets for a scene \"motion\""
+  },
+  {
+   "id": "menu.palette",
+   "kind": "menu",
+   "name": "palette",
+   "owner": "dzwiekowiec",
+   "check": "long.music_palette",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "music/gen_music.py PALETTES for plan music_palette (a new one each film)"
+  },
+  {
+   "id": "menu.sfx",
+   "kind": "menu",
+   "name": "sfx",
+   "owner": "dzwiekowiec",
+   "check": "long.sfx",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "music/make_beds.py card sounds for spec \"sfx\" [[t, name]]"
+  },
+  {
+   "id": "menu.toon",
+   "kind": "menu",
+   "name": "toon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "gfx/toons/*.svg drawings for card.sticker \"toon\""
+  },
+  {
+   "id": "plan.critic_accept",
+   "kind": "plan",
+   "name": "critic_accept",
+   "owner": "montazysta",
+   "check": "gate:critic.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "critic findings accepted on purpose ({code, msg}); each one is a visible decision in the plan"
+  },
+  {
+   "id": "plan.meme_review",
+   "kind": "plan",
+   "name": "meme_review",
+   "owner": "montazysta",
+   "check": {
+    "long": "long.meme_review",
+    "short": "short.meme_review"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "Kamil note 19: long.meme_review / short.meme_review (fail level) demand it for every meme on screen; no meme, nothing to review"
+  },
+  {
+   "id": "plan.retakes_ok",
+   "kind": "plan",
+   "name": "retakes_ok",
+   "owner": "montazysta",
+   "check": "long.retakes",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "a phrase said twice on purpose, named one at a time; unused = no repeat on purpose (long/short.retakes cuts the worse take otherwise)"
+  },
+  {
+   "id": "plan.cuts",
+   "kind": "plan",
+   "name": "cuts",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "every run of words a long leaves out, named as a mistake (retake, false start, slip, mic) or Kamil's own cut; unused = nothing cut (Kamil 2026-11-15: a long keeps what was said)"
+  },
+  {
+   "id": "plan.overlap_ok",
+   "kind": "plan",
+   "name": "overlap_ok",
+   "owner": "montazysta",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "two cards meant to share the screen, named as a pair with a reason; unused = one card at a time (build_edl.py stops on any other overlap over 0.5 s)"
+  },
+  {
+   "id": "opt.bookend",
+   "kind": "opt",
+   "name": "bookend",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.end_bookend",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "why": "long.end_bookend: the last 30 s show a picture of the first 30 s; spec bookend names it. Reusing a card of the first 30 s also passes the item: then skip cap.opt.bookend with that reason."
+  },
+  {
+   "id": "opt.cta",
+   "kind": "opt",
+   "name": "cta",
+   "owner": "producent",
+   "check": {
+    "long": "long.cta_place",
+    "short": "gate:gfx/render.mjs"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "any card may count as the offer CTA (film_check cta_place); card.cta is the other way"
+  },
+  {
+   "id": "opt.beat",
+   "kind": "opt",
+   "name": "beat",
+   "owner": "producent-shortow",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "\"beat\": \"hook_show\" marks the cards that show the hook nouns of a short (build_edl edl.hook_show)"
+  },
+  {
+   "id": "opt.caption_y",
+   "kind": "opt",
+   "name": "caption_y",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "the caption line height under a 9:16 card (build_edl BOX_KEYS); a long has no face box under a card"
+  },
+  {
+   "id": "opt.face_anchor",
+   "kind": "opt",
+   "name": "face_anchor",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "the face point inside the 9:16 face box (build_edl BOX_KEYS); a long has no face box under a card"
+  },
+  {
+   "id": "opt.face_zoom",
+   "kind": "opt",
+   "name": "face_zoom",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "never",
+    "short": "report"
+   },
+   "why": "the picture scale inside the 9:16 face box (build_edl BOX_KEYS); a long has no face box under a card"
+  },
+  {
+   "id": "opt.behind.clean",
+   "kind": "opt",
+   "name": "behind.clean",
+   "owner": "motion-designer",
+   "check": "long.behind_readable",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "matte edge flicker fix of the text behind the speaker (behind.py, Skool CCC G3)"
+  },
+  {
+   "id": "opt.behind.ratio",
+   "kind": "opt",
+   "name": "behind.ratio",
+   "owner": "motion-designer",
+   "check": "gate:behind.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "card height share of the text behind the speaker (behind.py, default 0.2)"
+  },
+  {
+   "id": "opt.quote",
+   "kind": "opt",
+   "name": "quote",
+   "owner": "fact-checker",
+   "check": "gate:critic.py",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cut",
+   "kind": "opt",
+   "name": "cut",
+   "owner": "motion-designer",
+   "check": "gate:gfx/render.mjs",
+   "use": {
+    "long": "report",
+    "short": "never"
+   },
+   "why": "sticker \"cut\": true = the character without its background (cutout.py); the sticker card is 16:9 only"
+  },
+  {
+   "id": "opt.cam.keep",
+   "kind": "opt",
+   "name": "cam.keep",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.move",
+   "kind": "opt",
+   "name": "cam.move",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.on",
+   "kind": "opt",
+   "name": "cam.on",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.pad",
+   "kind": "opt",
+   "name": "cam.pad",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.t",
+   "kind": "opt",
+   "name": "cam.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.x",
+   "kind": "opt",
+   "name": "cam.x",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.y",
+   "kind": "opt",
+   "name": "cam.y",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.z",
+   "kind": "opt",
+   "name": "cam.z",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.cam.zmax",
+   "kind": "opt",
+   "name": "cam.zmax",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.d",
+   "kind": "opt",
+   "name": "canvas_zoom.d",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.k",
+   "kind": "opt",
+   "name": "canvas_zoom.k",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.on",
+   "kind": "opt",
+   "name": "canvas_zoom.on",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.canvas_zoom.t",
+   "kind": "opt",
+   "name": "canvas_zoom.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.behind.edl",
+   "kind": "opt",
+   "name": "behind.edl",
+   "owner": "technik",
+   "check": "gate:behind.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the EDL whose frames cut the speaker out (behind.py reads spec[\"behind\"][\"edl\"]); set with behind, nothing to choose"
+  },
+  {
+   "id": "pfx.anim",
+   "kind": "pfx",
+   "name": "anim",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.arrow",
+   "kind": "pfx",
+   "name": "arrow",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.at",
+   "kind": "pfx",
+   "name": "at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.back_at",
+   "kind": "pfx",
+   "name": "back_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge",
+   "kind": "pfx",
+   "name": "badge",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.click_at",
+   "kind": "pfx",
+   "name": "click_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.cmd",
+   "kind": "pfx",
+   "name": "cmd",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.cmd_at",
+   "kind": "pfx",
+   "name": "cmd_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count",
+   "kind": "pfx",
+   "name": "count",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.curve",
+   "kind": "pfx",
+   "name": "curve",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.d",
+   "kind": "pfx",
+   "name": "d",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.dim",
+   "kind": "pfx",
+   "name": "dim",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.from",
+   "kind": "pfx",
+   "name": "from",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.gone",
+   "kind": "pfx",
+   "name": "gone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.h",
+   "kind": "pfx",
+   "name": "h",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.head",
+   "kind": "pfx",
+   "name": "head",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.hl",
+   "kind": "pfx",
+   "name": "hl",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.hl_at",
+   "kind": "pfx",
+   "name": "hl_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.icon",
+   "kind": "pfx",
+   "name": "icon",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.id",
+   "kind": "pfx",
+   "name": "id",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.item",
+   "kind": "pfx",
+   "name": "item",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.k",
+   "kind": "pfx",
+   "name": "k",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.label",
+   "kind": "pfx",
+   "name": "label",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.msgs",
+   "kind": "pfx",
+   "name": "msgs",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.name",
+   "kind": "pfx",
+   "name": "name",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.on",
+   "kind": "pfx",
+   "name": "on",
+   "owner": "motion-designer",
+   "check": "gate:gfx/anchor_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "a ring/stamp/check names the piece it marks (scene_check refuses hand x/y)"
+  },
+  {
+   "id": "pfx.on_at",
+   "kind": "pfx",
+   "name": "on_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.out",
+   "kind": "pfx",
+   "name": "out",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.out_at",
+   "kind": "pfx",
+   "name": "out_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.out_start",
+   "kind": "pfx",
+   "name": "out_start",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.packet_at",
+   "kind": "pfx",
+   "name": "packet_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.packet_d",
+   "kind": "pfx",
+   "name": "packet_d",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.pad",
+   "kind": "pfx",
+   "name": "pad",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.prompt",
+   "kind": "pfx",
+   "name": "prompt",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.pulse_at",
+   "kind": "pfx",
+   "name": "pulse_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.read_along",
+   "kind": "pfx",
+   "name": "read_along",
+   "owner": "motion-designer",
+   "check": "long.read_along",
+   "use": {
+    "long": "required",
+    "short": "report"
+   },
+   "why": "long.read_along (film_check.read_along_used) wants the said rows of term/win/file pieces lit: the pieces' read_along (gfx_events.scene_times)"
+  },
+  {
+   "id": "pfx.rot",
+   "kind": "pfx",
+   "name": "rot",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows",
+   "kind": "pfx",
+   "name": "rows",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.shape",
+   "kind": "pfx",
+   "name": "shape",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "ring shape: auto = a rough box around a flat row (w >= 3h), else the circle; underline under one line (visual upgrade item 3)"
+  },
+  {
+   "id": "pfx.size",
+   "kind": "pfx",
+   "name": "size",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.step",
+   "kind": "pfx",
+   "name": "step",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.steps",
+   "kind": "pfx",
+   "name": "steps",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.strike_at",
+   "kind": "pfx",
+   "name": "strike_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.sub",
+   "kind": "pfx",
+   "name": "sub",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.t",
+   "kind": "pfx",
+   "name": "t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.text",
+   "kind": "pfx",
+   "name": "text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.title",
+   "kind": "pfx",
+   "name": "title",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.to",
+   "kind": "pfx",
+   "name": "to",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.tone",
+   "kind": "pfx",
+   "name": "tone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.total",
+   "kind": "pfx",
+   "name": "total",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.v",
+   "kind": "pfx",
+   "name": "v",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.value",
+   "kind": "pfx",
+   "name": "value",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.w",
+   "kind": "pfx",
+   "name": "w",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.words",
+   "kind": "pfx",
+   "name": "words",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.x",
+   "kind": "pfx",
+   "name": "x",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.y",
+   "kind": "pfx",
+   "name": "y",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "what the piece shows or where it sits (its content), not an effect to choose"
+  },
+  {
+   "id": "pfx.x_at",
+   "kind": "pfx",
+   "name": "x_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "check piece: the tick turns into a red X at x_at (an action instead of the word NO, visual upgrade item 4)"
+  },
+  {
+   "id": "pfx.rows.hl",
+   "kind": "pfx",
+   "name": "rows.hl",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.hl_at",
+   "kind": "pfx",
+   "name": "rows.hl_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.mark",
+   "kind": "pfx",
+   "name": "rows.mark",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.mark_at",
+   "kind": "pfx",
+   "name": "rows.mark_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.tone",
+   "kind": "pfx",
+   "name": "rows.tone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.msgs.at",
+   "kind": "pfx",
+   "name": "msgs.at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.msgs.who",
+   "kind": "pfx",
+   "name": "msgs.who",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.at",
+   "kind": "pfx",
+   "name": "count.at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.d",
+   "kind": "pfx",
+   "name": "count.d",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.from",
+   "kind": "pfx",
+   "name": "count.from",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.pre",
+   "kind": "pfx",
+   "name": "count.pre",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.suf",
+   "kind": "pfx",
+   "name": "count.suf",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.count.to",
+   "kind": "pfx",
+   "name": "count.to",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge.at",
+   "kind": "pfx",
+   "name": "badge.at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge.text",
+   "kind": "pfx",
+   "name": "badge.text",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.badge.tone",
+   "kind": "pfx",
+   "name": "badge.tone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.rows.t",
+   "kind": "pfx",
+   "name": "rows.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the line's own text (or a ~ placeholder): every row and message has one, nothing to choose"
+  },
+  {
+   "id": "pfx.msgs.t",
+   "kind": "pfx",
+   "name": "msgs.t",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "the line's own text (or a ~ placeholder): every row and message has one, nothing to choose"
+  },
+  {
+   "id": "menu.layout",
+   "kind": "menu",
+   "name": "layout",
+   "owner": "motion-designer",
+   "check": "short.layouts",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "card layouts: 9:16 split, split_full, full, corner; 16:9 meme box long; scene side board"
+  },
+  {
+   "id": "menu.theme",
+   "kind": "menu",
+   "name": "theme",
+   "owner": "motion-designer",
+   "check": "gate:themes.py",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "style/themes/*.json via work/theme.json {theme}: colours of cards, captions, progress bar, PiP frame"
+  },
+  {
+   "id": "menu.beat",
+   "kind": "menu",
+   "name": "beat",
+   "owner": "producent",
+   "check": "long.punch",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "style/grammar.json beat types (beats.py); define and note are opt_in via plan beat_opt_in"
+  },
+  {
+   "id": "menu.tone",
+   "kind": "menu",
+   "name": "tone",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "menu",
+    "short": "menu"
+   },
+   "why": "scene piece colours (scene_lib TONES)"
+  }
+ ]
+}

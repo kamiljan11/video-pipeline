@@ -69,3 +69,11 @@ class ShortsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CallbackTest(unittest.TestCase):  # round 2 S6 (Sinek 3/3): the punchline comes back to the hook
+    def test_a_number_or_a_noun_of_the_first_sentence_in_the_last(self):
+        self.assertTrue(shorts.callback("92% zmian idzie bez przeglądu.", "I dlatego te 92% to nie jest liczba."))
+        self.assertTrue(shorts.callback("Agent mówi gotowe.", "Następnym razem, gdy agent powie gotowe, sprawdź."))
+        self.assertFalse(shorts.callback("Agent mówi gotowe.", "Tak to właśnie wygląda, które to było."))
+        self.assertFalse(shorts.callback("To było takie, które znamy.", "Takie które znowu."))  # function words are no callback

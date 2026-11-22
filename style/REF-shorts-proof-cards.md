@@ -55,3 +55,5 @@ Kolejność w tym shorcie: A (hook) → B (repo, cytat 100 mld) → B (Trends, W
 | twarz ciasno na zwrocie myśli | **jest** (punch, `zoom_every_cut`) | nic |
 | podkład ~6 dB pod głosem, whoosh na wejściu karty | **jest** (`music_duck`, `CARD_WHOOSH`) | nic |
 | b-roll | stock z Pexels po słowie kluczowym | w tym wzorcu dowód > stock; z kartami `web` stock schodzi na drugi plan |
+
+> Uwagi Kamila do tego wzorca (co już raz poszło źle): `style/ZASADY-KAMILA-SHORTY.md`.

@@ -1,0 +1,6 @@
+{
+  "_doc": "screen_grammar.screen_pass thresholds (Kamil 2026-11-05, style/REF-long-negacz.md). side_max_els: a scene of this many pieces or fewer goes beside the speaker (layout side), not on a separate screen. shift_max: seconds a card may start earlier when it has no room after it. recap_prefix: id prefix of a recap map, dropped when it cannot get its reading time. The speaker-back gap between separate screens is long.speaker_back in style/checklist.json.",
+  "side_max_els": 5,
+  "shift_max": 1.5,
+  "recap_prefix": "m"
+}

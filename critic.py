@@ -26,7 +26,8 @@ from itertools import pairwise
 from pathlib import Path
 
 import edges
-from gfx_types import SIDE_BOX
+import timeline
+from gfx_types import SIDE_BOX, beside
 
 args = sys.argv[1:]; plan_p = args[0]; FIX = "--fix" in args
 video = args[args.index("--video") + 1] if "--video" in args else None
@@ -34,7 +35,9 @@ P = json.loads(Path(plan_p).read_text()); E = json.loads(Path(P["edl_out"]).read
 W = json.loads(Path(P["words"]).read_text())["transcription"]
 specs = {s["id"]: s for s in json.loads(Path(P["gfx_specs"]).read_text())} if P.get("gfx_specs") else {}
 short = bool(P.get("vertical")); issues = []; fixes = []
-segs = E["segments"]; total = sum(s["out"] - s["in"] for s in segs)
+# frame-exact pieces (seg_exact, assemble.py) last whole frames: film times from timeline.py, as build_edl.py places cards
+EXACT = bool(E.get("seg_exact", P.get("seg_exact")))
+segs = E["segments"]; total = timeline.total(segs, EXACT)
 def add(code, sev, msg, **kw): issues.append(dict(code=code, sev=sev, msg=msg, **kw))
 # findings accepted in the editing panel (exact code + message, with a reason) are not reported again nor auto-fixed
 accepted = {(x["code"], x["msg"]) for x in P.get("critic_accept", [])}
@@ -47,7 +50,7 @@ for s in segs:
     if isinstance(z, dict) and z["t0"] <= 0.01: ev.append((acc, "drift"))
     if isinstance(z, dict) and z.get("keys"):  # later punches of a long shot (editing grammar keyframes)
         ev += [(acc + ta, "emph") for (ta, za), (tb, zb) in zip(z["keys"], z["keys"][1:]) if zb > za + 0.02 and ta > z["t0"] + 0.01]
-    prevz = z["b"] if isinstance(z, dict) else z; acc += s["out"] - s["in"]
+    prevz = z["b"] if isinstance(z, dict) else z; acc += timeline.piece_len(s, EXACT)
 for o in E.get("overlays", []): ev.append((o["at"], "gfx:" + o["id"]))
 for b in E.get("broll", []): ev.append((b["at"], "broll:" + b["id"]))  # cutaway = change of picture
 ev.sort()
@@ -72,9 +75,10 @@ for o in ov:  # shorts: a 9:16 top card would cover the hook title (same top ban
         add("C2", "error", f"karta {o['id']} ({o['at']:.1f}s) pod tekstem haka")
 acc = 0.0
 for s in segs:
-    d = s["out"] - s["in"]; z = s["zoom"]
+    d = timeline.piece_len(s, EXACT); z = s["zoom"]
     for o in ov:
-        if specs.get(o["id"], {}).get("type") not in SIDE_BOX or specs.get(o["id"], {}).get("canvas") == "v": continue
+        sp = specs.get(o["id"], {})
+        if sp.get("type") not in SIDE_BOX or sp.get("canvas") == "v" or beside(sp): continue  # beside the head: zoom allowed
         a0, a1 = max(acc, o["at"]), min(acc + d, o["at"] + o["dur"])  # overlap window in output time
         if a1 <= a0: continue
         if isinstance(z, dict):  # zoom value only during the overlap: a before t0, rising to b after
@@ -89,7 +93,7 @@ if short and first > 1.5: add("C3", "warn", f"short: brak zmiany obrazu w 1.5 s 
 # C4
 run = 0
 for s in segs:
-    run = run + 1 if s["out"] - s["in"] < 1.0 else 0
+    run = run + 1 if timeline.piece_len(s, EXACT) < 1.0 else 0
     if run >= 3: add("C4", "warn", f"3+ ujęcia <1 s pod rząd przy {s['in']:.1f}s źródła"); run = 0
 # C5
 if P.get("srt_out") and os.path.exists(P["srt_out"]):
@@ -111,11 +115,8 @@ if not short and E.get("tail", 0) < 5:
     if FIX and ("C6", "brak min. 5 s ekranu końcowego") not in accepted: P["tail"] = 8; fixes.append("tail=8")
 # C9
 def out_t(ts):  # source time -> finished-video time (-1 when cut)
-    acc = 0.0
-    for s in segs:
-        if s["in"] <= ts <= s["out"]: return acc + ts - s["in"]
-        acc += s["out"] - s["in"]
-    return -1.0
+    if not any(s["in"] <= ts <= s["out"] for s in segs): return -1.0
+    return timeline.src2out(ts, segs, EXACT)  # pieces out of source order, frame-exact lengths
 def num_key(t):
     """'1 200' / '1.200' / '1,200' -> '1200'; decimals keep one mark: '2.5' / '2,5' -> '2,5'; no digit -> ''."""
     t = re.sub(r"[^\d.,]", "", t).strip(".,")
@@ -151,7 +152,7 @@ if BEATS:
     autos = [e for e in P.get("emph", []) if e.get("auto")]
     if autos: add("C10", "info", f"{len(autos)} akcentów bez momentu (auto) — pomijane przez gramatykę montażu")
     for r in E.get("beat_fx", []):
-        if r.get("gfx") in ("kw", "list", "chap", "slide", "cta") and r["fx"] not in ("off", "cut") and \
+        if r.get("gfx") in ("kw", "list", "chap", "slide", "cta", "define", "note") and r["fx"] not in ("off", "cut") and \
                 not any(o["at"] - 4 <= r["at"] <= o["at"] + o["dur"] + 1 for o in ov):
             add("C10", "info", f"moment {r['type']} @{r['at']:.1f}s „{W[r['word']]['text'].strip()}”: sugerowana grafika {r['gfx']}", at=r["at"], word=r["word"])
 # C11 stock b-roll (plan has "broll"): clips build_edl.py could not place (cut word, under a graphic, missing file)
@@ -192,7 +193,7 @@ if FIX and not BEATS:
     for it in [i for i in issues if i["code"] == "C1"]:
         mid = (it["at"] + it["end"]) / 2; acc = 0.0; best = None
         for s in segs:
-            d = s["out"] - s["in"]
+            d = timeline.piece_len(s, EXACT)
             if acc <= mid <= acc + d: tsrc = s["in"] + (mid - acc); break
             acc += d
         else: continue

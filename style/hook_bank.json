@@ -1,0 +1,173 @@
+{
+ "_doc": "Proven hooks (Skool CCC So2/So9: hook bank). type = shorts.py HOOKS; result = the short's views / the channel's median views of the last 28 days, read in YouTube Studio and written by hand in the weekly review (Kamil or the social role; ADR-0016), null until then; own rows come from films, mech rows are mechanisms with [slots]. clips.json \"hook_from\" names the row a short's hook started from. Add winners from each weekly review with result and why.",
+ "hooks": [
+  {
+   "id": "own-2026-11-04-s01_gotowe",
+   "type": "contrast",
+   "text": "AI mówi „gotowe”. A nic nie działa.",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "claim vs reality in 7 words; the viewer has seen it happen"
+  },
+  {
+   "id": "own-2026-11-04-s02_szlaban",
+   "type": "contrast",
+   "text": "Tabliczka z zakazem nikogo nie zatrzyma",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a picture (sign vs barrier) and a flat denial"
+  },
+  {
+   "id": "own-2026-11-04-s03_blizna",
+   "type": "contrast",
+   "text": "„Będę uważać” niczego nie zmienia",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "quotes a promise everyone makes, then denies it"
+  },
+  {
+   "id": "own-2026-11-04-s05_force",
+   "type": "stat",
+   "text": "AI chciało nadpisać historię projektu",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a near-loss told as a fact: the viewer waits for the save"
+  },
+  {
+   "id": "own-2026-11-04-s06_mutacje",
+   "type": "confession",
+   "text": "Mój system celowo psuje mój kod",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a paradox: harm on purpose begs why"
+  },
+  {
+   "id": "own-2026-11-04-s07_katar",
+   "type": "contrast",
+   "text": "Na katar nikt nie robi rezonansu",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "an everyday analogy for proportion, no jargon"
+  },
+  {
+   "id": "own-2026-11-04-s08_opinia",
+   "type": "contrast",
+   "text": "Recenzenci nie widzą mojej rozmowy z AI",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "an odd rule that hides its reason"
+  },
+  {
+   "id": "own-2026-11-04-s09_alarm",
+   "type": "maxim",
+   "text": "Najtrudniejsze: wiedzieć, kiedy przestać",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "names the hard part; a superlative is the stake"
+  },
+  {
+   "id": "own-2026-11-04-s10_92_18",
+   "type": "stat",
+   "text": "92% zmian bez przeglądu. A dziś?",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a number and an open question: the result comes later"
+  },
+  {
+   "id": "own-2026-11-04-s14_kto_sprawdza",
+   "type": "confession",
+   "text": "Wstydziłem się, że mój kod pisze AI",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a confession of shame the viewer shares"
+  },
+  {
+   "id": "own-2026-11-04-s15_redaktor",
+   "type": "confession",
+   "text": "Jestem autorem bez redaktora",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a role metaphor with a missing safety net"
+  },
+  {
+   "id": "own-2026-11-04-s16_papier",
+   "type": "confession",
+   "text": "Moje zasady działały tylko na papierze",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "admits failure first, the fix follows"
+  },
+  {
+   "id": "own-2026-11-04-s17_faktura",
+   "type": "stat",
+   "text": "Po cichu zmienił sprzedawcę na fakturze",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a concrete silent error with money in it"
+  },
+  {
+   "id": "own-2026-11-04-s18_dowod",
+   "type": "maxim",
+   "text": "„Gotowe” bez dowodu to tylko słowo",
+   "source": "film 2026-11-04 clips.json (own)",
+   "result": null,
+   "why": "a maxim on the film's key word"
+  },
+  {
+   "id": "mech-contrarian",
+   "type": "contrast",
+   "text": "Wszyscy mówią [X]. U mnie [Y] i mam na to [dowód].",
+   "source": "Skool CCC Kurs B (Stage 8 research): the contrarian formula was the one that survived the fact-check",
+   "result": null,
+   "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
+  },
+  {
+   "id": "mech-result-first",
+   "type": "stat",
+   "text": "[Liczba przed] -> [liczba po] w [czas]. Bez [oczywisty sposób].",
+   "source": "Skool CCC Kurs C, killer 'vague promise': swap the adjective for a number, a noun, a time",
+   "result": null,
+   "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
+  },
+  {
+   "id": "mech-loss",
+   "type": "stat",
+   "text": "[Konkretna strata], bo [mała przyczyna].",
+   "source": "Skool CCC Kurs C, killer 'no stake': say what is lost or gained",
+   "result": null,
+   "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
+  },
+  {
+   "id": "mech-open-question",
+   "type": "question",
+   "text": "[Rzecz, którą widz robi]. Robisz to źle?",
+   "source": "Skool CCC Kurs B: a question opens a curiosity loop (hook 0-3 s)",
+   "result": null,
+   "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
+  },
+  {
+   "id": "mech-viewer-question",
+   "type": "question",
+   "text": "„[Pytanie widza o temat]?” Nie [X], tylko [Y].",
+   "source": "Round 2 S18 (shorts creators answering a viewer's question): the question on screen <= 1.5 s, the answer starts with a reversal",
+   "result": null,
+   "why": "a mechanism to remix: the viewer's question as a caption for <= 1.5 s, then the answer opens with 'nie X, tylko Y'"
+  },
+  {
+   "id": "mech-confession",
+   "type": "confession",
+   "text": "Przez [czas] robiłem [błąd]. Kosztowało mnie [strata].",
+   "source": "style/REF-shorts-top.md: confessions among the openers of the measured top shorts (shorts.py HOOKS)",
+   "result": null,
+   "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
+  },
+  {
+   "id": "mech-first-noun",
+   "type": "maxim",
+   "text": "[Rzeczownik z obrazu w 1. klatce] nie [to, czego się spodziewasz].",
+   "source": "Skool CCC Kurs C, killer 'throat clearing' and 'no visual anchor': start at the first interesting noun, the same words on screen",
+   "result": null,
+   "why": "a mechanism to remix (keep the mechanism, swap the topic, never copy words)"
+  }
+ ]
+}
