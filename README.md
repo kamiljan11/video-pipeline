@@ -545,9 +545,6 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
   (sekundy nagrania). Po przebiegu: `podcast: N pieces, shots {...}, words without a clear speaker x/y`.
 - Liczby ujęć to dane (`style/podcast.json`), badania: `research/podcast/`. Testy: `tests/test_podcast*.py`.
 
-> Uwaga: skrypty mają ścieżki na sztywno do `/home/kamil-jan/video-pipeline` (główny checkout). Render z innego
-> worktree uruchamia tamtejszy kod, więc tryb podcast działa dopiero po scaleniu do głównego checkoutu.
-
 ## Ekran końcowy shorta (`end` + `canvas: "v"`)
 **Domyślnie short NIE ma planszy końcowej:** kończy się na ostatnim słowie (bramka `short.end`: brak karty `end`, `tail` <= 0,6 s;
 30/30 top shortów kończy się 0,23 s po słowie, `style/REF-shorts-top.md` T8, decyzja: `docs/adr/0014-shorts-follow-top-retention.md`).

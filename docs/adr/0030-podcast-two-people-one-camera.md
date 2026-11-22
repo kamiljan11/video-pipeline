@@ -47,8 +47,6 @@ pokazuje ≤ 10 % słów bez pewnego mówcy (`?`) i ≤ 3 uwagi Kamila „zła o
 - Jedna ścieżka dźwięku (mikrofon telefonu): nie da się ściszyć jednej osoby przy przegadywaniu; tylko zostawić albo wyciąć.
 - Wycinek `single_zoom` 1,8 z 4K do 2560x1440 to powiększenie ~1,33x (3840/1,8 = 2133 px szerokości): lekka utrata ostrości.
 - 4K: `assemble.py` liczył kadr dla 2560x1440, gdy EDL nie miał `src_w`/`src_h`; `podcast.py` wpisuje prawdziwy rozmiar.
-- Ścieżki na sztywno do `/home/kamil-jan/video-pipeline` (skrypty, `pip_assets.mjs`) wskazują główny checkout: render
-  z worktree uruchamia tamtejszy kod.
 
 **Nie robimy teraz (puste sloty):** kolor napisów wg mówcy i podpisy z imionami (klucz `podcast.speakers` jest przepuszczany
 przez `podcast_shots.load_cfg`, nic go jeszcze nie czyta), wybór klipów do shortów z parą pytanie-odpowiedź w `shorts.py`, backend pyannote, J/L-cięcia dźwięku.
