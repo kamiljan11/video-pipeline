@@ -460,7 +460,9 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
 - **Tło sceny `bg`:** brak = siatka kropek, `"dots"` to samo jawnie, `"blobs"` = trzy rozmyte plamy w kolorach motywu.
 - **Nowy rodzaj elementu:** wpis w `PIECES` (`gfx/scene_lib.mjs`: funkcja `(e, {esc, icon, at, tn})` → `{inner, style}` albo
   `{html}`, gdy element rysuje własne pudełko jak `line`), nazwa w `KINDS`, jego klucze w `checkScene`, opis tutaj, test w
-  `gfx/test/scene.test.mjs`. Zmiana pliku renderuje sceny od nowa (cache niżej).
+  `gfx/test/scene.test.mjs`. Nowy klucz czasu (`[[s, …]]`, `at`, `*_at`) dopisz w trzech miejscach: `checkScene`, `shiftPiece`
+  (`extends`) i `film_check.scene_events` (bramki rytmu); brak w jednym = scena po `extends` albo bramka liczy zły czas (ADR-0028).
+  Zmiana pliku renderuje sceny od nowa (cache niżej).
 - **Kamera.** Bez `cam` cały rysunek jest kadrowany tak, żeby wypełnił wolną część ekranu, na lewo od kółka z twarzą. Przystanek
   `{"t", "on": "id" | ["id", …] | "*", "pad", "zmax", "move"}` kadruje te elementy (zmierzone w przeglądarce, po ułożeniu, więc
   nie trzeba zgadywać ich rozmiaru); `{"t", "x", "y", "z"}` = ręcznie (punkt świata w lewym górnym rogu, zoom). Ruch trwa `move` s

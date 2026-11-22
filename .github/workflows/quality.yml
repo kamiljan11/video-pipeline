@@ -63,10 +63,21 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'gitleaks-ignore-reviewed') }}
+          ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
         run: |
           if ! git diff --quiet "$BASE_SHA" HEAD -- .gitleaksignore && [ "$REVIEWED" != "true" ]; then
             echo "::error file=.gitleaksignore::changed in this PR: the owner checks each entry, then adds the label gitleaks-ignore-reviewed"
             exit 1
+          fi
+          # the label approves the file the owner read, not later pushes: a push that changes .gitleaksignore
+          # after labelling needs a fresh review (remove and re-add the label = new 'labeled' run)
+          if [ "$ACTION" = "synchronize" ] && [ "$REVIEWED" = "true" ]; then
+            if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null || ! git diff --quiet "$BEFORE" "$AFTER" -- .gitleaksignore; then
+              echo "::error file=.gitleaksignore::changed after the gitleaks-ignore-reviewed label: the owner re-checks, then removes and re-adds the label"
+              exit 1
+            fi
           fi
       - name: Gitleaks (whole history, built-in rules only)
         run: |

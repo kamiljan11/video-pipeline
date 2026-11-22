@@ -24,7 +24,9 @@ Kamil akceptuje stille, `level` zostaje usunięty (błąd). Miara: liczba scen z
 walidacja i `shiftPiece` dla `extends`, testy w `gfx/test/visual.test.mjs`. Każdy nowy klucz czasu musi trafić do `shiftPiece`, `film_check.scene_events`
 i `checkScene` (trzy miejsca; pg-review 2026-11-16 złapał brak w `shiftPiece`). Zmiana `scene_lib.mjs` renderuje sceny od nowa (klucz cache),
 więc nie zmieniać w trakcie zaakceptowanego renderu (NOTES_LOG 31). Runda 2 nie ma jeszcze filmu, który jej używa: pierwszy film po zmianie
-jest jej sprawdzianem (to samo kryterium warn -> błąd).
+jest jej sprawdzianem (to samo kryterium warn -> błąd). **Wyjście:** element z rundy 2, którego nie użyje żaden z dwóch
+pierwszych filmów po zmianie (`rg '"k": *"<nazwa>"' render/ -g '!render/ref/**'` pusty; demo w `render/ref` się nie liczy), wypada z `PIECES`/`KINDS`/`checkScene` razem z CSS i testem
+w osobnym PR; decyzję zapisuje wiersz NOTES_LOG.
 
 **Odrzucone:** przestawianie układu (FLIP, element maleje i jedzie w bok) — więcej kodu pomiaru; wraca, jeśli `grow` z pełnymi
 kompozycjami nie wystarczy. Wykres liniowy i histogram — do zrobienia, gdy film ich potrzebuje.

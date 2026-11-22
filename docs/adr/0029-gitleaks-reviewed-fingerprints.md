@@ -18,7 +18,7 @@ ukrywa trafienie we wszystkich przyszłych commitach; zakazany przez CI.
 
 **Ryzyka i zabezpieczenia:** ktoś (albo agent) może w jednym PR dodać prawdziwy klucz i jego odcisk; sprawdzenie formatu tego
 nie odróżni (recenzja security 2026-11-17). Dlatego PR, który zmienia `.gitleaksignore`, przechodzi `secrets` dopiero z etykietą
-`gitleaks-ignore-reviewed`, nakładaną przez Kamila po sprawdzeniu każdego wpisu (workflow słucha też `labeled`/`unlabeled`).
+`gitleaks-ignore-reviewed`, nakładaną przez Kamila po sprawdzeniu każdego wpisu (workflow słucha też `labeled`/`unlabeled`). Etykieta zatwierdza plik, który Kamil przeczytał: push po etykiecie, który zmienia `.gitleaksignore` (`synchronize`, także force-push bez starego commita), czerwieni `secrets`, dopóki Kamil nie zdejmie i nie nałoży etykiety ponownie (pg-review 2026-11-22).
 Lista jest wypisywana w logu CI. Odcisk dotyczy jednego commita i jednej linii: nowy sekret w innym commicie i tak zostanie
 zgłoszony. Gitleaks pomija też linie z jego komentarzem wyłączającym w treści; CI odrzuca taki komentarz w całej historii
 (dotąd 0 wystąpień). Nowe dane testowe nie powinny wyglądać jak klucze (np. `fake-token`), żeby lista nie rosła.
