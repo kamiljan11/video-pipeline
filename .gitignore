@@ -1,6 +1,7 @@
 # outputs, caches and third-party trees (rebuilt or downloaded, not source)
 /render
 node_modules
+# no trailing slash: a worktree may hold .venv / models as a symlink to the main checkout
 .venv
 __pycache__/
 .ruff_cache/

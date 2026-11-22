@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 
 import timeline
+from cpu_budget import heavy_threads, low_priority
 
 VP = Path(__file__).resolve().parent  # whisper.cpp/ and models/ live in the checkout
-from cpu_budget import heavy_threads, low_priority
 
 edl = json.loads(Path(sys.argv[1]).read_text()); W = json.loads(Path(sys.argv[2]).read_text())["transcription"]; video = sys.argv[3]
 norm = lambda t: re.sub(r"[^a-ząćęłńóśźż0-9 ]", "", t.lower()).split()

@@ -1,6 +1,6 @@
 # Język odbiorców (Polacy: devi, właściciele małych firm ciekawi AI)
 
-Źródło wszystkich cytatów: /home/kamil-jan/Obsidian/MAIN/Projects/Kamil Jan - MASTER marka osobista.md. Rodzaj: surowe wypowiedzi odbiorców (Wykop, 4programmers, komentarze YouTube) przytoczone w dokumencie pisanym przez AI. Cytat jest cudzy, ale oryginalnego linku i platformy przy każdym nie ma. Przed publicznym użyciem cytatu zweryfikuj go w oryginale. Pisownia jak w źródle.
+Źródło wszystkich cytatów: the author's private notes "MASTER marka osobista" (not in this repo). Rodzaj: surowe wypowiedzi odbiorców (Wykop, 4programmers, komentarze YouTube) przytoczone w dokumencie pisanym przez AI. Cytat jest cudzy, ale oryginalnego linku i platformy przy każdym nie ma. Przed publicznym użyciem cytatu zweryfikuj go w oryginale. Pisownia jak w źródle.
 
 ## Frazy (S = sekcja dokumentu)
 1. „więcej lania wody niż pokazania czegokolwiek" (S5.1)
