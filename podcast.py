@@ -6,8 +6,10 @@ piece gets the fields assemble.py already reads, so the render needs no second c
 - 16:9 "L" / "R": "face" = that person's face, "zoom" = single_zoom: a punch-in from the wide shot (virtual multicam); from
   drift_min_s on, a slow push in / pull out by turns on top of it (single_drift, drift_per_s)
 - 16:9 "wide": "face" = between the two faces, "zoom" = wide_zoom (the two-shot)
-- 9:16 "L" / "R": "face" = that person's face, zoom 1 (the full-height 9:16 window holds one face)
-- 9:16 "stack": "stack" = [[fx, fy] of L, [fx, fy] of R]: assemble.py puts L in the top half and R in the bottom half
+- 9:16 "L" / "R": "face" = that person's face, the zoom build_edl gave the piece (punch-ins, drift; base 1 = the
+  full-height 9:16 window holds one face), its times moved to where the piece starts (shift_zoom)
+- 9:16 "stack": "stack" = [[fx, fy] of L, [fx, fy] of R]: assemble.py puts L in the top half and R in the bottom half;
+  never under a 9:16 card (the box or circle under it holds one face): the speaker's single shot there
 plus "shot", "spk" (who has the floor) and "head" (the box head_check.py looks for). A 16:9 side card (gfx_types.SIDE_BOX)
 over a wide shot would cover one person: the shot under it becomes the speaker's single shot (face centred by the crop,
 critic C2 knows it, ADR-0031).
@@ -119,6 +121,19 @@ def frame_piece(p, shot, spk, faces, cfg, vertical):
     return p
 
 
+def shift_zoom(z, off: float, d: float):
+    """build_edl's zoom of a piece cut `off` seconds into its EDL segment, `d` seconds long: its move times are relative
+    to the segment start, so they move back by `off`; a move over before the piece starts is its end level, one that starts
+    after the piece ends is its start level (assemble.vf_for holds a before t0 and b after t1 the same way)"""
+    if not isinstance(z, dict): return z
+    if z.get("keys"):
+        return {**z, "keys": [[round(t - off, 3), v] for t, v in z["keys"]], "t0": round(z["t0"] - off, 3), "t1": round(z["t1"] - off, 3)}
+    t0, t1 = z["t0"] - off, z["t1"] - off
+    if t1 <= 0: return z["b"]
+    if t0 >= d: return z["a"]
+    return {**z, "t0": round(t0, 3), "t1": round(t1, 3)}
+
+
 def single_drift(z: float, d: float, cfg: dict, n: int) -> "float | dict":
     """16:9 single shot: a slow push in (even n) or pull out (odd n) over the whole piece, so a held face keeps a little
     life (Kamil 2026-11-22: "bardziej sie bawic tymi zoomami ... delikatnie"). The move grows with the piece
@@ -164,8 +179,12 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
     faces_at = faces_lookup(faces_by_window)
     specs = specs_of(E)
     sides = [] if vertical else card_spans(E, specs)
+    # 9:16: a card (split box, corner circle, full card) shows one face cut from the picture under it, so no stack there
+    # (both people in a box under the card = two half faces); the end board is after the speech and counts no face
+    vcards = [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", [])
+              if vertical and (specs.get(o.get("id")) or {}).get("type") != "end"]
     behind = [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", []) if (specs.get(o.get("id")) or {}).get("behind")]
-    out, report, drifts = [], {"no_face": 0, "behind_on_stack": 0}, 0
+    out, report, drifts = [], {"no_face": 0, "behind_on_stack": 0, "stack_under_card": 0}, 0
     for s, f0 in zip(segs, starts, strict=True):
         pts = split_points(s, f0, shots)
         for a, b in zip([s["in"], *pts], [*pts, s["out"]], strict=True):
@@ -173,11 +192,16 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
             fa = f0 + (a - s["in"]); fb = fa + timeline.piece_len(p, exact); mid = (fa + fb) / 2
             shot, who = podcast_shots.shot_at(shots, mid), podcast_shots.shot_at(tn, mid)
             if shot == "wide" and any(c0 < fb and fa < c1 for c0, c1 in sides): shot = who
+            if shot == "stack" and who in ("L", "R") and any(c0 < fb and fa < c1 for c0, c1 in vcards):
+                shot = who; report["stack_under_card"] += 1
+            carried = shift_zoom(s.get("zoom", 1.0), a - s["in"], fb - fa)
             faces = faces_at((a + b) / 2)
             if not faces: report["no_face"] += 1
             p = frame_piece(p, shot, who, faces, cfg, vertical)
             if not vertical and p.get("shot") in ("L", "R"):
                 p["zoom"] = single_drift(p["zoom"], timeline.piece_len(p, exact), cfg, drifts); drifts += 1
+            elif vertical and p.get("shot") in ("L", "R"):
+                p["zoom"] = carried  # 9:16 single: the punch-ins and drift build_edl gave the words (short.punch)
             if p.get("stack") and any(c0 < fb and fa < c1 for c0, c1 in behind): report["behind_on_stack"] += 1
             out.append(p)
     E = dict(E); E["segments"] = out

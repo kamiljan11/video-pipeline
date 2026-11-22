@@ -131,10 +131,39 @@ class Reframe(unittest.TestCase):
         self.assertAlmostEqual(short["b"] - short["a"], round(c["drift_per_s"] * 3.0, 3), places=6)
         self.assertAlmostEqual(long_["b"] - long_["a"], c["single_drift"], places=6)
 
-    def test_vertical_singles_stay_still(self):
+    def test_vertical_singles_keep_the_build_edl_zoom(self):  # short.punch: the punch-ins of the words stay in 9:16
         w, s = words_of([("L", 10), ("R", 10)])
-        E, _, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 20.0),)), s, w, FACES, CFG)
-        self.assertTrue(all(not isinstance(p.get("zoom"), dict) for p in E["segments"]))
+        E0 = edl(vertical=True, segs=((0.0, 20.0),))
+        E0["segments"][0]["zoom"] = {"a": 1.0, "b": 1.12, "t0": 12.0, "t1": 12.3}  # a punch in R's part
+        E, _, _ = podcast.reframe(E0, s, w, FACES, CFG)
+        singles = [p for p in E["segments"] if p["shot"] in ("L", "R")]
+        self.assertEqual(singles[0]["zoom"], 1.0)  # the punch starts after L's piece ends: its start level
+        z = singles[-1]["zoom"]; off = singles[-1]["in"]
+        self.assertEqual((z["t0"], z["t1"]), (round(12.0 - off, 3), round(12.3 - off, 3)))
+        self.assertTrue(all(not isinstance(p.get("zoom"), dict) or p["zoom"]["a"] >= 1 for p in E["segments"]))
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+
+    def test_shift_zoom_moves_times_or_settles_on_a_level(self):
+        z = {"a": 1.0, "b": 1.2, "t0": 5.0, "t1": 5.3}
+        self.assertEqual(podcast.shift_zoom(z, 0.0, 10.0), z)
+        self.assertEqual(podcast.shift_zoom(z, 6.0, 4.0), 1.2)  # over before the piece: its end level
+        self.assertEqual(podcast.shift_zoom(z, 1.0, 3.0), 1.0)  # starts after the piece ends: its start level
+        self.assertEqual(podcast.shift_zoom(z, 2.0, 8.0), {"a": 1.0, "b": 1.2, "t0": 3.0, "t1": 3.3})
+        k = podcast.shift_zoom({"a": 1.0, "b": 1.2, "t0": 0.0, "t1": 1.0, "keys": [[0.0, 1.0], [4.0, 1.2]]}, 1.5, 5.0)
+        assert isinstance(k, dict)
+        self.assertEqual(k["keys"], [[-1.5, 1.0], [2.5, 1.2]])
+        self.assertEqual(podcast.shift_zoom(1.1, 3.0, 2.0), 1.1)
+
+    def test_no_stack_under_a_vertical_card(self):
+        w, s = words_of([("L", 5), ("R", 1.5), ("L", 1.5), ("R", 1.5), ("L", 6)])
+        tmp = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, tmp, True)
+        E, _, rep = podcast.reframe(edl(vertical=True, segs=((0.0, 15.5),), overlays=[{"at": 4.0, "dur": 8.0, "id": "k"}],
+                                        specs={"k": {"type": "scene", "canvas": "v", "layout": "split"}}, tmp=tmp), s, w, FACES, CFG)
+        self.assertFalse([p for p in E["segments"] if p["shot"] == "stack"])
+        self.assertGreater(rep["stack_under_card"], 0)
+        E2, _, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 15.5),), overlays=[{"at": 4.0, "dur": 8.0, "id": "e"}],
+                                       specs={"e": {"type": "end", "canvas": "v"}}, tmp=tmp), s, w, FACES, CFG)
+        self.assertTrue([p for p in E2["segments"] if p["shot"] == "stack"])  # an end board does not count
 
     def test_split_keeps_the_frame_count(self):
         w, s = words_of([("L", 7.3), ("R", 9.1), ("L", 13.6)])
@@ -157,7 +186,7 @@ class Reframe(unittest.TestCase):
         st = [p for p in E["segments"] if p["shot"] == "stack"]
         self.assertTrue(st)
         self.assertEqual(st[0]["stack"], [[0.24, 0.375], [0.74, 0.395]])
-        self.assertTrue(all(p["zoom"] == 1.0 for p in E["segments"]))
+        self.assertTrue(all(p["zoom"] == 1.0 for p in st))  # a stack has its own panel zoom (stack_zoom)
         self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
 
     def test_no_faces_leaves_the_piece(self):

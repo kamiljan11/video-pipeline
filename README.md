@@ -576,7 +576,9 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
   Wycinek od `drift_min_s` s ma powolny najazd / odjazd na zmianę (`drift_per_s` na sekundę, najwyżej `single_drift`,
   nigdy szerzej niż `single_zoom`); plan szeroki i 9:16 stoją.
 - Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
-  górze, R na dole (`stack_zoom`). Napisy domyślnie `caption_v` 900, na styku paneli.
+  górze, R na dole (`stack_zoom`), ale nigdy pod kartą 9:16 (boks / kółko pod kartą mieści jedną twarz: tam ujęcie
+  mówiącego, raport `stack_under_card`). Ujęcie jednej osoby w 9:16 trzyma zoomy z `build_edl` (punch-iny na słowach, dryf),
+  przesunięte na początek kawałka (`shift_zoom`). Napisy domyślnie `caption_v` 900, na styku paneli.
 - Mówcy: `podcast_spk.json` w folderze EDL (liczy się raz). Poprawka ręczna: `podcast_fix.json` `[[t0, t1, "L"], ...]`
   (sekundy nagrania). Po przebiegu: `podcast: N pieces, shots {...}, words without a clear speaker x/y`.
 - Liczby ujęć to dane (`style/podcast.json`), badania: `research/podcast/`. Testy: `tests/test_podcast*.py`.
