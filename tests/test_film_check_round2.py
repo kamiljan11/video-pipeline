@@ -497,6 +497,13 @@ class SceneNotesTest(FilmFixture):  # Kamil 2026-11-15 notes 45, 46, 53
               {"k": "quiz", "at": 0.1, "opts": ["a", "b"], "pick": [[7.0, 0]], "reveal": {"at": 9.2, "right": 1}}]
         self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 11}], [{"id": "s", "type": "scene", "els": tl, "dur": 11}]).scene_beat()[0])
 
+    def test_second_bar_dot_and_typing_count(self):  # pg-review r2 code-2: b_at and type_at moved by shiftPiece, so counted here
+        els = [{"k": "bars", "at": 0.2, "items": [{"label": "a", "v": 0.3, "b": 0.8, "b_at": 2.5}]},
+               {"k": "code", "at": 0.1, "lines": ["x"], "type_at": 4.8}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 7}], [{"id": "s", "type": "scene", "els": els, "dur": 7}]).scene_beat()
+        self.assertTrue(ok, detail)
+        self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 7}], [{"id": "s", "type": "scene", "els": [els[0] | {"items": [{"label": "a", "v": 0.3}]}, els[1] | {"type_at": None}], "dur": 7}]).scene_beat()[0])
+
     def test_a_scene_without_length_is_named(self):  # pg-review ops-1: dur 0 must not pass as "changes on the word"
         ok, detail = self.film([{"id": "s", "at": 0}], [{"id": "s", "type": "scene", "els": [{"k": "chip", "at": 0}]}]).scene_beat()
         self.assertFalse(ok); self.assertIn("s has no length", detail)

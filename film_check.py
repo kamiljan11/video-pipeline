@@ -853,7 +853,7 @@ class Film:
         for e in sp.get("els") or []:
             if not isinstance(e, dict):
                 continue
-            for k in ("at", "gone", "dim", "hl_at", "strike_at", "click_at", "on_at", "back_at", "x_at", "out_start", "cmd_at", "packet_at"):
+            for k in ("at", "gone", "dim", "hl_at", "strike_at", "click_at", "on_at", "back_at", "x_at", "out_start", "cmd_at", "packet_at", "type_at"):
                 if (v := num(e.get(k))) is not None: ts.append(v)
             pulse = e.get("pulse_at")
             ts += [v for v in map(num, pulse if isinstance(pulse, list) else [pulse]) if v is not None]
@@ -863,7 +863,7 @@ class Film:
             for key in ("steps", "items", "fields", "lanes"):  # round 2 pieces: a step / bar / field / segment lands or changes
                 for x in e.get(key) or []:
                     if not isinstance(x, dict): continue
-                    if (v := num(x.get("at"))) is not None: ts.append(v)
+                    ts += [v for k in ("at", "b_at") if (v := num(x.get(k))) is not None]  # b_at: the second dot of a bar
                     ts += [v for y in x.get("set") or [] if isinstance(y, list) and y and (v := num(y[0])) is not None]
                     ts += [v for g in x.get("segs") or [] if isinstance(g, dict) and (v := num(g.get("at"))) is not None]
             for key, sub in (("reveal", "at"), ("note", "at"), ("button", "press_at")):

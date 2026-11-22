@@ -49,6 +49,8 @@ test('bars: a bar grows to its share, two dots on a track for before -> after, a
   assert.equal((h.match(/class="bro/g) || []).length, 2);
   assert.match(h, /class="brd" style="left:10\.0%;width:calc\(61\.0% - 10\.0%\)[^"]*transform-origin:right/);
   assert.ok(checkScene(sc([{ ...b, items: [{ label: 'a', v: 2 }] }])).some(x => x.includes('"items"')));
+  assert.ok(checkScene(sc([{ ...b, items: [{ label: 'a', v: 0.5, b: 0.2, b_at: 999 }] }])).some(x => x.includes('"items"')));  // b_at in the scene
+  assert.ok(checkScene(sc([{ k: 'code', x: 0, y: 0, lines: ['x'], type_at: 999 }])).some(x => x.includes('"type_at"')));
 });
 
 test('timeline: ticks, lanes with segments, a now-line gliding between places; narrow = names above the tracks', () => {
