@@ -11,6 +11,7 @@ no measured CPU speed): podcast_fix.json in the work folder overrides any stretc
 import json
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,7 @@ import numpy as np
 W, H = 960, 540  # analysis frame: two faces of a 4K wide shot are still ~60-100 px wide here (640x360 is too small)
 MODEL = Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"
 WINDOW_S = 10.0  # one face box per side per window of the recording
+STALL_S = 120.0  # seconds without a frame before ffmpeg counts as hung (a 4K seek can be slow)
 
 
 def two_faces(faces, last=None):
@@ -65,16 +67,29 @@ def frames(src, t0, dur, fps):
                               "-vf", f"fps={fps},scale={W}:{H}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
                              stdout=subprocess.PIPE, stderr=err)
         n = W * H * 3; k = 0
-        assert p.stdout is not None
+        out = p.stdout
+        if out is None: raise SystemExit("podcast_faces: ffmpeg started without a stdout pipe")
+        stalled = threading.Event()
+
+        def stall():  # a hung read never returns on its own: killing ffmpeg closes the pipe
+            stalled.set(); p.kill()
+
+        watch = None
         try:
             while True:
-                buf = p.stdout.read(n)
+                watch = threading.Timer(STALL_S, stall); watch.start()  # armed only while waiting on ffmpeg, not on the caller
+                buf = out.read(n)
+                watch.cancel()
                 if len(buf) < n: break
                 yield t0 + k / fps, np.frombuffer(buf, np.uint8).reshape(H, W, 3); k += 1
-            rc = p.wait(timeout=120)
+            rc = p.wait(timeout=STALL_S)
+        except subprocess.TimeoutExpired:
+            stalled.set(); rc = None
         finally:
+            if watch is not None: watch.cancel()
             if p.poll() is None: p.kill(); p.wait()
         err.seek(0); msg = err.read().decode(errors="replace").strip()[-300:]
+        if stalled.is_set(): raise SystemExit(f"podcast_faces: ffmpeg gave no frame for {STALL_S:.0f}s on {src} at {t0:.1f}s: {msg}")
         if rc != 0: raise SystemExit(f"podcast_faces: ffmpeg failed on {src} at {t0:.1f}s (exit {rc}): {msg}")
         if k < 0.9 * dur * fps - 2: raise SystemExit(f"podcast_faces: {src} at {t0:.1f}s gave {k} frames, expected ~{dur * fps:.0f}: {msg}")
 

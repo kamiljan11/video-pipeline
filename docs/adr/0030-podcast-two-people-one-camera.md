@@ -37,6 +37,10 @@ zawiedzie. (b) Model ASD (TalkNet, Light-ASD, MIT): brak zmierzonej prędkości 
 (d) Osobna ścieżka renderu dla podcastu: odrzucone, ten sam `vf_for` dostaje inne `face`/`zoom`, mniej kodu do utrzymania.
 (e) Licencje AGPL/niekomercyjne (podcli, SupoClip, modele InsightFace): odrzucone, sprzedajemy oprogramowanie.
 
+**Kryterium sukcesu (sprawdzane na pierwszym nagraniu, przed renderem longa w `review_player.py`):** raport `podcast.py`
+pokazuje ≤ 10 % słów bez pewnego mówcy (`?`) i ≤ 3 uwagi Kamila „zła osoba w kadrze” na 10 min filmu. Gorzej = ręczne
+`podcast_fix.json` na ten film i backend pyannote (Rozważone a) jako kolejny krok. Progi to założenie, nie pomiar.
+
 **Ryzyka i zabezpieczenia:**
 - Heurystyka ruchu ust nie była sprawdzona na prawdziwym nagraniu (plik jeszcze się kopiuje). Zabezpieczenia: `?` zamiast
   zgadywania, ostrzeżenie przy >20 % słów bez mówcy, `podcast_fix.json`. Pierwszy render = przegląd wzrokowy.

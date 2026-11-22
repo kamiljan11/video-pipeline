@@ -426,9 +426,10 @@ if P.get("hook_show"):  # beats.py --gfx --write leaves its report in the plan: 
 # zooms of about 1.01, 0.6 punch-ins a minute against the checklist's 2)
 # podcast (two people, one wide camera, ADR-0030): face_track.py hands the EDL to podcast.py, which needs the words to
 # tell who talks; true or an object of style/podcast.json keys for this film
-if "podcast" in P:
-    if not (P["podcast"] is True or isinstance(P["podcast"], dict)):
-        sys.exit(f'podcast: true or an object of style/podcast.json keys, got {P["podcast"]!r}')
+# false = off, the same contract face_track.py reads (an old plan keeps its key and renders as one speaker)
+if "podcast" in P and not isinstance(P["podcast"], (bool, dict)):
+    sys.exit(f'podcast: true, false or an object of style/podcast.json keys, got {P["podcast"]!r}')
+if P.get("podcast", False) is not False:
     edl["words"] = P["words"]
     pc = P["podcast"]
     if isinstance(pc, dict) and "stack_zoom" in pc: edl["stack_zoom"] = pc["stack_zoom"]  # assemble.py stack_vf reads the EDL
@@ -516,7 +517,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     cv = P.get("caption_v")  # MarginV of the captions (px from the bottom of 1920); lower = further from the face
     # podcast 9:16 (ADR-0030): the captions sit on the seam of a "stack" (y ~930-1020), the one place that is no face;
     # on a single shot that is under the chin (face_target_y 0.40). The default 540 lands on the lower person's face
-    if cv is None and "podcast" in P: cv = 900
+    if cv is None and P.get("podcast", False) is not False: cv = 900
     if cv is not None:
         if type(cv) is not int or not 300 <= cv <= 900: sys.exit(f"caption_v: whole px 300..900, got {cv!r}")
         hdr = re.sub(r"^(Style: Cap,(?:[^,]*,){20})\d+,", rf"\g<1>{cv},", hdr, flags=re.MULTILINE)

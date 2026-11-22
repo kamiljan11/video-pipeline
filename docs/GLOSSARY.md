@@ -103,3 +103,4 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **`stack`** — short 9:16 z dwoma panelami: L na górze, R na dole; napisy na styku.
 - **backchannel** — krótkie „mhm”, „no”, śmiech słuchacza; nie odbiera głosu i nie przełącza ujęcia (`backchannel_s`).
 - **ruch ust** — miara mówcy w `podcast_faces.py`: zmiana obrazu w dolnej części twarzy między klatkami, każda osoba względem swojej mediany.
+- **motyw `dworak`** — kolory kanału ArkadiuszDworak.pl (`style/themes/dworak.json`, wariant ciemny strony); wybór przez `work/theme.json`. Nasze filmy zostają na motywie domyślnym / `cetus`.

@@ -6,6 +6,7 @@ the 9:16 "stack" render in assemble.py.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -205,6 +206,17 @@ class ReviewFixes(unittest.TestCase):
         with self.assertRaises(SystemExit) as cm: list(pf.frames("/nonexistent/x.mp4", 0, 1.0, 10))
         self.assertIn("ffmpeg failed", str(cm.exception))
 
+    def test_hung_ffmpeg_is_killed_with_a_named_error(self):
+        tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, tmp, True)
+        fake = tmp / "ffmpeg"; fake.write_text("#!/bin/sh\nexec sleep 30\n"); fake.chmod(0o755)
+        old_path, old_stall = os.environ["PATH"], pf.STALL_S
+        os.environ["PATH"] = f"{tmp}:{old_path}"; pf.STALL_S = 0.5
+        try:
+            with self.assertRaises(SystemExit) as cm: list(pf.frames("x.mp4", 0, 1.0, 10))
+        finally:
+            os.environ["PATH"], pf.STALL_S = old_path, old_stall
+        self.assertIn("gave no frame", str(cm.exception))
+
     def test_cache_key_follows_word_times(self):
         tmp = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, tmp, True)
         f = Path(tmp) / "r.mp4"; f.write_bytes(b"x")
@@ -268,6 +280,14 @@ class BuildEdl(unittest.TestCase):
         r = self.build(podcast=True, vertical=True, ass_out="subs.ass", caption_v=700)  # the plan's own value wins
         cap = next(x for x in (self.d / "subs.ass").read_text().splitlines() if x.startswith("Style: Cap,"))
         self.assertEqual(cap.split(",")[21], "700")
+
+    def test_false_means_off_like_face_track(self):
+        r = self.build(podcast=False, vertical=True, ass_out="subs.ass")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        E = json.loads((self.d / "edl.json").read_text())
+        self.assertNotIn("words", E)
+        cap = next(x for x in (self.d / "subs.ass").read_text().splitlines() if x.startswith("Style: Cap,"))
+        self.assertNotEqual(cap.split(",")[21], "900")
 
     def test_bad_value_is_a_named_error(self):
         r = self.build(podcast="yes")
