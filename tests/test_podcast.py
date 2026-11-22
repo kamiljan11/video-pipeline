@@ -143,6 +143,20 @@ class Reframe(unittest.TestCase):
         self.assertTrue(all(not isinstance(p.get("zoom"), dict) or p["zoom"]["a"] >= 1 for p in E["segments"]))
         self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
 
+    def test_long_single_keeps_a_word_punch_on_its_own_level(self):  # long.punch: emph punches survive the reframe
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl()
+        E0["segments"][0]["zoom"] = {"a": 1.0, "b": 1.12, "t0": 14.0, "t1": 14.3}  # build_edl emph in R's part
+        E, _, _ = podcast.reframe(E0, s, w, FACES, CFG)
+        r = next(p for p in E["segments"] if p["shot"] == "R")
+        z0 = CFG["single_zoom"]
+        self.assertEqual((r["zoom"]["a"], r["zoom"]["b"]), (round(z0, 4), round(z0 * 1.12, 4)))
+        self.assertEqual((r["zoom"]["t0"], r["zoom"]["t1"]), (round(14.0 - r["in"], 3), round(14.3 - r["in"], 3)))
+        l1 = next(p for p in E["segments"] if p["shot"] == "L")
+        self.assertEqual(l1["zoom"]["a"], z0)  # no punch there: the slow drift
+        self.assertFalse(podcast.is_punch({"a": 1.0, "b": 1.05, "t0": 0.0, "t1": 9.0}))
+        self.assertTrue(podcast.is_punch({"a": 1.0, "b": 1.0, "t0": 0.0, "t1": 9.0, "keys": [[0, 1.0], [2, 1.2]]}))
+
     def test_shift_zoom_moves_times_or_settles_on_a_level(self):
         z = {"a": 1.0, "b": 1.2, "t0": 5.0, "t1": 5.3}
         self.assertEqual(podcast.shift_zoom(z, 0.0, 10.0), z)

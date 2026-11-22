@@ -574,7 +574,8 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
 - Long 16:9: `wide` na otwarcie i jako przerywnik co najwyżej co `single_max_s`, potem wycinek mówiącego (`single_zoom`);
   „mhm” krótsze niż `backchannel_s` i odpowiedź krótsza niż `hold_s` nie przełączają. Pod kartą boczną nigdy plan szeroki.
   Wycinek od `drift_min_s` s ma powolny najazd / odjazd na zmianę (`drift_per_s` na sekundę, najwyżej `single_drift`,
-  nigdy szerzej niż `single_zoom`); plan szeroki i 9:16 stoją.
+  nigdy szerzej niż `single_zoom`); punch-in na słowie (`emph`, ruch < 1 s) zostaje, przeskalowany do poziomu wycinka
+  (1,0 -> 1,12 na planie szerokim = 1,8 -> 2,016 na wycinku); plan szeroki stoi.
 - Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
   górze, R na dole (`stack_zoom`), ale nigdy pod kartą 9:16 (boks / kółko pod kartą mieści jedną twarz: tam ujęcie
   mówiącego, raport `stack_under_card`). Ujęcie jednej osoby w 9:16 trzyma zoomy z `build_edl` (punch-iny na słowach, dryf),

@@ -33,6 +33,7 @@ import timeline
 from gfx_types import SIDE_BOX
 
 FPS = 30
+PUNCH_S = 1.0  # a zoom move shorter than this is a punch on a word (build_edl emph: 0.3 s), longer = a drift
 SNAP_S = 1.0  # a shot change moves at most this far to reach a pause between words
 ALGO = 2  # bump when podcast_faces' speaker or box logic changes: the cache is then measured again
 
@@ -134,6 +135,19 @@ def shift_zoom(z, off: float, d: float):
     return {**z, "t0": round(t0, 3), "t1": round(t1, 3)}
 
 
+def is_punch(z) -> bool:
+    """a quick move on a word (build_edl "emph": t1 - t0 under PUNCH_S, or a keyed grammar move), not a slow drift"""
+    return isinstance(z, dict) and (bool(z.get("keys")) or z["t1"] - z["t0"] < PUNCH_S)
+
+
+def scaled(z, k: float):
+    """the same move on a k times tighter shot: a punch of 1.0 -> 1.12 on the wide is 1.8 -> 2.016 on a 1.8 single"""
+    if not isinstance(z, dict): return round(z * k, 4)
+    out = {**z, "a": round(z["a"] * k, 4), "b": round(z["b"] * k, 4)}
+    if z.get("keys"): out["keys"] = [[t, round(v * k, 4)] for t, v in z["keys"]]
+    return out
+
+
 def single_drift(z: float, d: float, cfg: dict, n: int) -> "float | dict":
     """16:9 single shot: a slow push in (even n) or pull out (odd n) over the whole piece, so a held face keeps a little
     life (Kamil 2026-11-22: "bardziej sie bawic tymi zoomami ... delikatnie"). The move grows with the piece
@@ -198,7 +212,10 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
             faces = faces_at((a + b) / 2)
             if not faces: report["no_face"] += 1
             p = frame_piece(p, shot, who, faces, cfg, vertical)
-            if not vertical and p.get("shot") in ("L", "R"):
+            if not vertical and p.get("shot") in ("L", "R") and is_punch(carried):
+                # the punch build_edl put on a word, on the single's own level (long.punch counts it)
+                p["zoom"] = scaled(carried, cfg["single_zoom"] / carried["a"])
+            elif not vertical and p.get("shot") in ("L", "R"):
                 p["zoom"] = single_drift(p["zoom"], timeline.piece_len(p, exact), cfg, drifts); drifts += 1
             elif vertical and p.get("shot") in ("L", "R"):
                 p["zoom"] = carried  # 9:16 single: the punch-ins and drift build_edl gave the words (short.punch)
