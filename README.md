@@ -581,7 +581,7 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
   może jechać). `podcast.py` kładzie je na swoich kawałkach: na słowie skok do poziomu ujęcia i najazd o `amt`
   (x poziom ujęcia, najwyżej x1,38), trzymany do następnego słowa (powrót na poziom i znowu najazd, klucze `keys`); karta
   nad słowem albo w `PUNCH_HOLD` s po nim = bez punch-inu, karta dalej w kawałku = powrót na poziom w klatce jej wejścia.
-  Na `stack` nie ma punch-inów. Raport: `punches`, `punch_under_card`; `film_check` liczy każdy najazd z kluczy.
+  Na `stack` nie ma punch-inów. Raport: `punches`, `punch_under_card`, `punch_skipped` (na stacku albo za blisko cięcia, by skończyć ruch); `film_check` liczy każdy najazd z kluczy.
 - Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
   górze, R na dole (`stack_zoom`), ale nigdy pod kartą 9:16 (boks / kółko pod kartą mieści jedną twarz: tam ujęcie
   mówiącego, raport `stack_under_card`). Ujęcie jednej osoby w 9:16 trzyma dryf z `build_edl`,

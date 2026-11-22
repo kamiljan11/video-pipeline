@@ -173,6 +173,35 @@ def word_punches(z: float, hits: list[dict]) -> "float | dict":
     return {"a": z, "b": max(v for _, v in keys), "t0": keys[1][0], "t1": keys[2][0], "keys": keys}
 
 
+def piece_punches(punches: list[dict], no_punch: list[tuple], fa: float, fb: float, stacked: bool) -> tuple[list[dict], int]:
+    """the word punches (film times) of the piece [fa, fb) -> (punches in piece time, how many a card would cover).
+    A stack takes none (two faces, no zoom); a punch that cannot finish its move before the cut is left out; a card over
+    the word or the PUNCH_HOLD after it = no punch; a card later in the piece = "until": back to the shot's level there"""
+    if stacked: return [], 0
+    hits = [{**h, "t": h["t"] - fa} for h in punches if fa <= h["t"] < fb - h["speed"]]
+    ok = [h for h in hits if not any(c0 < fa + h["t"] + h["speed"] + PUNCH_HOLD and fa + h["t"] - 0.2 < c1 for c0, c1 in no_punch)]
+    for i, h in enumerate(ok):
+        end = fa + ok[i + 1]["t"] if i + 1 < len(ok) else fb
+        cut = [c0 for c0, _ in no_punch if fa + h["t"] < c0 < end]
+        if cut: h["until"] = round(min(cut) - fa, 3)
+    return ok, len(hits) - len(ok)
+
+
+def piece_zoom(p: dict, carried, ok: "list[dict] | None", vertical: bool, d: float, cfg: dict, drifts: int):
+    """the zoom of a framed piece -> (zoom, drift count). ok = its podcast word punches (None: the EDL has none, build_edl
+    put its punches on the segments); a single without a punch drifts (16:9) or keeps build_edl's zoom (9:16)"""
+    single = p.get("shot") in ("L", "R")
+    if ok:
+        base = p["zoom"] if isinstance(p["zoom"], (int, float)) else p["zoom"]["a"]
+        return word_punches(float(base), ok), drifts
+    if ok is None and not vertical and single and is_punch(carried):
+        # the punch build_edl put on a word, on the single's own level (long.punch counts it)
+        return scaled(carried, cfg["single_zoom"] / carried["a"]), drifts
+    if not vertical and single: return single_drift(p["zoom"], d, cfg, drifts), drifts + 1
+    if vertical and single: return carried, drifts  # 9:16 single: the punch-ins and drift build_edl gave the words (short.punch)
+    return p["zoom"], drifts
+
+
 def single_drift(z: float, d: float, cfg: dict, n: int) -> "float | dict":
     """16:9 single shot: a slow push in (even n) or pull out (odd n) over the whole piece, so a held face keeps a little
     life (Kamil 2026-11-22: "bardziej sie bawic tymi zoomami ... delikatnie"). The move grows with the piece
@@ -238,31 +267,15 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
             faces = faces_at((a + b) / 2)
             if not faces: report["no_face"] += 1
             p = frame_piece(p, shot, who, faces, cfg, vertical)
+            ok = None
             if punches is not None:  # podcast word punches (build_edl): on this piece, never with a card over the rest of it
-                hits = [] if p.get("stack") else [{**h, "t": h["t"] - fa} for h in punches if fa <= h["t"] < fb - h["speed"]]
-                # a card over the word itself (or the second after it) = no punch; a card later in the piece = back to the level there
-                ok = [h for h in hits if not any(c0 < fa + h["t"] + h["speed"] + PUNCH_HOLD and fa + h["t"] - 0.2 < c1 for c0, c1 in no_punch)]
-                for i, h in enumerate(ok):
-                    end = fa + ok[i + 1]["t"] if i + 1 < len(ok) else fb
-                    cut = [c0 for c0, _ in no_punch if fa + h["t"] < c0 < end]
-                    if cut: h["until"] = round(min(cut) - fa, 3)
-                report["punch_under_card"] += len(hits) - len(ok); report["punches"] += len(ok)
-                if ok:
-                    base = p["zoom"] if isinstance(p["zoom"], (int, float)) else p["zoom"]["a"]
-                    p["zoom"] = word_punches(float(base), ok)
-                elif not vertical and p.get("shot") in ("L", "R"):
-                    p["zoom"] = single_drift(p["zoom"], timeline.piece_len(p, exact), cfg, drifts); drifts += 1
-                elif vertical and p.get("shot") in ("L", "R"):
-                    p["zoom"] = carried  # the slow drift build_edl gave the segment
-            elif not vertical and p.get("shot") in ("L", "R") and is_punch(carried):
-                # the punch build_edl put on a word, on the single's own level (long.punch counts it)
-                p["zoom"] = scaled(carried, cfg["single_zoom"] / carried["a"])
-            elif not vertical and p.get("shot") in ("L", "R"):
-                p["zoom"] = single_drift(p["zoom"], timeline.piece_len(p, exact), cfg, drifts); drifts += 1
-            elif vertical and p.get("shot") in ("L", "R"):
-                p["zoom"] = carried  # 9:16 single: the punch-ins and drift build_edl gave the words (short.punch)
+                ok, under = piece_punches(punches, no_punch, fa, fb, bool(p.get("stack")))
+                report["punch_under_card"] += under; report["punches"] += len(ok)
+            p["zoom"], drifts = piece_zoom(p, carried, ok, vertical, timeline.piece_len(p, exact), cfg, drifts)
             if p.get("stack") and any(c0 < fb and fa < c1 for c0, c1 in behind): report["behind_on_stack"] += 1
             out.append(p)
+    if punches is not None:  # on a stack, or too close to a cut to finish its move: said in the report, not lost silently
+        report["punch_skipped"] = len(punches) - report["punches"] - report["punch_under_card"]
     E = dict(E); E["segments"] = out
     return E, shots, report
 

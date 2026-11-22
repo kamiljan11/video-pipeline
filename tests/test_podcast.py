@@ -176,6 +176,23 @@ class Reframe(unittest.TestCase):
         import film_check
         self.assertEqual(len([t for t in film_check.punches({"segments": [r]})]), 2)  # every keyed push in counts
 
+    def test_vertical_punches_skip_a_card_and_every_punch_is_accounted(self):  # 9:16 podcast short
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl(vertical=True)
+        E0["word_punches"] = [{"t": 13.0, "amt": 0.11, "speed": 0.3}, {"t": 25.0, "amt": 0.11, "speed": 0.3},
+                              {"t": 29.9, "amt": 0.11, "speed": 0.3}]  # the last one cannot finish before the end
+        E0["punch_off"] = [[24.0, 28.0]]
+        E, _, rep = podcast.reframe(E0, s, w, FACES, CFG)
+        self.assertEqual(rep["punch_under_card"], 1)
+        self.assertEqual(rep["punches"] + rep["punch_under_card"] + rep["punch_skipped"], 3)
+        self.assertGreaterEqual(rep["punch_skipped"], 1)
+        f0 = 0.0
+        for p in E["segments"]:
+            f1 = f0 + p["out"] - p["in"]
+            if f0 <= 25.0 < f1: self.assertFalse(isinstance(p["zoom"], dict) and p["zoom"].get("keys"))
+            f0 = f1
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+
     def test_a_card_later_in_the_piece_brings_the_shot_back_to_its_level(self):
         w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
         E0 = edl()
