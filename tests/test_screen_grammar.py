@@ -42,6 +42,8 @@ class ScreenPassTest(unittest.TestCase):
         self.assertEqual(out["m2"]["type"], "meme")
         out, _, _ = self.run_pass([(0.0, scene("s4", 3, 8, cam="none"))])
         self.assertNotIn("layout", out["s4"])  # scene_lib refuses layout "side" with cam "none"
+        out, _, _ = self.run_pass([(0.0, scene("s6", 3, 8, cam="grow"))])
+        self.assertNotIn("layout", out["s6"])  # nor with cam "grow" (it frames what is on screen, full frame)
         tied = {"id": "s5", "type": "scene", "dur": 8, "els": [{"k": "chip", "text": "a"}, {"k": "line", "from": [0, 0], "to": [9, 9]}]}
         out, _, _ = self.run_pass([(0.0, tied)])
         self.assertNotIn("layout", out["s5"])  # a line ties two pieces: it cannot stack into the column beside him

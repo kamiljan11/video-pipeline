@@ -20,5 +20,14 @@
   `sticker` w `style/memes.json` -> naklejka obok twarzy; scena <= 5 elementów -> `layout: "side"`; karta trzyma czas
   czytania; dwa osobne ekrany bliżej niż 3 s -> jeden blok (Kamil 2026-11-05: „zbyt często przenosimy się na osobny ekran”).
 
-**Gotowe gdy:** `film_check` long.chapters, long.explainers, long.explainer_count, long.graphics, long.behind, long.lower OK;
+- Objaśnienie jak u arjay (`style/REF-shorts-arjay.md`): prawdziwe rzeczy (`table` z wierszami, imiona, prawdziwa komenda w `code`),
+  nie szare kreski; stan zmienia się w tym samym elemencie na słowo (`set`, `state`, `set_cell`, `mark`), coś rusza się co <= 2,5 s;
+  `"cam": "grow"` (+ `"look": "paper"` w shortach), żeby pierwszy element wypełniał kadr. Short = własny pionowy układ, 1–3 elementy
+  naraz, stare z `gone`; nie ten sam rysunek co w longu.
+- Gramatyka obrazu (runda 2, Kamil 2026-11-16: „on bardziej wizualizuje więcej rzeczy, a my tylko napisy”): każde zdanie sceny
+  dostaje rysunek wg rodzaju myśli: proces -> `flow`, ilość -> `grid`, porównanie -> `bars`, czas -> `timeline`, wybór -> `quiz`,
+  rzecz/stan -> `form` / `table` / `win`, czego nie ma -> `strike_at`. Napis (`chip`, `text`, `big`) to dodatek do rysunku, nie
+  rysunek. Short: każda myśl = nowa pełna kompozycja (`gone` + `cam: grow`), nie dokładanie do jednej.
+
+**Gotowe gdy:** `film_check` long.chapters, long.explainers, long.explainer_count, long.graphics, long.behind, long.lower OK, scene_beat, scene_concrete i scene_visual bez ostrzeżeń;
 klatka kontrolna każdej sceny obejrzana (`gfx/` png) przed renderem.

@@ -842,6 +842,83 @@ class Film:
                 bad.append(f"{o['id']}: boxes without an arrow")
         return not bad, "; ".join(bad[:8]) or "scenes drawn in detail"
 
+    @staticmethod
+    def scene_events(sp: dict) -> list[float]:
+        """every moment a drawn scene changes on screen (s from the card start): pieces coming in and leaving, chat messages,
+        words, rows marked or lit, values set, code marks, clicks, switches, counts (style/REF-shorts-arjay.md: the panel
+        changes on the word, not only when a new piece comes in)"""
+        def num(v):
+            return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+        ts: list[float] = []
+        for e in sp.get("els") or []:
+            if not isinstance(e, dict):
+                continue
+            for k in ("at", "gone", "dim", "hl_at", "strike_at", "click_at", "on_at", "back_at", "x_at", "out_at", "out_start", "cmd_at", "packet_at", "type_at"):
+                if (v := num(e.get(k))) is not None: ts.append(v)
+            pulse = e.get("pulse_at")
+            ts += [v for v in map(num, pulse if isinstance(pulse, list) else [pulse]) if v is not None]
+            ts += [v for m in e.get("msgs") or [] if isinstance(m, dict) and (v := num(m.get("at"))) is not None]
+            for key in ("words", "set", "state", "set_cell", "mark", "read_along", "steps", "lit", "fail", "packet", "show", "fill", "pick", "head"):
+                ts += [v for x in e.get(key) or [] if isinstance(x, list) and x and (v := num(x[0] if key != "words" else x[1])) is not None]
+            for key in ("steps", "items", "fields", "lanes"):  # round 2 pieces: a step / bar / field / segment lands or changes
+                for x in e.get(key) or []:
+                    if not isinstance(x, dict): continue
+                    ts += [v for k in ("at", "b_at") if (v := num(x.get(k))) is not None]  # b_at: the second dot of a bar
+                    ts += [v for y in x.get("set") or [] if isinstance(y, list) and y and (v := num(y[0])) is not None]
+                    ts += [v for g in x.get("segs") or [] if isinstance(g, dict) and (v := num(g.get("at"))) is not None]
+            for key, sub in (("reveal", "at"), ("note", "at"), ("button", "press_at")):
+                if isinstance(e.get(key), dict) and (v := num(e[key].get(sub))) is not None: ts.append(v)
+            for r in e.get("rows") or []:
+                if isinstance(r, dict):
+                    ts += [v for k in ("mark_at", "hl_at") if (v := num(r.get(k))) is not None]
+            if isinstance(e.get("count"), dict) and (v := num(e["count"].get("at"))) is not None: ts.append(v)
+        return sorted(set(ts))
+
+    def scene_beat(self, max_gap: float = 2.5):
+        """style/REF-shorts-arjay.md (2026-11-16): the explainer panel never stands still longer than ~2.3 s (measured on 15
+        shorts, median of the longest still stretch); a drawn scene on screen changes something (a piece, a row lit, a
+        value set, a word, a mark) at least every max_gap s, counting from the card start to its end"""
+        bad = []
+        for o, sp in self.scene_specs():
+            dur = min(float(sp.get("dur") or 0) or self.ov_dur(o), self.ov_dur(o))
+            if dur <= 0: bad.append(f"{o['id']} has no length (no \"dur\" on the card or the scene): nothing measured"); continue
+            ts = [0.0, *[t for t in self.scene_events(sp) if 0 <= t <= dur], dur]
+            gap, at = max(((b - a), a) for a, b in itertools.pairwise(ts))
+            if gap > max_gap: bad.append(f"{o['id']} still {gap:.1f} s from {at:.1f} s")
+        if not self.scene_specs(): return True, "no drawn scene on screen (nothing to measure)"
+        return not bad, f"scenes standing still > {max_gap:g} s: {', '.join(bad[:8])}" if bad else "every scene changes on the word"
+
+    TEXT_KINDS = ("chip", "text", "say", "big", "stat", "steps")  # pieces that only write a thing
+    TIED_KINDS = ("line", "tag", "ring", "stamp", "check", "cursor")  # pieces placed on another one: not a picture of their own
+
+    def scene_visual(self, max_share: float = 0.5):
+        """style/REF-shorts-arjay.md › Gramatyka obrazu (Kamil 2026-11-16: "on bardziej wizualizuje wiecej rzeczy a my tylko
+        napisy"): a scene draws the thought (a flow, tiles, bars, a timeline, a quiz, a card, a table, code, a window) and
+        writes it only now and then; at most max_share of its own pieces only write (chip, text, say, big, stat, steps)"""
+        bad = []
+        for o, sp in self.scene_specs():
+            own = [e.get("k") for e in sp.get("els") or [] if isinstance(e, dict) and e.get("k") not in self.TIED_KINDS]
+            txt = sum(1 for k in own if k in self.TEXT_KINDS)
+            if own and txt / len(own) > max_share: bad.append(f"{o['id']} {txt}/{len(own)} pieces only write")
+        if not self.scene_specs(): return True, "no drawn scene on screen (nothing to measure)"
+        return not bad, "; ".join(bad[:8]) or "scenes draw the thought, not only write it"
+
+    def scene_concrete(self, max_share: float = 0.34):
+        """style/REF-shorts-arjay.md: the panel shows real things (a row "42 Blue mug 5", a named person, a real command),
+        not grey placeholder lines; at most max_share of the rows and messages of a scene are "~" placeholders"""
+        bad = []
+        for o, sp in self.scene_specs():
+            rows = []
+            for e in sp.get("els") or []:
+                if not isinstance(e, dict): continue
+                if e.get("k") in ("win", "file"): rows += e.get("rows") or ["~80", "~55", "~70"]
+                if e.get("k") == "chat": rows += [m.get("t") for m in e.get("msgs") or [] if isinstance(m, dict)]
+            txt = [r.get("t") if isinstance(r, dict) else r for r in rows]
+            sk = sum(1 for t in txt if not isinstance(t, str) or re.fullmatch(r"~\d*", t))
+            if txt and sk / len(txt) > max_share: bad.append(f"{o['id']} {sk}/{len(txt)} placeholder rows")
+        if not self.scene_specs(): return True, "no drawn scene on screen (nothing to measure)"
+        return not bad, "; ".join(bad[:8]) or "scenes show real rows, not placeholders"
+
     def list_items(self, min_on: float = 3):
         """round 2 S11: list item cards in a short stay >= 3 s each (build_edl already holds each to <= 0.3 s after its
         numeral, gfx_events.cue_problems)"""

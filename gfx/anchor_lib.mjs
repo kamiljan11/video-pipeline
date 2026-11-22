@@ -10,7 +10,8 @@ export const END_KINDS = ['line', 'cursor'];  // from / to: a point or a piece
 export const GAP = 14;  // px between a line end and the box it leaves or reaches
 
 const isRef = v => typeof v === 'string' && v.length > 0;
-export const attached = e => !!e && ((ON_KINDS.includes(e.k) && isRef(e.on)) || (END_KINDS.includes(e.k) && (isRef(e.from) || isRef(e.to))));
+export const attached = e => !!e && ((ON_KINDS.includes(e.k) && isRef(e.on)) || (END_KINDS.includes(e.k) && (isRef(e.from) || isRef(e.to)))
+  || (e.k === 'tag' && isRef(e.to)));  // a callout tag sits where it is put, its leader line ends at the piece it names
 export const hasAnchors = sp => sp?.type === 'scene' && drawnEls(sp).els.some(attached);
 
 // where a ray from the box centre towards (tx, ty) leaves the box, `gap` px further out
@@ -40,6 +41,10 @@ export function place(e, boxes, own = { w: 0, h: 0 }) {
     else if (e.k === 'stamp') Object.assign(out, { x: Math.round(b.x + b.w * 0.5), y: Math.round(b.y - own.h * 0.75) });
     else Object.assign(out, { x: Math.round(b.x + b.w + GAP), y: Math.round(b.y + (b.h - own.h) / 2) });  // a check right beside it
     delete out.on;
+  }
+  if (e.k === 'tag' && isRef(e.to)) {  // the leader line ends at the edge of the named box, facing the tag's middle
+    const b = box(e.to), cx = Number.isFinite(own.x) ? own.x + own.w / 2 : e.x, cy = Number.isFinite(own.y) ? own.y + own.h / 2 : e.y;
+    out.to = edgePoint(b, cx, cy, 6);
   }
   if (END_KINDS.includes(e.k)) {
     const a = isRef(e.from) ? centre(box(e.from)) : e.from, z = isRef(e.to) ? centre(box(e.to)) : e.to;
@@ -76,7 +81,7 @@ export function measureIds() {
       const L = Math.min(...kids.map(b => b.left)), T = Math.min(...kids.map(b => b.top));
       return { left: L, top: T, width: Math.max(...kids.map(b => b.right)) - L, height: Math.max(...kids.map(b => b.bottom)) - T };
     };
-    [...el.querySelectorAll(':scope .bd > :is(.row, .sk, .ol), :scope .msg')].forEach((r, i) => { out[`${id}.${i}`] = rel(span(r)); });
+    [...el.querySelectorAll(':scope .bd > :is(.row, .sk, .ol, .trw, .cdl, .fst, .brw, .tll, .qo, .ffd), :scope .msg')].forEach((r, i) => { out[`${id}.${i}`] = rel(span(r)); });
   }
   return out;
 }
@@ -95,7 +100,7 @@ export async function resolveAnchors(specs, open, esc, icon) {
   for (const sp of specs.filter(hasAnchors)) {
     // a stamp or check is laid out once at 0,0 under its own id to learn its size; lines and rings wait for their targets
     const probe = list => (list ?? []).map((e, i) => (attached(e) && e.k !== 'ring' && ON_KINDS.includes(e.k)
-      ? { ...e, on: undefined, x: 0, y: 0, id: `__a${i}` } : e)).filter(e => !attached(e));
+      ? { ...e, on: undefined, x: 0, y: 0, id: `__a${i}` } : attached(e) && e.k === 'tag' ? { ...e, to: undefined, id: `__a${i}` } : e)).filter(e => !attached(e));
     const page = await open(sp);
     try {
       const held = sp._held ? { _held: probe(sp._held).map(e => ({ ...e, id: e.id?.startsWith('__a') ? `__h${e.id}` : e.id })) } : {};

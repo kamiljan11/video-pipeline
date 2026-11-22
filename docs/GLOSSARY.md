@@ -96,3 +96,13 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | `late` | czas minął o > 3 h (`MAX_LATE_H`): nie publikujemy starych postów hurtem |
 | `stuck <stan>` | rekord istnieje, ale nie `published`: publikacja przerwana, sprawdź profil (RUNBOOK) |
 | tik | jedno uruchomienie timera (co 15 min): najwyżej jeden post |
+
+## Objaśnienie jak u arjay (style/REF-shorts-arjay.md, ADR-0028)
+- **look paper** — jasna strona sceny (`"look": "paper"`): ciepła biel, białe karty, czarny tusz, jeden limonkowy zakreślacz (ton `lime`).
+- **cam grow** — kamera sceny kadruje tylko elementy już na ekranie; pierwszy wypełnia pole, kadr poszerza się z każdym wejściem (`grow_zmax`).
+- **set / set_cell / state** — zmiana w tym samym elemencie na słowo: nowa wartość pigułki, liczby, komórki tabeli; wiersz zapalony (bad/ok/hl/off).
+- **tag** — etykieta (osoba, rzecz) z linią prowadzącą do pudełka albo wiersza (`"tabela.1"`).
+- **kotwica wiersza** — `"<id>.<n>"`: n-ty wiersz okna, terminala, czatu, tabeli albo linia kodu, mierzone w Chrome (`gfx/anchor_lib.mjs`).
+- **scene_beat / scene_concrete** — bramki (warn): scena zmienia coś co <= 2,5 s; najwyżej 1/3 wierszy to szare `~`.
+- **gramatyka obrazu** — reguła „rodzaj myśli -> rysunek”: proces = `flow`, ilość = `grid`, porównanie = `bars`, czas = `timeline`, wybór = `quiz`, rzecz/stan = `form` (style/REF-shorts-arjay.md).
+- **scene_visual** — bramka (warn): najwyżej połowa własnych elementów sceny tylko pisze (`chip`, `text`, `say`, `big`, `stat`, `steps`).
