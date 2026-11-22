@@ -85,7 +85,7 @@ def vf_for(z, face=None, track=None):
 
 
 def stack_vf(stack):
-    """podcast 9:16 "stack" (podcast.py, ADR-0030): person L in the top half, person R in the bottom half, each cut from
+    """podcast 9:16 "stack" (podcast.py, ADR-0031): person L in the top half, person R in the bottom half, each cut from
     the recording around its own face (EDL "stack_zoom": recording height / panel crop height), eyes a little above the
     panel middle; numbers only reach the filter (edl_guard: stack = two number pairs)"""
     z, ph = float(edl.get("stack_zoom", 1.8)), H // 2

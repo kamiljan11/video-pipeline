@@ -16,7 +16,7 @@ import numpy as np
 import gfx_types  # next to this script: HEADROOM, shared with assemble.py's picture-in-picture window
 
 edl_p = sys.argv[1]; E = json.loads(Path(edl_p).read_text())
-if "podcast" in E and E["podcast"] is not False:  # two people in one wide shot: podcast.py frames the pieces instead (ADR-0030)
+if "podcast" in E and E["podcast"] is not False:  # two people in one wide shot: podcast.py frames the pieces instead (ADR-0031)
     import podcast
     podcast.main(edl_p); sys.exit(0)
 src = E["sources"]["A"]; vertical = E.get("vertical", False)

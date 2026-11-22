@@ -532,7 +532,7 @@ zostaje jak było (kolory z `gfx/template.html`, bit w bit).
 - Motyw `dworak` (kanał ArkadiuszDworak.pl): kolory z CSS strony, wariant ciemny (tło #102A43, akcent #EF8F76). Fonty strony
   (Figtree, Outfit) nie są zainstalowane: karty zostają w Montserrat. Wybór: `work/theme.json` `{"theme": "dworak"}`.
 
-## Podcast: dwie osoby, jedna kamera (`"podcast"` w planie, ADR-0030)
+## Podcast: dwie osoby, jedna kamera (`"podcast"` w planie, ADR-0031)
 Klucz planu `"podcast": true` (albo obiekt z kluczami `style/podcast.json`, np. `{"hold_s": 3}`) włącza kadrowanie pod dwie
 osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie zmienia.
 - `face_track.py` oddaje wtedy EDL do `podcast.py`: kto mówi (ruch ust, `podcast_faces.py`), ujęcia (`podcast_shots.py`),

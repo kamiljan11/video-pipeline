@@ -1015,7 +1015,7 @@
     "long": "infra",
     "short": "infra"
    },
-   "why": "form switch like vertical: two people in one wide shot (ADR-0030); face_track.py hands the EDL to podcast.py (speakers from mouth motion, wide/L/R shots, 9:16 stack), build_edl validates, style/podcast.json holds the shot rules"
+   "why": "form switch like vertical: two people in one wide shot (ADR-0031); face_track.py hands the EDL to podcast.py (speakers from mouth motion, wide/L/R shots, 9:16 stack), build_edl validates, style/podcast.json holds the shot rules"
   },
   {
    "id": "plan.voice_clean",

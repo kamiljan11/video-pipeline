@@ -1,4 +1,4 @@
-# ADR-0030 — Tryb podcast: dwie osoby, jedna kamera szeroka
+# ADR-0031 — Tryb podcast: dwie osoby, jedna kamera szeroka
 
 Data: 2026-11-22 | Status: proponowane | Drzwi: dwukierunkowe | Przegląd: po pierwszym renderze nagrania 2026-11-19
 

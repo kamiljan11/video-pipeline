@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""podcast.py edl.json: the framing pass for a two-person podcast (plan "podcast", ADR-0030), run by face_track.py in its place.
+"""podcast.py edl.json: the framing pass for a two-person podcast (plan "podcast", ADR-0031), run by face_track.py in its place.
 
 face_track.py frames one speaker. Here the EDL's pieces are cut again where the shot changes (podcast_shots.py), and every
 piece gets the fields assemble.py already reads, so the render needs no second code path for a single shot:
@@ -9,7 +9,7 @@ piece gets the fields assemble.py already reads, so the render needs no second c
 - 9:16 "stack": "stack" = [[fx, fy] of L, [fx, fy] of R]: assemble.py puts L in the top half and R in the bottom half
 plus "shot", "spk" (who has the floor) and "head" (the box head_check.py looks for). A 16:9 side card (gfx_types.SIDE_BOX)
 over a wide shot would cover one person: the shot under it becomes the speaker's single shot (face centred by the crop,
-critic C2 knows it, ADR-0030).
+critic C2 knows it, ADR-0031).
 The shot rules run on FILM time (only the kept words, joined as the film plays), so the opening wide, the hold and the
 cutaways count what the viewer sees; a shot change is moved to the nearest pause between words (each piece fades its
 sound in and out over 12 ms in assemble.py: never inside a word).

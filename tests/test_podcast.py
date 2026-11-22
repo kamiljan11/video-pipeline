@@ -1,4 +1,4 @@
-"""podcast mode (two people, one wide camera, ADR-0030): podcast_faces.py, podcast.py reframe, build_edl/edl_guard keys and
+"""podcast mode (two people, one wide camera, ADR-0031): podcast_faces.py, podcast.py reframe, build_edl/edl_guard keys and
 the 9:16 "stack" render in assemble.py.
 
   python3 -m unittest tests.test_podcast

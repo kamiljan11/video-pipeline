@@ -424,7 +424,7 @@ if P.get("hook_show"):  # beats.py --gfx --write leaves its report in the plan: 
 # punch_headroom: what a zoom must keep in frame (face_track.py). "hair" (default): the head with its hair; "face": brow to chin,
 # so a punch-in may cut the top of the head (film 2026-11-04: Kamil sits close, the head fills 73 % of the frame and "hair" left
 # zooms of about 1.01, 0.6 punch-ins a minute against the checklist's 2)
-# podcast (two people, one wide camera, ADR-0030): face_track.py hands the EDL to podcast.py, which needs the words to
+# podcast (two people, one wide camera, ADR-0031): face_track.py hands the EDL to podcast.py, which needs the words to
 # tell who talks; true or an object of style/podcast.json keys for this film
 # false = off, the same contract face_track.py reads (an old plan keeps its key and renders as one speaker)
 if "podcast" in P and not isinstance(P["podcast"], (bool, dict)):
@@ -515,7 +515,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         hdr = hdr.replace("Style: Cap,Montserrat,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,2,70,130,540,1",
                           f"Style: Cap,Montserrat,80,&H00FFFFFF,&H00FFFFFF,{box},&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,70,70,650,1")
     cv = P.get("caption_v")  # MarginV of the captions (px from the bottom of 1920); lower = further from the face
-    # podcast 9:16 (ADR-0030): the captions sit on the seam of a "stack" (y ~930-1020), the one place that is no face;
+    # podcast 9:16 (ADR-0031): the captions sit on the seam of a "stack" (y ~930-1020), the one place that is no face;
     # on a single shot that is under the chin (face_target_y 0.40). The default 540 lands on the lower person's face
     if cv is None and P.get("podcast", False) is not False: cv = 900
     if cv is not None:
