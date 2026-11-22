@@ -16,8 +16,9 @@ import sys
 import time
 from pathlib import Path
 
-CG = Path("/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service")
-# measured: 18 shorts in 44 min on 2026-11-07 (render-v4.service), the stamp + out_gate tail a few minutes
+CG = Path(f"/sys/fs/cgroup/user.slice/user-{os.getuid()}.slice/user@{os.getuid()}.service")
+# defaults until this run measures its own: 18 shorts in 44 min on 2026-11-07 (render-v4.service), the stamp + out_gate
+# tail a few minutes. Once two shorts are done their mean replaces SHORT_S (eta short_times)
 SHORT_S = 150.0
 TAIL_S = 180.0
 STAGES = (("assemble.py", "assemble"), ("render.mjs", "gfx"), ("behind.py", "behind"), ("critic.py", "critic"),
@@ -46,12 +47,16 @@ def stage2_pid(procs: dict[int, list[str]]) -> int | None:
 
 
 def eta(films: list[str], done: list[str], current: str | None, frac: float | None, stage2_s: float | None,
-        short_times: list[float]) -> dict:
-    """Seconds left for the whole set. The current film: from its encode rate once stage 2 has moved (frac > 2 %),
-    otherwise unknown (None). The films after it: the mean of the shorts finished this run, else SHORT_S."""
+        short_times: list[float], rate: float | None = None) -> dict:
+    """Seconds left for the whole set. The current film: from `rate` (fraction of the film per second, measured by a
+    caller that samples frac over time, the widget) when given, else from stage2_s (assemble.py's age: includes stage
+    1, so it overstates) once stage 2 has moved (frac > 2 %); otherwise unknown (None). The films after it: the mean of
+    the shorts finished this run, else SHORT_S."""
     per_short = sum(short_times) / len(short_times) if short_times else SHORT_S
     left_cur = None
-    if frac is not None and stage2_s is not None and frac > 0.02:
+    if frac is not None and rate:
+        left_cur = (1 - frac) / rate
+    elif frac is not None and stage2_s is not None and frac > 0.02:
         left_cur = stage2_s / frac * (1 - frac)
     rest = [f for f in films if f not in done and f != current]
     total = None if (current and left_cur is None) else (left_cur or 0) + per_short * len(rest) + TAIL_S
@@ -67,6 +72,24 @@ def queue(films: list[str], done: list[str], current: str | None, finishing: boo
              "now": current is not None and current != "long"}]
     rows.append({"name": "Materiały (pieczątki + out_gate)", "done": 0, "total": 1, "now": finishing})
     return rows
+
+
+def materials(out: str | Path, shorts: list[str]) -> list[dict]:
+    """Rows for the materials built before the render (Kamil 2026-11-08: "czemu tu nie ma artykulow postow"): what is
+    already in the out dir per format. done = files found, total = what the film set needs (a cover and an IG reel text
+    per short, a YouTube text for the long and each short) or, for posts / carousels / articles, the folders made."""
+    o = Path(out)
+    ok = lambda pattern: len(list(o.glob(pattern)))
+    dirs = lambda pattern: len([d for d in o.glob(pattern) if d.is_dir()])
+    rows = [("Miniatury longa (A/B…)", ok("thumbnails/long_?.jpg"), max(2, ok("thumbnails/long_?.jpg"))),
+            ("Okładki shortów", sum((o / "thumbnails" / f"{s}_cover.jpg").exists() for s in shorts), len(shorts)),
+            ("Posty LinkedIn", ok("posts/*/post.md"), dirs("posts/*")),
+            ("Karuzele Instagram", dirs("instagram/p*"), dirs("instagram/p*")),
+            ("Opisy reels Instagram", sum((o / "instagram/reels" / f"{s}.json").exists() for s in shorts), len(shorts)),
+            ("Artykuł na bloga", ok("blog/*/article.json"), max(1, dirs("blog/*"))),
+            ("Opisy YouTube", int((o / "youtube/long.md").exists()) + sum((o / "youtube/shorts" / f"{s}.md").exists() for s in shorts),
+             1 + len(shorts))]
+    return [{"name": n, "done": d, "total": t, "now": False} for n, d, t in rows]
 
 
 def shell_var(text: str, name: str) -> str:
@@ -126,13 +149,19 @@ def _unit_start(unit: str) -> float | None:
     return time.time() - (time.monotonic() - mono / 1e6)
 
 
-def collect(unit: str = "vp-render-v4", script: str | None = None) -> dict:
-    """The status of `unit`: film list and out dirs come from its render_v4.sh (W, O, S variables)."""
+def collect(unit: str = "vp-render-v4", script: str | None = None, rate: float | None = None) -> dict:
+    """The status of `unit`: film list and out dirs come from its render_v4.sh (W, O, S variables). rate: see eta.
+    Fields (the desktop widget reads them): unit, active, stage, film, frac, films, done, queue, elapsed_s,
+    current_left_s, rest_films, per_short_s, total_left_s."""
     procs = _procs(unit)
     active = bool(procs)
-    src = script or next((a for args in procs.values() for a in args if a.endswith("render_v4.sh")), None)
-    if src and not os.path.isabs(src):
-        src = os.path.join("/home/kamil-jan/Dane/video-pipeline", src)
+    shell = next(((p, a) for p, args in procs.items() for a in args if a.endswith("render_v4.sh")), (None, None))
+    src = script or shell[1]
+    if src and not os.path.isabs(src) and shell[0]:  # a relative path is relative to the unit's working directory
+        try:
+            src = os.path.join(os.readlink(f"/proc/{shell[0]}/cwd"), src)
+        except OSError:
+            src = None
     text = Path(src).read_text() if src and os.path.exists(src) else ""
     out = shell_var(text, "O")
     shorts = shell_var(text, "S").split()
@@ -151,9 +180,9 @@ def collect(unit: str = "vp-render-v4", script: str | None = None) -> dict:
     frac = _read_frac(pid) if pid else None
     # the rate from assemble.py's age: in windows a new ffmpeg starts every 2 min, so its own age says nothing
     apid = next((p for p, args in procs.items() if any(a.endswith("assemble.py") for a in args)), None)
-    e = eta(films, done, film, frac, _age(apid) if (pid and apid) else None, short_times)
+    e = eta(films, done, film, frac, _age(apid) if (pid and apid) else None, short_times, rate)
     return {"unit": unit, "active": active, "stage": stage, "film": film, "frac": frac, "films": films, "done": done,
-            "queue": queue(films, done, film, stage == "finish"),
+            "queue": queue(films, done, film, stage == "finish") + (materials(out, shorts) if out else []),
             "elapsed_s": time.time() - start if start else None, **e}
 
 

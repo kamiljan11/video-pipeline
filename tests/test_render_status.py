@@ -1,5 +1,7 @@
 """render_status.py: stage and film from the unit's command lines, the stage-2 ffmpeg, the ETA of the whole set."""
+import shutil
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -44,6 +46,10 @@ class Eta(unittest.TestCase):
         self.assertEqual(e["per_short_s"], 120.0)
         self.assertAlmostEqual(e["total_left_s"], 60 + 120 + R.TAIL_S)
 
+    def test_measured_rate_wins_over_process_age(self):
+        e = R.eta(FILMS, [], "long", 0.5, 9999.0, [], rate=0.001)  # 0.1 % of the film per second
+        self.assertAlmostEqual(e["current_left_s"], 500.0)
+
     def test_all_done_leaves_the_tail(self):
         self.assertAlmostEqual(R.eta(FILMS, FILMS, None, None, None, [])["total_left_s"], R.TAIL_S)
 
@@ -71,6 +77,29 @@ class Shell(unittest.TestCase):
         self.assertEqual(R.fmt(None), "?")
         self.assertEqual(R.fmt(125), "2 min")
         self.assertEqual(R.fmt(3 * 3600 + 7 * 60), "3 h 07 min")
+
+
+class Materials(unittest.TestCase):
+    def test_counts_what_is_in_the_out_dir(self):
+        d = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, d)
+        for f in ("thumbnails/long_A.jpg", "thumbnails/long_B.jpg", "thumbnails/s01_cover.jpg", "posts/p01/post.md",
+                  "posts/p02/grafika.png", "instagram/p01/1.png", "instagram/reels/s01.json", "youtube/long.md",
+                  "youtube/shorts/s02.md", "blog/a/article.json"):
+            (d / f).parent.mkdir(parents=True, exist_ok=True); (d / f).write_text("x")
+        rows = {r["name"]: (r["done"], r["total"]) for r in R.materials(d, ["s01", "s02"])}
+        self.assertEqual(rows["Miniatury longa (A/B…)"], (2, 2))
+        self.assertEqual(rows["Okładki shortów"], (1, 2))
+        self.assertEqual(rows["Posty LinkedIn"], (1, 2))  # p02 has no post.md yet
+        self.assertEqual(rows["Karuzele Instagram"], (1, 1))
+        self.assertEqual(rows["Opisy reels Instagram"], (1, 2))
+        self.assertEqual(rows["Artykuł na bloga"], (1, 1))
+        self.assertEqual(rows["Opisy YouTube"], (2, 3))
+
+    def test_empty_out_dir_shows_missing_minimums(self):
+        d = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, d)
+        rows = {r["name"]: (r["done"], r["total"]) for r in R.materials(d, ["s01"])}
+        self.assertEqual(rows["Miniatury longa (A/B…)"], (0, 2))
+        self.assertEqual(rows["Artykuł na bloga"], (0, 1))
 
 
 if __name__ == "__main__":
