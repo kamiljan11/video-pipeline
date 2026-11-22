@@ -1,6 +1,6 @@
 # Głos Kamila (instrukcja dla modelu piszącego)
 
-Źródła cytatów: M = render/montaz/2026-11-04/work/2026-11-04_15-17-10.fixed.cw.json (jego mowa, film 2, najmocniejszy dowód); C = /home/kamil-jan/Obsidian/MAIN/Projects/Kamil Jan - MASTER marka osobista.md §4.6 (jego pisane wiadomości); P = /home/kamil-jan/Dane/Videos/Montaz/2026-10-20/out/95procent_long.pl.srt (czytane z promptera, słabszy dowód).
+Źródła cytatów: M = render/montaz/2026-11-04/work/2026-11-04_15-17-10.fixed.cw.json (jego mowa, film 2, najmocniejszy dowód); C = the author's private notes "MASTER marka osobista" (not in this repo) §4.6 (jego pisane wiadomości); P = /home/kamil-jan/Dane/Videos/Montaz/2026-10-20/out/95procent_long.pl.srt (czytane z promptera, słabszy dowód).
 
 ## Rytm
 - Mowa potoczna, do jednej osoby: "Ci", "ty". Zdanie mediana 12 słów (M), 16% to 6 słów lub mniej.

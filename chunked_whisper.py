@@ -11,7 +11,7 @@ from pathlib import Path
 import word_times
 from cpu_budget import heavy_threads, low_priority
 
-b = sys.argv[1]; W = "/home/kamil-jan/video-pipeline"
+b = sys.argv[1]; W = str(Path(__file__).resolve().parent)  # whisper.cpp/ and models/ live in the checkout
 dur = float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", b + ".wav"]))
 vals = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(b + ".sil").read_text())]
 mids = [(vals[i] + vals[i + 1]) / 2 for i in range(0, len(vals) - 1, 2)]

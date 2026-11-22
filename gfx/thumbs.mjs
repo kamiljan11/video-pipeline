@@ -19,8 +19,8 @@ import { chromium } from 'playwright-core';
 import fs from 'fs'; import os from 'os'; import path from 'path'; import { pathToFileURL } from 'url';
 import { esc, icon, prose } from './html_lib.mjs';
 import { isMain } from './cli.mjs';
+import { FONT } from './font.mjs';
 
-const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 // the feed (Skool CCC So5/So6, P1 task 15): a phone shows a thumbnail about SMALL px wide, so no letter under MIN_PX there;
 // YouTube puts the length in the bottom-right CORNER; the Shorts shelf and the player cover SAFE_TOP / SAFE_BOTTOM of a cover

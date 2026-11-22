@@ -31,7 +31,8 @@ def main(argv: list[str]) -> int:
         print(f"out_gate: film_check --out gave no report (exit {r.returncode}): {e}; {r.stderr.strip()[-400:]}", file=sys.stderr); return 2
     (work / "fc_out.json").write_text(json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     fails = [f"{x['id']}: {str(x['detail'])[:160]}" for x in report if x["status"] == "FAIL"]
-    items = research_gate.load(research_gate.LEDGER)
+    items = research_gate.ledger_items(research_gate.LEDGER, research_gate.LEDGER_SET)
+    if items is None: return 2
     missed, info = [], []
     for form in research_gate.FORMS:
         b, i = research_gate.report_problems(items, form, report); missed += b; info += i

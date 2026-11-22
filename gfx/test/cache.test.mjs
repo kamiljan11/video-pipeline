@@ -15,12 +15,14 @@ const render = (sp, gfx = GFX) => {
   return fs.statSync(path.join(work, 'gfx', `${sp.id}.mov`)).mtimeMs;
 };
 
-test('a changed scene renders again, the same scene does not', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, () => {
+test('a changed scene renders again, the same scene does not', { skip: !fs.existsSync('/usr/bin/google-chrome') && 'no Chrome' }, t => {
   const sc = { id: 's1', type: 'scene', dur: 0.4, cam: 'none', pip: false, els: [{ k: 'text', x: 100, y: 100, t: 'raz', at: 0 }] };
   const first = render(sc);
   assert.equal(render(sc), first, 'the same spec was rendered again');
   const third = render({ ...sc, els: [{ ...sc.els[0], at: 0.1 }] });
   assert.notEqual(third, first, 'a retimed scene kept its old .mov');
+  // a "behind" card then runs behind.py, which needs the optional matte/.venv (README step 9: text behind the speaker)
+  if (!fs.existsSync(path.join(GFX, '..', 'matte', '.venv', 'bin', 'python'))) return t.diagnostic('no matte/.venv: the "behind" case not checked');
   assert.equal(render({ ...sc, els: [{ ...sc.els[0], at: 0.1 }], behind: { edl: 'x.json' } }), third, '"behind" alone re-rendered the front card');
 });
 
@@ -28,6 +30,8 @@ test('a scene is rendered again when scene_lib.mjs changes (its source is in the
   // a copy of gfx/ whose scene_lib.mjs gets one more byte: same spec, other library = a new .mov
   const copy = path.join(work, 'gfxcopy');
   fs.cpSync(GFX, copy, { recursive: true, filter: f => !/\/(test|test_out)(\/|$)/.test(f.slice(GFX.length)) });
+  // a copy of gfx/ is a checkout of its own: node_modules (playwright-core, gsap) and fonts/ sit next to it, as in a worktree
+  for (const d of ['node_modules', 'fonts']) if (!fs.existsSync(path.join(work, d))) fs.symlinkSync(path.join(GFX, '..', d), path.join(work, d));
   const sc = { id: 'lib1', type: 'scene', dur: 0.4, cam: 'none', pip: false, els: [{ k: 'text', x: 100, y: 100, t: 'raz', at: 0 }] };
   const first = render(sc, copy);
   assert.equal(render(sc, copy), first, 'the same spec and library were rendered again');

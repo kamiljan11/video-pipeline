@@ -22,7 +22,7 @@ if edl:
     skip += [(b["at"], b["at"] + b["dur"]) for b in edl.get("broll", [])]  # stock b-roll: full frame, no speaker
 cap = cv2.VideoCapture(v); W = cap.get(3); H = cap.get(4); n = cap.get(7); fps = cap.get(5) or 30; dur = n / fps
 sw, sh = (360, 640) if H > W else (640, 360)
-det = cv2.FaceDetectorYN.create("/home/kamil-jan/video-pipeline/models/face_detection_yunet_2023mar.onnx", "", (sw, sh), 0.6)
+det = cv2.FaceDetectorYN.create(str(Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"), "", (sw, sh), 0.6)
 bad, none, checked = [], [], 0; t = 0.5
 while t < dur - 0.5:
     if not any(a - 0.3 <= t <= b + 0.3 for a, b in skip):

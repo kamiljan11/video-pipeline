@@ -63,16 +63,17 @@ test('a run that stops on variant B leaves out as it was: no new A next to an ol
 });
 
 // --- research ledger plan2 TH6 / TH8: opt-in fields; a variant without them is drawn exactly as before (the hashes are
-// of the HTML at 3338af5; an edit of style/themes/cetus.json or of the default layout changes them on purpose)
+// of the HTML at 3338af5; an edit of style/themes/cetus.json or of the default layout changes them on purpose; the font's URL
+// depends on where the repo is cloned, so it reads as FONT: same HTML at d70d552 and after fonts/ moved into the repo, 2026-11-17)
 test('default output unchanged: the HTML of a plain long, a long with icon/fx and a cover is the same as before TH6/TH8', async () => {
-  const { createHash } = await import('crypto'); const { pathToFileURL } = await import('url');
+  const { createHash } = await import('crypto'); const { pathToFileURL } = await import('url'); const { FONT_URL } = await import('../font.mjs');
   // no-break spaces of keepTogether (2026-11-08) read as spaces: the layout itself is what must not change
-  const d = '/tmp/x-golden', norm = (h) => h.split(pathToFileURL(d).href).join('DIR').replaceAll('\u00a0', ' ');
+  const d = '/tmp/x-golden', norm = (h) => h.split(pathToFileURL(d).href).join('DIR').split(FONT_URL).join('FONT').replaceAll('\u00a0', ' ');
   const sha = (h) => createHash('sha256').update(norm(h)).digest('hex');
-  assert.equal(sha(longHtml(v('A'), d, 'cetus')), '9bc2f31257b87e3560bb2595c738a7a775b038d29e921f29d19edaf645b416fe');
+  assert.equal(sha(longHtml(v('A'), d, 'cetus')), '453edc9147f57ee1a501124ff71b139c9006256c391e143ca9cc4e3490dd0a9c');
   assert.equal(sha(longHtml(v('B', { side: 'right', icon: 'construction', tag: 'x', fx: -300, fy: -100, fw: 1800 }), d, 'cetus')),
-    'dcc39bda6dabeb165c89b3244c28f3c2b588e2248e9f71c909d78aae7b1beec7');
-  assert.equal(sha(shortHtml(v('s1', { dy: 150 }), d, 'cetus')), '68bcd648ce6e1184c0c39f547d347e6192b4f5e9bac571b32aea2ee41c52420b');
+    'eee829ed5cc656a28d15099044c2c98f65d2c9e39cf045169d62e51fd56f7fe0');
+  assert.equal(sha(shortHtml(v('s1', { dy: 150 }), d, 'cetus')), '74b0944c6a079bad78e2d441d098a991bc6436fecda9ded09aca2688d5100a35');
 });
 
 test('TH6 tone "lift": harder, brighter frame without the colour boost, band and shadow in black; long and cover', () => {
