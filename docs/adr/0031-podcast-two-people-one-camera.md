@@ -1,6 +1,6 @@
 # ADR-0031 — Tryb podcast: dwie osoby, jedna kamera szeroka
 
-Data: 2026-11-22 | Status: proponowane | Drzwi: dwukierunkowe | Przegląd: po pierwszym renderze nagrania 2026-11-19
+Data: 2026-11-22 | Status: przyjęte (2026-11-22, w użyciu: podgląd dry2 nagrania Dworak) | Drzwi: dwukierunkowe | Przegląd: po pierwszym renderze nagrania 2026-11-19
 
 Uzupełnienie 2026-11-22: tryb włącza też pomiar nagrania bez klucza planu, ADR-0032.
 

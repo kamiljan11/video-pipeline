@@ -55,8 +55,10 @@ def times(dur: float, n: int) -> list[float]:
 
 
 def duration(src: Path) -> float:
-    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
-                       capture_output=True, text=True, check=False, timeout=FFMPEG_S)
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(src)],
+                           capture_output=True, text=True, check=False, timeout=FFMPEG_S)
+    except subprocess.TimeoutExpired: raise SystemExit(f"content_kind: ffprobe hung over {FFMPEG_S} s on {src}") from None
     try: return float(r.stdout.strip())
     except ValueError: raise SystemExit(f"content_kind: ffprobe gave no duration for {src}: {r.stderr[-200:]}") from None
 
