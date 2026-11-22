@@ -1362,7 +1362,7 @@ def fragment_of(work: Path) -> dict | None:
 def talk(obj) -> bool:
     """two people (kind.is_talk: the plan's "podcast" key, else content_kind.json in the work folder)"""
     work = getattr(obj, "work", None)
-    return content_kind.is_talk(obj.plan, work) if work is not None else obj.plan.get("podcast", False) is not False
+    return content_kind.is_talk(obj.plan, work) if work is not None else bool(content_kind.from_plan(obj.plan))
 
 
 def judge(obj, item: dict) -> tuple[str, str]:

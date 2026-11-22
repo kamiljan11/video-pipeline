@@ -50,7 +50,7 @@ class RunV4GateTest(unittest.TestCase):
         for rel in ("build_edl.py", "face_track.py", "critic.py", "assemble.py", "music/make_beds.py", "to_otio.py",
                     "beatfx.py", "behind.py", "edl_guard.py", "film_check.py", "av_check.py", "sync_check.py", "lip_check.py", "words_check.py",
                     "research_gate.py", "retake_check.py", "music_check.py", "manifest.py", "capabilities.py", "design_ledger.py", "waivers.py", "dry_run.py", "accept.py", "sound_seen.py",
-                    "review_player.py"):
+                    "review_player.py", "content_kind.py"):
             (vp / rel).parent.mkdir(parents=True, exist_ok=True)
             (vp / rel).write_text(STUB)
         (vp / "gfx").mkdir()
@@ -220,6 +220,14 @@ class RunV4GateTest(unittest.TestCase):
         self.assertNotIn("assemble.py", calls)
         render, calls = self.run_v4(rc=0, WORDS_CHECK="off", FAIL_words_plan="1")
         self.assertIn("DONE x", render)
+
+    def test_the_kind_is_measured_before_build_edl_and_a_failure_stops_the_film(self):  # ADR-0032
+        render, calls = self.run_v4(DRY="1")
+        self.assertLess(calls.index("content_kind.py"), calls.index("build_edl.py"))
+        (self.tmp / "calls.log").unlink(); (self.vp / "render" / "render.log").unlink()
+        render, calls = self.run_v4(rc=1, FAIL_content_kind="1")
+        self.assertIn("FAILED content_kind x", render)
+        self.assertNotIn("build_edl.py", calls)
 
     def test_open_research_renders_nothing(self):  # research_gate before build_edl (2026-11-08: 0/24 Long items in the long)
         render, calls = self.run_v4(rc=1, FAIL_research_gate="1")

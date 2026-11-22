@@ -695,6 +695,21 @@ class FilmCheckTest(unittest.TestCase):
         self.assertEqual(film_check.judge(pod, items["long.graphics"])[0], "OK")  # 0.8 >= 0.5
         self.assertEqual(film_check.judge(Obj({"podcast": False}), items["long.graphics"])[0], "FAIL")
 
+    def test_a_measured_talk_turns_on_the_podcast_rules(self):  # no "podcast" key: content_kind.json in the work folder decides
+        sys.path.insert(0, str(ROOT))
+        import film_check
+        import kind
+        d = Path(tempfile.mkdtemp()); (d / "rec.mp4").write_bytes(b"x")
+        plan = {"src": "rec.mp4"}
+
+        class Obj:
+            def __init__(self): self.plan, self.work = plan, d
+            def graphics_per_min(self): return 0.8
+        item = {x["id"]: x for x in json.loads((ROOT / "style/checklist.json").read_text())["items"]}["long.graphics"]
+        self.assertEqual(film_check.judge(Obj(), item)[0], "FAIL")  # not measured: solo
+        (d / "content_kind.json").write_text(json.dumps({"sources": {"rec.mp4": {"kind": "talk", "key": kind.key(d, plan)}}}))
+        self.assertEqual(film_check.judge(Obj(), item)[0], "OK")
+
     def test_a_type_error_inside_a_metric_is_not_blamed_on_args(self):
         sys.path.insert(0, str(ROOT))
         import film_check

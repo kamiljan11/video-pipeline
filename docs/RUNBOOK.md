@@ -19,3 +19,13 @@ Wszystko na laptopie (`kamil-jan`); token `~/.config/linkedin/token.json`, stan 
 | Token wygasa (stop 3 dni przed) | `python3 ~/infisical/infisical_bridge.py run --secrets LINKEDIN_CLIENT_ID,LINKEDIN_CLIENT_SECRET -- python3 linkedin_auth.py` (Kamil klika „Zezwól”) |
 | Pierwszy komentarz nie wyszedł (exit 1, `FAILED`/`UNKNOWN`) | `python3 linkedin.py comment <spec>` (przy `UNKNOWN` najpierw sprawdź pod postem, potem `--checked`) |
 | Repo przeniesione / po merge | popraw ścieżkę w `deploy/vp-linkedin-run-due.service` (`WorkingDirectory`, `ExecStart`), `systemctl --user daemon-reload` |
+
+## Rodzaj materiału: solo albo rozmowa (`content_kind.py`, ADR-0032)
+
+| sytuacja | co zrobić |
+|---|---|
+| `WARN content_kind: not clear ...` w `render.log` | film poszedł na regułach solo. Rozmowa dwóch osób -> `"podcast": true` w planie, jedna osoba -> `"podcast": false`, potem ponowny przebieg |
+| `kind: ... was measured on another version of ...` | nagranie podmienione: `.venv/bin/python content_kind.py <work> <plan>` (nadpisze wpis) |
+| `kind: ... is not valid JSON` | przenieś `<work>/content_kind.json` do `~/Dane/_to_delete/<data>/`, potem `content_kind.py` jak wyżej |
+| `FAILED content_kind <film>` | przyczyna w `render.log` (ffmpeg bez klatki, zawieszony > 60 s, brak `src`); popraw plik albo wpisz `"podcast"` ręcznie (krok wtedy się pomija) |
+| Co system uznał | `content_kind.json` -> `sources[<src>].kind`, `faces` (twarze na klatkę), `clear` |

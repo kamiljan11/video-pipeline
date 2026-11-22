@@ -31,7 +31,9 @@ BOX_KEYS = (("caption_y", 0, 1920), ("face_anchor", 0.0, 1.0), ("face_zoom", 0.4
 P = json.loads(Path(sys.argv[1]).read_text())
 # one person or two (content_kind.py measured the recording, Kamil 2026-11-22): a plan without "podcast" follows the
 # measurement, so a two-person talk gets the podcast rules (podcast.py framing, word punches) without a hand key
-if "podcast" not in P and kind.is_talk(P, Path.cwd()): P["podcast"] = True; print("kind: talk (content_kind.json): podcast rules")
+if kind.from_plan(P) is not None: print(f"kind: {'talk' if kind.from_plan(P) else 'solo'} (plan key \"podcast\")")
+elif kind.is_talk(P, Path.cwd()): P["podcast"] = True; print("kind: talk (content_kind.json): podcast rules")
+else: print("kind: solo (content_kind.json or not measured): one-person rules")
 W = [(x["offsets"]["from"] / 1000, x["offsets"]["to"] / 1000, x["text"]) for x in json.loads(Path(P["words"]).read_text())["transcription"]]
 v = [float(x) for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", Path(P["sil"]).read_text())]
 SIL = [(v[i], v[i + 1]) for i in range(0, len(v) - 1, 2)]

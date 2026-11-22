@@ -2,6 +2,8 @@
 
 Data: 2026-11-22 | Status: proponowane | Drzwi: dwukierunkowe | Przegląd: po pierwszym renderze nagrania 2026-11-19
 
+Uzupełnienie 2026-11-22: tryb włącza też pomiar nagrania bez klucza planu, ADR-0032.
+
 **Kontekst:** Kamil (2026-11-22): nowy format, „2 osoby gadające ze sobą, podcast”, na kanał ArkadiuszDworak.pl;
 „nie możemy tak samo edytować jak kiedy jest jedna osoba, bo zasłonimy ludzi”, shorty też trzeba przemyśleć.
 Nagranie: jeden plik z telefonu (S25 Ultra, `20261119_121337.mp4`, 28,5 GB). Pipeline zakładał jedną osobę wszędzie:

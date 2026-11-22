@@ -1,0 +1,6 @@
+{
+  "_doc": "content_kind.py: one person or two people on the recording (ADR-0032). samples = frames spread over the whole recording; min_face = a face counts at this share of the frame height or more (a poster, a screen, a person far behind is smaller); share = the part of the frames with 1 face (solo) or 2+ faces (talk) needed for a clear answer. Not clear = solo rules with a WARN line (set \"podcast\" in the plan by hand). Checked on 2026-11-22: podcast Dworak 24/24 frames with 2 faces.",
+  "samples": 24,
+  "min_face": 0.08,
+  "share": 0.6
+}
