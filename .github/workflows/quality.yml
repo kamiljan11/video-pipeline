@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    # labeled/unlabeled: the secrets gate reads the gitleaks-ignore-reviewed label (ADR-0029)
+    # labeled/unlabeled: the secrets gate reads the gl-ok-<blob sha> label (ADR-0029)
     types: [opened, synchronize, reopened, labeled, unlabeled]
 permissions:
   contents: read
@@ -25,7 +25,7 @@ jobs:
           FFMPEG_SHA256: 41e9c565594c390622cf968d82fa4135d9e9a11d06c1515644288cbc844e3380
         run: |
           sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-pol fonts-dejavu-extra
-          curl -fsSL -o "/tmp/$FFMPEG_TAR" "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$FFMPEG_TAR"
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 300 -o "/tmp/$FFMPEG_TAR" "https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$FFMPEG_TAR"
           echo "$FFMPEG_SHA256  /tmp/$FFMPEG_TAR" | sha256sum -c -
           tar -xJf "/tmp/$FFMPEG_TAR" -C /tmp && sudo cp /tmp/${FFMPEG_TAR%.tar.xz}/bin/ff* /usr/local/bin/
           ffmpeg -version | head -1
@@ -57,28 +57,22 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: A changed .gitleaksignore needs the owner's label (ADR-0029)
-        # the format check below cannot tell a reviewed false positive from a PR allow-listing its own leak
+      - name: A changed .gitleaksignore needs the owner's label for exactly this content (ADR-0029)
+        # the format check below cannot tell a reviewed false positive from a PR allow-listing its own leak;
+        # the label names the blob the owner read (gl-ok-<its full 40-hex sha>; a short prefix can be forged by
+        # brute-forcing a comment line, 8 hex took 32 s), so a later change of the file on any PR event no longer matches
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'gitleaks-ignore-reviewed') }}
-          ACTION: ${{ github.event.action }}
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.after }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
         run: |
-          if ! git diff --quiet "$BASE_SHA" HEAD -- .gitleaksignore && [ "$REVIEWED" != "true" ]; then
-            echo "::error file=.gitleaksignore::changed in this PR: the owner checks each entry, then adds the label gitleaks-ignore-reviewed"
-            exit 1
-          fi
-          # the label approves the file the owner read, not later pushes: a push that changes .gitleaksignore
-          # after labelling needs a fresh review (remove and re-add the label = new 'labeled' run)
-          if [ "$ACTION" = "synchronize" ] && [ "$REVIEWED" = "true" ]; then
-            if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null || ! git diff --quiet "$BEFORE" "$AFTER" -- .gitleaksignore; then
-              echo "::error file=.gitleaksignore::changed after the gitleaks-ignore-reviewed label: the owner re-checks, then removes and re-adds the label"
-              exit 1
-            fi
-          fi
+          git diff --quiet "$BASE_SHA" HEAD -- .gitleaksignore && exit 0
+          blob=$(git rev-parse HEAD:.gitleaksignore 2>/dev/null)
+          want="gl-ok-${blob:-deleted}"
+          case " $LABELS " in *" $want "*) echo "reviewed: $want" ;; *)
+            echo "::error file=.gitleaksignore::changed in this PR: the owner checks each entry, then adds the label $want (it names this exact content)"
+            exit 1 ;;
+          esac
       - name: Gitleaks (whole history, built-in rules only)
         run: |
           # a committed .gitleaks.toml would let the repo turn rules off or allow-list by path/regex
