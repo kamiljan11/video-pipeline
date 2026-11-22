@@ -153,6 +153,66 @@ export function drawProblems(sp, rects, texts) {
   return out;
 }
 
+// layout (Kamil 2026-11-22, NOTES_LOG #64: "tragiczny chaos w rysowaniu ... strasznie rozjebane"; stills C_04, C_19, the
+// bars "Człowiek w procesie" with "mniej / coraz więcej" printed over it): three things a person drawing never does.
+// 1. two lines of words on top of each other, also inside one piece (texts = one rect per drawn line, see measurePieces)
+export function textOnText(sp, texts) {
+  const out = [], seen = new Set();
+  for (let a = 0; a < texts.length; a++) for (let b = a + 1; b < texts.length; b++) {
+    const A = texts[a], B = texts[b];
+    if (A.i === B.i && A.node === B.node) continue;  // one text node wrapping over two lines never overlaps itself
+    const [a0, a1] = window_(sp.els[A.i], sp.dur), [b0, b1] = window_(sp.els[B.i], sp.dur);
+    if (a1 <= b0 || b1 <= a0) continue;
+    const ix = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x), iy = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+    if (ix <= TOUCH / 2 || iy <= TOUCH / 2) continue;
+    const key = `${A.s}|${B.s}`; if (seen.has(key)) continue; seen.add(key);
+    out.push(`${sp.id}: words "${A.s.slice(0, 24)}" and "${B.s.slice(0, 24)}" are printed over each other (${Math.round(ix)}x${Math.round(iy)} px): move one`);
+  }
+  return out;
+}
+
+// 2. a line (arrow, link) runs through the words of a piece it does not join; paths = [{i, pts: [[x, y], ...]}] sampled
+// along the drawn path (world px). Its ends sit on its own pieces, so only the middle (END px off each end) is measured.
+const END = 60;
+export function lineThroughWords(sp, paths, texts) {
+  const out = [];
+  for (const { i, pts } of paths) {
+    const e = sp.els[i]; if (!e || e.k !== 'line' || e.free) continue;
+    const mid = pts.filter(([x, y]) => Math.hypot(x - pts[0][0], y - pts[0][1]) > END && Math.hypot(x - pts.at(-1)[0], y - pts.at(-1)[1]) > END);
+    const hit = new Set();
+    for (const T of texts) {
+      if (T.i === i || hit.has(T.s)) continue;
+      const [a0, a1] = window_(sp.els[T.i], sp.dur), [b0, b1] = window_(e, sp.dur);
+      if (a1 <= b0 || b1 <= a0) continue;
+      if (mid.some(([x, y]) => x > T.x + 2 && x < T.x + T.w - 2 && y > T.y + 2 && y < T.y + T.h - 2)) {
+        hit.add(T.s); out.push(`${sp.id}: line ${e.id ?? `#${i}`} runs through the words "${T.s.slice(0, 24)}": route it around or move the piece`);
+      }
+    }
+  }
+  return out;
+}
+
+// 3. a piece far from every other piece on screen with it, not joined by a line: the eye has no road to it (C_19
+// "szczegóły (schemat)", the lonely "Mechanik" and "Klient" at the edges). LONELY px = box gap in the 2560x1440 world.
+export const LONELY = 420;
+export function lonelyPieces(sp, rects) {
+  const out = [], solid = rects.filter(r => sp.els[r.i] && !OVERLAY_KINDS.has(sp.els[r.i].k));
+  if (solid.length < 3) return out;  // one or two pieces: a big statement, not a diagram
+  const id = r => sp.els[r.i].id;
+  const joined = new Set(sp.els.filter(e => e.k === 'line').flatMap(e => [e._from ?? e.from, e._to ?? e.to]).filter(x => typeof x === 'string').map(x => x.split('.')[0]));
+  for (const R of solid) {
+    if (joined.has(id(R))) continue;
+    const [r0, r1] = window_(sp.els[R.i], sp.dur);
+    const gaps = solid.filter(o => o !== R).filter(o => { const [o0, o1] = window_(sp.els[o.i], sp.dur); return o0 < r1 && r0 < o1; })
+      .map(o => Math.max(o.x - (R.x + R.w), R.x - (o.x + o.w), o.y - (R.y + R.h), R.y - (o.y + o.h), 0));
+    if (gaps.length && Math.min(...gaps) > LONELY) {
+      const e = sp.els[R.i];
+      out.push(`${sp.id}: ${e.id ?? `#${R.i}`} (${e.k}${e.text ? ` "${String(e.text).slice(0, 24)}"` : ''}) stands ${Math.round(Math.min(...gaps))} px from every other piece: put it next to what it belongs to or join it with a line`);
+    }
+  }
+  return out;
+}
+
 // phone readability (Kamil 2026-11-05 note 15: "tablice boczne za małe na telefon"; design 2026-11-05 step 1): a line of
 // words, after the camera scale, is at least 40 px on the 1440 frame while it is read, i.e. its first READ_S seconds on
 // screen (the camera may pull back later, once it is read). A phone shows a 16:9 frame held sideways over its short side
@@ -374,7 +434,17 @@ function measurePieces() {
       for (const r of rg.getClientRects()) if (r.width > 2 && r.height > 2) texts.push({ i, node, x: r.left - wr.left, y: r.top - wr.top, w: r.width, h: r.height, s: n.textContent.trim() });
     }
   });
-  return { rects, texts };
+  // every drawn line as points along its path (world px): lineThroughWords
+  const paths = [];
+  [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].forEach((el, i) => {
+    if (el.tagName.toLowerCase() !== 'svg') return;
+    const path = el.querySelector('path'); if (!path || !path.getTotalLength) return;
+    const len = path.getTotalLength(), m = path.getScreenCTM(); if (!m || !len) return;
+    const pts = [];
+    for (let k = 0; k <= 40; k++) { const p = path.getPointAtLength(len * k / 40).matrixTransform(m); pts.push([p.x - wr.left, p.y - wr.top]); }
+    paths.push({ i, pts });
+  });
+  return { rects, texts, paths };
 }
 
 async function main() {
@@ -402,10 +472,11 @@ async function main() {
       // no animation: every piece in its laid-out place (the pieces' keyframes only move them in and out of it)
       const cam = await page.evaluate(sampleCamera, sp.dur);
       const { cuts, under, hidden, hid } = await page.evaluate(sampleView, [sp.dur, pipBox(sp)]);
-      const { rects, texts } = await page.evaluate(measurePieces);
+      const { rects, texts, paths } = await page.evaluate(measurePieces);
       // the measured index runs over the pieces as drawn: kept pieces of "extends" first, a side column sorted (drawnEls)
       const all = { ...sp, els: drawnEls(sp).els };
       bad.push(...clashes(all, rects), ...drawProblems(all, rects, texts), ...stampProblems(all, rects));
+      bad.push(...textOnText(all, texts), ...lineThroughWords(all, paths, texts), ...lonelyPieces(all, rects));
       bad.push(...readProblems(all, texts, cam), ...cutProblems(all, cuts), ...pipProblems(all, under), ...hiddenProblems(all, hidden), ...hiddenWhileRead(all, hid.filter(h => !hidden.includes(h.i))));
       await page.close();
     }

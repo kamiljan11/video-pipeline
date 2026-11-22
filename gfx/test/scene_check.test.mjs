@@ -1,7 +1,7 @@
 // node --test gfx/test/*.test.mjs   (scene_check.mjs: pieces of a scene that cover each other while both are on screen)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { clashes, cutProblems, drawProblems, floatProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, pipBox, pipProblems, readProblems, stampProblems, window_ } from '../scene_check.mjs';
+import { clashes, lineThroughWords, LONELY, lonelyPieces, textOnText, cutProblems, drawProblems, floatProblems, hiddenProblems, hiddenWhileRead, MIN_TEXT_PX, pipBox, pipProblems, readProblems, stampProblems, window_ } from '../scene_check.mjs';
 
 const sp = els => ({ id: 'sc', dur: 10, els });
 
@@ -183,4 +183,37 @@ test('a float piece that comes in just before the card ends is named (2026-11-15
   assert.deepEqual(floatProblems(sp, [{ i: 0, w: 300, h: 100, in: 0.6 }, { i: 2, w: 300, h: 100, in: 2.45 }]), []);  // 1.2 s on screen
   assert.match(floatProblems(sp, [{ i: 2, w: 300, h: 100, in: 3.97 }]).join('\n'), /piece #2 is fully in at 3\.97 s and the card ends at 3\.65 s: on screen 0\.00 s/);
   assert.equal(floatProblems(sp, [{ i: 1, w: 300, h: 100, in: 3.47 }]).length, 1);
+});
+
+// Kamil 2026-11-22 "tragiczny chaos w rysowaniu": words over words, a line through words, a piece alone at the edge
+test('words of two pieces printed over each other are named; one node wrapping over two lines is not', () => {
+  const s = sp([{ k: 'node', text: 'mechanik', at: 0 }, { k: 'node', text: 'klient', at: 0 }]);
+  const out = textOnText(s, [{ i: 0, node: 0, s: 'mechanik', x: 0, y: 0, w: 300, h: 60 }, { i: 1, node: 0, s: 'klient', x: 200, y: 20, w: 300, h: 60 }]);
+  assert.equal(out.length, 1); assert.match(out[0], /words "mechanik" and "klient" are printed over each other \(100x40 px\)/);
+  assert.deepEqual(textOnText(s, [{ i: 0, node: 0, s: 'a b', x: 0, y: 0, w: 300, h: 60 }, { i: 0, node: 0, s: 'a b', x: 0, y: 30, w: 300, h: 60 }]), []);
+});
+
+test('words over each other but never on screen together: no problem', () => {
+  const s = sp([{ k: 'node', at: 0, gone: 2 }, { k: 'node', at: 3 }]);
+  assert.deepEqual(textOnText(s, [{ i: 0, node: 0, s: 'a', x: 0, y: 0, w: 300, h: 60 }, { i: 1, node: 0, s: 'b', x: 100, y: 0, w: 300, h: 60 }]), []);
+});
+
+test('a line through the middle of other words is named; its ends on its own pieces and a free line are not', () => {
+  const pts = Array.from({ length: 41 }, (_, k) => [k * 25, 100]);  // 0..1000 px at y 100
+  const s = sp([{ k: 'line', id: 'l1', from: 'a', to: 'b', at: 0 }, { k: 'node', text: 'po drodze', at: 0 }, { k: 'node', text: 'koniec', at: 0 }]);
+  const mid = { i: 1, s: 'po drodze', x: 400, y: 80, w: 200, h: 40 }, end = { i: 2, s: 'koniec', x: 960, y: 80, w: 100, h: 40 };
+  const out = lineThroughWords(s, [{ i: 0, pts }], [mid, end]);
+  assert.equal(out.length, 1); assert.match(out[0], /line l1 runs through the words "po drodze"/);
+  const free = sp([{ k: 'line', free: true, at: 0 }, { k: 'node', at: 0 }]);
+  assert.deepEqual(lineThroughWords(free, [{ i: 0, pts }], [{ ...mid, i: 1 }]), []);
+});
+
+test('a piece far from every other piece is lonely unless a line joins it; two pieces are a statement', () => {
+  const s = sp([{ k: 'node', id: 'a', at: 0 }, { k: 'node', id: 'b', at: 0 }, { k: 'node', id: 'c', text: 'Mechanik', at: 0 }]);
+  const rects = [{ i: 0, x: 0, y: 0, w: 300, h: 100 }, { i: 1, x: 350, y: 0, w: 300, h: 100 }, { i: 2, x: 650 + LONELY + 50, y: 0, w: 300, h: 100 }];
+  const out = lonelyPieces(s, rects);
+  assert.equal(out.length, 1); assert.match(out[0], /c \(node "Mechanik"\) stands 470 px from every other piece/);
+  const joined = sp([...s.els, { k: 'line', from: 'b', to: 'c.l', at: 0 }]);
+  assert.deepEqual(lonelyPieces(joined, rects), []);
+  assert.deepEqual(lonelyPieces(sp(s.els.slice(1)), rects.slice(1).map((r, k) => ({ ...r, i: k }))), []);  // b and c alone
 });
