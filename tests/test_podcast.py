@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -94,7 +95,7 @@ def edl(vertical=False, segs=((0.0, 30.0),), overlays=(), specs=None, tmp=None):
 class Reframe(unittest.TestCase):
     def test_long_pieces_follow_the_speaker(self):
         w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
-        E, _ = podcast.reframe(edl(), s, w, FACES, CFG)
+        E, _, _ = podcast.reframe(edl(), s, w, FACES, CFG)
         shots = [p["shot"] for p in E["segments"]]
         self.assertEqual(shots, ["wide", "L", "R", "L"])
         first_l = E["segments"][1]
@@ -107,7 +108,7 @@ class Reframe(unittest.TestCase):
     def test_split_keeps_the_frame_count(self):
         w, s = words_of([("L", 7.3), ("R", 9.1), ("L", 13.6)])
         E0 = edl(segs=((0.0, 12.345), (14.0, 30.0)))
-        E, _ = podcast.reframe(E0, s, w, FACES, CFG)
+        E, _, _ = podcast.reframe(E0, s, w, FACES, CFG)
         frames = lambda segs: sum(round((g["out"] - g["in"]) * 30) for g in segs)
         self.assertEqual(frames(E["segments"]), frames(E0["segments"]))
         for a, b in zip(E["segments"], E["segments"][1:]):
@@ -116,12 +117,12 @@ class Reframe(unittest.TestCase):
     def test_side_card_over_wide_takes_the_speaker(self):
         w, s = words_of([("L", 10), ("R", 10)])
         tmp = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, tmp, True)
-        E, _ = podcast.reframe(edl(overlays=[{"at": 1.0, "dur": 2.0, "id": "k"}], specs={"k": {"type": "kw"}}, tmp=tmp), s, w, FACES, CFG)
+        E, _, _ = podcast.reframe(edl(overlays=[{"at": 1.0, "dur": 2.0, "id": "k"}], specs={"k": {"type": "kw"}}, tmp=tmp), s, w, FACES, CFG)
         self.assertEqual(E["segments"][0]["shot"], "L")  # the opening wide would have the card over person R
 
     def test_vertical_fast_exchange_is_stacked(self):
         w, s = words_of([("L", 5), ("R", 1.5), ("L", 1.5), ("R", 1.5), ("L", 6)])
-        E, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 15.5),)), s, w, FACES, CFG)
+        E, _, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 15.5),)), s, w, FACES, CFG)
         st = [p for p in E["segments"] if p["shot"] == "stack"]
         self.assertTrue(st)
         self.assertEqual(st[0]["stack"], [[0.24, 0.375], [0.74, 0.395]])
@@ -130,11 +131,96 @@ class Reframe(unittest.TestCase):
 
     def test_no_faces_leaves_the_piece(self):
         w, s = words_of([("L", 10)])
-        E, _ = podcast.reframe(edl(segs=((0.0, 10.0),)), s, w, {}, CFG)
+        E, _, _ = podcast.reframe(edl(segs=((0.0, 10.0),)), s, w, {}, CFG)
         self.assertNotIn("shot", E["segments"][0])
 
     def test_no_speaker_stops(self):
         with self.assertRaises(SystemExit): podcast.reframe(edl(), ["?"], [(0, 1, "a")], FACES, CFG)
+
+
+class ReviewFixes(unittest.TestCase):
+    """pg-review 2026-11-22 (RUN pg-review-20261122-133203): film clock, pauses, frame grid, stale fields, one face"""
+    def test_shots_run_on_film_time(self):
+        # the film keeps only 600-640 s of the recording: it still opens wide
+        w, s = words_of([("L", 640)])
+        E, sh, _ = podcast.reframe(edl(segs=((600.0, 640.0),)), s, w, {"0.000-700.000": FACES["0.000-60.000"]}, CFG)
+        self.assertEqual(sh[0][2], "wide"); self.assertEqual(sh[0][0], 0.0)
+        self.assertEqual(E["segments"][0]["shot"], "wide")
+
+    def test_shot_change_moves_to_a_pause(self):
+        w = [(0.0, 3.0, "a"), (3.0, 6.0, "b"), (6.4, 9.0, "c"), (9.0, 12.0, "d"), (12.0, 15.0, "e")]
+        tn = [[0.0, 6.2, "L"], [6.2, 15.0, "R"]]
+        self.assertEqual(podcast.snap([[0.0, 6.0, "L"], [6.0, 15.0, "R"]], w, [])[0][1], 6.2)
+        self.assertTrue(tn)
+
+    def test_split_never_changes_the_frame_count(self):
+        import random
+        rnd = random.Random(7)
+        for _ in range(3000):
+            a = round(rnd.uniform(0, 100), 3); b = a + rnd.uniform(1, 40)
+            seg = {"in": a, "out": b}
+            shots = [[0, 1, "L"]] + [[rnd.uniform(0, b - a), 0, "R"] for _ in range(rnd.randint(1, 4))]
+            shots = [shots[0]] + sorted(shots[1:])
+            pts = podcast.split_points(seg, 0.0, shots)
+            bounds = [a, *pts, b]
+            total = sum(podcast.timeline.piece_frames({"in": x, "out": y}) for x, y in pairwise(bounds))
+            self.assertEqual(total, podcast.timeline.piece_frames(seg), (seg, pts))
+
+    def test_rerun_drops_an_old_stack(self):
+        p = podcast.frame_piece({"in": 0, "out": 1, "stack": [[0.2, 0.4], [0.7, 0.4]], "shot": "stack"}, "L", "L",
+                                {"L": [0.2, 0.3, 0.1, 0.1], "R": [0.7, 0.3, 0.1, 0.1]}, CFG, True)
+        self.assertNotIn("stack", p); self.assertEqual(p["shot"], "L")
+
+    def test_one_face_never_stacks_the_same_person_twice(self):
+        p = podcast.frame_piece({"in": 0, "out": 1}, "stack", "L", {"R": [0.7, 0.3, 0.1, 0.1]}, CFG, True)
+        self.assertEqual(p["shot"], "R"); self.assertNotIn("stack", p)
+
+    def test_no_face_is_counted(self):
+        w, s = words_of([("L", 10)])
+        E, _, rep = podcast.reframe(edl(segs=((0.0, 10.0),)), s, w, {}, CFG)
+        self.assertGreater(rep["no_face"], 0)
+        self.assertEqual(rep["no_face"], len(E["segments"]))  # every piece kept as it was
+
+    def test_last_switch_of_an_exchange_is_stacked(self):
+        sh = podcast_shots.short_shots([[0, 5, "L"], [5, 6, "R"], [6, 7, "L"], [7, 20, "R"]], CFG)
+        st = [x for x in sh if x[2] == "stack"]
+        self.assertEqual(st[0][0], 5); self.assertGreater(st[0][1], 7)  # the stack holds hold_s into R's answer
+        self.assertEqual(sh[-1][2], "R")
+
+    def test_cross_key_rules(self):
+        with self.assertRaises(SystemExit): podcast_shots.load_cfg({"single_max_s": 3, "cutaway_s": 2.5})
+        with self.assertRaises(SystemExit): podcast_shots.load_cfg({"stack_zoom": 0.5})
+
+    def test_fix_rows_are_checked_with_their_number(self):
+        w = [(0, 1, "a")]
+        for bad in ([["0", 1, "L"]], [[2, 1, "L"]]):
+            with self.assertRaises(SystemExit) as cm: pf.apply_fix(w, ["L"], bad)
+            self.assertIn("row 1", str(cm.exception))
+
+    def test_still_mouth_side_is_not_taken_for_unseen(self):
+        samples = [[t / 10, 0.0 if t != 5 else 4.0, 3.0] for t in range(30)]  # L mouth still (median 0), R talking
+        self.assertEqual(pf.word_speakers([(1.0, 2.0, "a")], samples, 1.25), ["R"])
+
+    def test_failed_ffmpeg_stops_instead_of_half_samples(self):
+        with self.assertRaises(SystemExit) as cm: list(pf.frames("/nonexistent/x.mp4", 0, 1.0, 10))
+        self.assertIn("ffmpeg failed", str(cm.exception))
+
+    def test_cache_key_follows_word_times(self):
+        tmp = tempfile.mkdtemp(); self.addCleanup(shutil.rmtree, tmp, True)
+        f = Path(tmp) / "r.mp4"; f.write_bytes(b"x")
+        k1 = podcast.cache_key(str(f), [[0, 1]], [(0.0, 0.5, "a")], CFG)
+        self.assertNotEqual(k1, podcast.cache_key(str(f), [[0, 1]], [(0.1, 0.5, "a")], CFG))
+
+    def test_guard_runs_before_the_source_is_opened(self):
+        tmp = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, tmp, True)
+        (tmp / "edl.json").write_text(json.dumps({"podcast": True, "sources": {"A": "http://127.0.0.1:9/x.m3u8"},
+                                                  "segments": [{"src": "A", "in": 0, "out": 1}]}))
+        r = subprocess.run([sys.executable, str(ROOT / "podcast.py"), str(tmp / "edl.json")], capture_output=True, text=True, check=False)
+        self.assertNotEqual(r.returncode, 0); self.assertIn("EDL refused", r.stderr)
+
+    def test_empty_podcast_object_still_means_podcast(self):
+        src = (ROOT / "face_track.py").read_text()
+        self.assertIn('"podcast" in E and E["podcast"] is not False', src)
 
 
 class Guard(unittest.TestCase):
@@ -147,6 +233,7 @@ class Guard(unittest.TestCase):
         base = {"sources": {"A": "/x.mp4"}, "segments": [{"src": "A", "in": 0, "out": 1}]}
         self.assertTrue(edl_guard.framing_ok({**base, "stack_zoom": 1.8}))
         self.assertFalse(edl_guard.framing_ok({**base, "stack_zoom": "2,crop=1"}))
+        self.assertFalse(edl_guard.framing_ok({**base, "stack_zoom": 0.5}))
 
 
 class BuildEdl(unittest.TestCase):

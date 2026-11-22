@@ -8,7 +8,11 @@ piece gets the fields assemble.py already reads, so the render needs no second c
 - 9:16 "L" / "R": "face" = that person's face, zoom 1 (the full-height 9:16 window holds one face)
 - 9:16 "stack": "stack" = [[fx, fy] of L, [fx, fy] of R]: assemble.py puts L in the top half and R in the bottom half
 plus "shot", "spk" (who has the floor) and "head" (the box head_check.py looks for). A 16:9 side card (gfx_types.SIDE_BOX)
-over a wide shot would cover one person: the shot under it becomes the speaker's single shot.
+over a wide shot would cover one person: the shot under it becomes the speaker's single shot (face centred by the crop,
+critic C2 knows it, ADR-0030).
+The shot rules run on FILM time (only the kept words, joined as the film plays), so the opening wide, the hold and the
+cutaways count what the viewer sees; a shot change is moved to the nearest pause between words (each piece fades its
+sound in and out over 12 ms in assemble.py: never inside a word).
 Speakers come from podcast_faces.py (mouth motion), cached in podcast_spk.json next to the EDL; podcast_fix.json there
 overrides stretches by hand ([[t0, t1, "L"|"R"], ...], recording seconds).
 """
@@ -16,13 +20,18 @@ import hashlib
 import json
 import os
 import sys
+from itertools import pairwise
 from pathlib import Path
 
+import edl_guard
 import podcast_faces
 import podcast_shots
+import timeline
 from gfx_types import SIDE_BOX
 
 FPS = 30
+SNAP_S = 1.0  # a shot change moves at most this far to reach a pause between words
+ALGO = 2  # bump when podcast_faces' speaker or box logic changes: the cache is then measured again
 
 
 def ranges_of(segments):
@@ -34,16 +43,47 @@ def ranges_of(segments):
     return out
 
 
-def split_points(seg, shots):
-    """shot changes inside a piece, snapped to whole frames from the piece start (the pieces then add up to the same
-    frame count as the one they replace: timeline.piece_len rounds each piece)"""
-    a, b = seg["in"], seg["out"]
-    pts = []
+def film_starts(segments, exact):
+    """film second where each piece starts (timeline.piece_len: whole frames with seg_exact)"""
+    acc, out = 0.0, []
+    for s in segments:
+        out.append(acc); acc += timeline.piece_len(s, exact)
+    return out, acc
+
+
+def film_words(words, spk, segments, starts):
+    """the kept words on film time: (from, to, text) and their speakers, in film order"""
+    fw, fs = [], []
+    for s, f0 in zip(segments, starts, strict=True):
+        for (a, b, t), k in zip(words, spk, strict=True):
+            if s["in"] <= (a + b) / 2 < s["out"]:
+                fw.append((f0 + max(a, s["in"]) - s["in"], f0 + min(b, s["out"]) - s["in"], t)); fs.append(k)
+    return fw, fs
+
+
+def snap(shots, fw, cuts):
+    """move every shot change to the nearest pause between words (or piece join) within SNAP_S"""
+    gaps = [(x[1] + y[0]) / 2 for x, y in pairwise(fw) if y[0] >= x[1]] + list(cuts)
+    if not gaps or len(shots) < 2: return shots
+    out = [list(x) for x in shots]
+    for i in range(1, len(out)):
+        x = out[i][0]; g = min(gaps, key=lambda g: abs(g - x))
+        if abs(g - x) <= SNAP_S and out[i - 1][0] < g < out[i][1]: out[i - 1][1] = out[i][0] = round(g, 3)
+    return podcast_shots.merge(out)
+
+
+def split_points(seg, f0, shots):
+    """film-time shot changes inside a piece -> recording seconds, on whole frames from the piece start; the last piece
+    keeps the frame count of the piece it came from (timeline.piece_frames rounds each piece: a .5 tie is avoided)"""
+    a, b = seg["in"], seg["out"]; total = timeline.piece_frames(seg)
+    ns = []
     for x0, _, _ in shots[1:]:
-        if a < x0 < b:
-            n = round((x0 - a) * FPS)
-            if 0 < n < round((b - a) * FPS): pts.append(round(a + n / FPS, 6))
-    return sorted(set(pts))
+        n = round((x0 - f0) * FPS)
+        if 0 < n < total and (not ns or n > ns[-1]): ns.append(n)
+    if ns and ns[-1] + timeline.piece_frames({"in": a + ns[-1] / FPS, "out": b}) != total:
+        ns[-1] += 1 if ns[-1] + 1 < total else -1
+        if len(ns) > 1 and ns[-1] <= ns[-2]: ns.pop()
+    return [round(a + n / FPS, 6) for n in ns]
 
 
 def centre(box):
@@ -58,55 +98,76 @@ def head(box):
 
 
 def frame_piece(p, shot, spk, faces, cfg, vertical):
-    """the assemble.py fields of one piece; faces {"L": box, "R": box} (a missing side falls back to the other)"""
-    fl, fr = faces.get("L") or faces.get("R"), faces.get("R") or faces.get("L")
-    if not fl or not fr: return p  # no face found in this stretch: leave the piece as build_edl made it
-    for k in ("track",): p.pop(k, None)
+    """the assemble.py fields of one piece; faces {"L": box, "R": box}. One face only: its single shot (a stack would show
+    the same person twice). No face: the piece stays as build_edl made it and the report counts it."""
+    for k in ("track", "stack", "shot", "spk"): p.pop(k, None)  # a re-run on the same EDL must not keep an old stack
+    if not faces: return p
+    if len(faces) == 1 and shot in ("stack", "wide", "L", "R"):
+        shot = next(iter(faces))
     p["shot"], p["spk"] = shot, spk
     if shot == "stack":
-        p["stack"] = [centre(fl), centre(fr)]; p["zoom"] = 1.0
-        p["face"] = centre(faces.get(spk) or fl); p["head"] = head(faces.get(spk) or fl); return p
+        p["stack"] = [centre(faces["L"]), centre(faces["R"])]; p["zoom"] = 1.0
+        p["face"], p["head"] = centre(faces[spk]), head(faces[spk]); return p
     if shot == "wide":
-        (lx, ly), (rx, ry) = centre(fl), centre(fr)
+        (lx, ly), (rx, ry) = centre(faces["L"]), centre(faces["R"])
         p["face"] = [round((lx + rx) / 2, 4), round((ly + ry) / 2, 4)]
-        hl, hr = head(fl), head(fr); p["head"] = [min(hl[0], hr[0]), min(hl[1], hr[1]), max(hl[2], hr[2]), max(hl[3], hr[3])]
+        hl, hr = head(faces["L"]), head(faces["R"]); p["head"] = [min(hl[0], hr[0]), min(hl[1], hr[1]), max(hl[2], hr[2]), max(hl[3], hr[3])]
         p["zoom"] = 1.0 if vertical else cfg["wide_zoom"]; return p
-    box = faces.get(shot) or fl
-    p["face"], p["head"] = centre(box), head(box)
+    p["face"], p["head"] = centre(faces[shot]), head(faces[shot])
     p["zoom"] = 1.0 if vertical else cfg["single_zoom"]
     return p
 
 
-def card_spans(E):
-    """output-time spans of 16:9 cards over the side of the picture (they would cover one of the two people)"""
+def specs_of(E):
     f = E.get("gfx_specs")
     specs = json.loads(Path(f).read_text()) if f and os.path.isfile(f) else {}
-    if isinstance(specs, list): specs = {s.get("id"): s for s in specs}
+    return {s.get("id"): s for s in specs} if isinstance(specs, list) else specs
+
+
+def card_spans(E, specs):
+    """film-time spans of 16:9 cards over the side of the picture (they would cover one of the two people)"""
     return [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", [])
             if (specs.get(o.get("id")) or {}).get("type") in SIDE_BOX and (specs.get(o.get("id")) or {}).get("canvas") != "v"]
 
 
-def reframe(E, spk_words, words, faces_by_range, cfg):
-    """the EDL with its pieces cut at shot changes and framed; pure (tests call it without video)"""
-    vertical = bool(E.get("vertical"))
-    tn = podcast_shots.turns(words, spk_words, cfg)
-    if not tn: sys.exit("podcast: no speaker found for any word (no faces?): fix with podcast_fix.json")
-    shots = podcast_shots.short_shots(tn, cfg) if vertical else podcast_shots.long_shots(tn, cfg)
-    ranges = sorted((tuple(map(float, k.split("-"))), v) for k, v in faces_by_range.items())
+def faces_lookup(faces_by_window):
+    """{"t0-t1": {"L": box, "R": box}} (recording seconds) -> faces_at(t): the window holding t, else the nearest one"""
+    wins = sorted((tuple(map(float, k.split("-"))), v) for k, v in faces_by_window.items())
     def faces_at(t):
-        return next((v for (a, b), v in ranges if a - 0.05 <= t <= b + 0.05), {})
-    out, t_out = [], 0.0
-    sides = [] if vertical else card_spans(E)
-    for s in E["segments"]:
-        pts = split_points(s, shots)
+        hit = [v for (a, b), v in wins if a - 0.05 <= t <= b + 0.05]
+        if hit: return hit[0]
+        return min(wins, key=lambda w: min(abs(t - w[0][0]), abs(t - w[0][1])))[1] if wins else {}
+    return faces_at
+
+
+def reframe(E, spk_words, words, faces_by_window, cfg):
+    """the EDL with its pieces cut at shot changes and framed; pure (tests call it without video) -> (EDL, shots, report)"""
+    vertical, exact = bool(E.get("vertical")), bool(E.get("seg_exact"))
+    segs = E["segments"]; starts, _ = film_starts(segs, exact)
+    fw, fs = film_words(words, spk_words, segs, starts)
+    tn = podcast_shots.turns(fw, fs, cfg)
+    if not tn: sys.exit("podcast: no speaker found for any kept word (no faces?): fix with podcast_fix.json")
+    shots = podcast_shots.short_shots(tn, cfg) if vertical else podcast_shots.long_shots(tn, cfg)
+    shots = snap(shots, fw, starts[1:])
+    faces_at = faces_lookup(faces_by_window)
+    specs = specs_of(E)
+    sides = [] if vertical else card_spans(E, specs)
+    behind = [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", []) if (specs.get(o.get("id")) or {}).get("behind")]
+    out, report = [], {"no_face": 0, "behind_on_stack": 0}
+    for s, f0 in zip(segs, starts, strict=True):
+        pts = split_points(s, f0, shots)
         for a, b in zip([s["in"], *pts], [*pts, s["out"]], strict=True):
             p = dict(s); p["in"], p["out"] = a, b
-            mid = (a + b) / 2
+            fa = f0 + (a - s["in"]); fb = fa + timeline.piece_len(p, exact); mid = (fa + fb) / 2
             shot, who = podcast_shots.shot_at(shots, mid), podcast_shots.shot_at(tn, mid)
-            if shot == "wide" and any(c0 < t_out + (b - a) and t_out < c1 for c0, c1 in sides): shot = who
-            out.append(frame_piece(p, shot, who, faces_at(mid), cfg, vertical)); t_out += b - a
+            if shot == "wide" and any(c0 < fb and fa < c1 for c0, c1 in sides): shot = who
+            faces = faces_at((a + b) / 2)
+            if not faces: report["no_face"] += 1
+            p = frame_piece(p, shot, who, faces, cfg, vertical)
+            if p.get("stack") and any(c0 < fb and fa < c1 for c0, c1 in behind): report["behind_on_stack"] += 1
+            out.append(p)
     E = dict(E); E["segments"] = out
-    return E, shots
+    return E, shots, report
 
 
 def words_of(E):
@@ -122,31 +183,48 @@ def probe(src):
     return int(w), int(h)
 
 
+def cache_key(src, ranges, words, cfg):
+    """the speaker cache is valid for this recording, these stretches, these words (times and text) and this algorithm"""
+    return hashlib.md5(json.dumps([ALGO, src, os.path.getsize(src), os.path.getmtime(src), ranges, words, cfg["detect_fps"],
+                                   cfg["face_every_s"], cfg["mouth_ratio"]]).encode()).hexdigest()
+
+
+def write_atomic(path: Path, text: str):
+    tmp = path.with_suffix(path.suffix + ".tmp"); tmp.write_text(text); os.replace(tmp, path)
+
+
 def main(edl_p):
     E = json.loads(Path(edl_p).read_text())
+    try:
+        edl_guard.check(E)  # before ffmpeg and OpenCV open the source: the same rules as assemble.py (ADR-0006)
+    except edl_guard.EdlError as e:
+        sys.exit(f"podcast.py {edl_p}: {e}")
     work = os.path.dirname(os.path.abspath(edl_p))
     over = E["podcast"] if isinstance(E.get("podcast"), dict) else {}
     cfg = podcast_shots.load_cfg(over)
     src = E["sources"]["A"]; words = words_of(E)
     E["src_w"], E["src_h"] = probe(src)  # assemble.py crops in recording pixels (default 2560x1440 is wrong for 4K)
     ranges = ranges_of(E["segments"])
-    key = hashlib.md5(json.dumps([src, os.path.getsize(src), ranges, len(words), cfg["detect_fps"], cfg["face_every_s"],
-                                  cfg["mouth_ratio"]]).encode()).hexdigest()
+    key = cache_key(src, ranges, words, cfg)
     cache_p = Path(work) / "podcast_spk.json"
     cache = json.loads(cache_p.read_text()) if cache_p.is_file() else {}
     if cache.get("key") != key:
+        print(f"podcast: measuring faces and mouths in {len(ranges)} stretches, {sum(b - a for a, b in ranges):.0f} s of recording", flush=True)
         samples, boxes = podcast_faces.analyse(src, ranges, cfg)
         cache = {"key": key, "spk": podcast_faces.word_speakers(words, samples, cfg["mouth_ratio"]), "faces": boxes}
-        cache_p.write_text(json.dumps(cache))
+        write_atomic(cache_p, json.dumps(cache))
     spk = podcast_faces.apply_fix(words, cache["spk"], podcast_faces.load_fix(work))
     E["stack_zoom"] = E.get("stack_zoom", cfg["stack_zoom"])
-    E, shots = reframe(E, spk, words, cache["faces"], cfg)
-    Path(edl_p).write_text(json.dumps(E, ensure_ascii=False, indent=1))
-    used = [i for i, (a, b, _) in enumerate(words) if any(r0 <= a < r1 for r0, r1 in ranges)]
-    unsure = sum(1 for i in used if cache["spk"][i] == "?")
+    E, shots, rep = reframe(E, spk, words, cache["faces"], cfg)
+    write_atomic(Path(edl_p), json.dumps(E, ensure_ascii=False, indent=1))
+    used = [i for i, (a, b, _) in enumerate(words) if any(r0 <= (a + b) / 2 < r1 for r0, r1 in ranges)]
+    unsure = sum(1 for i in used if spk[i] == "?")
     count = {k: sum(1 for x in shots if x[2] == k) for k in ("wide", "L", "R", "stack")}
     print(f"podcast: {len(E['segments'])} pieces, shots {count}, words without a clear speaker {unsure}/{len(used)}"
-          + (" (check podcast_fix.json)" if used and unsure / len(used) > 0.2 else ""))
+          + (" (check podcast_fix.json)" if used and unsure / len(used) > 0.2 else "")
+          + (f", {rep['no_face']} pieces without a face (left as built)" if rep["no_face"] else "")
+          + (f", {rep['behind_on_stack']} stack pieces under a 'behind' card (the matte follows the full picture, check them)"
+             if rep["behind_on_stack"] else ""))
 
 
 if __name__ == "__main__":

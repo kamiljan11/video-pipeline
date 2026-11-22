@@ -29,6 +29,10 @@ def load_cfg(over=None, path: Path = CFG) -> dict:
         if k not in cfg: sys.exit(f"podcast: unknown key {k!r} (known: {sorted(cfg)})")
         if isinstance(v, bool) or not isinstance(v, (int, float)) or v <= 0: sys.exit(f"podcast: {k} must be a number > 0, got {v!r}")
         cfg[k] = v
+    for k in ("single_zoom", "wide_zoom", "stack_zoom"):  # below 1 the crop is larger than the recording: ffmpeg fails mid-render
+        if cfg[k] < 1: sys.exit(f"podcast: {k} must be >= 1, got {cfg[k]!r}")
+    if cfg["cutaway_s"] * 2 >= cfg["single_max_s"]:  # a cutaway longer than half a chunk would overlap the next one
+        sys.exit(f"podcast: cutaway_s ({cfg['cutaway_s']}) must be under half of single_max_s ({cfg['single_max_s']})")
     return cfg
 
 
@@ -127,7 +131,7 @@ def short_shots(tn, cfg) -> list:
     for j in range(len(switches) - k + 1):
         if switches[j + k - 1] - switches[j] <= win:
             last = switches[j + k - 1]
-            end_turn = next(b for a, b, _ in tn if a <= last < b + 1e-9)
+            end_turn = next(b for a, b, _ in tn if abs(a - last) < 1e-9)  # the turn the last switch opens (turns touch)
             a, b = switches[j], min(end_turn, last + cfg["hold_s"])
             if stacks and a <= stacks[-1][1]: stacks[-1][1] = max(stacks[-1][1], b)
             else: stacks.append([a, b])

@@ -46,5 +46,13 @@ zawiedzie. (b) Model ASD (TalkNet, Light-ASD, MIT): brak zmierzonej prędkości 
 - Ścieżki na sztywno do `/home/kamil-jan/video-pipeline` (skrypty, `pip_assets.mjs`) wskazują główny checkout: render
   z worktree uruchamia tamtejszy kod.
 
-**Nie robimy teraz (puste sloty):** kolor napisów wg mówcy i podpisy z imionami (`podcast.speakers` jest już w schemacie
-planu), wybór klipów do shortów z parą pytanie-odpowiedź w `shorts.py`, backend pyannote, J/L-cięcia dźwięku.
+**Nie robimy teraz (puste sloty):** kolor napisów wg mówcy i podpisy z imionami (klucz `podcast.speakers` jest przepuszczany
+przez `podcast_shots.load_cfg`, nic go jeszcze nie czyta), wybór klipów do shortów z parą pytanie-odpowiedź w `shorts.py`, backend pyannote, J/L-cięcia dźwięku.
+
+**Koszt cykliczny:** jedno przejście ffmpeg po zakresach filmu (10 kl./s, 960x540) na pierwszy przebieg każdego nagrania;
+potem pamięć podręczna `podcast_spk.json` (klucz: wersja algorytmu, rozmiar i mtime pliku, czasy słów, reguły).
+Czas na prawdziwym 4K niezmierzony. Utrzymanie: `style/podcast.json` + trzy moduły `podcast*.py`, testy
+`tests/test_podcast*.py`.
+
+**Wycofanie:** usunąć `"podcast"` z planu: `face_track.py` wraca do starej ścieżki, EDL bez pól `shot`/`stack`/`spk`.
+Całkowite: revert commitu tej zmiany; stare plany nie używają żadnego nowego pola.

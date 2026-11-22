@@ -54,7 +54,7 @@ def framing_ok(edl: dict) -> bool:
     """the EDL-wide values vf_for pastes into the filter (a key present means set: null is refused, not defaulted)"""
     ok = all(num(edl[k]) for k in ("w", "h", "src_w", "src_h") if k in edl)
     ok = ok and (edl.get("face_target_y") is None or num(edl["face_target_y"]))  # null = vf_for's own default
-    ok = ok and ("stack_zoom" not in edl or pos(edl["stack_zoom"]))  # podcast stack panels (assemble.py stack_vf)
+    ok = ok and ("stack_zoom" not in edl or (num(edl["stack_zoom"]) and edl["stack_zoom"] >= 1))  # podcast stack panels (assemble.py stack_vf): < 1 = crop larger than the recording
     return ok and pair(edl.get("face", [0.5, 0.45])) and isinstance(edl.get("vertical", False), bool)
 
 

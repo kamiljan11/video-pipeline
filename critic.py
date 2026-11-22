@@ -76,7 +76,10 @@ for o in ov:  # shorts: a 9:16 top card would cover the hook title (same top ban
 acc = 0.0
 for s in segs:
     d = timeline.piece_len(s, EXACT); z = s["zoom"]
-    for o in ov:
+    # podcast single shot (podcast.py, ADR-0030): the crop is centred on the speaker's face (near mid-screen), not the
+    # one-person frame this rule guards; the side card sits beside that face, and a wide shot under it would cover the other person
+    podcast_single = "podcast" in E and s.get("shot") in ("L", "R")
+    for o in ([] if podcast_single else ov):
         sp = specs.get(o["id"], {})
         if sp.get("type") not in SIDE_BOX or sp.get("canvas") == "v" or beside(sp): continue  # beside the head: zoom allowed
         a0, a1 = max(acc, o["at"]), min(acc + d, o["at"] + o["dur"])  # overlap window in output time
