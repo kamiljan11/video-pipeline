@@ -300,10 +300,6 @@ class ConfirmAudibleTest(unittest.TestCase):
         self.assertEqual(C.confirm_audible(bad, [], [], {}, Path("/nonexistent/assemble.audio.args.json")), (bad, []))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ChunkJsonTest(unittest.TestCase):
     """chunked_whisper resume: whisper-cli -ojf writes <chunk>.wav.json; the resume check looked only for <chunk>.json, so a
     restarted run sent every chunk to whisper again (2026-11-22, podcast: 50 of 68 chunks redone)"""
@@ -316,3 +312,7 @@ class ChunkJsonTest(unittest.TestCase):
             self.assertEqual(T.chunk_json(wav), Path(wav[:-4] + ".json"))
             Path(wav + ".json").write_text("{}")
             self.assertEqual(T.chunk_json(wav), Path(wav + ".json"))  # the whisper-cli name wins over the old one
+
+
+if __name__ == "__main__":
+    unittest.main()
