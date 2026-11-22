@@ -16,6 +16,9 @@ import numpy as np
 import gfx_types  # next to this script: HEADROOM, shared with assemble.py's picture-in-picture window
 
 edl_p = sys.argv[1]; E = json.loads(Path(edl_p).read_text())
+if "podcast" in E and E["podcast"] is not False:  # two people in one wide shot: podcast.py frames the pieces instead (ADR-0031)
+    import podcast
+    podcast.main(edl_p); sys.exit(0)
 src = E["sources"]["A"]; vertical = E.get("vertical", False)
 cache_p = os.path.join(os.path.dirname(os.path.abspath(edl_p)), "faces_cache.json")
 cache = json.loads(Path(cache_p).read_text()) if os.path.exists(cache_p) else {}

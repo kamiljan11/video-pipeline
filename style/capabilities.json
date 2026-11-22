@@ -1006,6 +1006,18 @@
    "why": "the music dips under the voice (sidechain); words_check.py measures the words stay understood"
   },
   {
+   "id": "plan.podcast",
+   "kind": "plan",
+   "name": "podcast",
+   "owner": "operator",
+   "check": "gate:build_edl.py",
+   "use": {
+    "long": "infra",
+    "short": "infra"
+   },
+   "why": "form switch like vertical: two people in one wide shot (ADR-0031); face_track.py hands the EDL to podcast.py (speakers from mouth motion, wide/L/R shots, 9:16 stack), build_edl validates, style/podcast.json holds the shot rules"
+  },
+  {
    "id": "plan.voice_clean",
    "kind": "plan",
    "name": "voice_clean",

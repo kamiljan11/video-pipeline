@@ -1,0 +1,17 @@
+{
+  "_doc": "Podcast mode (2 people, one wide camera): shot rules read by podcast_shots.py. Numbers are editorial defaults from research/podcast/RESEARCH-*.md (tool defaults, not measured retention); change them here, not in code. Plan key \"podcast\" may override any of them for one film.",
+  "hold_s": 2.0,
+  "backchannel_s": 1.0,
+  "open_wide_s": 4.0,
+  "single_max_s": 18.0,
+  "cutaway_s": 2.5,
+  "min_piece_s": 0.5,
+  "stack_switches": 2,
+  "stack_window_s": 4.0,
+  "single_zoom": 1.8,
+  "wide_zoom": 1.0,
+  "mouth_ratio": 1.25,
+  "detect_fps": 10,
+  "face_every_s": 1.0,
+  "stack_zoom": 1.8
+}

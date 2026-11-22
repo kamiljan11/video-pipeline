@@ -97,6 +97,14 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 | `stuck <stan>` | rekord istnieje, ale nie `published`: publikacja przerwana, sprawdź profil (RUNBOOK) |
 | tik | jedno uruchomienie timera (co 15 min): najwyżej jeden post |
 
+## Podcast (ADR-0031)
+- **L / R** — osoba po lewej / po prawej stronie kadru szerokiego (tak widzi to kamera, nie widz z miejsca rozmówcy).
+- **ujęcie `wide`** — cały kadr z obiema osobami; `L` / `R` — wycinek jednej osoby z tego samego nagrania 4K („wirtualny multicam”).
+- **`stack`** — short 9:16 z dwoma panelami: L na górze, R na dole; napisy na styku.
+- **backchannel** — krótkie „mhm”, „no”, śmiech słuchacza; nie odbiera głosu i nie przełącza ujęcia (`backchannel_s`).
+- **ruch ust** — miara mówcy w `podcast_faces.py`: zmiana obrazu w dolnej części twarzy między klatkami, każda osoba względem swojej mediany.
+- **motyw `dworak`** — kolory kanału ArkadiuszDworak.pl (`style/themes/dworak.json`, wariant ciemny strony); wybór przez `work/theme.json`. Nasze filmy zostają na motywie domyślnym / `cetus`.
+
 ## Objaśnienie jak u arjay (style/REF-shorts-arjay.md, ADR-0028)
 - **look paper** — jasna strona sceny (`"look": "paper"`): ciepła biel, białe karty, czarny tusz, jeden limonkowy zakreślacz (ton `lime`).
 - **cam grow** — kamera sceny kadruje tylko elementy już na ekranie; pierwszy wypełnia pole, kadr poszerza się z każdym wejściem (`grow_zmax`).

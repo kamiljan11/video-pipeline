@@ -1,0 +1,13 @@
+{
+  "name": "dworak",
+  "source": "arkadiuszdworak.pl compiled CSS /assets/index-BlUAyiCw.css (read 2026-11-22), .dark token set: background #102a43, primary #ef8f76 (light mode primary #a9492f, favicon #a8442a), Figtree body / Outfit headings. --scrim-rgb 8,21,34 is derived (bg halved), not on the site",
+  "css": {
+    "--acc": "#EF8F76", "--acc-rgb": "239,143,118", "--ink": "#102A43",
+    "--panel-rgb": "16,42,67", "--scrim-rgb": "8,21,34",
+    "--bg-a": "#173650", "--bg-b": "#102A43", "--end-bg": "#102A43",
+    "--soft": "#F3F7F9", "--soft-2": "#FFFFFF", "--mute": "#C7D5DE", "--mute-2": "#587189",
+    "--track": "#243B53", "--track-ink": "#C7D5DE", "--line": "#466279", "--card": "#173650", "--acc-dim": "#A9492F",
+    "--paper": "#F3F7F9", "--paper-line": "#C9D7E0", "--paper-ink": "#102A43", "--paper-margin": "#EF8F76",
+    "--pen": "#A9492F", "--pen-soft": "#587189", "--alert": "#F08A72"
+  }
+}

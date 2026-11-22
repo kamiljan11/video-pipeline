@@ -394,7 +394,7 @@ if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _t
     sys.exit(f"tail: seconds of end screen 0..60, got {_tail!r}")
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
-       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "sfx_duck", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead", "master", "voice_clean", "corner_halo") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck, sfx_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead; master: assemble.py -> master_audio.py
+       **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "sfx_duck", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead", "master", "voice_clean", "corner_halo", "podcast") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck, sfx_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead; master: assemble.py -> master_audio.py
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME
@@ -424,6 +424,15 @@ if P.get("hook_show"):  # beats.py --gfx --write leaves its report in the plan: 
 # punch_headroom: what a zoom must keep in frame (face_track.py). "hair" (default): the head with its hair; "face": brow to chin,
 # so a punch-in may cut the top of the head (film 2026-11-04: Kamil sits close, the head fills 73 % of the frame and "hair" left
 # zooms of about 1.01, 0.6 punch-ins a minute against the checklist's 2)
+# podcast (two people, one wide camera, ADR-0031): face_track.py hands the EDL to podcast.py, which needs the words to
+# tell who talks; true or an object of style/podcast.json keys for this film
+# false = off, the same contract face_track.py reads (an old plan keeps its key and renders as one speaker)
+if "podcast" in P and not isinstance(P["podcast"], (bool, dict)):
+    sys.exit(f'podcast: true, false or an object of style/podcast.json keys, got {P["podcast"]!r}')
+if P.get("podcast", False) is not False:
+    edl["words"] = P["words"]
+    pc = P["podcast"]
+    if isinstance(pc, dict) and "stack_zoom" in pc: edl["stack_zoom"] = pc["stack_zoom"]  # assemble.py stack_vf reads the EDL
 if "punch_headroom" in P:
     if P["punch_headroom"] not in ("hair", "face"):
         sys.exit(f'punch_headroom: "hair" (keep the whole head) or "face" (brow to chin), got {P["punch_headroom"]!r}')
@@ -506,6 +515,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         hdr = hdr.replace("Style: Cap,Montserrat,92,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,2,70,130,540,1",
                           f"Style: Cap,Montserrat,80,&H00FFFFFF,&H00FFFFFF,{box},&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,70,70,650,1")
     cv = P.get("caption_v")  # MarginV of the captions (px from the bottom of 1920); lower = further from the face
+    # podcast 9:16 (ADR-0031): the captions sit on the seam of a "stack" (y ~930-1020), the one place that is no face;
+    # on a single shot that is under the chin (face_target_y 0.40). The default 540 lands on the lower person's face
+    if cv is None and P.get("podcast", False) is not False: cv = 900
     if cv is not None:
         if type(cv) is not int or not 300 <= cv <= 900: sys.exit(f"caption_v: whole px 300..900, got {cv!r}")
         hdr = re.sub(r"^(Style: Cap,(?:[^,]*,){20})\d+,", rf"\g<1>{cv},", hdr, flags=re.MULTILINE)

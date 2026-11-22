@@ -563,6 +563,22 @@ zostaje jak było (kolory z `gfx/template.html`, bit w bit).
 - Font zostaje Montserrat także w motywie Cetus (Poppins z marki = osobna decyzja: instalacja fontu, weryfikacja źródła).
   Pojęcia pipeline'u i panelu (motyw, krawędź ujęcia, złota myśl…): `panel/docs/GLOSSARY.md`.
 
+- Motyw `dworak` (kanał ArkadiuszDworak.pl): kolory z CSS strony, wariant ciemny (tło #102A43, akcent #EF8F76). Fonty strony
+  (Figtree, Outfit) nie są zainstalowane: karty zostają w Montserrat. Wybór: `work/theme.json` `{"theme": "dworak"}`.
+
+## Podcast: dwie osoby, jedna kamera (`"podcast"` w planie, ADR-0031)
+Klucz planu `"podcast": true` (albo obiekt z kluczami `style/podcast.json`, np. `{"hold_s": 3}`) włącza kadrowanie pod dwie
+osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie zmienia.
+- `face_track.py` oddaje wtedy EDL do `podcast.py`: kto mówi (ruch ust, `podcast_faces.py`), ujęcia (`podcast_shots.py`),
+  kawałki cięte przy zmianie ujęcia na siatce klatek.
+- Long 16:9: `wide` na otwarcie i jako przerywnik co najwyżej co `single_max_s`, potem wycinek mówiącego (`single_zoom`);
+  „mhm” krótsze niż `backchannel_s` i odpowiedź krótsza niż `hold_s` nie przełączają. Pod kartą boczną nigdy plan szeroki.
+- Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
+  górze, R na dole (`stack_zoom`). Napisy domyślnie `caption_v` 900, na styku paneli.
+- Mówcy: `podcast_spk.json` w folderze EDL (liczy się raz). Poprawka ręczna: `podcast_fix.json` `[[t0, t1, "L"], ...]`
+  (sekundy nagrania). Po przebiegu: `podcast: N pieces, shots {...}, words without a clear speaker x/y`.
+- Liczby ujęć to dane (`style/podcast.json`), badania: `research/podcast/`. Testy: `tests/test_podcast*.py`.
+
 ## Ekran końcowy shorta (`end` + `canvas: "v"`)
 **Domyślnie short NIE ma planszy końcowej:** kończy się na ostatnim słowie (bramka `short.end`: brak karty `end`, `tail` <= 0,6 s;
 30/30 top shortów kończy się 0,23 s po słowie, `style/REF-shorts-top.md` T8, decyzja: `docs/adr/0014-shorts-follow-top-retention.md`).
