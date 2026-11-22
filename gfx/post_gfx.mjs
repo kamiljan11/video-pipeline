@@ -13,8 +13,8 @@ import fs from 'fs'; import os from 'os'; import path from 'path'; import { path
 import { esc, prose } from './html_lib.mjs';
 import { readTheme } from './theme_lib.mjs';
 import { isMain } from './cli.mjs';
+import { FONT } from './font.mjs';
 
-const FONT = '/home/kamil-jan/.local/share/fonts/Montserrat-VF.ttf';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 export const W = 1080, H = 1350;
 // the page loads nothing but its inline style and the font: no frame, image, script or other file, so whatever reaches

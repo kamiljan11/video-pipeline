@@ -5,7 +5,7 @@
 // when its key in accepted.json is the key it renders with (accepted after the last change). Cards of films without a sheet
 // (gfx/ is shared by the long and the shorts) and cards no EDL uses are not gated here: film_check long/short.stills asks for
 // every card of a film. STILLS=off renders anyway (WARN in the log).
-import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
+import { chromium } from 'playwright-core';
 import crypto from 'crypto'; import fs from 'fs'; import path from 'path'; import { pathToFileURL } from 'url'; import { execFileSync } from 'child_process';
 import { PER_CARD, keyOf, markTimes, motion, vZoom } from './webshot_lib.mjs';
 import { COUNT_DELAY, FADE_OUT, countFrom, countParts, countSeconds, fmtNum, numWidth } from './count_lib.mjs';
@@ -33,7 +33,8 @@ const stillTime = sp => {
   return Math.min(ins.length ? Math.max(...ins) + 0.6 : sp.dur * 0.6, sp.dur - 0.3);
 };
 const THEME = loadTheme(specFile);  // work/theme.json -> style/themes/<name>.json colors; null = the template's own
-const GSAP = '/home/kamil-jan/video-pipeline/node_modules/gsap/dist/gsap.min.js';
+const VP = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');  // the checkout this file is in
+const GSAP = path.join(VP, 'node_modules', 'gsap', 'dist', 'gsap.min.js');
 const FPS = 30;
 // "kw" box; "count" is the same box with counting numbers in its title
 const kwBox = (sp, title, cls = 'kw') => `<div class="${cls} ${sp.side||'right'}${sp.compact&&sp.canvas==='v'?' compact':''}">${sp.icon&&!(sp.compact&&sp.canvas==='v')?`<div class="ic">${icon(sp.icon)}</div>`:''}<div class="t">${title}</div><div class="bar"></div>${sp.sub?`<div class="s">${esc(sp.sub)}</div>`:''}</div>`;
@@ -357,8 +358,8 @@ const q = [...specs]; await Promise.all(Array.from({ length: PAGES }, async () =
 await browser.close();
 // "behind" cards: behind.py cuts the speaker out of each one's alpha (text behind the head); skipped when nothing changed
 if (!STILLS && specs.some(sp => sp.behind)) {
-  const PY = '/home/kamil-jan/video-pipeline/matte/.venv/bin/python';
+  const PY = path.join(VP, 'matte', '.venv', 'bin', 'python');
   if (!fs.existsSync(PY)) { console.error('FAILED gfx: "behind" cards need matte/.venv (README: text behind the speaker)'); process.exit(1); }
-  try { execFileSync(PY, ['/home/kamil-jan/video-pipeline/behind.py', specFile, outDir], { stdio: 'inherit', timeout: 1800000 }); }
+  try { execFileSync(PY, [path.join(VP, 'behind.py'), specFile, outDir], { stdio: 'inherit', timeout: 1800000 }); }
   catch (e) { console.error(`FAILED gfx: behind.py ${e.status ?? e.message}`); process.exit(1); }
 }

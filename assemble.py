@@ -339,7 +339,7 @@ for k, o in enumerate(edl.get("overlays", [])):
     fc.append(f"[{last}][g{k}]overlay=eof_action=pass:format=auto[v{k+1}]"); last = f"v{k+1}"
 if pips:
     frame = themes.pip_frame(THEME)
-    inputs += ["-loop", "1", "-i", "/home/kamil-jan/video-pipeline/gfx/pip_mask.png", "-loop", "1", "-i", frame]
+    inputs += ["-loop", "1", "-i", str(Path(__file__).resolve().parent / "gfx" / "pip_mask.png"), "-loop", "1", "-i", frame]
     i_mask = 1 + len(edl.get("overlays", [])); i_frame = i_mask + 1; i_pip = i_frame + 1
     if HT:
         aligned.append(len(inputs)); inputs += ["-i", pip_track]

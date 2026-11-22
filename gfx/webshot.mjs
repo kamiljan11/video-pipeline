@@ -5,7 +5,7 @@
 // (captcha / login): take the screenshot yourself, never get around the block.
 // Captured once (cache key = url + find + img content + page + box + title): delete outdir/web/<key>.* to capture again.
 // Network: public addresses only, checked after DNS for every connection (netguard.mjs); Chrome runs sandboxed.
-import { chromium } from '/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs';
+import { chromium } from 'playwright-core';
 import fs from 'fs'; import https from 'https'; import path from 'path'; import { execFile } from 'child_process';
 import { pathToFileURL } from 'url'; import { promisify } from 'util';
 import { viewOf, BEFORE, AFTER, PER_CARD, checkUrl, allowedRequest, blockedIp, findQuote, lines, keyOf, ownImg, pdfWords } from './webshot_lib.mjs';

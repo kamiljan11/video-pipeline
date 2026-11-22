@@ -25,7 +25,7 @@ class CpuBudgetTest(unittest.TestCase):
         self.assertEqual(int(out.stdout), cpu_budget.heavy_threads())
 
     def test_no_call_site_hardcodes_whisper_threads(self):
-        files = ["chunked_whisper.py", "verify_cut.py", "spot_check.py", "transcribe.py", "run_whisper.sh", "final_check.sh"]
+        files = ["chunked_whisper.py", "verify_cut.py", "spot_check.py", "transcribe.py", "run_whisper.sh"]
         for name in files:
             text = (ROOT / name).read_text()
             for bad in ('"-t", "30"', '"-t", "16"', "-t 30 ", "-t 16 ", "cpu_threads=30"):

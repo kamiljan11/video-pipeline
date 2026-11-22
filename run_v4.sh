@@ -2,7 +2,8 @@
 # run_v4.sh WORKDIR OUTDIR name1 name2 ...  — full pipeline with critic gate
 # per video: build_edl -> face_track -> critic --fix (auto-fixes) -> rebuild -> face_track -> critic -> beds -> render -> critic --video
 WORK=$1; OUT=$2; shift 2
-VP=/home/kamil-jan/video-pipeline; R=$VP/render; PY=$VP/.venv/bin/python
+VP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"; R=$VP/render; PY=$VP/.venv/bin/python  # the checkout this script is in
+case "$VP" in *[[:space:]]*) echo "FAILED: the checkout path has a space ($VP); clone it to a path without spaces" >&2; exit 2;; esac
 
 # lip_check: the finished film's voice against its lips, measured on the recording (2026-11-09: voice 46 ms late).
 # LIP_CHECK=off skips it, logged (a film whose lips cannot be matched, e.g. zoomed in on every piece)
