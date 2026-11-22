@@ -333,6 +333,11 @@ PUNCHED = set()
 # here only their film times (word_punches) and the spans of the cards no zoom may run under (punch_off)
 PODCAST_PUNCH = P.get("podcast", False) is not False
 WORD_PUNCHES: list[dict] = []
+# a 16:9 talk keeps no punch-in on words (research/podcast/VISUAL-LONG.md VL4: 8/9 channels lock their singles, none of 9
+# punches on a word; Kamil 2026-11-22 "zoomy przy gadaniu we dwie osoby ... purposefully"): the picture changes by the cut
+# to who speaks. 9:16 shorts keep them (VISUAL-SHORTS.md VS5: hard jumps on the same shot)
+if PODCAST_PUNCH and not P.get("vertical") and EMPH:
+    print(f"emph: {len(EMPH)} word punch(es) left out: a 16:9 talk cuts to the speaker instead (VISUAL-LONG VL4)"); EMPH = []
 for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX is not None else EMPH:
     if "word" in em: c = [em["word"]]
     else: c = [i for i in range(max(0, em["near"] - 30), min(len(W), em["near"] + 30)) if em["find"].lower() in W[i][2].lower()]

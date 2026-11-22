@@ -94,7 +94,10 @@
    "metric": "punches_per_min",
    "op": ">=",
    "value": 2,
-   "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute"
+   "why": "Kamil 4.11: 'pominąłeś np. zoomy'; references about 3 punch-ins a minute",
+   "podcast": {
+    "off": "a conversation of two people: no punch-in on words, the picture changes by the cut to who speaks (research/podcast/VISUAL-LONG.md VL4: 8/9 channels lock their singles, 0/9 punch on words; Kamil 2026-11-22 'zoomy przy gadaniu we dwie osoby ... purposefully')"
+   }
   },
   {
    "id": "long.behind",

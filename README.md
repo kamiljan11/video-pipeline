@@ -576,7 +576,9 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
   „mhm” krótsze niż `backchannel_s` i odpowiedź krótsza niż `hold_s` nie przełączają. Pod kartą boczną nigdy plan szeroki.
   Wycinek od `drift_min_s` s ma powolny najazd / odjazd na zmianę (`drift_per_s` na sekundę, najwyżej `single_drift`,
   nigdy szerzej niż `single_zoom`).
-- Punch-iny na słowach (`emph`, `beats`): `build_edl` w trybie podcast nie kładzie ich na swoich kilku długich segmentach
+- Long 16:9 rozmowy: bez punch-inów na słowach (badanie `research/podcast/VISUAL-LONG.md` VL4: 8/9 kanałów trzyma ujęcia, 0/9 najeżdża na słowo;
+  Kamil 2026-11-22 „zoomy ... purposefully”): obraz zmienia cięcie na mówiącego; powolny najazd tylko na ujęciu od `drift_min_s` (8 s). `long.punch` = SKIP z powodem.
+- Punch-iny na słowach w shortach 9:16 (`emph`, `beats`): `build_edl` w trybie podcast nie kładzie ich na swoich kilku długich segmentach
   (segment trzyma jeden zoom, a punch trzymany do końca 10-minutowego segmentu wszedłby pod każdą kolejną kartę), tylko
   zapisuje w EDL `word_punches` (czas w filmie, `amt`, `speed`) i `punch_off` (spany kart bocznych, pod którymi zoom nie
   może jechać). `podcast.py` kładzie je na swoich kawałkach: na słowie skok do poziomu ujęcia i najazd o `amt`

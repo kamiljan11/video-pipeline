@@ -25,7 +25,7 @@ import podcast_faces as pf
 import podcast_shots
 import timeline
 
-CFG = podcast_shots.load_cfg()
+CFG = podcast_shots.load_cfg({"drift_min_s": 2.0})  # drift mechanics on short test pieces; the repo default (8 s) has its own test
 FACES = {"0.000-60.000": {"L": [0.20, 0.30, 0.08, 0.15], "R": [0.70, 0.32, 0.08, 0.15]}}
 
 
@@ -376,6 +376,13 @@ class Guard(unittest.TestCase):
         self.assertFalse(edl_guard.framing_ok({**base, "stack_zoom": 0.5}))
 
 
+class RepoDefaults(unittest.TestCase):
+    def test_a_long_single_under_8_s_holds_still(self):  # style/podcast.json drift_min_s, Kamil 2026-11-22 "purposefully"
+        cfg = podcast_shots.load_cfg()
+        self.assertEqual(podcast.single_drift(1.8, 5.0, cfg, 0), 1.8)
+        self.assertIsInstance(podcast.single_drift(1.8, cfg["drift_min_s"] + 1, cfg, 0), dict)
+
+
 class BuildEdl(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp(prefix="podcast-edl-")); self.addCleanup(shutil.rmtree, self.d, True)
@@ -417,10 +424,17 @@ class BuildEdl(unittest.TestCase):
         cap = next(x for x in (self.d / "subs.ass").read_text().splitlines() if x.startswith("Style: Cap,"))
         self.assertNotEqual(cap.split(",")[21], "900")
 
-    def test_podcast_writes_word_punches_and_card_spans_not_segment_zooms(self):
+    def test_a_16_9_talk_has_no_word_punches(self):  # VISUAL-LONG VL4, Kamil 2026-11-22 "purposefully"
+        r = self.build(podcast=True, emph=[{"word": 1, "amt": 0.11, "speed": 0.3}])
+        self.assertEqual(r.returncode, 0, r.stderr); self.assertIn("left out", r.stdout)
+        E = json.loads((self.d / "edl.json").read_text())
+        self.assertEqual(E.get("word_punches", []), [])
+        self.assertFalse(any(isinstance(s.get("zoom"), dict) for s in E["segments"]))
+
+    def test_podcast_writes_word_punches_and_card_spans_not_segment_zooms(self):  # 9:16 shorts keep them (VISUAL-SHORTS VS5)
         (self.d / "specs.json").write_text(json.dumps([{"id": "k1", "type": "kw", "text": "x", "dur": 0.5},
                                                        {"id": "s1", "type": "sticker", "text": "y", "dur": 0.3}]))
-        r = self.build(podcast=True, emph=[{"word": 1, "amt": 0.11, "speed": 0.3}], gfx_specs="specs.json", gfx_dir="gfx",
+        r = self.build(podcast=True, vertical=True, emph=[{"word": 1, "amt": 0.11, "speed": 0.3}], gfx_specs="specs.json", gfx_dir="gfx",
                        gfx=[{"id": "k1", "word": 0, "lead": 0.0}, {"id": "s1", "word": 1, "lead": 0.0}])
         self.assertEqual(r.returncode, 0, r.stderr)
         E = json.loads((self.d / "edl.json").read_text())

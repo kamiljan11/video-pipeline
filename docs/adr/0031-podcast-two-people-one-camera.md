@@ -63,3 +63,5 @@ Czas na prawdziwym 4K niezmierzony. Utrzymanie: `style/podcast.json` + trzy modu
 
 **Wycofanie:** usunąć `"podcast"` z planu: `face_track.py` wraca do starej ścieżki, EDL bez pól `shot`/`stack`/`spk`.
 Całkowite: revert commitu tej zmiany; stare plany nie używają żadnego nowego pola.
+
+Uzupełnienie 2026-11-22 (wieczór): long 16:9 bez punch-inów na słowach, dryf od 8 s (`research/podcast/VISUAL-LONG.md` VL4, VL13); shorty 9:16 zostają przy najazdach (VISUAL-SHORTS VS5).
