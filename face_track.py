@@ -19,7 +19,7 @@ edl_p = sys.argv[1]; E = json.loads(Path(edl_p).read_text())
 src = E["sources"]["A"]; vertical = E.get("vertical", False)
 cache_p = os.path.join(os.path.dirname(os.path.abspath(edl_p)), "faces_cache.json")
 cache = json.loads(Path(cache_p).read_text()) if os.path.exists(cache_p) else {}
-det = cv2.FaceDetectorYN.create("/home/kamil-jan/video-pipeline/models/face_detection_yunet_2023mar.onnx", "", (640, 360), 0.7)
+det = cv2.FaceDetectorYN.create(str(Path(__file__).resolve().parent / "models" / "face_detection_yunet_2023mar.onnx"), "", (640, 360), 0.7)
 cap = cv2.VideoCapture(src); SW = cap.get(cv2.CAP_PROP_FRAME_WIDTH); SH = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 def face_at(t):
     k = f"{t:.2f}"

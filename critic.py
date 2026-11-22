@@ -143,7 +143,7 @@ if video:
     if I and abs(float(I[-1]) + 14) > 1: add("C7", "warn", f"głośność {I[-1]} LUFS (cel -14±1)")
     if Pk and float(Pk[-1]) > -1: add("C7", "error", f"szczyt {Pk[-1]} dBFS (> -1)")
     exp = P["edl_out"].replace(".json", ".txt")
-    r = subprocess.run([sys.executable, "/home/kamil-jan/video-pipeline/verify_cut.py", exp, video], check=False, capture_output=True, text=True).stdout
+    r = subprocess.run([sys.executable, str(Path(__file__).resolve().parent / "verify_cut.py"), exp, video], check=False, capture_output=True, text=True).stdout
     for line in r.splitlines():
         if line.startswith("MISSING?"): add("C8", "error", line)
         if line.startswith("expected"): add("C8", "info", line)

@@ -78,6 +78,21 @@ class ResearchGateTest(unittest.TestCase):
             self.assertEqual(rg.main(["nope", "--ledger", str(f)]), 2)
             self.assertEqual(rg.main(["long", "--ledger", str(Path(d) / "missing")]), 2)
 
+    def test_the_default_ledger_absent_is_no_items_a_named_one_absent_stops(self):  # a stranger's machine, README Quick start
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            gone = Path(d) / "missing.jsonl"
+            with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", False), \
+                    mock.patch.object(rg, "RESEARCH_DIR", Path(d) / "no-research"):
+                self.assertEqual(rg.main(["long"]), 0)
+                self.assertEqual(rg.ledger_items(gone, False), [])
+            # the author's machine: the research folder is there, its ledger moved -> stop, not "0 items"
+            with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", False), mock.patch.object(rg, "RESEARCH_DIR", Path(d)):
+                self.assertEqual(rg.main(["long"]), 2)
+            with mock.patch.object(rg, "LEDGER", gone), mock.patch.object(rg, "LEDGER_SET", True):
+                self.assertEqual(rg.main(["long"]), 2)
+                self.assertIsNone(rg.ledger_items(gone, True))
+
     def test_report_needs_ok_for_every_done_check(self):  # a warn-level research check missed in the film = not used
         items = [item("L8", "done", "check:long.list_said"), item("L16", "done", "check:long.web_marked check:long.read_along"),
                  item("L1", "done", "check:out.chapters"), item("S4", "done", "check:short.hook_echo", "Shorts")]

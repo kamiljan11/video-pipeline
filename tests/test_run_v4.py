@@ -66,8 +66,8 @@ class RunV4GateTest(unittest.TestCase):
             (vp / venv / "bin" / "python").symlink_to(shutil.which("python3") or "/usr/bin/python3")
         (vp / "render").mkdir()
         src = (ROOT / "run_v4.sh").read_text()
-        self.assertIn("VP=/home/kamil-jan/video-pipeline;", src)
-        (vp / "run_v4.sh").write_text(src.replace("VP=/home/kamil-jan/video-pipeline;", f"VP={vp};"))
+        self.assertNotIn("/home/kamil-jan", src)  # VP is the directory the script is in, so the copy runs on vp
+        (vp / "run_v4.sh").write_text(src)
         self.vp, self.work, self.out = vp, self.tmp / "work", self.tmp / "out"
         self.work.mkdir()
         self.out.mkdir()

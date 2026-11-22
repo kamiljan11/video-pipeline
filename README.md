@@ -113,17 +113,29 @@ One long = one dry run + one full render, on code that does not change in betwee
 
 ## Quick start (Ubuntu)
 
-The scripts expect the checkout at `/home/kamil-jan/video-pipeline` (the author's machine; the path is written into
-`run_v4.sh`, `assemble.py`, `face_track.py`, `gfx/*.mjs` and others). Elsewhere, symlink that path to your checkout, as
-CI does, or replace it (`grep -rl /home/kamil-jan`). Chrome is expected at `/usr/bin/google-chrome`. Linux only.
+Linux x86_64 only (developed on Ubuntu 26.04, CI on 24.04). Clone it anywhere whose path has no spaces: every script finds
+the checkout from its own location. Chrome is expected at `/usr/bin/google-chrome` (where Google's `.deb` puts it).
+Nothing below needs your accounts; publishing to LinkedIn or YouTube is a separate, opt-in step.
 
 ```bash
-sudo apt install ffmpeg poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol   # ffmpeg 8+ (24.04 apt has 6.1); tesseract: post_check OCR; + Node 24, Google Chrome
+sudo apt install git curl xz-utils cmake build-essential poppler-utils python3.12-venv tesseract-ocr tesseract-ocr-pol fonts-dejavu-core fonts-dejavu-extra   # + Node 24 (nodejs.org), Google Chrome
+git clone https://github.com/kamiljan11/video-pipeline && cd video-pipeline
+bash install/ffmpeg.sh                  # ffmpeg 8 into ~/.local/bin, sha256-checked (Ubuntu 24.04 apt has 6.1, too old)
+export PATH="$HOME/.local/bin:$PATH"    # this shell; new logins add ~/.local/bin by themselves (~/.profile) once it exists
+mkdir -p ~/.local/share/fonts && cp fonts/Montserrat-VF.ttf ~/.local/share/fonts/ && fc-cache -f   # captions find the font by name
 npm ci
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
-# whisper.cpp + model, YuNet face model, optional matting model: see "Postawienie od zera" below
+# whisper.cpp: build it in ./whisper.cpp ("Postawienie od zera", step 4)
+bash install/fetch_models.sh            # whisper model, YuNet, face landmarker into models/, each sha256-checked
+bash install/check.sh                   # one line per requirement: ok or MISSING with the fix
 bash run_v4.sh <project>/work <project>/out long short1
 ```
+
+A git worktree is a checkout of its own: give it `node_modules` (`npm ci`, or `ln -s <main checkout>/node_modules`), and
+`.venv` and `models/` the same way, before it renders.
+
+In Docker, Chrome needs `--security-opt seccomp=unconfined` (its sandbox stays on: the web cards load pages from the
+internet) and `--shm-size=2g`; run as a normal user, not root. `install/check.sh` says which one is missing.
 
 A project directory holds the recording, `words.json` (transcript), `plan_<film>.json` and `gfx_specs.json`; renders
 and caches go to `render/` (ignored by git). Recordings, transcripts and renders are never committed.
@@ -142,8 +154,9 @@ and measured by hand (`/usr/bin/time -v ffmpeg ...`). Why the card inputs carry 
 
 ## Install with Claude Code
 
-The pipeline is a Linux tool (developed on Ubuntu 26.04). Nobody has installed it on another machine yet, so expect a
-few fixes. The quickest route is to let an AI coding agent do the setup on your machine: open
+The pipeline is a Linux tool (developed on Ubuntu 26.04). The "Quick start" steps were run on a clean Ubuntu 24.04
+(Docker, a user without the author's files, 2026-11-17): `install/check.sh` said "ready", 181 JS and 886 Python tests passed.
+No full film was rendered there, so a first real render may still need a fix. The quickest route is to let an AI coding agent do the setup on your machine: open
 [Claude Code](https://claude.com/claude-code) in an empty directory and paste the prompt below. On Windows, run it
 inside WSL2 (Ubuntu); native Windows is not supported.
 
@@ -153,13 +166,12 @@ from where you clone it.
 
 1. Read README.md first: "Quick start", "Postawienie od zera (Ubuntu)" (Polish, the full setup) and the table of
    scripts. requirements.txt and package-lock.json pin the versions; install exactly those.
-2. The scripts contain the author's path /home/kamil-jan/video-pipeline (find them with
-   `grep -rl /home/kamil-jan --include=*.py --include=*.sh --include=*.mjs .`). Replace it with this checkout's path,
-   or create that path as a symlink if I agree to it. Chrome is expected at /usr/bin/google-chrome.
-3. Install the system packages: ffmpeg 8 or newer (Ubuntu 24.04 apt has 6.1, too old; CI uses a static 8.x build),
-   poppler-utils, Python 3.12 venv, Node 24, Google Chrome, ruff (`pipx install ruff==0.16.10`, the version CI uses). Then whisper.cpp at
-   the commit named in the README with the large-v3-q5_0 model, and the YuNet face model. Show me each command that
-   needs sudo before running it.
+2. Clone it to a path without spaces; the scripts find the checkout themselves, do not edit paths in them.
+   Chrome is expected at /usr/bin/google-chrome.
+3. Follow "Quick start" in order: apt packages, Node 24, Google Chrome, `bash install/ffmpeg.sh` (ffmpeg 8 into
+   ~/.local/bin; Ubuntu 24.04 apt has 6.1, too old), the font, `npm ci`, `.venv`, whisper.cpp at the commit named in
+   "Postawienie od zera", `bash install/fetch_models.sh`, ruff (`pipx install ruff==0.16.10`, the version CI uses).
+   Show me each command that needs sudo before running it. `bash install/check.sh` must end with "ready".
 4. Run the tests (`npm test`, `.venv/bin/python -m unittest discover -s tests`, `ruff check .`) and fix only what
    blocks them on this machine. Tell me what you changed.
 5. B-roll needs a free Pexels API key in the environment variable `PEXELS_API_KEY` (`stock.py`); ask me for it, never
@@ -230,24 +242,26 @@ Cache kart (`gfx/render.mjs`): klucz `<id>.mov.key` = motyw + specyfikacja karty
 zmianie specu karta renderuje się sama, nie trzeba kasować `.mov`. Projekty sprzed 2026-11-04 nie mają `.key`, więc przy
 pierwszym renderze po tej zmianie wszystkie ich karty renderują się raz od nowa (dłuższy render, ten sam wygląd).
 
-Jednorazowe skrypty projektu 2026-10-20 (sztywne ścieżki, nie do nowych projektów): `render_v3.sh`, `render_all.sh`,
-`check_long.sh`, `final_check.sh`. Pomocnicze: `run_whisper.sh` (whisper.cpp bez dzielenia), `spot_check.py`, `verify_cut.py`,
+Jednorazowe skrypty projektu 2026-10-20 (`render_v3.sh`, `render_all.sh`, `check_long.sh`, `final_check.sh`) usunięte
+2026-11-17: miały na sztywno katalog filmu autora; są w historii gita. Pomocnicze: `run_whisper.sh` (whisper.cpp bez dzielenia), `spot_check.py`, `verify_cut.py`,
 `lines.py`, `to_otio.py` (eksport long do Kdenlive, woła go `run_v4.sh`), `stop_render.py`, `pdl.sh` (pobieranie równoległe),
 `music/gen_music.py`. `PANEL_SPEC.md` / `PROMPT_PANEL.md` = historyczna specyfikacja panelu (aktualna: `panel/README.md`).
 
 ## Postawienie od zera (Ubuntu)
-Ścieżka `/home/kamil-jan` jest wpisana w wielu skryptach (m.in. `run_v4.sh`, `assemble.py`, `face_track.py`, `head_check.py`,
-`chunked_whisper.py`, `gfx/*.mjs`): na innym koncie/komputerze najpierw znajdź wszystkie (`grep -rl /home/kamil-jan --include=*.py
---include=*.sh --include=*.mjs . | grep -v -e node_modules -e whisper.cpp -e panel/`).
-1. System: `ffmpeg` 8 lub nowszy (apt w Ubuntu 24.04 ma 6.1), `python3` (systemowy: build_edl, critic, assemble, beats, beatfx, broll, stock), Node 24, Google Chrome w
+Skrypty znajdują katalog repo same (od 2026-11-17 bez ścieżki autora w kodzie): klonuj gdziekolwiek, byle bez spacji w ścieżce.
+`bash install/check.sh` pokazuje, czego brakuje.
+1. System: `ffmpeg` 8 lub nowszy (apt w Ubuntu 24.04 ma 6.1; `bash install/ffmpeg.sh` = build 8.x do `~/.local/bin`, sha256 sprawdzane), `python3` (systemowy: build_edl, critic, assemble, beats, beatfx, broll, stock), Node 24, Google Chrome w
    `/usr/bin/google-chrome` (plansze renderuje `playwright-core` na tym Chrome), `poppler-utils` (karty `web` z PDF). `.venv`: face_track, head_check, make_beds, to_otio.
 2. `npm ci` (playwright-core, lucide-static, gsap z `package-lock.json`; gsap tylko dla kart `count`).
 3. `python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt` (wersje przypięte, stan 2026-10-21).
-4. whisper.cpp: `git clone https://github.com/ggml-org/whisper.cpp && cmake -B whisper.cpp/build -S whisper.cpp &&
-   git -C whisper.cpp checkout 231638a && cmake --build whisper.cpp/build -j` (231638a = wersja używana od 2026-10); model: `whisper.cpp/models/download-ggml-model.sh large-v3-q5_0`, plik do
-   `models/ggml-large-v3-q5_0.bin`.
-5. `models/face_detection_yunet_2023mar.onnx`: detektor twarzy YuNet z https://github.com/opencv/opencv_zoo
-   (`models/face_detection_yunet/`, plik przez Git LFS); sha256 lokalnej kopii zaczyna się od `8f2383e4dd3cfbb4`.
+4. whisper.cpp (w katalogu repo): `git clone https://github.com/ggml-org/whisper.cpp && git -C whisper.cpp checkout 231638a &&
+   cmake -B whisper.cpp/build -S whisper.cpp && cmake --build whisper.cpp/build -j` (231638a = wersja używana od 2026-10; potrzebne
+   `cmake` i `build-essential`).
+5. Modele: `bash install/fetch_models.sh` pobiera do `models/` model whispera `ggml-large-v3-q5_0.bin` (Hugging Face
+   ggerganov/whisper.cpp), detektor twarzy YuNet (opencv_zoo) i MediaPipe Face Landmarker; każdy plik zostaje tylko z sha256
+   z `install/models.sha256` (sumy publikowane przez wydawców).
+   Font kart i napisów: `fonts/Montserrat-VF.ttf` (Montserrat z google/fonts, licencja SIL OFL 1.1, `fonts/OFL.txt`); napisy
+   (libass) szukają go po nazwie, więc skopiuj go do `~/.local/share/fonts` (Quick start).
 6. B-roll: klucz API Pexels w zmiennej `PEXELS_API_KEY` (albo `Pexels`; u autora sekret `Pexels` w Infisicalu, most `~/infisical`);
    bez niego reszta pipeline'u działa.
 7. Panel: `panel/` = osobne repo https://github.com/kamiljan11/video-pipeline-panel sklonowane do `panel/` (`panel/README.md`).
@@ -531,7 +545,7 @@ np. `brand/…png`, logo jasne pod ciemne `--end-bg`), `"logo_sub"` = linia pod 
 z pustym obrazkiem; render czeka na wczytanie obrazów każdej karty, także `web`). Stempel `.mov` karty z logo = spec + bajty pliku
 logo: nowe logo pod tą samą nazwą albo zmiana `logo`/`logo_sub` renderuje planszę od nowa sama. Test: `gfx/test/end.test.mjs`.
 ```json
-{"id": "g19_end", "type": "end", "text": "Dzięki za obejrzenie", "sub": "KamilJan.com", "logo": "brand/cetus-automation-light-x4.png", "logo_sub": "automation.cetuspro.com", "dur": 10.7}
+{"id": "g19_end", "type": "end", "text": "Dzięki za obejrzenie", "sub": "KamilJan.com", "logo": "brand/logo.png", "logo_sub": "example.com", "dur": 10.7}
 ```
 
 ## Hak shorta w pigułce i napisy w boxie (styl shortów, `render/montaz/2026-10-22/STYL-SHORTOW.md` R1–R3)

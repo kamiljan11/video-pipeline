@@ -11,7 +11,7 @@ from pathlib import Path
 from cpu_budget import heavy_threads, low_priority
 
 exp_txt, video = sys.argv[1], sys.argv[2]
-W = "/home/kamil-jan/video-pipeline"
+W = str(Path(__file__).resolve().parent)  # whisper.cpp/ and models/ live in the checkout
 tmp = tempfile.mkdtemp()
 wav = os.path.join(tmp, "a.wav")
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", video, "-ac", "1", "-ar", "16000", wav], check=True)

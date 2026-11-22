@@ -91,7 +91,7 @@ Priorytet 1 = największy wpływ na retencję przy małym koszcie, 3 = dopieszcz
 | tempo 203 słów/min, przerwy do 0,32 s | cały film | **tak**: `pads` (`mingap` 0,45, `keep_l` + `keep_r` = 0,27 s) | **P1 decyzja**: pozwolić na `pads: {"mingap": 0.35, "keep_l": 0.14, "keep_r": 0.12}` w shortach i dopisać w `ZASADY` wyjątek („oddech tylko po zdaniu kończącym wątek”). Zmierzyć: słowa/min i maks. przerwa po montażu (`verify_cut.py`), nie obcinać głosek |
 | napisy w boxie półprzezroczystym (ciemny, zaokrąglony) | cały film | **częściowo**: `caption_box` (nieprzezroczysty `--ink`, ASS) | **P3**: box jako PNG/karta zamiast ASS BorderStyle 3 (README: libass rysuje box osobno dla każdego koloru). Koszt wyższy niż zysk, najpierw `caption_box` w ciemnym `--ink` |
 | 60 fps | cały film | **nie** (`FPS = 30`, `assemble.py fps=30`), plan z `REF-shorts-breakingbreach.md` | **P3**: źródło Zacka 60 fps, nasza kamera 30; płynność tylko kart. Nie zmieniać przed zmianą kamery |
-| głośność -12,4 LUFS | cały film | u nas -14 (`final_check.sh`) | nic: YouTube ścisza do ok. -14, więcej nie daje retencji |
+| głośność -12,4 LUFS | cały film | u nas -14 (`critic.py` C7) | nic: YouTube ścisza do ok. -14, więcej nie daje retencji |
 | SFX, muzyka | cały film | `music_duck`, `CARD_WHOOSH`, `sfx_style v2` | brak dowodu, że wzorzec je ma [NIEPEWNE]; nie zmieniać do czasu odsłuchu |
 
 ## Kolejność wdrożenia (propozycja)

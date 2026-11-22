@@ -61,7 +61,7 @@ test('the proxy tunnels only to checked addresses', async () => {
 
 const CHROME = '/usr/bin/google-chrome';
 test('Chrome: a redirect or script to a local service never connects (the proxy checks every hop)', { skip: !fs.existsSync(CHROME) && 'no Chrome' }, async () => {
-  const { chromium } = await import('/home/kamil-jan/video-pipeline/node_modules/playwright-core/index.mjs');
+  const { chromium } = await import('playwright-core');
   const hits = [];
   const local = http.createServer((q, r) => { hits.push(q.url); r.end('<p>SECRET local service</p>'); });
   const lport = await listen(local, '127.0.0.2');
