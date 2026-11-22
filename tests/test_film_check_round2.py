@@ -456,6 +456,51 @@ class SceneNotesTest(FilmFixture):  # Kamil 2026-11-15 notes 45, 46, 53
         self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": joined}]).scene_detail()[0])
         self.assertIn("4 pieces in 20 s", self.film([{"id": "s", "at": 0, "dur": 20}], [{"id": "s", "type": "scene", "els": joined}]).scene_detail()[1])
 
+    def test_a_scene_changes_on_the_word(self):  # style/REF-shorts-arjay.md 2026-11-16
+        still = [{"k": "table", "id": "t", "at": 0.5}, {"k": "chip", "id": "c", "at": 1.0}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 8}], [{"id": "s", "type": "scene", "els": still, "dur": 8}]).scene_beat()
+        self.assertFalse(ok); self.assertIn("s still 7.0 s from 1.0 s", detail)
+        live = [{"k": "table", "id": "t", "at": 0.5, "state": [[3.0, 0, "hl"]], "set_cell": [[5.2, 0, 1, "6"]]},
+                {"k": "chip", "id": "c", "at": 1.0, "set": [[7.0, "b"]]}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 8}], [{"id": "s", "type": "scene", "els": live, "dur": 8}]).scene_beat()[0])
+        words = [{"k": "say", "words": [["a", 0.2], ["b", 2.5], ["c", 4.8], ["d", 7.1]]}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": words, "dur": 9}]).scene_beat()[0])
+        rows = [{"k": "win", "at": 0, "rows": [{"t": "a", "mark_at": 2.4}, {"t": "b", "hl_at": 4.8}]}, {"k": "chat", "at": 0, "msgs": [{"t": "x", "at": 7.2}]}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": rows, "dur": 9}]).scene_beat()[0])
+
+    def test_a_scene_shows_real_rows(self):
+        grey = [{"k": "win", "rows": ["~80", "~55", "real"]}, {"k": "chat", "msgs": [{"t": "~70"}]}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": grey}]).scene_concrete()
+        self.assertFalse(ok); self.assertIn("s 3/4 placeholder rows", detail)
+        default_rows = [{"k": "file", "name": "a.py"}]  # no rows = three grey lines
+        self.assertFalse(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": default_rows}]).scene_concrete()[0])
+        real = [{"k": "win", "rows": ["git push", {"t": "~60"}, "ok", "done"]}, {"k": "table"}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": real}]).scene_concrete()[0])
+        none = self.film([{"id": "k", "at": 0, "dur": 4}], [{"id": "k", "type": "kw", "text": "a"}])  # no scene: say it measured nothing
+        self.assertIn("nothing to measure", none.scene_beat()[1]); self.assertIn("nothing to measure", none.scene_concrete()[1])
+
+    def test_a_scene_draws_the_thought(self):  # Kamil 2026-11-16: "on bardziej wizualizuje wiecej rzeczy a my tylko napisy"
+        words = [{"k": "chip", "text": "a"}, {"k": "text", "t": "b"}, {"k": "big", "t": "5"}, {"k": "table"}, {"k": "line"}, {"k": "tag"}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": words}]).scene_visual()
+        self.assertFalse(ok); self.assertIn("s 3/4 pieces only write", detail)  # line and tag sit on another piece: not counted
+        drawn = [{"k": "flow"}, {"k": "grid"}, {"k": "big", "t": "2 z 48"}, {"k": "tag"}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 9}], [{"id": "s", "type": "scene", "els": drawn}]).scene_visual()[0])
+        none = self.film([{"id": "k", "at": 0, "dur": 4}], [{"id": "k", "type": "kw", "text": "a"}])
+        self.assertIn("nothing to measure", none.scene_visual()[1])
+
+    def test_round_2_pieces_change_on_the_word(self):  # a step lit, a dot run, tiles filled, a field set count as changes
+        live = [{"k": "flow", "at": 0.2, "steps": [{"text": "a"}, {"text": "b", "at": 2.4}], "lit": [[4.6, 1]]},
+                {"k": "form", "at": 0.3, "fields": [{"label": "v", "value": "5", "set": [[6.8, "6"]]}], "note": {"text": "ok", "at": 8.9}}]
+        ok, detail = self.film([{"id": "s", "at": 0, "dur": 10}], [{"id": "s", "type": "scene", "els": live, "dur": 10}]).scene_beat()
+        self.assertTrue(ok, detail)
+        tl = [{"k": "timeline", "at": 0.2, "lanes": [{"label": "a", "segs": [{"from": 0, "to": 1, "at": 2.5}]}], "head": [[4.8, 0.5]]},
+              {"k": "quiz", "at": 0.1, "opts": ["a", "b"], "pick": [[7.0, 0]], "reveal": {"at": 9.2, "right": 1}}]
+        self.assertTrue(self.film([{"id": "s", "at": 0, "dur": 11}], [{"id": "s", "type": "scene", "els": tl, "dur": 11}]).scene_beat()[0])
+
+    def test_a_scene_without_length_is_named(self):  # pg-review ops-1: dur 0 must not pass as "changes on the word"
+        ok, detail = self.film([{"id": "s", "at": 0}], [{"id": "s", "type": "scene", "els": [{"k": "chip", "at": 0}]}]).scene_beat()
+        self.assertFalse(ok); self.assertIn("s has no length", detail)
+
     def test_one_subscribe_card_in_the_middle(self):
         sub = [{"id": "c", "type": "cta", "text": "Subskrybuj"}, {"id": "l", "type": "cta", "text": "Higher Mind za darmo"}]
         self.assertTrue(self.film([{"id": "c", "at": 120, "dur": 5}, {"id": "l", "at": 30, "dur": 5}], sub).subscribe_mid()[0])  # 300 s film

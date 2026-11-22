@@ -425,6 +425,38 @@ elementami). U nas to samo, ale z twarzą: karta wypełnia ekran, a `assemble.py
     krok `read_along`; S14), `read_along`, `items` ([wejście, wyjście] pozycji w kolejności `item`). W planie wpis `gfx` może
     podać słowa wskazówek: `"read_along": [indeks słowa, …]`, `"items": [indeks liczebnika, …]`; `build_edl.py` odrzuca kartę,
     której wskazówka jest dalej niż -0,15..+0,3 s od słowa, i podaje czas karty, który wpisać.
+- **Objaśnienie jak u arjay (`style/REF-shorts-arjay.md`, 2026-11-16; scena bez tych kluczy rysuje się bajt w bajt jak dotąd):**
+  - `"look": "paper"` na scenie: ciepła biel, białe karty, czarny tusz; ton `lime` = zakreślacz. Terminal zostaje ciemny.
+  - `"cam": "grow"` na scenie (`grow_zmax`, domyślnie 1,5): kamera kadruje tylko to, co już weszło i nie zniknęło; pierwszy element
+    wypełnia pole, kadr poszerza się przy każdym wejściu (wejścia bliżej niż 0,6 s = jeden przystanek), ruch kończy się, gdy element
+    ląduje. Nie z `canvas_zoom` ani `layout: "side"` (`screen_grammar` nie przenosi takiej sceny obok Kamila).
+  - `table`: `title`, `icon` (domyślnie `database`), `cols`, `rows` (prawdziwe wiersze), `step`; `state: [[s, wiersz, "bad"|"ok"|"hl"|"off"]]`
+    zapala wiersz (off = gasi), `set_cell: [[s, wiersz, kolumna, "nowa wartość"]]`. Wiersz jako kotwica: `"<id>.<n>"`.
+  - `code`: `lines`, `lang` (`sql`, `js`, `py`, `sh`, `txt`), `title`, `cps` (znaki/s, 40), `type: false` = linie bez pisania;
+    `mark: [[s, linia, "fraza z tej linii"]]` = limonkowy marker pod frazą, gdy ją mówisz.
+  - `big`: `t` (liczba albo słowo jako tekst), `sub` (podpis), `size` (220), `tone`.
+  - `tag`: `text`, `tone`, `to` = punkt `[x, y]` albo id (też wiersz `"tests.1"`): etykieta z linią prowadzącą do krawędzi pudełka.
+  - `set: [[s, "nowa wartość"], …]` na `chip`, `text`, `big`, `stat` (bez `count`): stara wartość odchodzi, nowa wpada z błyskiem.
+  - **Short to osobny układ, nie long w pionie:** kolumna szer. <= ~940 px świata, 1–3 elementy naraz, poprzednie z `gone`, gdy
+    wchodzi nowy wątek; `scene_check` mierzy tekst na telefonie (>= 30 px w 9:16) i nazwie za mały.
+  - Bramki (`style/checklist.json`, na razie `warn`): `scene_beat` = coś się zmienia co <= 2,5 s (wejście, wyjście, `set`, `state`,
+    `mark`, słowo, wiersz); `scene_concrete` = najwyżej 1/3 wierszy i dymków to szare `~`.
+- **Gramatyka obrazu: myśl narysowana, nie napisana (`style/REF-shorts-arjay.md` › Gramatyka obrazu, runda 2, 2026-11-16):**
+  - `flow`: `steps` (2–8 `{text, icon, sub, at, tone}`), `dir` (`row` | `col`), `num: false` bez numerów, `step` (0,5 s);
+    `lit: [[s, krok]]` zapala krok, `packet: [[s, krok]]` = kropka jedzie z kroku do następnego, `fail: [[s, krok]]` = strzałka do
+    kroku pęka (czerwona przerywana + X). Proces, przyczyna, awaria.
+  - `grid`: `n` (1–400 kafli, 1 kafel = 1 rzecz), `cols`, `cell` (40 px), `title`; `show: [[s, ile]]` = kafle dochodzą (mnożenie
+    16 x 8 x 4 x 3 -> 144), `fill: [[s, ile, ton]]` = kolejne kafle w kolorze. Ilość, udział.
+  - `bars`: `items` (1–8 `{label, v: 0..1, text, at, tone}`), z `b: 0..1` dwie kropki na torze „przed -> po”; `lit: [[s, wiersz]]`. Porównanie.
+  - `timeline`: `ticks` (momenty na górze), `lanes` (1–4 `{label, segs: [{from, to, text, tone, at}]}`), `head: [[s, 0..1]]` = linia
+    „teraz” jedzie (>= 0,6 s między krokami), `w` (< 1400 = nazwy torów nad torem, do shorta). Czas, ile coś trwa.
+  - `quiz`: `q`, `opts` (2–6), `pick: [[s, opcja]]` = to, co wybierają ludzie, `reveal: {at, right, pct}` = dobra na zielono, reszta
+    przygasa. Wybór, decyzja.
+  - `form`: `title`, `icon`, `fields` (`{label, value, set: [[s, "nowa"]]}`), `button: {text, press_at, tone}`, `note: {text, at,
+    tone, icon}`. Rzecz tak, jak widzi ją użytkownik (karta produktu, PR).
+  - Przekreślenie dowolnego elementu: `strike_at` (było); wiersz każdego z nich jest kotwicą `"<id>.<n>"` dla `tag`.
+  - Bramka `scene_visual` (warn): najwyżej połowa własnych elementów sceny tylko pisze (`chip`, `text`, `say`, `big`, `stat`, `steps`;
+    `line`, `tag`, `ring`, `stamp`, `check`, `cursor` się nie liczą).
 - **Tło sceny `bg`:** brak = siatka kropek, `"dots"` to samo jawnie, `"blobs"` = trzy rozmyte plamy w kolorach motywu.
 - **Nowy rodzaj elementu:** wpis w `PIECES` (`gfx/scene_lib.mjs`: funkcja `(e, {esc, icon, at, tn})` → `{inner, style}` albo
   `{html}`, gdy element rysuje własne pudełko jak `line`), nazwa w `KINDS`, jego klucze w `checkScene`, opis tutaj, test w

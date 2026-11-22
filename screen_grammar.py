@@ -73,7 +73,7 @@ def read_floor(sp: dict) -> float:
     return max([0.0] + [piece_start(e) + piece_need(e) for e in sp.get("els") or [] if not isinstance(e.get("gone"), (int, float))])
 
 
-TIED = ("line", "cursor", "ring", "stamp", "check")  # scene_lib.mjs TIED: pieces placed on another piece, not stackable in a column
+TIED = ("line", "cursor", "ring", "stamp", "check", "tag")  # scene_lib.mjs TIED: pieces placed on another piece, not stackable in a column
 SHIFTABLE = ("kw", "count", "sticker", "float")  # cards whose inner timing is only a top-level "at" list (or none)
 # RECAP: id prefix of a recap map (plan builders name them m1_mapa, m2_…), dropped when it has no room to be read
 
@@ -97,7 +97,7 @@ def goes_beside(sp: dict) -> bool:
     if sp.get("canvas") == "v": return False
     if sp["type"] == "meme": return has_sticker(str(sp.get("meme")))  # no crops: the meme stays a whole picture
     return (sp["type"] == "scene" and len(sp.get("els") or []) <= SIDE_MAX_ELS and sp.get("pip") is not False
-            and sp.get("cam") != "none"  # scene_lib.checkScene refuses layout "side" with cam "none"
+            and sp.get("cam") not in ("none", "grow")  # scene_lib.checkScene refuses layout "side" with cam "none" or "grow"
             and not any(e.get("k") in TIED for e in sp.get("els") or []))  # stacked into a column beside him (scene_lib col)
 
 

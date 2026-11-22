@@ -3351,6 +3351,491 @@
     "short": "menu"
    },
    "why": "scene piece colours (scene_lib TONES)"
+  },
+  {
+   "id": "opt.cam.idx",
+   "kind": "opt",
+   "name": "cam.idx",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "internal: the stops of cam 'grow' name the pieces on screen by index (frameStops.grow), never written in a spec"
+  },
+  {
+   "id": "opt.grow_zmax",
+   "kind": "opt",
+   "name": "grow_zmax",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "opt.look",
+   "kind": "opt",
+   "name": "look",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md 2026-11-16: 'paper' = the light explainer page"
+  },
+  {
+   "id": "pfx.button",
+   "kind": "pfx",
+   "name": "button",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.cell",
+   "kind": "pfx",
+   "name": "cell",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.cols",
+   "kind": "pfx",
+   "name": "cols",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.cps",
+   "kind": "pfx",
+   "name": "cps",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.dir",
+   "kind": "pfx",
+   "name": "dir",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.fail",
+   "kind": "pfx",
+   "name": "fail",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.fields",
+   "kind": "pfx",
+   "name": "fields",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.fill",
+   "kind": "pfx",
+   "name": "fill",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.items",
+   "kind": "pfx",
+   "name": "items",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.lanes",
+   "kind": "pfx",
+   "name": "lanes",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.lang",
+   "kind": "pfx",
+   "name": "lang",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.lines",
+   "kind": "pfx",
+   "name": "lines",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.lit",
+   "kind": "pfx",
+   "name": "lit",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.mark",
+   "kind": "pfx",
+   "name": "mark",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.n",
+   "kind": "pfx",
+   "name": "n",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.note",
+   "kind": "pfx",
+   "name": "note",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.num",
+   "kind": "pfx",
+   "name": "num",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.opts",
+   "kind": "pfx",
+   "name": "opts",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.pick",
+   "kind": "pfx",
+   "name": "pick",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.q",
+   "kind": "pfx",
+   "name": "q",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.reveal",
+   "kind": "pfx",
+   "name": "reveal",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.set",
+   "kind": "pfx",
+   "name": "set",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_beat",
+    "short": "short.scene_beat"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md 2026-11-16: a value changes in the same piece on the word; counted by scene_beat"
+  },
+  {
+   "id": "pfx.set_cell",
+   "kind": "pfx",
+   "name": "set_cell",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.show",
+   "kind": "pfx",
+   "name": "show",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.state",
+   "kind": "pfx",
+   "name": "state",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.ticks",
+   "kind": "pfx",
+   "name": "ticks",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.type",
+   "kind": "pfx",
+   "name": "type",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "pfx.type_at",
+   "kind": "pfx",
+   "name": "type_at",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_lib.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   }
+  },
+  {
+   "id": "piece.bars",
+   "kind": "piece",
+   "name": "bars",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_visual",
+    "short": "short.scene_visual"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md › Gramatyka obrazu 2026-11-16: the thought drawn (process, quantity, comparison, time, choice, state), not written"
+  },
+  {
+   "id": "piece.big",
+   "kind": "piece",
+   "name": "big",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md 2026-11-16: explainer piece (real rows, typed code, big number, callout tag)"
+  },
+  {
+   "id": "piece.code",
+   "kind": "piece",
+   "name": "code",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md 2026-11-16: explainer piece (real rows, typed code, big number, callout tag)"
+  },
+  {
+   "id": "piece.flow",
+   "kind": "piece",
+   "name": "flow",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_visual",
+    "short": "short.scene_visual"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md › Gramatyka obrazu 2026-11-16: the thought drawn (process, quantity, comparison, time, choice, state), not written"
+  },
+  {
+   "id": "piece.form",
+   "kind": "piece",
+   "name": "form",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_visual",
+    "short": "short.scene_visual"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md › Gramatyka obrazu 2026-11-16: the thought drawn (process, quantity, comparison, time, choice, state), not written"
+  },
+  {
+   "id": "piece.grid",
+   "kind": "piece",
+   "name": "grid",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_visual",
+    "short": "short.scene_visual"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md › Gramatyka obrazu 2026-11-16: the thought drawn (process, quantity, comparison, time, choice, state), not written"
+  },
+  {
+   "id": "piece.quiz",
+   "kind": "piece",
+   "name": "quiz",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_visual",
+    "short": "short.scene_visual"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md › Gramatyka obrazu 2026-11-16: the thought drawn (process, quantity, comparison, time, choice, state), not written"
+  },
+  {
+   "id": "piece.table",
+   "kind": "piece",
+   "name": "table",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md 2026-11-16: explainer piece (real rows, typed code, big number, callout tag)"
+  },
+  {
+   "id": "piece.tag",
+   "kind": "piece",
+   "name": "tag",
+   "owner": "motion-designer",
+   "check": "gate:gfx/scene_check.mjs",
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md 2026-11-16: explainer piece (real rows, typed code, big number, callout tag)"
+  },
+  {
+   "id": "piece.timeline",
+   "kind": "piece",
+   "name": "timeline",
+   "owner": "motion-designer",
+   "check": {
+    "long": "long.scene_visual",
+    "short": "short.scene_visual"
+   },
+   "use": {
+    "long": "report",
+    "short": "report"
+   },
+   "why": "style/REF-shorts-arjay.md › Gramatyka obrazu 2026-11-16: the thought drawn (process, quantity, comparison, time, choice, state), not written"
   }
  ]
 }
