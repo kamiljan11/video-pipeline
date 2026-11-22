@@ -114,3 +114,5 @@ Pełny słownik planu i EDL: repo panelu, `docs/GLOSSARY.md`. Tu terminy z monta
 - **scene_beat / scene_concrete** — bramki (warn): scena zmienia coś co <= 2,5 s; najwyżej 1/3 wierszy to szare `~`.
 - **gramatyka obrazu** — reguła „rodzaj myśli -> rysunek”: proces = `flow`, ilość = `grid`, porównanie = `bars`, czas = `timeline`, wybór = `quiz`, rzecz/stan = `form` (style/REF-shorts-arjay.md).
 - **scene_visual** — bramka (warn): najwyżej połowa własnych elementów sceny tylko pisze (`chip`, `text`, `say`, `big`, `stat`, `steps`).
+| `word_punches` | EDL trybu podcast: `[{t, amt, speed}]` = czasy filmu najazdów na słowa z `emph`; `podcast.py` kładzie je na kawałkach (`build_edl` nie zmienia zoomu segmentów) |
+| `punch_off` | EDL trybu podcast: `[[od, do], ...]` okna kart nad twarzą (`SIDE_BOX`, nie `beside`), pod którymi nie ma najazdu; raport `podcast.py`: `punches`, `punch_under_card` (pominięte), `stack_under_card` |

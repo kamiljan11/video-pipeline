@@ -49,6 +49,8 @@ pokazuje ≤ 10 % słów bez pewnego mówcy (`?`) i ≤ 3 uwagi Kamila „zła o
 - Wycinek `single_zoom` 1,8 z 4K do 2560x1440 to powiększenie ~1,33x (3840/1,8 = 2133 px szerokości): lekka utrata ostrości.
 - 4K: `assemble.py` liczył kadr dla 2560x1440, gdy EDL nie miał `src_w`/`src_h`; `podcast.py` wpisuje prawdziwy rozmiar.
 
+**Uzupełnienie 2026-11-22 (najazdy na słowa, NOTES_LOG #62):** w trybie podcast `build_edl.py` nie kładzie `emph` na segmenty (segment po `podcast.py` dzieli się na kawałki z różnymi ujęciami, a zoom trzymany do końca 10-minutowego segmentu wchodziłby pod każdą późniejszą kartę). Zapisuje kontrakt EDL: `word_punches` (czasy filmu) i `punch_off` (okna kart nad twarzą). `podcast.py` kładzie najazd na kawałek, pomija go pod kartą (`punch_under_card` w raporcie) i wraca do poziomu ujęcia przy wejściu karty. W 9:16 pod kartą nie ma stacka (ujęcie mówiącego). Stałe `PUNCH_MAX` (= limit `build_edl`) i `PUNCH_S` (granica najazd/dryf) zostają w kodzie, bo to kontrakt z `build_edl`, nie gust montażu.
+
 **Nie robimy teraz (puste sloty):** kolor napisów wg mówcy i podpisy z imionami (klucz `podcast.speakers` jest przepuszczany
 przez `podcast_shots.load_cfg`, nic go jeszcze nie czyta), wybór klipów do shortów z parą pytanie-odpowiedź w `shorts.py`, backend pyannote, J/L-cięcia dźwięku.
 
