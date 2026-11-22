@@ -27,14 +27,15 @@ for k in range(len(cuts) - 1):
     f = f"{cd}/{k:03d}_{cuts[k]:.3f}.wav"; files.append(f)
     if not os.path.exists(f):
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{cuts[k]:.3f}", "-to", f"{cuts[k+1]:.3f}", "-i", b + ".wav", f], check=True)
-todo = [f for f in files if not os.path.exists(f[:-4] + ".json")]
+todo = [f for f in files if word_times.chunk_json(f) is None]  # resume: a chunk with output is not sent to whisper again
 if todo:
     subprocess.run([f"{W}/whisper.cpp/build/bin/whisper-cli", "-m", f"{W}/models/ggml-large-v3-q5_0.bin", "-l", "pl", "-t", str(heavy_threads()),
                     "-ml", "1", "-sow", "-ojf", "-nfa", "--dtw", "large.v3", "-nf", *todo], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, preexec_fn=low_priority)
 words = []; dtw_n = 0
 for f in files:
-    off = float(os.path.basename(f)[4:-4])
-    for x in json.loads(Path(f + ".json" if os.path.exists(f + ".json") else f[:-4] + ".json").read_text())["transcription"]:
+    off = float(os.path.basename(f)[4:-4]); j = word_times.chunk_json(f)
+    if j is None: sys.exit(f"chunked_whisper: whisper-cli wrote no output for {f} (expected {f}.json)")
+    for x in json.loads(j.read_text())["transcription"]:
         if x["text"].strip():
             # the DTW start of the word (flash attention off, -nfa: with it whisper drops DTW without a word); else whisper's guess
             d = word_times.dtw_start_ms(x)

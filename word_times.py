@@ -34,6 +34,13 @@ def save(words: list[dict], path: str) -> None:
     Path(path).write_text(json.dumps({"transcription": words}, ensure_ascii=False), encoding="utf-8")
 
 
+def chunk_json(wav: str) -> Path | None:
+    """whisper-cli -ojf output of one chunk: it writes <chunk>.wav.json; older runs left <chunk>.json. None = not transcribed yet"""
+    for p in (Path(wav + ".json"), Path(wav[:-4] + ".json")):
+        if p.exists(): return p
+    return None
+
+
 def dtw_start_ms(item: dict, chunk_off_ms: int = 0) -> int | None:
     """start of one whisper word (-ml 1 -sow -ojf) from its first real token's DTW time, in ms; None without DTW"""
     for t in item.get("tokens", []):
