@@ -183,6 +183,7 @@ const EXPLAIN_CHECKS = {
   tag(e, { n, bad }) {
     if (!(typeof e.text === 'string' && e.text)) bad.push(`${n}: "text" = what the tag says`);
     const pt = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
+    // checkScene runs only inside scene(), after resolveAnchors turned a piece id in "to" into [x, y] (anchor_lib place)
     if (e.to !== undefined && !pt(e.to)) bad.push(`${n}: "to" = [x, y] or a piece id (gfx/anchor_lib.mjs places it)`);
   },
   flow(e, { n, bad, sec0, str, evs }) {

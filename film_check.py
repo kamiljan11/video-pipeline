@@ -853,7 +853,7 @@ class Film:
         for e in sp.get("els") or []:
             if not isinstance(e, dict):
                 continue
-            for k in ("at", "gone", "dim", "hl_at", "strike_at", "click_at", "on_at", "back_at", "x_at", "out_start", "cmd_at", "packet_at", "type_at"):
+            for k in ("at", "gone", "dim", "hl_at", "strike_at", "click_at", "on_at", "back_at", "x_at", "out_at", "out_start", "cmd_at", "packet_at", "type_at"):
                 if (v := num(e.get(k))) is not None: ts.append(v)
             pulse = e.get("pulse_at")
             ts += [v for v in map(num, pulse if isinstance(pulse, list) else [pulse]) if v is not None]

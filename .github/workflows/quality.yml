@@ -71,7 +71,10 @@ jobs:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
         run: |
           git diff --quiet "$BASE_SHA" HEAD -- .gitleaksignore && exit 0
-          blob=$(git rev-parse HEAD:.gitleaksignore 2>/dev/null)
+          # a symlink's blob is its target path, not the entries: later edits of the target would keep the label valid
+          mode=$(git ls-tree HEAD -- .gitleaksignore | cut -d' ' -f1)
+          if [ -n "$mode" ] && [ "$mode" != 100644 ]; then echo "::error file=.gitleaksignore::must be a plain file (mode $mode)"; exit 1; fi
+          blob=$(git rev-parse HEAD:.gitleaksignore 2>/dev/null || true)
           want="gl-ok-${blob:-deleted}"
           case " $LABELS " in *" $want "*) echo "reviewed: $want" ;; *)
             echo "::error file=.gitleaksignore::changed in this PR: the owner checks each entry, then adds the label $want (it names this exact content)"
@@ -81,6 +84,7 @@ jobs:
         run: |
           # a committed .gitleaks.toml would let the repo turn rules off or allow-list by path/regex
           test ! -e .gitleaks.toml
+          test ! -L .gitleaksignore  # read through a link, the reviewed blob would not be the entries (ADR-0029)
           # .gitleaksignore only as exact per-commit fingerprints of reviewed false positives (ADR-0029):
           # sha:path:rule:line. A fingerprint without the commit would hide the finding in every commit.
           if [ -e .gitleaksignore ]; then
