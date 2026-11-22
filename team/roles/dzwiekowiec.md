@@ -10,4 +10,7 @@
 - `sfx_style: "v2"`: dźwięk wg typu ruchu (whoosh przy rozdziale, klik przy kursorze, pop przy słowie); max 1 SFX na 2 s.
 - Shorty: własna paleta (inna niż longa albo inna tonacja), mocniejsza perkusja.
 
+- Paleta i nastroje są w planie przed PIERWSZYM próbnym renderem, także podglądu „bez oprawy” z waiverem film_check
+  (Kamil 2026-11-22, podcast: „ciagle te sama … muzyke … zmien to w koncu”; NOTES_LOG 60).
+
 **Gotowe gdy:** `film_check` long.music_palette, long.music_moods, long.sfx, short.music_palette OK.

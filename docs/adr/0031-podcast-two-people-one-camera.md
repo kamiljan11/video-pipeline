@@ -19,7 +19,8 @@ na mówiącego, układ jedna-nad-drugą tylko przy szybkiej wymianie zdań, napi
    nic się nie zmienia (stare plany renderują się jak dotąd).
 2. `face_track.py` przy `podcast` oddaje EDL do `podcast.py`. Ten tnie kawałki EDL w miejscach zmiany ujęcia (na siatce
    klatek: suma klatek bez zmian, `timeline.piece_len`) i wpisuje pola, które `assemble.py` już czyta: `face` + stały `zoom`.
-   Ujęcia 16:9: `wide` (obie osoby), `L` / `R` (wycinek na osobę, `single_zoom`). Ujęcia 9:16: `L` / `R` (pełna wysokość
+   Ujęcia 16:9: `wide` (obie osoby), `L` / `R` (wycinek na osobę, `single_zoom`; 2026-11-22, Kamil: „bardziej się bawić
+   tymi zoomami … delikatnie” -> od `drift_min_s` powolny najazd / odjazd na zmianę, do `single_drift`). Ujęcia 9:16: `L` / `R` (pełna wysokość
    na jedną twarz) i `stack` (L na górze, R na dole; nowa gałąź `assemble.stack_vf`).
 3. Kto mówi: `podcast_faces.py`, ruch ust (różnica klatek w dolnej części ramki twarzy, każda strona dzielona przez swoją
    medianę), YuNet jak w `face_track.py` na klatkach 960x540. Wynik w `podcast_spk.json` (pamięć podręczna), ręczna

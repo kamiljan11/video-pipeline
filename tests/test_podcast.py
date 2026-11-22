@@ -23,6 +23,7 @@ import edl_guard
 import podcast
 import podcast_faces as pf
 import podcast_shots
+import timeline
 
 CFG = podcast_shots.load_cfg()
 FACES = {"0.000-60.000": {"L": [0.20, 0.30, 0.08, 0.15], "R": [0.70, 0.32, 0.08, 0.15]}}
@@ -100,11 +101,40 @@ class Reframe(unittest.TestCase):
         shots = [p["shot"] for p in E["segments"]]
         self.assertEqual(shots, ["wide", "L", "R", "L"])
         first_l = E["segments"][1]
-        self.assertEqual(first_l["zoom"], CFG["single_zoom"]); self.assertNotIn("track", first_l)
+        self.assertEqual(first_l["zoom"]["a"], CFG["single_zoom"]); self.assertNotIn("track", first_l)
         self.assertAlmostEqual(first_l["face"][0], 0.24, places=3)
         wide = E["segments"][0]
         self.assertAlmostEqual(wide["face"][0], 0.49, places=3); self.assertEqual(wide["zoom"], CFG["wide_zoom"])
         self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+
+    def test_single_shots_drift_in_and_out_by_turns(self):  # Kamil 2026-11-22: play with the zooms on the speaker, gently
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E, _, _ = podcast.reframe(edl(), s, w, FACES, CFG)
+        singles = [p for p in E["segments"] if p["shot"] in ("L", "R")]
+        z0 = CFG["single_zoom"]
+        self.assertLess(singles[0]["zoom"]["a"], singles[0]["zoom"]["b"])  # push in
+        self.assertGreater(singles[1]["zoom"]["a"], singles[1]["zoom"]["b"])  # pull out
+        for p in singles:
+            z = p["zoom"]; d = timeline.piece_len(p, False)
+            self.assertEqual(min(z["a"], z["b"]), z0)  # never wider than the still single shot
+            self.assertLessEqual(abs(z["b"] - z["a"]), CFG["single_drift"] + 1e-9)
+            self.assertEqual((z["t0"], z["t1"]), (0.0, round(d, 3)))
+        wide = [p for p in E["segments"] if p["shot"] == "wide"]
+        self.assertTrue(all(p["zoom"] == CFG["wide_zoom"] for p in wide))
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+
+    def test_short_single_stays_still_and_move_grows_with_length(self):
+        c = dict(CFG)
+        self.assertEqual(podcast.single_drift(1.8, c["drift_min_s"] - 0.01, c, 0), 1.8)
+        short = podcast.single_drift(1.8, 3.0, c, 0); long_ = podcast.single_drift(1.8, 60.0, c, 0)
+        assert isinstance(short, dict) and isinstance(long_, dict)
+        self.assertAlmostEqual(short["b"] - short["a"], round(c["drift_per_s"] * 3.0, 3), places=6)
+        self.assertAlmostEqual(long_["b"] - long_["a"], c["single_drift"], places=6)
+
+    def test_vertical_singles_stay_still(self):
+        w, s = words_of([("L", 10), ("R", 10)])
+        E, _, _ = podcast.reframe(edl(vertical=True, segs=((0.0, 20.0),)), s, w, FACES, CFG)
+        self.assertTrue(all(not isinstance(p.get("zoom"), dict) for p in E["segments"]))
 
     def test_split_keeps_the_frame_count(self):
         w, s = words_of([("L", 7.3), ("R", 9.1), ("L", 13.6)])

@@ -3,7 +3,8 @@
 
 face_track.py frames one speaker. Here the EDL's pieces are cut again where the shot changes (podcast_shots.py), and every
 piece gets the fields assemble.py already reads, so the render needs no second code path for a single shot:
-- 16:9 "L" / "R": "face" = that person's face, a static "zoom" (single_zoom): a punch-in from the wide shot (virtual multicam)
+- 16:9 "L" / "R": "face" = that person's face, "zoom" = single_zoom: a punch-in from the wide shot (virtual multicam); from
+  drift_min_s on, a slow push in / pull out by turns on top of it (single_drift, drift_per_s)
 - 16:9 "wide": "face" = between the two faces, "zoom" = wide_zoom (the two-shot)
 - 9:16 "L" / "R": "face" = that person's face, zoom 1 (the full-height 9:16 window holds one face)
 - 9:16 "stack": "stack" = [[fx, fy] of L, [fx, fy] of R]: assemble.py puts L in the top half and R in the bottom half
@@ -118,6 +119,17 @@ def frame_piece(p, shot, spk, faces, cfg, vertical):
     return p
 
 
+def single_drift(z: float, d: float, cfg: dict, n: int) -> "float | dict":
+    """16:9 single shot: a slow push in (even n) or pull out (odd n) over the whole piece, so a held face keeps a little
+    life (Kamil 2026-11-22: "bardziej sie bawic tymi zoomami ... delikatnie"). The move grows with the piece
+    (drift_per_s) up to single_drift and never goes wider than single_zoom, so the face stays as large as in a still shot.
+    Pieces under drift_min_s stay still: a move that short reads as a jolt."""
+    if d < cfg["drift_min_s"]: return z
+    amt = round(min(cfg["single_drift"], cfg["drift_per_s"] * d), 3)
+    a, b = (z, round(z + amt, 3)) if n % 2 == 0 else (round(z + amt, 3), z)
+    return {"a": a, "b": b, "t0": 0.0, "t1": round(d, 3)}
+
+
 def specs_of(E):
     f = E.get("gfx_specs")
     specs = json.loads(Path(f).read_text()) if f and os.path.isfile(f) else {}
@@ -153,7 +165,7 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
     specs = specs_of(E)
     sides = [] if vertical else card_spans(E, specs)
     behind = [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", []) if (specs.get(o.get("id")) or {}).get("behind")]
-    out, report = [], {"no_face": 0, "behind_on_stack": 0}
+    out, report, drifts = [], {"no_face": 0, "behind_on_stack": 0}, 0
     for s, f0 in zip(segs, starts, strict=True):
         pts = split_points(s, f0, shots)
         for a, b in zip([s["in"], *pts], [*pts, s["out"]], strict=True):
@@ -164,6 +176,8 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
             faces = faces_at((a + b) / 2)
             if not faces: report["no_face"] += 1
             p = frame_piece(p, shot, who, faces, cfg, vertical)
+            if not vertical and p.get("shot") in ("L", "R"):
+                p["zoom"] = single_drift(p["zoom"], timeline.piece_len(p, exact), cfg, drifts); drifts += 1
             if p.get("stack") and any(c0 < fb and fa < c1 for c0, c1 in behind): report["behind_on_stack"] += 1
             out.append(p)
     E = dict(E); E["segments"] = out
