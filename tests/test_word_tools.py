@@ -300,5 +300,19 @@ class ConfirmAudibleTest(unittest.TestCase):
         self.assertEqual(C.confirm_audible(bad, [], [], {}, Path("/nonexistent/assemble.audio.args.json")), (bad, []))
 
 
+class ChunkJsonTest(unittest.TestCase):
+    """chunked_whisper resume: whisper-cli -ojf writes <chunk>.wav.json; the resume check looked only for <chunk>.json, so a
+    restarted run sent every chunk to whisper again (2026-11-22, podcast: 50 of 68 chunks redone)"""
+
+    def test_finds_the_wav_json_that_whisper_writes_and_the_old_name(self):
+        with tempfile.TemporaryDirectory() as t:
+            wav = f"{t}/003_96.154.wav"
+            self.assertIsNone(T.chunk_json(wav))
+            Path(wav[:-4] + ".json").write_text("{}")
+            self.assertEqual(T.chunk_json(wav), Path(wav[:-4] + ".json"))
+            Path(wav + ".json").write_text("{}")
+            self.assertEqual(T.chunk_json(wav), Path(wav + ".json"))  # the whisper-cli name wins over the old one
+
+
 if __name__ == "__main__":
     unittest.main()
