@@ -140,6 +140,30 @@ class PipRenderTest(unittest.TestCase):
                            capture_output=True, text=True, check=True).stdout.strip()
         self.assertEqual(int(n), 120 + 300)  # the film and a 10 s tail to the frame (tpad on a 1/30 time base)
 
+    def test_a_dry_run_goes_through_the_windows_too(self):
+        """2026-11-14 21:04: run_v4.sh DRY=1 of the long passes --dry, which made assemble.py take the one-run path with
+        every card as its own input; that one ffmpeg reached 41.7 GB anon and was killed at the job's 40 GB cap. The dry
+        (proxy) picture must go through the same windows as the full one, every frame kept."""
+        tmp = Path(tempfile.mkdtemp(prefix="dry-win-"))
+        src, card = tmp / "src.mp4", tmp / "card.mov"
+        run("-f", "lavfi", "-i", f"color=c=0x202020:s={self.W}x{self.H}:r=30:d=4", "-f", "lavfi", "-i", "sine=f=220:d=4",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(src))
+        run("-f", "lavfi", "-i", f"color=c=blue:s={self.W}x{self.H}:r=30:d=1.3,format=yuva444p10le", "-c:v", "prores_ks",
+            "-profile:v", "4444", "-pix_fmt", "yuva444p10le", str(card))
+        edl = {"sources": {"A": str(src)}, "w": self.W, "h": self.H, "src_w": self.W, "src_h": self.H, "seg_exact": True,
+               "face": [0.5, 0.42], "out_name": "final.mp4",
+               "segments": [{"src": "A", "in": 0.0, "out": 4.0, "zoom": 1.0, "face": [0.5, 0.42]}],
+               "overlays": [{"file": str(card), "at": 2.6, "dur": 1.3, "id": "c"}]}
+        (tmp / "edl.json").write_text(json.dumps(edl))
+        r = subprocess.run([sys.executable, str(ROOT / "assemble.py"), str(tmp / "edl.json"), str(tmp), "--dry"],
+                           capture_output=True, text=True, check=False, env={**os.environ, "VP_CHUNK_S": "2"})
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertTrue((tmp / "chunks").is_dir(), "the dry picture went through the windows")
+        n = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-count_packets", "-show_entries",
+                            "stream=nb_read_packets", "-of", "csv=p=0", str(tmp / "final.mp4")],
+                           capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(int(n), 120)  # every frame of the 4 s film
+
 
 
 class CornerRenderTest(unittest.TestCase):

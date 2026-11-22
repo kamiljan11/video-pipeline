@@ -357,7 +357,7 @@ function measurePieces() {
   const wr = world.getBoundingClientRect();
   const rects = [...world.querySelectorAll(':scope > .p, :scope > svg.ln')].map((el, i) => {
     if (el.tagName.toLowerCase() === 'svg') return null;
-    const boxes = [el, ...el.querySelectorAll('*')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+    const boxes = [el, ...el.querySelectorAll(':not(.tagl):not(.tagl *)')].map(n => n.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
     if (!boxes.length) return null;
     const x0 = Math.min(...boxes.map(r => r.left)), y0 = Math.min(...boxes.map(r => r.top));
     const x1 = Math.max(...boxes.map(r => r.right)), y1 = Math.max(...boxes.map(r => r.bottom));

@@ -499,9 +499,11 @@ def picture_in_windows():
 
 subprocess.run(aargs, check=True)
 # <out>/chunks/ keeps the windows of the last run (a rerun with the same inputs reuses them); deleting it is always safe.
-# one run when the film fits in one window or for a panel preview; VP_CHUNK_S=0 forces the one run (the old way)
+# one run when the film fits in one window; VP_CHUNK_S=0 forces the one run (the old way). The small picture (--dry,
+# --proxy) goes through the windows too: the card decoders are the same size whatever the output, and the dry long's
+# one run (~100 card inputs) reached 41.7 GB anon and was killed at its 40 GB cap (2026-11-14 21:04)
 CHUNK = float(os.environ.get("VP_CHUNK_S", chunks.CHUNK_S))  # the same window length for the one-run test and the windows
-if PROXY or CHUNK <= 0 or len(chunks.windows(round(body * chunks.FPS), CHUNK)) == 1:
+if CHUNK <= 0 or len(chunks.windows(round(body * chunks.FPS), CHUNK)) == 1:
     subprocess.run(args, check=True)
 else:
     picture_in_windows()
