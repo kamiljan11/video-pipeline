@@ -573,6 +573,8 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
   kawałki cięte przy zmianie ujęcia na siatce klatek.
 - Long 16:9: `wide` na otwarcie i jako przerywnik co najwyżej co `single_max_s`, potem wycinek mówiącego (`single_zoom`);
   „mhm” krótsze niż `backchannel_s` i odpowiedź krótsza niż `hold_s` nie przełączają. Pod kartą boczną nigdy plan szeroki.
+  Wycinek od `drift_min_s` s ma powolny najazd / odjazd na zmianę (`drift_per_s` na sekundę, najwyżej `single_drift`,
+  nigdy szerzej niż `single_zoom`); plan szeroki i 9:16 stoją.
 - Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
   górze, R na dole (`stack_zoom`). Napisy domyślnie `caption_v` 900, na styku paneli.
 - Mówcy: `podcast_spk.json` w folderze EDL (liczy się raz). Poprawka ręczna: `podcast_fix.json` `[[t0, t1, "L"], ...]`
