@@ -157,6 +157,44 @@ class Reframe(unittest.TestCase):
         self.assertFalse(podcast.is_punch({"a": 1.0, "b": 1.05, "t0": 0.0, "t1": 9.0}))
         self.assertTrue(podcast.is_punch({"a": 1.0, "b": 1.0, "t0": 0.0, "t1": 9.0, "keys": [[0, 1.0], [2, 1.2]]}))
 
+    def test_word_punches_go_on_their_piece_and_never_under_a_card(self):  # long.punch in podcast mode
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl()
+        # build_edl podcast: film times; 13 s and 16 s in R's piece, 25 s in L's piece but a side card covers 24-30 s
+        E0["word_punches"] = [{"t": 13.0, "amt": 0.11, "speed": 0.3}, {"t": 16.0, "amt": 0.2, "speed": 0.3},
+                              {"t": 25.0, "amt": 0.11, "speed": 0.3}]
+        E0["punch_off"] = [[24.0, 30.0]]
+        E, _, rep = podcast.reframe(E0, s, w, FACES, CFG)
+        r = next(p for p in E["segments"] if p["shot"] == "R")
+        z0, t13 = CFG["single_zoom"], round(13.0 - r["in"], 3)
+        self.assertEqual(r["zoom"]["keys"][:3], [[0.0, z0], [t13, z0], [round(t13 + 0.3, 3), round(z0 * 1.11, 4)]])
+        self.assertEqual(r["zoom"]["keys"][-1], [round(16.0 - r["in"] + 0.3, 3), round(z0 * 1.2, 4)])
+        self.assertEqual((rep["punches"], rep["punch_under_card"]), (2, 1))
+        last = E["segments"][-1]
+        self.assertFalse(isinstance(last["zoom"], dict) and last["zoom"].get("keys"))  # under the card: the slow drift only
+        self.assertTrue(all(edl_guard.segment_ok(p) for p in E["segments"]))
+        import film_check
+        self.assertEqual(len([t for t in film_check.punches({"segments": [r]})]), 2)  # every keyed push in counts
+
+    def test_a_card_later_in_the_piece_brings_the_shot_back_to_its_level(self):
+        w, s = words_of([("L", 10), ("R", 10), ("L", 10)])
+        E0 = edl()
+        E0["word_punches"] = [{"t": 12.0, "amt": 0.2, "speed": 0.3}]
+        E0["punch_off"] = [[16.0, 19.0]]  # a side card 4 s after the word, inside R's piece
+        E, _, rep = podcast.reframe(E0, s, w, FACES, CFG)
+        r = next(p for p in E["segments"] if p["shot"] == "R")
+        z0, c = CFG["single_zoom"], round(16.0 - r["in"], 3)
+        self.assertEqual(r["zoom"]["keys"][-2:], [[round(c - 0.034, 3), round(z0 * 1.2, 4)], [c, z0]])
+        self.assertEqual(rep["punches"], 1)
+        self.assertTrue(edl_guard.segment_ok(r))
+
+    def test_one_word_punch_is_a_plain_move_and_none_keeps_the_level(self):
+        self.assertEqual(podcast.word_punches(1.8, []), 1.8)
+        self.assertEqual(podcast.word_punches(1.0, [{"t": 2.0, "amt": 0.2, "speed": 0.3}]), {"a": 1.0, "b": 1.2, "t0": 2.0, "t1": 2.3})
+        cap = podcast.word_punches(1.8, [{"t": 2.0, "amt": 0.9, "speed": 0.3}])
+        assert isinstance(cap, dict)
+        self.assertEqual(cap["b"], round(1.8 * podcast.PUNCH_MAX, 4))
+
     def test_shift_zoom_moves_times_or_settles_on_a_level(self):
         z = {"a": 1.0, "b": 1.2, "t0": 5.0, "t1": 5.3}
         self.assertEqual(podcast.shift_zoom(z, 0.0, 10.0), z)

@@ -574,12 +574,18 @@ osoby siedzące obok siebie w jednym szerokim ujęciu. Bez klucza nic się nie z
 - Long 16:9: `wide` na otwarcie i jako przerywnik co najwyżej co `single_max_s`, potem wycinek mówiącego (`single_zoom`);
   „mhm” krótsze niż `backchannel_s` i odpowiedź krótsza niż `hold_s` nie przełączają. Pod kartą boczną nigdy plan szeroki.
   Wycinek od `drift_min_s` s ma powolny najazd / odjazd na zmianę (`drift_per_s` na sekundę, najwyżej `single_drift`,
-  nigdy szerzej niż `single_zoom`); punch-in na słowie (`emph`, ruch < 1 s) zostaje, przeskalowany do poziomu wycinka
-  (1,0 -> 1,12 na planie szerokim = 1,8 -> 2,016 na wycinku); plan szeroki stoi.
+  nigdy szerzej niż `single_zoom`).
+- Punch-iny na słowach (`emph`, `beats`): `build_edl` w trybie podcast nie kładzie ich na swoich kilku długich segmentach
+  (segment trzyma jeden zoom, a punch trzymany do końca 10-minutowego segmentu wszedłby pod każdą kolejną kartę), tylko
+  zapisuje w EDL `word_punches` (czas w filmie, `amt`, `speed`) i `punch_off` (spany kart bocznych, pod którymi zoom nie
+  może jechać). `podcast.py` kładzie je na swoich kawałkach: na słowie skok do poziomu ujęcia i najazd o `amt`
+  (x poziom ujęcia, najwyżej x1,38), trzymany do następnego słowa (powrót na poziom i znowu najazd, klucze `keys`); karta
+  nad słowem albo w `PUNCH_HOLD` s po nim = bez punch-inu, karta dalej w kawałku = powrót na poziom w klatce jej wejścia.
+  Na `stack` nie ma punch-inów. Raport: `punches`, `punch_under_card`; `film_check` liczy każdy najazd z kluczy.
 - Short 9:16: kadr na mówiącego; przy szybkiej wymianie (`stack_switches` zmian w `stack_window_s`) `stack` = osoba L na
   górze, R na dole (`stack_zoom`), ale nigdy pod kartą 9:16 (boks / kółko pod kartą mieści jedną twarz: tam ujęcie
-  mówiącego, raport `stack_under_card`). Ujęcie jednej osoby w 9:16 trzyma zoomy z `build_edl` (punch-iny na słowach, dryf),
-  przesunięte na początek kawałka (`shift_zoom`). Napisy domyślnie `caption_v` 900, na styku paneli.
+  mówiącego, raport `stack_under_card`). Ujęcie jednej osoby w 9:16 trzyma dryf z `build_edl`,
+  przesunięty na początek kawałka (`shift_zoom`), i punch-iny z `word_punches` jak w longu. Napisy domyślnie `caption_v` 900, na styku paneli.
 - Mówcy: `podcast_spk.json` w folderze EDL (liczy się raz). Poprawka ręczna: `podcast_fix.json` `[[t0, t1, "L"], ...]`
   (sekundy nagrania). Po przebiegu: `podcast: N pieces, shots {...}, words without a clear speaker x/y`.
 - Liczby ujęć to dane (`style/podcast.json`), badania: `research/podcast/`. Testy: `tests/test_podcast*.py`.

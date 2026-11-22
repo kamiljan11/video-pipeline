@@ -322,6 +322,11 @@ for k, sg in enumerate(out):
     a, b = (base, base + DRIFT) if flip % 2 == 0 else (base + DRIFT, base)
     sg["zoom"] = {"a": round(a, 3), "b": round(b, 3), "t0": 0.0, "t1": round(d, 3)}; flip += 1
 PUNCHED = set()
+# podcast (ADR-0031): podcast.py cuts the few long segments into pieces at speaker turns and puts the punches on the
+# pieces itself (a segment holds one zoom, and a punch held to the end of a 10 min segment would hit every later card):
+# here only their film times (word_punches) and the spans of the cards no zoom may run under (punch_off)
+PODCAST_PUNCH = P.get("podcast", False) is not False
+WORD_PUNCHES: list[dict] = []
 for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX is not None else EMPH:
     if "word" in em: c = [em["word"]]
     else: c = [i for i in range(max(0, em["near"] - 30), min(len(W), em["near"] + 30)) if em["find"].lower() in W[i][2].lower()]
@@ -331,6 +336,9 @@ for em in sorted(EMPH, key=lambda e: e.get("word", e.get("near", 0))) if BEAT_FX
     for k, sg in enumerate(out):
         if sg["in"] <= t_src <= sg["out"]:
             t_out = acc_e + t_src - sg["in"]; seg_end = acc_e + timeline.piece_len(sg, EXACT)
+            if PODCAST_PUNCH:
+                WORD_PUNCHES.append({"t": round(max(acc_e, t_out - 0.12), 3), "amt": em.get("amt", 0.2), "speed": em.get("speed", 0.3)})
+                print("emph", em.get("find", em.get("word")), "film", round(t_out, 2), "(podcast)"); break
             hit = [o["id"] for o in ovs if side_box(o["id"]) and o["at"] < seg_end and o["at"] + o["dur"] > t_out - 0.2]
             if hit: print("emph skipped (box on screen)", em.get("find", em.get("word")), hit); break
             base = sg["zoom"]["a"] if isinstance(sg["zoom"], dict) else sg["zoom"]
@@ -395,6 +403,9 @@ if isinstance(_tail, bool) or not isinstance(_tail, (int, float)) or not 0 <= _t
 edl = {"name": P.get("name", "montaz"), "sources": {"A": P["src"]}, "segments": out, "overlays": ovs, "face": P.get("face", [0.5, 0.45]),
        "tail": P.get("tail", 0), "w": 2560, "h": 1440, "out_name": P.get("out_name", "final.mp4"), "gfx_specs": P.get("gfx_specs"), "progress": P.get("progress", False), "music_seed": P.get("music_seed", 7),
        **{k: P[k] for k in ("music_db", "music_duck", "sfx_db", "sfx_duck", "audio", "grade", "steady_x", "seg_exact", "sfx_style", "music_moods", "music_palette", "head_track", "gfx_lead", "master", "voice_clean", "corner_halo", "podcast") if k in P}}  # audio / grade: voice / picture filter chains for assemble.py (edl_guard lists); music_duck, sfx_duck: assemble.py; steady_x: face_track; seg_exact: assemble.py; sfx_style, music_moods, music_palette: music/make_beds.py; gfx_lead: film_check long/short.gfx_lead; master: assemble.py -> master_audio.py
+if PODCAST_PUNCH:
+    edl["word_punches"] = sorted(WORD_PUNCHES, key=lambda x: x["t"])
+    edl["punch_off"] = [[round(o["at"], 3), round(o["at"] + o["dur"], 3)] for o in ovs if side_box(o["id"])]
 THEME = themes.load()  # work/theme.json (themes.py): accent for captions here, progress bar + PiP frame in assemble.py
 if THEME is not None:
     edl["theme"] = THEME

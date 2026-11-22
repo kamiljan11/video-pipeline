@@ -148,6 +148,31 @@ def scaled(z, k: float):
     return out
 
 
+PUNCH_HOLD = 1.0  # a punch is seen at least this long on the face before a card may come in over it
+PUNCH_MAX = 1.38  # the tightest punch on the wide shot (build_edl's cap); a single scales it by its own level
+
+
+def word_punches(z: float, hits: list[dict]) -> "float | dict":
+    """the piece's punch-ins (build_edl "word_punches", times from the piece start): on each word the shot jumps back to
+    its own level z and pushes in by amt over speed s, held until the next one (editing grammar: snap back, punch again;
+    the same keys build_edl's beat grammar writes) or until "until", where a card comes in. One punch = a plain move;
+    none = z unchanged"""
+    if not hits: return z
+    def top(amt: float) -> float: return round(min(z * (1 + amt), z * PUNCH_MAX), 4)
+    if len(hits) == 1 and hits[0].get("until") is None:
+        h = hits[0]
+        return {"a": z, "b": top(h["amt"]), "t0": round(h["t"], 3), "t1": round(h["t"] + h["speed"], 3)}
+    keys, cur = [[0.0, z]], z
+    for h in hits:
+        t = max(h["t"], keys[-1][0] + 0.2)
+        if cur != z: keys.append([round(t - 0.034, 3), cur])
+        keys += [[round(t, 3), z], [round(t + h["speed"], 3), top(h["amt"])]]
+        cur = keys[-1][1]
+        if h.get("until") is not None:  # a card comes in: the shot is back on its level on that frame (the card hides the jump)
+            keys += [[round(h["until"] - 0.034, 3), cur], [round(h["until"], 3), z]]; cur = z
+    return {"a": z, "b": max(v for _, v in keys), "t0": keys[1][0], "t1": keys[2][0], "keys": keys}
+
+
 def single_drift(z: float, d: float, cfg: dict, n: int) -> "float | dict":
     """16:9 single shot: a slow push in (even n) or pull out (odd n) over the whole piece, so a held face keeps a little
     life (Kamil 2026-11-22: "bardziej sie bawic tymi zoomami ... delikatnie"). The move grows with the piece
@@ -198,7 +223,8 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
     vcards = [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", [])
               if vertical and (specs.get(o.get("id")) or {}).get("type") != "end"]
     behind = [(o["at"], o["at"] + o["dur"]) for o in E.get("overlays", []) if (specs.get(o.get("id")) or {}).get("behind")]
-    out, report, drifts = [], {"no_face": 0, "behind_on_stack": 0, "stack_under_card": 0}, 0
+    punches, no_punch = E.get("word_punches"), [tuple(x) for x in E.get("punch_off", [])]
+    out, report, drifts = [], {"no_face": 0, "behind_on_stack": 0, "stack_under_card": 0, "punches": 0, "punch_under_card": 0}, 0
     for s, f0 in zip(segs, starts, strict=True):
         pts = split_points(s, f0, shots)
         for a, b in zip([s["in"], *pts], [*pts, s["out"]], strict=True):
@@ -212,7 +238,23 @@ def reframe(E, spk_words, words, faces_by_window, cfg):
             faces = faces_at((a + b) / 2)
             if not faces: report["no_face"] += 1
             p = frame_piece(p, shot, who, faces, cfg, vertical)
-            if not vertical and p.get("shot") in ("L", "R") and is_punch(carried):
+            if punches is not None:  # podcast word punches (build_edl): on this piece, never with a card over the rest of it
+                hits = [] if p.get("stack") else [{**h, "t": h["t"] - fa} for h in punches if fa <= h["t"] < fb - h["speed"]]
+                # a card over the word itself (or the second after it) = no punch; a card later in the piece = back to the level there
+                ok = [h for h in hits if not any(c0 < fa + h["t"] + h["speed"] + PUNCH_HOLD and fa + h["t"] - 0.2 < c1 for c0, c1 in no_punch)]
+                for i, h in enumerate(ok):
+                    end = fa + ok[i + 1]["t"] if i + 1 < len(ok) else fb
+                    cut = [c0 for c0, _ in no_punch if fa + h["t"] < c0 < end]
+                    if cut: h["until"] = round(min(cut) - fa, 3)
+                report["punch_under_card"] += len(hits) - len(ok); report["punches"] += len(ok)
+                if ok:
+                    base = p["zoom"] if isinstance(p["zoom"], (int, float)) else p["zoom"]["a"]
+                    p["zoom"] = word_punches(float(base), ok)
+                elif not vertical and p.get("shot") in ("L", "R"):
+                    p["zoom"] = single_drift(p["zoom"], timeline.piece_len(p, exact), cfg, drifts); drifts += 1
+                elif vertical and p.get("shot") in ("L", "R"):
+                    p["zoom"] = carried  # the slow drift build_edl gave the segment
+            elif not vertical and p.get("shot") in ("L", "R") and is_punch(carried):
                 # the punch build_edl put on a word, on the single's own level (long.punch counts it)
                 p["zoom"] = scaled(carried, cfg["single_zoom"] / carried["a"])
             elif not vertical and p.get("shot") in ("L", "R"):

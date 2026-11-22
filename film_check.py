@@ -177,6 +177,9 @@ def punches(edl: dict) -> list[float]:
     out = []
     for s, acc in zip(edl["segments"], timeline.starts(edl["segments"], exact(edl)), strict=True):
         z = s.get("zoom")
+        if isinstance(z, dict) and z.get("keys"):  # keyed moves (beat grammar, podcast word punches): every quick push in
+            out += [acc + t0 for (t0, v0), (t1, v1) in itertools.pairwise(z["keys"]) if v1 > v0 + 0.05 and t1 - t0 <= 1.0]
+            continue
         # inside the piece, or a fast punch right on its cut (build_edl emph on a word that opens the piece: t0 = 0,
         # 0.3 s; 2026-11-08 s09 counted 1 of its 3 punches); a slow drift over the whole piece is not a punch
         if isinstance(z, dict) and z.get("b", 0) > z.get("a", 0) + 0.1 and (
@@ -198,7 +201,7 @@ def zoom_steps(edl: dict) -> list[float]:
 
 
 NOT_READ = {"id", "type", "icon", "tone", "k", "bg", "anim", "file", "owner", "layout", "cam", "img", "src", "sfx", "font", "mark",
-            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to", "icons"}  # not read text
+            "edl", "words", "behind", "hl", "acc", "theme", "logo", "url", "shot", "meme", "canvas", "side", "on", "from", "to", "icons", "bookend"}  # not read text
 
 
 def read_words(spec) -> int:
